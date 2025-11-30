@@ -112,17 +112,92 @@ haira/
 
 ## Status
 
-🚧 **Early Development** - Specification complete, implementation starting.
+🚧 **Early Development** - Core compiler working, AI integration functional.
+
+### What's Working
+
+- **Lexer & Parser**: Full tokenization and AST generation
+- **Type System**: Structs, functions, primitives, arrays, options
+- **Control Flow**: if/else, for loops, while loops, match expressions
+- **Functions**: Definition, calls, closures, methods
+- **Native Codegen**: Compiles to native binaries via Cranelift
+- **AI Intent Blocks**: Explicit AI-powered function generation
+
+## Quick Start
+
+```bash
+# Build the compiler
+cargo build
+
+# Run a simple program
+./target/debug/haira run examples/hello.haira
+
+# Build to native binary
+./target/debug/haira build examples/hello.haira -o hello
+./hello
+```
+
+## AI Intent Blocks
+
+Haira supports explicit AI-powered function generation using the `ai` block syntax:
+
+```haira
+// AI generates the implementation based on your intent
+ai get_answer() -> int {
+    Return the answer to life, universe, and everything.
+}
+
+ai add(a: int, b: int) -> int {
+    Return the sum of a and b.
+}
+
+ai double(x: int) -> int {
+    Return x times 2.
+}
+
+// Use them like normal functions
+answer = get_answer()  // Returns 42
+sum = add(10, 32)      // Returns 42
+d = double(21)         // Returns 42
+```
+
+### Using with Claude API
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+./target/debug/haira build examples/ai_simple.haira --interpret-ai
+```
+
+### Using with Ollama (Local LLM)
+
+Run AI interpretation locally without an API key:
+
+```bash
+# Start Ollama with a coding model
+ollama run deepseek-coder:6.7b
+
+# Build with local AI
+./target/debug/haira build examples/ai_simple.haira --interpret-ai --ollama
+
+# Use a different model
+./target/debug/haira build examples/ai_simple.haira --interpret-ai --ollama --ollama-model codellama:7b
+```
+
+Recommended models for code generation:
+- `deepseek-coder:6.7b` (default) - Best balance of speed and quality
+- `codellama:7b` - Good alternative
+- `qwen2.5-coder:7b` - Strong reasoning capabilities
 
 ## Requirements
 
 - Rust (for building the compiler)
-- LLVM 17+
-- Anthropic API key (for AI features)
+- For AI features, one of:
+  - Anthropic API key (`ANTHROPIC_API_KEY` environment variable)
+  - Ollama running locally (no API key needed)
 
 ## License
 
-MIT
+Apache-2.0
 
 ---
 

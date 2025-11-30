@@ -1,0 +1,17 @@
+// Function definition test
+add(a, b) {
+    return a + b
+}
+
+multiply(a, b) {
+    return a * b
+}
+
+// Test the functions
+result = add(3, 5)
+print("3 + 5 =")
+print(result)
+
+result2 = multiply(4, 7)
+print("4 * 7 =")
+print(result2)

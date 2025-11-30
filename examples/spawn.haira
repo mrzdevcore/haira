@@ -1,0 +1,41 @@
+// Test spawn concurrency - simple example
+
+// Worker function that runs in a spawned thread
+worker() {
+    print("Worker: Starting work...")
+    sleep(100)
+    print("Worker: Step 1 done")
+    sleep(100)
+    print("Worker: Step 2 done")
+    sleep(100)
+    print("Worker: All done!")
+    return 0
+}
+
+// Another worker
+worker2() {
+    print("Worker2: Starting...")
+    sleep(50)
+    print("Worker2: Quick task done")
+    sleep(150)
+    print("Worker2: Finished!")
+    return 0
+}
+
+print("Main: Starting workers...")
+
+// Spawn workers in background threads
+spawn_fn(worker)
+spawn_fn(worker2)
+
+print("Main: Workers spawned!")
+print("Main: Doing main work...")
+sleep(50)
+print("Main: Main step 1")
+sleep(100)
+print("Main: Main step 2")
+
+// Wait a bit to let workers finish
+sleep(300)
+
+print("Main: All done!")

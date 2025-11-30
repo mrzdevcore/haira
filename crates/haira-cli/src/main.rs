@@ -20,6 +20,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Build a Haira file to a native binary
+    Build {
+        /// Input file
+        file: PathBuf,
+        /// Output file (default: input filename without extension)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Build and run a Haira file
+    Run {
+        /// Input file
+        file: PathBuf,
+    },
+
     /// Parse a Haira file and show the AST
     Parse {
         /// Input file
@@ -66,14 +81,14 @@ fn main() -> miette::Result<()> {
     tracing::subscriber::set_global_default(subscriber).ok();
 
     match cli.command {
+        Commands::Build { file, output } => commands::build::run(&file, output.as_deref()),
+        Commands::Run { file } => commands::run::run(&file),
         Commands::Parse { file, json } => commands::parse::run(&file, json),
         Commands::Check { files } => commands::check::run(&files),
         Commands::Lex { file } => commands::lex::run(&file),
         Commands::Info => commands::info::run(),
-        Commands::Interpret { name, context } => {
-            tokio::runtime::Runtime::new()
-                .unwrap()
-                .block_on(commands::interpret::run(&name, context.as_deref()))
-        }
+        Commands::Interpret { name, context } => tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(commands::interpret::run(&name, context.as_deref())),
     }
 }

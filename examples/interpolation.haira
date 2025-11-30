@@ -1,0 +1,12 @@
+// Test string interpolation
+name = 42
+age = 25
+
+// Simple interpolation
+print("The value is {name}")
+
+// Multiple interpolations
+print("Name: {name}, Age: {age}")
+
+// Expression in interpolation
+print("Sum: {name + age}")

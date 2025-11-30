@@ -1,0 +1,13 @@
+// Simple match test
+classify(n) {
+    result = match n {
+        0 => 100
+        1 => 200
+        _ => 300
+    }
+    return result
+}
+
+print(classify(0))
+print(classify(1))
+print(classify(99))

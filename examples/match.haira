@@ -1,0 +1,32 @@
+// Test match expressions
+x = 2
+
+// Match on integer literals
+result = match x {
+    1 => 10
+    2 => 20
+    3 => 30
+    _ => 0
+}
+print(result)
+
+// Match with variable binding
+y = 5
+matched = match y {
+    n => n * 2
+}
+print(matched)
+
+// Match in a function
+classify(n) {
+    result = match n {
+        0 => 100
+        1 => 200
+        _ => 300
+    }
+    return result
+}
+
+print(classify(0))
+print(classify(1))
+print(classify(99))

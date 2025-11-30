@@ -18,6 +18,44 @@ Thumbs.db
 *.haira.lock
 .haira-cache/
 
+# Compiled Haira executables (no extension)
+/spawn_block
+/hello
+/errors
+/interpolation
+/lambda
+/option
+/pipe
+/concurrency
+/async
+/spawn
+
+# Compiled examples
+examples/async
+examples/concurrency
+examples/errors
+examples/interpolation
+examples/lambda
+examples/option
+examples/pipe
+examples/spawn
+examples/spawn_block
+examples/hello
+examples/fibonacci
+examples/for_loop
+examples/functions
+examples/if_else
+examples/arrays
+examples/methods
+examples/pattern_matching
+examples/structs
+examples/while_loop
+examples/match
+examples/match_simple
+
+# Object files
+*.o
+
 # Environment
 .env
 .env.local

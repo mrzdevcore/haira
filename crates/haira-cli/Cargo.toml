@@ -15,6 +15,7 @@ haira-parser.workspace = true
 haira-ast.workspace = true
 haira-cir.workspace = true
 haira-ai.workspace = true
+haira-codegen.workspace = true
 clap.workspace = true
 tokio.workspace = true
 miette.workspace = true

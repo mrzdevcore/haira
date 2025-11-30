@@ -18,6 +18,17 @@ test:
 # Clean build artifacts
 clean:
 	cargo clean
+	@# Remove compiled Haira executables from root
+	rm -f spawn_block hello errors interpolation lambda option pipe concurrency async spawn
+	@# Remove compiled Haira executables from examples
+	rm -f examples/async examples/concurrency examples/errors examples/interpolation
+	rm -f examples/lambda examples/option examples/pipe examples/spawn examples/spawn_block
+	rm -f examples/hello examples/fibonacci examples/for_loop examples/functions
+	rm -f examples/if_else examples/arrays examples/methods examples/pattern_matching
+	rm -f examples/structs examples/while_loop examples/match examples/match_simple
+	@# Remove object files
+	rm -f *.o examples/*.o
+	@echo "Cleaned all build artifacts"
 
 # Check code without building
 check:

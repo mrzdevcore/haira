@@ -1,0 +1,66 @@
+// Test Option type (none/some)
+
+// 1. Basic none and some
+print("Test 1: Basic none and some")
+x = none
+y = some(42)
+
+print("  x (none):")
+print(x)
+print("  y (some 42):")
+print(y)
+
+// 2. Pattern matching on Option
+print("Test 2: Pattern matching on Option")
+
+check_option(opt) {
+    result = match opt {
+        Some { value } => value
+        None => 0
+    }
+    return result
+}
+
+print("  check_option(some(100)):")
+print(check_option(some(100)))
+
+print("  check_option(none):")
+print(check_option(none))
+
+// 3. Function returning Option
+print("Test 3: Function returning Option")
+
+safe_divide(a, b) {
+    if b == 0 {
+        return none
+    }
+    return some(a / b)
+}
+
+result1 = safe_divide(10, 2)
+print("  safe_divide(10, 2):")
+print(result1)
+
+result2 = safe_divide(10, 0)
+print("  safe_divide(10, 0):")
+print(result2)
+
+// 4. Match on function result
+print("Test 4: Match on function result")
+
+show_result(a, b) {
+    opt = safe_divide(a, b)
+    val = match opt {
+        Some { v } => v
+        None => -1
+    }
+    return val
+}
+
+print("  show_result(20, 4):")
+print(show_result(20, 4))
+
+print("  show_result(20, 0):")
+print(show_result(20, 0))
+
+print("Done!")

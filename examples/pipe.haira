@@ -1,0 +1,40 @@
+// Test pipe operator
+
+// Helper functions
+double(x) {
+    return x * 2
+}
+
+add(x, y) {
+    return x + y
+}
+
+square(x) {
+    return x * x
+}
+
+// 1. Simple pipe
+print("Test 1: Simple pipe")
+result = 5 | double
+print("  5 | double =")
+print(result)
+
+// 2. Pipe with additional argument
+print("Test 2: Pipe with extra argument")
+result = 10 | add(5)
+print("  10 | add(5) =")
+print(result)
+
+// 3. Chained pipes
+print("Test 3: Chained pipes")
+result = 3 | double | square
+print("  3 | double | square =")
+print(result)
+
+// 4. More complex chain
+print("Test 4: Complex chain")
+result = 2 | add(3) | double | square
+print("  2 | add(3) | double | square =")
+print(result)
+
+print("Done!")

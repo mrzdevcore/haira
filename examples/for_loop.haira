@@ -1,0 +1,6 @@
+// For loop test
+print("Counting from 1 to 5:")
+for i in 1..6 {
+    print(i)
+}
+print("Done!")

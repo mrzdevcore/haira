@@ -1,0 +1,51 @@
+// Test error handling
+
+// 1. Simple try/catch without error
+print("Test 1: try/catch without error")
+try {
+    print("  In try block - no error")
+} catch e {
+    print("  Should not get here")
+}
+print("  After try/catch")
+
+// 2. Function that returns with error
+may_fail(should_fail) {
+    if should_fail == 1 {
+        x = err(42)
+        return 0
+    }
+    return 100
+}
+
+print("Test 2: Function that can fail")
+try {
+    result = may_fail(0)
+    print("  First call succeeded:")
+    print(result)
+
+    result2 = may_fail(1)
+    print("  Second call - should catch error")
+} catch e {
+    print("  Caught error code:")
+    print(e)
+}
+print("  After try/catch")
+
+// 3. Nested try/catch
+print("Test 3: Nested try/catch")
+try {
+    print("  Outer try")
+    try {
+        print("  Inner try")
+        x = err(99)
+    } catch inner_err {
+        print("  Inner caught:")
+        print(inner_err)
+    }
+    print("  Back to outer")
+} catch outer_err {
+    print("  Outer caught - should not get here")
+}
+
+print("Done!")

@@ -1,0 +1,25 @@
+// Test spawn { } block syntax
+// Spawn blocks run code in a separate thread
+
+print("Starting spawn block test")
+
+// Spawn a block to run in parallel
+spawn {
+    print("Spawned: Task 1 starting")
+    sleep(100)
+    print("Spawned: Task 1 done")
+}
+
+// Spawn another block
+spawn {
+    print("Spawned: Task 2 starting")
+    sleep(50)
+    print("Spawned: Task 2 done")
+}
+
+print("Main: Spawned both tasks")
+
+// Wait for spawned tasks to complete
+sleep(200)
+
+print("Main: Done")

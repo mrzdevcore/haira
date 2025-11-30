@@ -1,0 +1,48 @@
+// Test higher-order functions (lambdas not yet fully supported)
+// For now, use regular named functions
+
+// Helper functions
+double(x) {
+    return x * 2
+}
+
+add_one(x) {
+    return x + 1
+}
+
+square(x) {
+    return x * x
+}
+
+// Higher-order function that calls a function twice
+apply_twice(x) {
+    // Apply add_one twice
+    temp = add_one(x)
+    return add_one(temp)
+}
+
+// Test 1: Simple function composition
+print("Test 1: Function composition")
+result = double(5)
+print("  double(5) =")
+print(result)
+
+// Test 2: Chain of functions
+print("Test 2: Chain of functions")
+result = square(double(3))
+print("  square(double(3)) =")
+print(result)
+
+// Test 3: Using apply_twice
+print("Test 3: apply_twice")
+result = apply_twice(5)
+print("  apply_twice(5) with add_one =")
+print(result)
+
+// Test 4: Using pipes for functional style
+print("Test 4: Pipes for functional style")
+result = 3 | double | square | add_one
+print("  3 | double | square | add_one =")
+print(result)
+
+print("Done!")

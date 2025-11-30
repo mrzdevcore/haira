@@ -10,23 +10,25 @@ use crate::error::ParseError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Precedence {
     None,
-    Assignment,  // =
-    Pipe,        // |
-    Or,          // or
-    And,         // and
-    Equality,    // == !=
-    Comparison,  // < > <= >=
-    Term,        // + -
-    Factor,      // * / %
-    Unary,       // - not
-    Call,        // () [] .
+    Assignment, // =
+    Pipe,       // |
+    Or,         // or
+    And,        // and
+    Equality,   // == !=
+    Comparison, // < > <= >=
+    Term,       // + -
+    Factor,     // * / %
+    Unary,      // - not
+    Call,       // () [] .
     Primary,
 }
 
 impl Precedence {
     fn of(kind: &TokenKind) -> Self {
         match kind {
-            TokenKind::Eq => Precedence::Assignment,
+            // Note: TokenKind::Eq (assignment) is NOT included here because
+            // assignment is handled at the statement level, not as an expression.
+            // Including it here would cause an infinite loop in parse_expr_precedence.
             TokenKind::Pipe => Precedence::Pipe,
             TokenKind::Or => Precedence::Or,
             TokenKind::And => Precedence::And,
@@ -202,10 +204,7 @@ impl<'source> Parser<'source> {
                         // while function calls end with `)`.
                         //
                         // We'll parse the parens and then check what follows.
-                        let expr = Spanned::new(
-                            ExprKind::Identifier(name.node.clone()),
-                            name.span,
-                        );
+                        let expr = Spanned::new(ExprKind::Identifier(name.node.clone()), name.span);
 
                         // Try to parse it as a call expression
                         let call_expr = self.parse_infix(expr, Precedence::None)?;
@@ -240,16 +239,15 @@ impl<'source> Parser<'source> {
                             } else {
                                 // Not a call expression, can't be a function def
                                 self.error(ParseError::ExpectedStatement {
-                                    span: call_expr.span.start as usize..call_expr.span.end as usize,
+                                    span: call_expr.span.start as usize
+                                        ..call_expr.span.end as usize,
                                 });
                                 None
                             }
                         } else {
                             // This is an expression statement (function call)
-                            let stmt = Spanned::new(
-                                StatementKind::Expr(call_expr),
-                                self.span(start),
-                            );
+                            let stmt =
+                                Spanned::new(StatementKind::Expr(call_expr), self.span(start));
                             Some(Spanned::new(ItemKind::Statement(stmt), self.span(start)))
                         }
                     }
@@ -260,22 +258,30 @@ impl<'source> Parser<'source> {
                         let method = self.parse_method_def_body(name, method_name)?;
                         Some(Spanned::new(ItemKind::MethodDef(method), self.span(start)))
                     }
-                    // Type alias: `UserId = int`
+                    // Type alias: `UserId = int` OR assignment: `x = 10`
+                    // Type aliases have uppercase first letter, assignments have lowercase
                     TokenKind::Eq => {
-                        self.advance(); // consume =
-                        let ty = self.parse_type()?;
-                        Some(Spanned::new(
-                            ItemKind::TypeAlias(TypeAlias { name, ty }),
-                            self.span(start),
-                        ))
+                        let first_char = name.node.chars().next().unwrap_or('a');
+                        if first_char.is_uppercase() {
+                            // Type alias
+                            self.advance(); // consume =
+                            let ty = self.parse_type()?;
+                            Some(Spanned::new(
+                                ItemKind::TypeAlias(TypeAlias { name, ty }),
+                                self.span(start),
+                            ))
+                        } else {
+                            // Variable assignment - parse as statement
+                            let expr =
+                                Spanned::new(ExprKind::Identifier(name.node.clone()), name.span);
+                            let stmt = self.parse_statement_rest(expr)?;
+                            Some(Spanned::new(ItemKind::Statement(stmt), self.span(start)))
+                        }
                     }
                     // Otherwise it's a statement starting with an identifier
                     _ => {
                         // Put the name back as an expression
-                        let expr = Spanned::new(
-                            ExprKind::Identifier(name.node.clone()),
-                            name.span,
-                        );
+                        let expr = Spanned::new(ExprKind::Identifier(name.node.clone()), name.span);
                         let stmt = self.parse_statement_rest(expr)?;
                         Some(Spanned::new(ItemKind::Statement(stmt), self.span(start)))
                     }
@@ -289,7 +295,9 @@ impl<'source> Parser<'source> {
             | TokenKind::Match
             | TokenKind::Try
             | TokenKind::Break
-            | TokenKind::Continue => {
+            | TokenKind::Continue
+            | TokenKind::Spawn
+            | TokenKind::Async => {
                 let stmt = self.parse_statement()?;
                 let span = stmt.span.clone();
                 Some(Spanned::new(ItemKind::Statement(stmt), span))
@@ -307,11 +315,7 @@ impl<'source> Parser<'source> {
     // Type definitions
     // ========================================================================
 
-    fn parse_type_def_body(
-        &mut self,
-        is_public: bool,
-        name: Spanned<SmolStr>,
-    ) -> Option<TypeDef> {
+    fn parse_type_def_body(&mut self, is_public: bool, name: Spanned<SmolStr>) -> Option<TypeDef> {
         self.consume(TokenKind::LBrace, "{");
         self.skip_newlines();
 
@@ -640,6 +644,11 @@ impl<'source> Parser<'source> {
                 self.advance();
                 StatementKind::Continue
             }
+            TokenKind::Spawn | TokenKind::Async => {
+                // Spawn and Async are parsed as expressions
+                let expr = self.parse_expr()?;
+                return self.parse_statement_rest(expr);
+            }
             _ => {
                 let expr = self.parse_expr()?;
                 return self.parse_statement_rest(expr);
@@ -770,10 +779,7 @@ impl<'source> Parser<'source> {
 
     fn parse_return_statement(&mut self) -> Option<ReturnStatement> {
         // Check if there are values to return
-        if self.check(&TokenKind::Newline)
-            || self.check(&TokenKind::RBrace)
-            || self.at_end()
-        {
+        if self.check(&TokenKind::Newline) || self.check(&TokenKind::RBrace) || self.at_end() {
             return Some(ReturnStatement { values: Vec::new() });
         }
 
@@ -882,6 +888,15 @@ impl<'source> Parser<'source> {
                     self.span(start),
                 ))
             }
+            TokenKind::InterpolatedString(s) => {
+                let s = s.clone();
+                self.advance();
+                let parts = self.parse_interpolated_string_parts(&s)?;
+                Some(Spanned::new(
+                    ExprKind::Literal(Literal::InterpolatedString(parts)),
+                    self.span(start),
+                ))
+            }
             TokenKind::True => {
                 self.advance();
                 Some(Spanned::new(
@@ -936,7 +951,9 @@ impl<'source> Parser<'source> {
                 }
 
                 // Check for type instantiation: `User { ... }`
-                if self.check(&TokenKind::LBrace) {
+                // Only treat as instance if the name starts with uppercase (type name convention)
+                let first_char = name.chars().next().unwrap_or('a');
+                if first_char.is_uppercase() && self.check(&TokenKind::LBrace) {
                     return self.parse_instance(name, start);
                 }
 
@@ -1012,6 +1029,54 @@ impl<'source> Parser<'source> {
                 self.advance();
                 let select = self.parse_select_expr()?;
                 Some(Spanned::new(ExprKind::Select(select), self.span(start)))
+            }
+
+            // err(...) expression - treat as a call
+            TokenKind::Err => {
+                self.advance();
+                // Create identifier "err"
+                let callee =
+                    Spanned::new(ExprKind::Identifier(SmolStr::from("err")), self.span(start));
+
+                // Parse arguments if present
+                if self.check(&TokenKind::LParen) {
+                    self.advance();
+                    let mut args = Vec::new();
+
+                    if !self.check(&TokenKind::RParen) {
+                        loop {
+                            let arg_start = self.current.span.start;
+                            let value = self.parse_expr()?;
+                            args.push(Argument {
+                                name: None,
+                                value,
+                                span: self.span(arg_start),
+                            });
+                            if !self.check(&TokenKind::Comma) {
+                                break;
+                            }
+                            self.advance();
+                        }
+                    }
+                    self.consume(TokenKind::RParen, ")");
+
+                    Some(Spanned::new(
+                        ExprKind::Call(CallExpr {
+                            callee: Box::new(callee),
+                            args,
+                        }),
+                        self.span(start),
+                    ))
+                } else {
+                    // Just `err` without parens - treat as call with no args
+                    Some(Spanned::new(
+                        ExprKind::Call(CallExpr {
+                            callee: Box::new(callee),
+                            args: vec![],
+                        }),
+                        self.span(start),
+                    ))
+                }
             }
 
             _ => {
@@ -1199,10 +1264,7 @@ impl<'source> Parser<'source> {
                 } else {
                     // Not a named argument, put it back
                     // We need to re-parse this as an expression
-                    let value = Spanned::new(
-                        ExprKind::Identifier(ident.node),
-                        ident.span,
-                    );
+                    let value = Spanned::new(ExprKind::Identifier(ident.node), ident.span);
                     let value = self.parse_infix(value, Precedence::None)?;
                     args.push(Argument {
                         name: None,
@@ -1337,7 +1399,10 @@ impl<'source> Parser<'source> {
         }
 
         // Just a parenthesized expression
-        Some(Spanned::new(ExprKind::Paren(Box::new(first)), self.span(start)))
+        Some(Spanned::new(
+            ExprKind::Paren(Box::new(first)),
+            self.span(start),
+        ))
     }
 
     fn expr_to_param(&mut self, expr: Expr) -> Option<Param> {
@@ -1414,10 +1479,7 @@ impl<'source> Parser<'source> {
         }
 
         // It's a block - convert first_expr to a statement
-        let first_stmt = Spanned::new(
-            StatementKind::Expr(first_expr),
-            self.span(start),
-        );
+        let first_stmt = Spanned::new(StatementKind::Expr(first_expr), self.span(start));
         let mut statements = vec![first_stmt];
 
         self.skip_newlines();
@@ -1458,10 +1520,7 @@ impl<'source> Parser<'source> {
                     Some(ident)
                 } else {
                     // Positional field - the identifier itself is the value
-                    let value = Spanned::new(
-                        ExprKind::Identifier(ident.node),
-                        ident.span,
-                    );
+                    let value = Spanned::new(ExprKind::Identifier(ident.node), ident.span);
                     fields.push(InstanceField {
                         name: None,
                         value,
@@ -1684,6 +1743,82 @@ impl<'source> Parser<'source> {
             }
         }
     }
+
+    /// Parse an interpolated string into parts.
+    /// Input is the raw string content (without quotes) containing `{expr}` sequences.
+    fn parse_interpolated_string_parts(&mut self, raw: &str) -> Option<Vec<StringPart>> {
+        let mut parts = Vec::new();
+        let mut current_literal = String::new();
+        let mut chars = raw.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                // Handle escape sequences
+                match chars.next() {
+                    Some('n') => current_literal.push('\n'),
+                    Some('t') => current_literal.push('\t'),
+                    Some('r') => current_literal.push('\r'),
+                    Some('\\') => current_literal.push('\\'),
+                    Some('"') => current_literal.push('"'),
+                    Some('{') => current_literal.push('{'),
+                    Some('}') => current_literal.push('}'),
+                    Some(other) => {
+                        current_literal.push('\\');
+                        current_literal.push(other);
+                    }
+                    None => current_literal.push('\\'),
+                }
+            } else if c == '{' {
+                // Start of interpolation - save current literal if not empty
+                if !current_literal.is_empty() {
+                    parts.push(StringPart::Literal(SmolStr::from(&current_literal)));
+                    current_literal.clear();
+                }
+
+                // Extract the expression inside braces
+                let mut expr_str = String::new();
+                let mut brace_depth = 1;
+
+                while let Some(ec) = chars.next() {
+                    if ec == '{' {
+                        brace_depth += 1;
+                        expr_str.push(ec);
+                    } else if ec == '}' {
+                        brace_depth -= 1;
+                        if brace_depth == 0 {
+                            break;
+                        }
+                        expr_str.push(ec);
+                    } else {
+                        expr_str.push(ec);
+                    }
+                }
+
+                // Parse the expression
+                if !expr_str.is_empty() {
+                    let mut expr_parser = Parser::new(&expr_str);
+                    if let Some(expr) = expr_parser.parse_expr() {
+                        parts.push(StringPart::Expr(expr));
+                    } else {
+                        // If parsing fails, treat it as literal
+                        self.error(ParseError::ExpectedExpr {
+                            span: self.current.span.clone(),
+                        });
+                        return None;
+                    }
+                }
+            } else {
+                current_literal.push(c);
+            }
+        }
+
+        // Add any remaining literal
+        if !current_literal.is_empty() {
+            parts.push(StringPart::Literal(SmolStr::from(&current_literal)));
+        }
+
+        Some(parts)
+    }
 }
 
 #[cfg(test)]
@@ -1739,12 +1874,10 @@ mod tests {
         let ast = parse("x = users | filter_active | sort_by_name");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => {
-                match &assign.value.node {
-                    ExprKind::Pipe(_) => {}
-                    _ => panic!("expected pipe"),
-                }
-            }
+            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
+                ExprKind::Pipe(_) => {}
+                _ => panic!("expected pipe"),
+            },
             _ => panic!("expected assignment"),
         }
     }
@@ -1754,18 +1887,16 @@ mod tests {
         let ast = parse("f = x => x * 2");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => {
-                match &assign.value.node {
-                    ExprKind::Lambda(lambda) => {
-                        assert_eq!(lambda.params.len(), 1);
-                        match &lambda.body {
-                            LambdaBody::Expr(_) => {}
-                            _ => panic!("expected expr body"),
-                        }
+            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
+                ExprKind::Lambda(lambda) => {
+                    assert_eq!(lambda.params.len(), 1);
+                    match &lambda.body {
+                        LambdaBody::Expr(_) => {}
+                        _ => panic!("expected expr body"),
                     }
-                    _ => panic!("expected lambda"),
                 }
-            }
+                _ => panic!("expected lambda"),
+            },
             _ => panic!("expected assignment"),
         }
     }
@@ -1775,18 +1906,16 @@ mod tests {
         let ast = parse("f = (a, b) { a + b }");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => {
-                match &assign.value.node {
-                    ExprKind::Lambda(lambda) => {
-                        assert_eq!(lambda.params.len(), 2);
-                        match &lambda.body {
-                            LambdaBody::Block(_) => {}
-                            _ => panic!("expected block body"),
-                        }
+            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
+                ExprKind::Lambda(lambda) => {
+                    assert_eq!(lambda.params.len(), 2);
+                    match &lambda.body {
+                        LambdaBody::Block(_) => {}
+                        _ => panic!("expected block body"),
                     }
-                    _ => panic!("expected lambda"),
                 }
-            }
+                _ => panic!("expected lambda"),
+            },
             _ => panic!("expected assignment"),
         }
     }
@@ -1796,15 +1925,13 @@ mod tests {
         let ast = parse(r#"user = User { name = "Alice", age = 30 }"#);
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => {
-                match &assign.value.node {
-                    ExprKind::Instance(inst) => {
-                        assert_eq!(inst.type_name.node.as_str(), "User");
-                        assert_eq!(inst.fields.len(), 2);
-                    }
-                    _ => panic!("expected instance"),
+            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
+                ExprKind::Instance(inst) => {
+                    assert_eq!(inst.type_name.node.as_str(), "User");
+                    assert_eq!(inst.fields.len(), 2);
                 }
-            }
+                _ => panic!("expected instance"),
+            },
             _ => panic!("expected assignment"),
         }
     }
@@ -1814,14 +1941,12 @@ mod tests {
         let ast = parse("for item in items { print(item) }");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::For(for_stmt)) => {
-                match &for_stmt.pattern {
-                    ForPattern::Single(name) => {
-                        assert_eq!(name.node.as_str(), "item");
-                    }
-                    _ => panic!("expected single pattern"),
+            ItemKind::Statement(StatementKind::For(for_stmt)) => match &for_stmt.pattern {
+                ForPattern::Single(name) => {
+                    assert_eq!(name.node.as_str(), "item");
                 }
-            }
+                _ => panic!("expected single pattern"),
+            },
             _ => panic!("expected for"),
         }
     }
@@ -1831,24 +1956,24 @@ mod tests {
         let ast = parse("result = get_user(id)?");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => {
-                match &assign.value.node {
-                    ExprKind::Propagate(_) => {}
-                    _ => panic!("expected propagate"),
-                }
-            }
+            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
+                ExprKind::Propagate(_) => {}
+                _ => panic!("expected propagate"),
+            },
             _ => panic!("expected assignment"),
         }
     }
 
     #[test]
     fn test_match_expression() {
-        let ast = parse(r#"
+        let ast = parse(
+            r#"
             match x {
                 0 => "zero"
                 n => "other"
             }
-        "#);
+        "#,
+        );
         assert_eq!(ast.items.len(), 1);
     }
 }

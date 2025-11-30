@@ -18,7 +18,7 @@ impl Token {
 
 /// Token kinds for Haira.
 #[derive(Logos, Debug, Clone, PartialEq)]
-#[logos(skip r"[ \t]+")]  // Skip spaces and tabs
+#[logos(skip r"[ \t]+")] // Skip spaces and tabs
 pub enum TokenKind {
     // ========================================================================
     // Keywords
@@ -156,9 +156,14 @@ pub enum TokenKind {
     #[regex(r"[0-9][0-9_]*\.[0-9][0-9_]*", |lex| parse_float(lex.slice()))]
     Float(f64),
 
-    /// String literal (simple, no interpolation yet)
-    #[regex(r#""([^"\\]|\\.)*""#, |lex| parse_string(lex.slice()))]
+    /// String literal (simple strings without interpolation)
+    #[regex(r#""([^"\\{]|\\.)*""#, |lex| parse_string(lex.slice()))]
     String(SmolStr),
+
+    /// Interpolated string literal (contains `{...}` expressions)
+    /// We match strings that contain `{` and parse them specially
+    #[regex(r#""([^"\\]|\\.)*""#, |lex| parse_interpolated_string(lex.slice()), priority = 1)]
+    InterpolatedString(SmolStr),
 
     /// Identifier
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| SmolStr::from(lex.slice()))]
@@ -227,6 +232,7 @@ impl TokenKind {
             TokenKind::Int(_)
                 | TokenKind::Float(_)
                 | TokenKind::String(_)
+                | TokenKind::InterpolatedString(_)
                 | TokenKind::True
                 | TokenKind::False
                 | TokenKind::None
@@ -285,6 +291,7 @@ fn parse_string(s: &str) -> Option<SmolStr> {
                 Some('\\') => result.push('\\'),
                 Some('"') => result.push('"'),
                 Some('{') => result.push('{'),
+                Some('}') => result.push('}'),
                 Some(c) => {
                     result.push('\\');
                     result.push(c);
@@ -297,6 +304,33 @@ fn parse_string(s: &str) -> Option<SmolStr> {
     }
 
     Some(SmolStr::from(result))
+}
+
+/// Parse an interpolated string, keeping the raw content for the parser to process.
+/// Returns None if the string doesn't contain interpolation (handled by simple String).
+fn parse_interpolated_string(s: &str) -> Option<SmolStr> {
+    // Check if string contains unescaped `{`
+    let inner = s.strip_prefix('"')?.strip_suffix('"')?;
+
+    let mut has_interpolation = false;
+    let mut chars = inner.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            // Skip escaped character
+            chars.next();
+        } else if c == '{' {
+            has_interpolation = true;
+            break;
+        }
+    }
+
+    if has_interpolation {
+        // Return the raw content (without quotes) for the parser to process
+        Some(SmolStr::from(inner))
+    } else {
+        // This shouldn't happen due to regex priority, but handle it
+        None
+    }
 }
 
 fn skip_block_comment(lex: &mut logos::Lexer<TokenKind>) -> logos::Skip {
@@ -366,16 +400,28 @@ mod tests {
     #[test]
     fn test_strings() {
         let mut lex = TokenKind::lexer(r#""hello" "world\n""#);
-        assert_eq!(lex.next(), Some(Ok(TokenKind::String(SmolStr::from("hello")))));
-        assert_eq!(lex.next(), Some(Ok(TokenKind::String(SmolStr::from("world\n")))));
+        assert_eq!(
+            lex.next(),
+            Some(Ok(TokenKind::String(SmolStr::from("hello"))))
+        );
+        assert_eq!(
+            lex.next(),
+            Some(Ok(TokenKind::String(SmolStr::from("world\n"))))
+        );
     }
 
     #[test]
     fn test_identifiers() {
         let mut lex = TokenKind::lexer("foo bar_baz _private");
         assert_eq!(lex.next(), Some(Ok(TokenKind::Ident(SmolStr::from("foo")))));
-        assert_eq!(lex.next(), Some(Ok(TokenKind::Ident(SmolStr::from("bar_baz")))));
-        assert_eq!(lex.next(), Some(Ok(TokenKind::Ident(SmolStr::from("_private")))));
+        assert_eq!(
+            lex.next(),
+            Some(Ok(TokenKind::Ident(SmolStr::from("bar_baz"))))
+        );
+        assert_eq!(
+            lex.next(),
+            Some(Ok(TokenKind::Ident(SmolStr::from("_private"))))
+        );
     }
 
     #[test]

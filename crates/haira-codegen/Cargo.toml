@@ -7,4 +7,15 @@ description = "Code generation for the Haira programming language"
 
 [dependencies]
 haira-mir.workspace = true
+haira-ast.workspace = true
+haira-types.workspace = true
 thiserror.workspace = true
+smol_str.workspace = true
+
+# Cranelift for native code generation
+cranelift = "0.113"
+cranelift-module = "0.113"
+cranelift-object = "0.113"
+cranelift-native = "0.113"
+cranelift-frontend = "0.113"
+target-lexicon = "0.12"

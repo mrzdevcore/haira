@@ -1,0 +1,52 @@
+// Test async-style concurrency
+// Note: Full async { } blocks require closures which are not yet implemented
+// This example demonstrates concurrent execution patterns
+
+// Independent tasks that print their progress
+fast_task() {
+    print("FastTask: Start")
+    sleep(30)
+    print("FastTask: 33%")
+    sleep(30)
+    print("FastTask: 66%")
+    sleep(30)
+    print("FastTask: Complete!")
+    return 0
+}
+
+medium_task() {
+    print("MediumTask: Start")
+    sleep(75)
+    print("MediumTask: 50%")
+    sleep(75)
+    print("MediumTask: Complete!")
+    return 0
+}
+
+slow_task() {
+    print("SlowTask: Start")
+    sleep(200)
+    print("SlowTask: Complete!")
+    return 0
+}
+
+print("=== Concurrent Task Execution ===")
+print("")
+
+// Sequential execution (for comparison timing)
+print("If run sequentially, this would take ~90+150+200 = 440ms")
+print("")
+
+// Concurrent execution
+print("Starting all tasks concurrently...")
+spawn_fn(fast_task)
+spawn_fn(medium_task)
+spawn_fn(slow_task)
+
+// Wait for slowest task plus buffer
+print("Main: Waiting for all tasks...")
+sleep(250)
+
+print("")
+print("=== All Tasks Completed ===")
+print("Total time: ~200ms (limited by slowest task)")

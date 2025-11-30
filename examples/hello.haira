@@ -1,2 +1,8 @@
 // Hello World in Haira
 print("Hello, World!")
+
+User { name, age, email }
+
+rakoto = User { name: "Rakoto", age: 30, email: "rakoto@example.com" }
+
+rakoto.printInfo()

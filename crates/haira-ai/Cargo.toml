@@ -1,0 +1,21 @@
+[package]
+name = "haira-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "AI (Claude) integration for Haira intent interpretation"
+
+[dependencies]
+haira-cir.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+sha2 = "0.10"
+base64 = "0.21"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

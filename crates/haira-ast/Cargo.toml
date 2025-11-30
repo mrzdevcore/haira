@@ -1,0 +1,15 @@
+[package]
+name = "haira-ast"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Abstract Syntax Tree definitions for the Haira programming language"
+
+[dependencies]
+smol_str.workspace = true
+la-arena.workspace = true
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+serde = ["dep:serde", "smol_str/serde"]

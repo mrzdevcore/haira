@@ -38,7 +38,7 @@ rustc-hash = "1.1"
 smol_str = "0.2"
 la-arena = "0.3"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # HTTP/Async for AI integration
 reqwest = { version = "0.11", features = ["json"] }

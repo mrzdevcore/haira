@@ -1,0 +1,13 @@
+[package]
+name = "haira-hir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "High-level IR for the Haira programming language"
+
+[dependencies]
+haira-ast.workspace = true
+haira-types.workspace = true
+thiserror.workspace = true
+smol_str.workspace = true
+la-arena.workspace = true

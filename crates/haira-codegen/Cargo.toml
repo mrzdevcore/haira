@@ -1,0 +1,10 @@
+[package]
+name = "haira-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Code generation for the Haira programming language"
+
+[dependencies]
+haira-mir.workspace = true
+thiserror.workspace = true

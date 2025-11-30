@@ -1,0 +1,12 @@
+[package]
+name = "haira-cir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Canonical Intermediate Representation for AI-generated code in Haira"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true

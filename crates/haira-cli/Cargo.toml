@@ -1,0 +1,23 @@
+[package]
+name = "haira-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line interface for the Haira programming language"
+
+[[bin]]
+name = "haira"
+path = "src/main.rs"
+
+[dependencies]
+haira-lexer.workspace = true
+haira-parser.workspace = true
+haira-ast.workspace = true
+haira-cir.workspace = true
+haira-ai.workspace = true
+clap.workspace = true
+tokio.workspace = true
+miette.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true

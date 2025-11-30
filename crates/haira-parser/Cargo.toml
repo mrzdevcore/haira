@@ -1,0 +1,15 @@
+[package]
+name = "haira-parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Parser for the Haira programming language"
+
+[dependencies]
+haira-lexer.workspace = true
+haira-ast.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta = "1.34"

@@ -1,0 +1,22 @@
+[package]
+name = "haira-driver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Compiler driver for the Haira programming language"
+
+[dependencies]
+haira-lexer.workspace = true
+haira-parser.workspace = true
+haira-ast.workspace = true
+haira-resolver.workspace = true
+haira-types.workspace = true
+haira-hir.workspace = true
+haira-mir.workspace = true
+haira-ai.workspace = true
+haira-cir.workspace = true
+haira-codegen.workspace = true
+thiserror.workspace = true
+miette.workspace = true
+tokio.workspace = true
+tracing.workspace = true

@@ -1,0 +1,11 @@
+[package]
+name = "haira-mir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Mid-level IR for the Haira programming language"
+
+[dependencies]
+haira-types.workspace = true
+thiserror.workspace = true
+smol_str.workspace = true

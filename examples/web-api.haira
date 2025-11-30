@@ -1,0 +1,193 @@
+// Web API Example
+// A complete REST API with users and posts
+
+// Schema definitions
+User { id, name, email, active, created_at }
+Post { id, title, body, author: User, published, created_at }
+Comment { id, text, post: Post, user: User }
+
+// Configuration
+Config {
+    port = env("PORT") or 8080
+    db_url = env("DATABASE_URL")
+    debug = env("DEBUG") or false
+}
+
+// Authentication helper
+Session { user: User, token, expires_at }
+
+authenticate(token) {
+    if not token {
+        return err("missing token")
+    }
+    session = get_session_by_token(token)?
+    if session.expires_at < now() {
+        delete_session(session)
+        return err("session expired")
+    }
+    session.user, ok
+}
+
+require_auth() {
+    token = header("Authorization")
+    authenticate(token)
+}
+
+// Server setup
+server = Server { port = Config.port }
+
+routes {
+    // Public endpoints
+    get("/health") {
+        json({ status: "ok", timestamp: now() })
+    }
+
+    post("/login") {
+        data = body()
+        user = get_user_by_email(data.email)?
+
+        if not verify_password(data.password, user) {
+            return error(401, "invalid credentials")
+        }
+
+        session = Session {
+            user = user
+            token = random_string(32)
+            expires_at = now() + hours(24)
+        }
+        save_session(session)
+
+        json({ token: session.token, user: user })
+    }
+
+    post("/register") {
+        data = body()
+
+        existing = get_user_by_email(data.email)
+        if existing {
+            return error(400, "email already registered")
+        }
+
+        user = User {
+            name = data.name
+            email = data.email
+            active = true
+            created_at = now()
+        }
+        save_user(user)
+
+        json(user, status: 201)
+    }
+
+    // User endpoints
+    get("/users") {
+        users = get_active_users()
+            | sort_by_name
+            | take(100)
+        json(users)
+    }
+
+    get("/users/:id") {
+        user = get_user_by_id(params.id)?
+        posts = get_posts_by_author(user)
+            | filter_published
+            | sort_by_created_at
+            | take(10)
+        json({ user: user, recent_posts: posts })
+    }
+
+    // Post endpoints (protected)
+    get("/posts") {
+        page = query.page or 1
+        limit = query.limit or 20
+
+        posts = get_published_posts()
+            | sort_by_created_at
+            | skip((page - 1) * limit)
+            | take(limit)
+
+        total = count_published_posts()
+
+        json({
+            posts: posts
+            page: page
+            total: total
+            pages: (total / limit).ceil
+        })
+    }
+
+    get("/posts/:id") {
+        post = get_post_by_id(params.id)?
+        comments = get_comments_by_post(post)
+            | sort_by_created_at
+        json({ post: post, comments: comments })
+    }
+
+    post("/posts") {
+        user = require_auth()?
+        data = body()
+
+        post = Post {
+            title = data.title
+            body = data.body
+            author = user
+            published = false
+            created_at = now()
+        }
+        save_post(post)
+
+        json(post, status: 201)
+    }
+
+    put("/posts/:id") {
+        user = require_auth()?
+        post = get_post_by_id(params.id)?
+
+        if post.author.id != user.id {
+            return error(403, "not your post")
+        }
+
+        data = body()
+        post.title = data.title or post.title
+        post.body = data.body or post.body
+        post.published = data.published or post.published
+
+        update_post(post)
+        json(post)
+    }
+
+    delete("/posts/:id") {
+        user = require_auth()?
+        post = get_post_by_id(params.id)?
+
+        if post.author.id != user.id {
+            return error(403, "not your post")
+        }
+
+        delete_post(post)
+        json({ deleted: true })
+    }
+
+    // Comment endpoints
+    post("/posts/:id/comments") {
+        user = require_auth()?
+        post = get_post_by_id(params.id)?
+        data = body()
+
+        comment = Comment {
+            text = data.text
+            post = post
+            user = user
+        }
+        save_comment(comment)
+
+        json(comment, status: 201)
+    }
+}
+
+// Start server
+print("Starting server on port {Config.port}")
+if Config.debug {
+    print("Debug mode enabled")
+}
+server.start()

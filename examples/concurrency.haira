@@ -1,0 +1,241 @@
+// Concurrency Examples
+// Demonstrating Haira's concurrency primitives
+
+// Example 1: Parallel data fetching
+fetch_dashboard_data(user_id) {
+    // All three run concurrently
+    async {
+        profile = get_user_profile(user_id)
+        notifications = get_notifications(user_id)
+        activity = get_recent_activity(user_id)
+    }
+
+    // Results available after async block
+    {
+        profile: profile
+        notifications: notifications
+        activity: activity
+    }
+}
+
+// Example 2: Worker pool for batch processing
+process_images(image_paths) {
+    queue = worker_queue(process_single_image, workers: 4)
+
+    for path in image_paths {
+        queue.add(path)
+    }
+
+    results = queue.wait()
+    print("Processed {results.count} images")
+    results
+}
+
+process_single_image(path) {
+    image = load_image(path)
+    resized = resize_image(image, width: 800)
+    compressed = compress_image(resized, quality: 80)
+    output_path = path.replace(".jpg", "_processed.jpg")
+    save_image(compressed, output_path)
+    output_path
+}
+
+// Example 3: Producer-consumer with channels
+crawl_website(start_url) {
+    urls_to_visit = channel(capacity: 1000)
+    results = channel()
+    visited = {}
+
+    // Seed the queue
+    urls_to_visit.send(start_url)
+
+    // Spawn workers
+    for _ in 0..10 {
+        spawn {
+            for url in urls_to_visit {
+                if visited.has(url) {
+                    continue
+                }
+                visited[url] = true
+
+                page, err = fetch_page(url)
+                if err {
+                    continue
+                }
+
+                results.send({ url: url, title: page.title })
+
+                // Add new links to queue
+                for link in page.links {
+                    if not visited.has(link) {
+                        urls_to_visit.try_send(link)
+                    }
+                }
+            }
+        }
+    }
+
+    // Collect results with timeout
+    collected = []
+    timeout = after(30000)  // 30 seconds
+
+    while true {
+        select {
+            result from results => {
+                collected = collected + [result]
+                if collected.count >= 100 {
+                    break
+                }
+            }
+            _ from timeout => {
+                print("Timeout reached")
+                break
+            }
+        }
+    }
+
+    urls_to_visit.close()
+    collected
+}
+
+// Example 4: Rate-limited API calls
+fetch_all_users_from_api(user_ids) {
+    results = []
+    rate_limiter = every(100)  // 100ms between calls
+
+    for id in user_ids {
+        _ = rate_limiter.receive()  // Wait for rate limit
+        user = fetch_user_from_api(id)?
+        results = results + [user]
+    }
+
+    results
+}
+
+// Example 5: Parallel with limit
+fetch_pages(urls) {
+    // Process up to 5 URLs concurrently
+    urls
+        | parallel(url => {
+            response = http.get(url)?
+            { url: url, status: response.status, size: response.body.length }
+        }, limit: 5)
+        | collect
+}
+
+// Example 6: Select for timeout
+fetch_with_timeout(url, timeout_ms) {
+    result = channel()
+    timeout = after(timeout_ms)
+
+    spawn {
+        response = http.get(url)
+        result.send(response)
+    }
+
+    select {
+        r from result => r
+        _ from timeout => err("request timed out")
+    }
+}
+
+// Example 7: Fan-out, fan-in pattern
+process_in_stages(items) {
+    stage1_out = channel(capacity: 100)
+    stage2_out = channel(capacity: 100)
+    final_out = channel(capacity: 100)
+
+    // Stage 1: Parse (fan-out to 3 workers)
+    for _ in 0..3 {
+        spawn {
+            for item in stage1_out {
+                parsed = parse_item(item)
+                stage2_out.send(parsed)
+            }
+        }
+    }
+
+    // Stage 2: Transform (fan-out to 5 workers)
+    for _ in 0..5 {
+        spawn {
+            for item in stage2_out {
+                transformed = transform_item(item)
+                final_out.send(transformed)
+            }
+        }
+    }
+
+    // Feed input
+    spawn {
+        for item in items {
+            stage1_out.send(item)
+        }
+        stage1_out.close()
+    }
+
+    // Collect (fan-in)
+    results = []
+    for result in final_out {
+        results = results + [result]
+    }
+    results
+}
+
+// Example 8: Graceful shutdown
+run_server_with_shutdown() {
+    server = Server { port = 8080 }
+    shutdown = channel()
+
+    // Handle shutdown signal
+    spawn {
+        wait_for_signal("SIGTERM")
+        shutdown.send(true)
+    }
+
+    // Main server loop
+    while true {
+        select {
+            request from server.requests => {
+                handle_request(request)
+            }
+            _ from shutdown => {
+                print("Shutting down gracefully...")
+                server.drain(timeout: 5000)
+                break
+            }
+        }
+    }
+
+    print("Server stopped")
+}
+
+// Example 9: Periodic task
+run_background_cleanup() {
+    ticker = every(60000)  // Every minute
+
+    spawn {
+        for _ in ticker {
+            expired = get_expired_sessions()
+            for session in expired {
+                delete_session(session)
+            }
+            print("Cleaned up {expired.count} sessions")
+        }
+    }
+}
+
+// Demo
+main() {
+    print("Fetching dashboard data...")
+    data = fetch_dashboard_data(1)
+    print("Profile: {data.profile.name}")
+    print("Notifications: {data.notifications.count}")
+
+    print("")
+    print("Processing images...")
+    images = ["img1.jpg", "img2.jpg", "img3.jpg"]
+    processed = process_images(images)
+    print("Done: {processed}")
+}
+
+main()

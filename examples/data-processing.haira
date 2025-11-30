@@ -1,0 +1,192 @@
+// Data Processing Example
+// ETL pipeline for processing sales data
+
+// Schema
+SalesRecord {
+    id
+    date
+    product
+    category
+    quantity: int
+    price: float
+    region
+    salesperson
+}
+
+Report {
+    period
+    total_sales: float
+    total_quantity: int
+    top_products: [ProductSummary]
+    by_region: {string: float}
+    by_category: {string: float}
+}
+
+ProductSummary {
+    product
+    quantity: int
+    revenue: float
+}
+
+// Main pipeline
+process_sales_data(input_file, output_file) {
+    print("Loading data from {input_file}...")
+
+    // Load and parse
+    records = read_csv_file(input_file)
+        | map(row => SalesRecord {
+            id = row.id
+            date = parse_date(row.date)
+            product = row.product
+            category = row.category
+            quantity = parse_int(row.quantity) or 0
+            price = parse_float(row.price) or 0.0
+            region = row.region
+            salesperson = row.salesperson
+        })
+        | filter(r => r.quantity > 0)
+
+    print("Loaded {records.count} records")
+
+    // Process in parallel for large datasets
+    report = generate_report(records)
+
+    // Output
+    write_json_file(output_file, report)
+    print("Report saved to {output_file}")
+
+    // Print summary
+    print_summary(report)
+}
+
+generate_report(records) {
+    // Calculate totals
+    total_sales = records
+        | map(r => r.quantity * r.price)
+        | sum
+
+    total_quantity = records
+        | map(r => r.quantity)
+        | sum
+
+    // Top products by revenue
+    top_products = records
+        | group_by(r => r.product)
+        | map((product, items) => ProductSummary {
+            product = product
+            quantity = items | map(i => i.quantity) | sum
+            revenue = items | map(i => i.quantity * i.price) | sum
+        })
+        | sort_by(p => -p.revenue)
+        | take(10)
+
+    // Sales by region
+    by_region = records
+        | group_by(r => r.region)
+        | map((region, items) => {
+            region: items | map(i => i.quantity * i.price) | sum
+        })
+        | to_map
+
+    // Sales by category
+    by_category = records
+        | group_by(r => r.category)
+        | map((category, items) => {
+            category: items | map(i => i.quantity * i.price) | sum
+        })
+        | to_map
+
+    Report {
+        period = "{records.first.date} to {records.last.date}"
+        total_sales = total_sales
+        total_quantity = total_quantity
+        top_products = top_products
+        by_region = by_region
+        by_category = by_category
+    }
+}
+
+print_summary(report) {
+    print("")
+    print("=== Sales Report ===")
+    print("Period: {report.period}")
+    print("Total Sales: ${report.total_sales.round(2)}")
+    print("Total Quantity: {report.total_quantity}")
+    print("")
+    print("Top 5 Products:")
+    for i, p in report.top_products | take(5) {
+        print("  {i + 1}. {p.product}: ${p.revenue.round(2)} ({p.quantity} units)")
+    }
+    print("")
+    print("By Region:")
+    for region, amount in report.by_region {
+        print("  {region}: ${amount.round(2)}")
+    }
+}
+
+// Async version for very large files
+process_large_file(input_file, output_file) {
+    print("Processing large file in chunks...")
+
+    chunks = read_csv_chunks(input_file, chunk_size: 10000)
+    results = channel()
+
+    // Process chunks in parallel
+    for chunk in chunks {
+        spawn {
+            processed = chunk
+                | map(parse_record)
+                | filter(valid_record)
+            results.send(processed)
+        }
+    }
+
+    // Collect results
+    all_records = []
+    for result in results {
+        all_records = all_records + result
+    }
+
+    report = generate_report(all_records)
+    write_json_file(output_file, report)
+}
+
+// Data validation
+valid_record(record) {
+    record.quantity > 0 and record.price > 0
+}
+
+parse_record(row) {
+    SalesRecord {
+        id = row.id
+        date = parse_date(row.date)
+        product = row.product
+        category = row.category
+        quantity = parse_int(row.quantity) or 0
+        price = parse_float(row.price) or 0.0
+        region = row.region
+        salesperson = row.salesperson
+    }
+}
+
+// Entry point
+main() {
+    args = os.args
+
+    if args.count < 3 {
+        print("Usage: dataproc <input.csv> <output.json>")
+        return
+    }
+
+    input = args[1]
+    output = args[2]
+
+    if not file_exists(input) {
+        print("Error: input file not found")
+        return
+    }
+
+    process_sales_data(input, output)
+}
+
+main()

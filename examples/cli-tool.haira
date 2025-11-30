@@ -1,0 +1,172 @@
+// CLI Tool Example
+// A file processing utility
+
+Config {
+    version = "1.0.0"
+    name = "fileproc"
+}
+
+// Entry point
+main() {
+    args = os.args
+
+    if args.count < 2 {
+        print_usage()
+        return
+    }
+
+    command = args[1]
+
+    match command {
+        "help" => print_usage()
+        "version" => print_version()
+        "count" => count_lines(args)
+        "search" => search_files(args)
+        "replace" => replace_in_files(args)
+        "stats" => file_stats(args)
+        _ => {
+            print("Unknown command: {command}")
+            print_usage()
+        }
+    }
+}
+
+print_usage() {
+    print("Usage: {Config.name} <command> [options]")
+    print("")
+    print("Commands:")
+    print("  help              Show this help message")
+    print("  version           Show version")
+    print("  count <file>      Count lines in file")
+    print("  search <pattern> <dir>  Search for pattern in files")
+    print("  replace <old> <new> <file>  Replace text in file")
+    print("  stats <file>      Show file statistics")
+}
+
+print_version() {
+    print("{Config.name} v{Config.version}")
+}
+
+// Count lines in a file
+count_lines(args) {
+    if args.count < 3 {
+        print("Usage: count <file>")
+        return
+    }
+
+    path = args[2]
+
+    if not file_exists(path) {
+        print("Error: file not found: {path}")
+        return
+    }
+
+    lines = read_lines(path)
+    print("Lines: {lines.count}")
+}
+
+// Search for pattern in files
+search_files(args) {
+    if args.count < 4 {
+        print("Usage: search <pattern> <directory>")
+        return
+    }
+
+    pattern = args[2]
+    directory = args[3]
+
+    files = list_files(directory, recursive: true)
+        | filter(f => f.ends_with(".txt") or f.ends_with(".haira"))
+
+    found = 0
+
+    for file in files {
+        content = read_file(file)
+        lines = content.lines
+
+        for i, line in lines {
+            if line.contains(pattern) {
+                print("{file}:{i + 1}: {line.trim}")
+                found = found + 1
+            }
+        }
+    }
+
+    print("")
+    print("Found {found} matches")
+}
+
+// Replace text in file
+replace_in_files(args) {
+    if args.count < 5 {
+        print("Usage: replace <old> <new> <file>")
+        return
+    }
+
+    old_text = args[2]
+    new_text = args[3]
+    path = args[4]
+
+    if not file_exists(path) {
+        print("Error: file not found: {path}")
+        return
+    }
+
+    content = read_file(path)
+    count = content.count(old_text)
+
+    if count == 0 {
+        print("No matches found")
+        return
+    }
+
+    new_content = content.replace_all(old_text, new_text)
+    write_file(path, new_content)
+
+    print("Replaced {count} occurrences")
+}
+
+// File statistics
+file_stats(args) {
+    if args.count < 3 {
+        print("Usage: stats <file>")
+        return
+    }
+
+    path = args[2]
+
+    if not file_exists(path) {
+        print("Error: file not found: {path}")
+        return
+    }
+
+    content = read_file(path)
+    lines = content.lines
+    words = content.split_regex("\\s+")
+    chars = content.length
+    size = file_size(path)
+    modified = file_modified(path)
+
+    print("File: {path}")
+    print("Size: {format_bytes(size)}")
+    print("Lines: {lines.count}")
+    print("Words: {words.count}")
+    print("Characters: {chars}")
+    print("Modified: {modified.format(\"YYYY-MM-DD HH:mm:ss\")}")
+}
+
+// Helper to format byte sizes
+format_bytes(bytes) {
+    if bytes < 1024 {
+        "{bytes} B"
+    } else if bytes < 1024 * 1024 {
+        "{(bytes / 1024).round(2)} KB"
+    } else if bytes < 1024 * 1024 * 1024 {
+        "{(bytes / 1024 / 1024).round(2)} MB"
+    } else {
+        "{(bytes / 1024 / 1024 / 1024).round(2)} GB"
+    }
+}
+
+// Run
+main()

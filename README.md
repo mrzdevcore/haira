@@ -7,27 +7,30 @@ Haira is a programming language where you write what you want, and the compiler 
 ## Quick Example
 
 ```haira
-User { name, email, active }
-
-server = Server { port = 8080 }
-
-routes {
-    get("/users") {
-        users = get_active_users() | sort_by_name | take(10)
-        json(users)
-    }
-
-    post("/users") {
-        user = User { body().name, body().email, true }
-        save_user(user)
-        json(user)
-    }
+// Define what you want - AI generates the implementation
+ai get_answer() -> int {
+    Return the answer to life, universe, and everything.
 }
 
-server.start()
+ai add(a: int, b: int) -> int {
+    Return the sum of a and b.
+}
+
+ai is_positive(x: int) -> bool {
+    Return true if x is greater than zero.
+}
+
+// Use them like normal functions
+answer = get_answer()   // Returns 42
+sum = add(10, 32)       // Returns 42
+check = is_positive(5)  // Returns true
+
+print(answer)
+print(sum)
+print(check)
 ```
 
-**Notice**: `get_active_users()`, `sort_by_name`, `save_user()` are **never defined**. The compiler understands your intent and generates them.
+**The `ai` block lets you describe your intent in plain English** - the compiler interprets it and generates working code that compiles to a native binary.
 
 ## How It Works
 

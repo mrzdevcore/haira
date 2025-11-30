@@ -6,29 +6,19 @@ use thiserror::Error;
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum LexError {
     #[error("unexpected character")]
-    UnexpectedChar {
-        span: std::ops::Range<usize>,
-    },
+    UnexpectedChar { span: std::ops::Range<usize> },
 
     #[error("unterminated string literal")]
-    UnterminatedString {
-        span: std::ops::Range<usize>,
-    },
+    UnterminatedString { span: std::ops::Range<usize> },
 
     #[error("unterminated block comment")]
-    UnterminatedComment {
-        span: std::ops::Range<usize>,
-    },
+    UnterminatedComment { span: std::ops::Range<usize> },
 
     #[error("invalid number literal")]
-    InvalidNumber {
-        span: std::ops::Range<usize>,
-    },
+    InvalidNumber { span: std::ops::Range<usize> },
 
     #[error("invalid escape sequence")]
-    InvalidEscape {
-        span: std::ops::Range<usize>,
-    },
+    InvalidEscape { span: std::ops::Range<usize> },
 }
 
 impl LexError {

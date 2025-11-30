@@ -1,8 +1,8 @@
 //! High-level lexer interface.
 
-use logos::Logos;
-use crate::token::{Token, TokenKind};
 use crate::error::LexError;
+use crate::token::{Token, TokenKind};
+use logos::Logos;
 
 /// A lexer for Haira source code.
 ///
@@ -91,11 +91,9 @@ pub trait TokenStream {
 
 impl<I: Iterator<Item = Result<Token, LexError>>> TokenStream for I {
     fn filter_trivia(self) -> impl Iterator<Item = Result<Token, LexError>> {
-        self.filter(|result| {
-            match result {
-                Ok(token) => !matches!(token.kind, TokenKind::LineComment | TokenKind::BlockComment),
-                Err(_) => true,
-            }
+        self.filter(|result| match result {
+            Ok(token) => !matches!(token.kind, TokenKind::LineComment | TokenKind::BlockComment),
+            Err(_) => true,
         })
     }
 }
@@ -108,9 +106,7 @@ mod tests {
     #[test]
     fn test_simple_tokenization() {
         let source = "x = 42";
-        let tokens: Vec<_> = Lexer::new(source)
-            .filter_map(|r| r.ok())
-            .collect();
+        let tokens: Vec<_> = Lexer::new(source).filter_map(|r| r.ok()).collect();
 
         assert_eq!(tokens.len(), 4); // x, =, 42, EOF
         assert_eq!(tokens[0].kind, TokenKind::Ident(SmolStr::from("x")));
@@ -144,9 +140,7 @@ mod tests {
     #[test]
     fn test_type_definition() {
         let source = "User { name, age, email }";
-        let tokens: Vec<_> = Lexer::new(source)
-            .filter_map(|r| r.ok())
-            .collect();
+        let tokens: Vec<_> = Lexer::new(source).filter_map(|r| r.ok()).collect();
 
         assert_eq!(tokens[0].kind, TokenKind::Ident(SmolStr::from("User")));
         assert_eq!(tokens[1].kind, TokenKind::LBrace);
@@ -157,23 +151,25 @@ mod tests {
     #[test]
     fn test_pipe_expression() {
         let source = "users | filter_active | sort_by_name";
-        let tokens: Vec<_> = Lexer::new(source)
-            .filter_map(|r| r.ok())
-            .collect();
+        let tokens: Vec<_> = Lexer::new(source).filter_map(|r| r.ok()).collect();
 
         assert_eq!(tokens[0].kind, TokenKind::Ident(SmolStr::from("users")));
         assert_eq!(tokens[1].kind, TokenKind::Pipe);
-        assert_eq!(tokens[2].kind, TokenKind::Ident(SmolStr::from("filter_active")));
+        assert_eq!(
+            tokens[2].kind,
+            TokenKind::Ident(SmolStr::from("filter_active"))
+        );
         assert_eq!(tokens[3].kind, TokenKind::Pipe);
-        assert_eq!(tokens[4].kind, TokenKind::Ident(SmolStr::from("sort_by_name")));
+        assert_eq!(
+            tokens[4].kind,
+            TokenKind::Ident(SmolStr::from("sort_by_name"))
+        );
     }
 
     #[test]
     fn test_lambda() {
         let source = "x => x * 2";
-        let tokens: Vec<_> = Lexer::new(source)
-            .filter_map(|r| r.ok())
-            .collect();
+        let tokens: Vec<_> = Lexer::new(source).filter_map(|r| r.ok()).collect();
 
         assert_eq!(tokens[0].kind, TokenKind::Ident(SmolStr::from("x")));
         assert_eq!(tokens[1].kind, TokenKind::FatArrow);
@@ -196,7 +192,8 @@ mod tests {
             .filter(|t| !matches!(t.kind, TokenKind::Newline))
             .collect();
 
-        let idents: Vec<_> = tokens.iter()
+        let idents: Vec<_> = tokens
+            .iter()
             .filter_map(|t| match &t.kind {
                 TokenKind::Ident(s) => Some(s.as_str()),
                 _ => None,
@@ -209,9 +206,7 @@ mod tests {
     #[test]
     fn test_error_propagation_operator() {
         let source = "get_user(id)?";
-        let tokens: Vec<_> = Lexer::new(source)
-            .filter_map(|r| r.ok())
-            .collect();
+        let tokens: Vec<_> = Lexer::new(source).filter_map(|r| r.ok()).collect();
 
         assert_eq!(tokens[0].kind, TokenKind::Ident(SmolStr::from("get_user")));
         assert_eq!(tokens[1].kind, TokenKind::LParen);
@@ -223,9 +218,7 @@ mod tests {
     #[test]
     fn test_range_operators() {
         let source = "0..10 0..=10";
-        let tokens: Vec<_> = Lexer::new(source)
-            .filter_map(|r| r.ok())
-            .collect();
+        let tokens: Vec<_> = Lexer::new(source).filter_map(|r| r.ok()).collect();
 
         assert_eq!(tokens[0].kind, TokenKind::Int(0));
         assert_eq!(tokens[1].kind, TokenKind::DotDot);

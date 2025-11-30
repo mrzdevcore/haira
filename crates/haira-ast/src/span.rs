@@ -18,7 +18,10 @@ impl Span {
 
     /// Create an empty span at a position.
     pub fn empty(pos: u32) -> Self {
-        Self { start: pos, end: pos }
+        Self {
+            start: pos,
+            end: pos,
+        }
     }
 
     /// Create a span covering two spans.

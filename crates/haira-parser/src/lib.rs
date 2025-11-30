@@ -21,11 +21,11 @@
 //! assert!(result.errors.is_empty());
 //! ```
 
-mod parser;
 mod error;
+mod parser;
 
-pub use parser::Parser;
 pub use error::ParseError;
+pub use parser::Parser;
 
 use haira_ast::SourceFile;
 

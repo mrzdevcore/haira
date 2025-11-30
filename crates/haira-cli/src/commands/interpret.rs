@@ -174,7 +174,10 @@ fn analyze_name_patterns(name: &str) {
         // Check for pluralization
         if let Some(last) = nouns.last() {
             if last.ends_with('s') && !last.ends_with("ss") {
-                println!("  Note: '{}' appears plural - likely returns collection", last);
+                println!(
+                    "  Note: '{}' appears plural - likely returns collection",
+                    last
+                );
             }
         }
 
@@ -206,7 +209,10 @@ fn suggest_implementation(parts: &[&str]) {
         "get" if parts.len() > 1 => {
             let target = parts[1..].join("_");
             if target.ends_with('s') {
-                println!("  1. Query database for {} table", &target[..target.len()-1]);
+                println!(
+                    "  1. Query database for {} table",
+                    &target[..target.len() - 1]
+                );
                 println!("  2. Apply any filters (by_*, active, etc.)");
                 println!("  3. Return collection");
             } else {

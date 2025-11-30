@@ -36,7 +36,9 @@ impl Precedence {
             TokenKind::Lt | TokenKind::Gt | TokenKind::Le | TokenKind::Ge => Precedence::Comparison,
             TokenKind::Plus | TokenKind::Minus => Precedence::Term,
             TokenKind::Star | TokenKind::Slash | TokenKind::Percent => Precedence::Factor,
-            TokenKind::LParen | TokenKind::LBracket | TokenKind::Dot => Precedence::Call,
+            TokenKind::LParen | TokenKind::LBracket | TokenKind::Dot | TokenKind::Question => {
+                Precedence::Call
+            }
             TokenKind::DotDot | TokenKind::DotDotEq => Precedence::Comparison,
             _ => Precedence::None,
         }
@@ -286,6 +288,15 @@ impl<'source> Parser<'source> {
                         Some(Spanned::new(ItemKind::Statement(stmt), self.span(start)))
                     }
                 }
+            }
+            // AI-generated function definition: `ai func_name(params) -> Type { intent }`
+            TokenKind::Ai => {
+                self.advance();
+                let ai_block = self.parse_ai_block()?;
+                Some(Spanned::new(
+                    ItemKind::AiFunctionDef(ai_block),
+                    self.span(start),
+                ))
             }
             // Keywords that start statements
             TokenKind::If
@@ -1031,6 +1042,13 @@ impl<'source> Parser<'source> {
                 Some(Spanned::new(ExprKind::Select(select), self.span(start)))
             }
 
+            // AI block expression: `ai(params) -> Type { intent }` or `ai func_name(params) { intent }`
+            TokenKind::Ai => {
+                self.advance();
+                let ai_block = self.parse_ai_block()?;
+                Some(Spanned::new(ExprKind::Ai(ai_block), self.span(start)))
+            }
+
             // err(...) expression - treat as a call
             TokenKind::Err => {
                 self.advance();
@@ -1724,6 +1742,342 @@ impl<'source> Parser<'source> {
     }
 
     // ========================================================================
+    // AI Block
+    // ========================================================================
+
+    /// Parse an AI intent block.
+    ///
+    /// Syntax variants:
+    /// - Named: `ai func_name(params) -> ReturnType { intent text }`
+    /// - Anonymous: `ai(params) -> ReturnType { intent text }`
+    ///
+    /// The block body contains natural language intent description.
+    fn parse_ai_block(&mut self) -> Option<AiBlock> {
+        let start = self.previous.span.start; // 'ai' was already consumed
+
+        // Check if this is named or anonymous
+        // Named: `ai func_name(...)` - identifier followed by `(`
+        // Anonymous: `ai(...)` - directly `(`
+        let name = if matches!(self.current.kind, TokenKind::Ident(_)) {
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        // Parse parameters
+        let params = self.parse_params()?;
+
+        // Optional return type
+        let return_ty = if self.check(&TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        // Parse the intent body - everything inside { } is natural language
+        let intent = self.parse_intent_body()?;
+
+        Some(AiBlock {
+            name,
+            params,
+            return_ty,
+            intent,
+            span: self.span(start),
+        })
+    }
+
+    /// Parse the intent body - collects raw text until closing brace.
+    /// The content is natural language, not code.
+    fn parse_intent_body(&mut self) -> Option<SmolStr> {
+        self.consume(TokenKind::LBrace, "{");
+
+        // We need to collect all text until the matching closing brace
+        // Since the lexer tokenizes everything, we'll collect token text
+        let mut intent_parts = Vec::new();
+        let mut brace_depth = 1;
+
+        while !self.at_end() && brace_depth > 0 {
+            match &self.current.kind {
+                TokenKind::LBrace => {
+                    brace_depth += 1;
+                    intent_parts.push("{".to_string());
+                    self.advance();
+                }
+                TokenKind::RBrace => {
+                    brace_depth -= 1;
+                    if brace_depth > 0 {
+                        intent_parts.push("}".to_string());
+                        self.advance();
+                    }
+                    // Don't advance on final } - let consume handle it
+                }
+                TokenKind::Newline => {
+                    intent_parts.push("\n".to_string());
+                    // Manually advance past newlines
+                    self.previous = std::mem::replace(
+                        &mut self.current,
+                        self.lexer
+                            .next()
+                            .and_then(|r| r.ok())
+                            .unwrap_or(Token::new(TokenKind::Eof, 0..0)),
+                    );
+                }
+                TokenKind::Ident(s) => {
+                    intent_parts.push(s.to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::String(s) => {
+                    intent_parts.push(format!("\"{}\"", s));
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Int(n) => {
+                    intent_parts.push(n.to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Float(n) => {
+                    intent_parts.push(n.to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                // Convert tokens back to text for the intent
+                TokenKind::Plus => {
+                    intent_parts.push("+".to_string());
+                    self.advance();
+                }
+                TokenKind::Minus => {
+                    intent_parts.push("-".to_string());
+                    self.advance();
+                }
+                TokenKind::Star => {
+                    intent_parts.push("*".to_string());
+                    self.advance();
+                }
+                TokenKind::Slash => {
+                    intent_parts.push("/".to_string());
+                    self.advance();
+                }
+                TokenKind::Dot => {
+                    intent_parts.push(".".to_string());
+                    self.advance();
+                }
+                TokenKind::Comma => {
+                    intent_parts.push(",".to_string());
+                    self.advance();
+                }
+                TokenKind::Colon => {
+                    intent_parts.push(":".to_string());
+                    self.advance();
+                }
+                TokenKind::LParen => {
+                    intent_parts.push("(".to_string());
+                    self.advance();
+                }
+                TokenKind::RParen => {
+                    intent_parts.push(")".to_string());
+                    self.advance();
+                }
+                TokenKind::LBracket => {
+                    intent_parts.push("[".to_string());
+                    self.advance();
+                }
+                TokenKind::RBracket => {
+                    intent_parts.push("]".to_string());
+                    self.advance();
+                }
+                TokenKind::Arrow => {
+                    intent_parts.push("->".to_string());
+                    self.advance();
+                }
+                TokenKind::FatArrow => {
+                    intent_parts.push("=>".to_string());
+                    self.advance();
+                }
+                TokenKind::And => {
+                    intent_parts.push("and".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Or => {
+                    intent_parts.push("or".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Not => {
+                    intent_parts.push("not".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::In => {
+                    intent_parts.push("in".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::For => {
+                    intent_parts.push("for".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::If => {
+                    intent_parts.push("if".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Else => {
+                    intent_parts.push("else".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::While => {
+                    intent_parts.push("while".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Return => {
+                    intent_parts.push("return".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::True => {
+                    intent_parts.push("true".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::False => {
+                    intent_parts.push("false".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::None => {
+                    intent_parts.push("none".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Some => {
+                    intent_parts.push("some".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+
+                TokenKind::Match => {
+                    intent_parts.push("match".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Try => {
+                    intent_parts.push("try".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Catch => {
+                    intent_parts.push("catch".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Break => {
+                    intent_parts.push("break".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Continue => {
+                    intent_parts.push("continue".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Spawn => {
+                    intent_parts.push("spawn".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Async => {
+                    intent_parts.push("async".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Select => {
+                    intent_parts.push("select".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Ai => {
+                    intent_parts.push("ai".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Eq => {
+                    intent_parts.push("=".to_string());
+                    self.advance();
+                }
+                TokenKind::EqEq => {
+                    intent_parts.push("==".to_string());
+                    self.advance();
+                }
+                TokenKind::Ne => {
+                    intent_parts.push("!=".to_string());
+                    self.advance();
+                }
+                TokenKind::Lt => {
+                    intent_parts.push("<".to_string());
+                    self.advance();
+                }
+                TokenKind::Le => {
+                    intent_parts.push("<=".to_string());
+                    self.advance();
+                }
+                TokenKind::Gt => {
+                    intent_parts.push(">".to_string());
+                    self.advance();
+                }
+                TokenKind::Ge => {
+                    intent_parts.push(">=".to_string());
+                    self.advance();
+                }
+                TokenKind::Pipe => {
+                    intent_parts.push("|".to_string());
+                    self.advance();
+                }
+                TokenKind::Question => {
+                    intent_parts.push("?".to_string());
+                    self.advance();
+                }
+                TokenKind::Percent => {
+                    intent_parts.push("%".to_string());
+                    self.advance();
+                }
+                TokenKind::DotDot => {
+                    intent_parts.push("..".to_string());
+                    self.advance();
+                }
+                TokenKind::DotDotEq => {
+                    intent_parts.push("..=".to_string());
+                    self.advance();
+                }
+                _ => {
+                    // For any unhandled token, skip with a space
+                    // This shouldn't happen often if we've covered all tokens
+                    self.advance();
+                }
+            }
+        }
+
+        self.consume(TokenKind::RBrace, "}");
+
+        // Clean up the intent text
+        let intent = intent_parts
+            .join("")
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        Some(SmolStr::from(intent.trim()))
+    }
+
+    // ========================================================================
     // Helpers
     // ========================================================================
 
@@ -1861,11 +2215,14 @@ mod tests {
         let ast = parse("x = 42");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => {
-                assert_eq!(assign.targets.len(), 1);
-                assert_eq!(assign.targets[0].name.node.as_str(), "x");
-            }
-            _ => panic!("expected assignment"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => {
+                    assert_eq!(assign.targets.len(), 1);
+                    assert_eq!(assign.targets[0].name.node.as_str(), "x");
+                }
+                _ => panic!("expected assignment"),
+            },
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1874,11 +2231,14 @@ mod tests {
         let ast = parse("x = users | filter_active | sort_by_name");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
-                ExprKind::Pipe(_) => {}
-                _ => panic!("expected pipe"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => match &assign.value.node {
+                    ExprKind::Pipe(_) => {}
+                    _ => panic!("expected pipe"),
+                },
+                _ => panic!("expected assignment"),
             },
-            _ => panic!("expected assignment"),
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1887,17 +2247,20 @@ mod tests {
         let ast = parse("f = x => x * 2");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
-                ExprKind::Lambda(lambda) => {
-                    assert_eq!(lambda.params.len(), 1);
-                    match &lambda.body {
-                        LambdaBody::Expr(_) => {}
-                        _ => panic!("expected expr body"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => match &assign.value.node {
+                    ExprKind::Lambda(lambda) => {
+                        assert_eq!(lambda.params.len(), 1);
+                        match &lambda.body {
+                            LambdaBody::Expr(_) => {}
+                            _ => panic!("expected expr body"),
+                        }
                     }
-                }
-                _ => panic!("expected lambda"),
+                    _ => panic!("expected lambda"),
+                },
+                _ => panic!("expected assignment"),
             },
-            _ => panic!("expected assignment"),
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1906,17 +2269,20 @@ mod tests {
         let ast = parse("f = (a, b) { a + b }");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
-                ExprKind::Lambda(lambda) => {
-                    assert_eq!(lambda.params.len(), 2);
-                    match &lambda.body {
-                        LambdaBody::Block(_) => {}
-                        _ => panic!("expected block body"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => match &assign.value.node {
+                    ExprKind::Lambda(lambda) => {
+                        assert_eq!(lambda.params.len(), 2);
+                        match &lambda.body {
+                            LambdaBody::Block(_) => {}
+                            _ => panic!("expected block body"),
+                        }
                     }
-                }
-                _ => panic!("expected lambda"),
+                    _ => panic!("expected lambda"),
+                },
+                _ => panic!("expected assignment"),
             },
-            _ => panic!("expected assignment"),
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1925,14 +2291,17 @@ mod tests {
         let ast = parse(r#"user = User { name = "Alice", age = 30 }"#);
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
-                ExprKind::Instance(inst) => {
-                    assert_eq!(inst.type_name.node.as_str(), "User");
-                    assert_eq!(inst.fields.len(), 2);
-                }
-                _ => panic!("expected instance"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => match &assign.value.node {
+                    ExprKind::Instance(inst) => {
+                        assert_eq!(inst.type_name.node.as_str(), "User");
+                        assert_eq!(inst.fields.len(), 2);
+                    }
+                    _ => panic!("expected instance"),
+                },
+                _ => panic!("expected assignment"),
             },
-            _ => panic!("expected assignment"),
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1941,13 +2310,16 @@ mod tests {
         let ast = parse("for item in items { print(item) }");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::For(for_stmt)) => match &for_stmt.pattern {
-                ForPattern::Single(name) => {
-                    assert_eq!(name.node.as_str(), "item");
-                }
-                _ => panic!("expected single pattern"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::For(for_stmt) => match &for_stmt.pattern {
+                    ForPattern::Single(name) => {
+                        assert_eq!(name.node.as_str(), "item");
+                    }
+                    _ => panic!("expected single pattern"),
+                },
+                _ => panic!("expected for"),
             },
-            _ => panic!("expected for"),
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1956,11 +2328,14 @@ mod tests {
         let ast = parse("result = get_user(id)?");
         assert_eq!(ast.items.len(), 1);
         match &ast.items[0].node {
-            ItemKind::Statement(StatementKind::Assignment(assign)) => match &assign.value.node {
-                ExprKind::Propagate(_) => {}
-                _ => panic!("expected propagate"),
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => match &assign.value.node {
+                    ExprKind::Propagate(_) => {}
+                    _ => panic!("expected propagate"),
+                },
+                _ => panic!("expected assignment"),
             },
-            _ => panic!("expected assignment"),
+            _ => panic!("expected statement"),
         }
     }
 
@@ -1975,5 +2350,56 @@ mod tests {
         "#,
         );
         assert_eq!(ast.items.len(), 1);
+    }
+
+    #[test]
+    fn test_ai_block_named() {
+        let ast = parse(
+            r#"
+            ai summarize_activity(user: User) -> ActivitySummary {
+                Summarize the user activity over the last 30 days.
+                Group by activity type and find most common.
+            }
+        "#,
+        );
+        assert_eq!(ast.items.len(), 1);
+        match &ast.items[0].node {
+            ItemKind::AiFunctionDef(ai_block) => {
+                assert!(ai_block.name.is_some());
+                assert_eq!(
+                    ai_block.name.as_ref().unwrap().node.as_str(),
+                    "summarize_activity"
+                );
+                assert_eq!(ai_block.params.len(), 1);
+                assert!(ai_block.return_ty.is_some());
+                assert!(!ai_block.intent.is_empty());
+            }
+            _ => panic!("expected ai function def"),
+        }
+    }
+
+    #[test]
+    fn test_ai_block_anonymous() {
+        let ast = parse(
+            r#"
+            result = ai(data: Data) -> Summary {
+                Analyze and summarize this data
+            }
+        "#,
+        );
+        assert_eq!(ast.items.len(), 1);
+        match &ast.items[0].node {
+            ItemKind::Statement(stmt) => match &stmt.node {
+                StatementKind::Assignment(assign) => match &assign.value.node {
+                    ExprKind::Ai(ai_block) => {
+                        assert!(ai_block.name.is_none());
+                        assert_eq!(ai_block.params.len(), 1);
+                    }
+                    _ => panic!("expected ai block"),
+                },
+                _ => panic!("expected assignment"),
+            },
+            _ => panic!("expected statement"),
+        }
     }
 }

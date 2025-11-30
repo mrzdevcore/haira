@@ -84,14 +84,8 @@ impl ClaudeClient {
 
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(
-            "x-api-key",
-            HeaderValue::from_str(&config.api_key).unwrap(),
-        );
-        headers.insert(
-            "anthropic-version",
-            HeaderValue::from_static("2023-06-01"),
-        );
+        headers.insert("x-api-key", HeaderValue::from_str(&config.api_key).unwrap());
+        headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
 
         let client = reqwest::Client::builder()
             .default_headers(headers)

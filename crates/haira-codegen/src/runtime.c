@@ -136,7 +136,7 @@ static void* spawn_thread_wrapper(void* arg) {
     return NULL;
 }
 
-// Spawn a new thread running the given function
+// Spawn a new thread running the given function (fire-and-forget)
 // Returns thread handle (pthread_t cast to int64_t)
 int64_t haira_spawn(void (*func)(void)) {
     pthread_t thread;
@@ -152,6 +152,31 @@ int64_t haira_spawn(void (*func)(void)) {
     pthread_detach(thread);
     
     return (int64_t)thread;
+}
+
+// Spawn a new thread that can be joined (for async blocks)
+// Returns thread handle (pthread_t cast to int64_t)
+int64_t haira_spawn_joinable(void (*func)(void)) {
+    pthread_t* thread = (pthread_t*)malloc(sizeof(pthread_t));
+    SpawnArgs* args = (SpawnArgs*)malloc(sizeof(SpawnArgs));
+    args->func = func;
+    
+    if (pthread_create(thread, NULL, spawn_thread_wrapper, args) != 0) {
+        free(args);
+        free(thread);
+        return 0; // Error
+    }
+    
+    // Return pointer to thread handle (so we can join later)
+    return (int64_t)thread;
+}
+
+// Wait for a joinable thread to complete
+void haira_thread_join(int64_t thread_handle) {
+    if (thread_handle == 0) return;
+    pthread_t* thread = (pthread_t*)thread_handle;
+    pthread_join(*thread, NULL);
+    free(thread);
 }
 
 // Sleep for milliseconds

@@ -123,6 +123,69 @@ Generate the CIR now:"#
     )
 }
 
+/// Build the user prompt for an explicit AI intent block.
+///
+/// This is used when the user explicitly specifies what they want via
+/// the `ai` block syntax with natural language description.
+pub fn build_intent_prompt(
+    function_name: Option<&str>,
+    intent: &str,
+    params: &[(String, String)], // (name, type) pairs
+    return_type: Option<&str>,
+    context: &InterpretationContext,
+) -> String {
+    let context_json = serde_json::to_string_pretty(context).unwrap_or_default();
+
+    let name = function_name.unwrap_or("anonymous_ai_function");
+
+    let params_desc = if params.is_empty() {
+        "No parameters".to_string()
+    } else {
+        params
+            .iter()
+            .map(|(n, t)| format!("  - {}: {}", n, t))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let return_desc = return_type.unwrap_or("infer from intent");
+
+    format!(
+        r#"Generate a CIR implementation for an explicitly defined AI function.
+
+## Function Definition
+
+**Name**: `{name}`
+
+**Parameters**:
+{params_desc}
+
+**Return Type**: {return_desc}
+
+**Developer's Intent** (this is what the function should do):
+```
+{intent}
+```
+
+## Context (types in scope)
+
+```json
+{context_json}
+```
+
+## Instructions
+
+1. Follow the developer's intent EXACTLY as described above
+2. Use the provided parameters with their specified types
+3. If a return type is specified, ensure the function returns that type
+4. If return type should be inferred, determine the most appropriate type from the intent
+5. Generate appropriate CIR operations to implement the described behavior
+6. Be precise - the developer has explicitly stated what they want
+
+Generate the CIR now:"#
+    )
+}
+
 /// Build prompt for a simple pattern (optimization - may not need AI).
 pub fn build_simple_pattern_prompt(
     pattern: &str,
@@ -132,8 +195,8 @@ pub fn build_simple_pattern_prompt(
     use haira_cir::*;
 
     match pattern {
-        "get_all" => {
-            Some(CIRFunction::new(format!("get_{}s", type_name.to_lowercase()))
+        "get_all" => Some(
+            CIRFunction::new(format!("get_{}s", type_name.to_lowercase()))
                 .with_description(format!("Get all {type_name} records"))
                 .returning(CIRType::list(CIRType::simple(type_name)))
                 .with_op(CIROperation::DbQuery {
@@ -146,10 +209,10 @@ pub fn build_simple_pattern_prompt(
                 })
                 .with_op(CIROperation::Return {
                     value: CIRValue::var("result"),
-                }))
-        }
-        "get_by_id" => {
-            Some(CIRFunction::new(format!("get_{}_by_id", type_name.to_lowercase()))
+                }),
+        ),
+        "get_by_id" => Some(
+            CIRFunction::new(format!("get_{}_by_id", type_name.to_lowercase()))
                 .with_description(format!("Get a {type_name} by ID"))
                 .with_param("id", "int")
                 .returning(CIRType::option(CIRType::simple(type_name)))
@@ -167,90 +230,98 @@ pub fn build_simple_pattern_prompt(
                 })
                 .with_op(CIROperation::Return {
                     value: CIRValue::var("result"),
-                }))
-        }
+                }),
+        ),
         "get_by_field" if field_name.is_some() => {
             let field = field_name.unwrap();
-            Some(CIRFunction::new(format!("get_{}_by_{}", type_name.to_lowercase(), field))
-                .with_description(format!("Get a {type_name} by {field}"))
-                .with_param(field, "string")  // Assume string, could be smarter
-                .returning(CIRType::option(CIRType::simple(type_name)))
-                .with_op(CIROperation::DbQuery {
-                    query_type: DbQueryType::Select,
-                    table: type_name.to_lowercase() + "s",
-                    filters: vec![DbFilter {
-                        field: field.to_string(),
-                        op: FilterOp::Eq,
-                        value: CIRValue::var(field),
-                    }],
-                    order_by: None,
-                    limit: Some(1),
-                    result: "result".to_string(),
-                })
-                .with_op(CIROperation::Return {
-                    value: CIRValue::var("result"),
-                }))
+            Some(
+                CIRFunction::new(format!("get_{}_by_{}", type_name.to_lowercase(), field))
+                    .with_description(format!("Get a {type_name} by {field}"))
+                    .with_param(field, "string") // Assume string, could be smarter
+                    .returning(CIRType::option(CIRType::simple(type_name)))
+                    .with_op(CIROperation::DbQuery {
+                        query_type: DbQueryType::Select,
+                        table: type_name.to_lowercase() + "s",
+                        filters: vec![DbFilter {
+                            field: field.to_string(),
+                            op: FilterOp::Eq,
+                            value: CIRValue::var(field),
+                        }],
+                        order_by: None,
+                        limit: Some(1),
+                        result: "result".to_string(),
+                    })
+                    .with_op(CIROperation::Return {
+                        value: CIRValue::var("result"),
+                    }),
+            )
         }
         "get_filtered" if field_name.is_some() => {
             let field = field_name.unwrap();
             // Assumes field is a boolean
-            Some(CIRFunction::new(format!("get_{}_{}", field, type_name.to_lowercase() + "s"))
-                .with_description(format!("Get all {type_name} records where {field} is true"))
-                .returning(CIRType::list(CIRType::simple(type_name)))
-                .with_op(CIROperation::DbQuery {
-                    query_type: DbQueryType::Select,
-                    table: type_name.to_lowercase() + "s",
-                    filters: vec![DbFilter {
-                        field: field.to_string(),
-                        op: FilterOp::Eq,
-                        value: CIRValue::Bool(true),
-                    }],
-                    order_by: None,
-                    limit: None,
-                    result: "result".to_string(),
-                })
-                .with_op(CIROperation::Return {
-                    value: CIRValue::var("result"),
-                }))
+            Some(
+                CIRFunction::new(format!("get_{}_{}", field, type_name.to_lowercase() + "s"))
+                    .with_description(format!("Get all {type_name} records where {field} is true"))
+                    .returning(CIRType::list(CIRType::simple(type_name)))
+                    .with_op(CIROperation::DbQuery {
+                        query_type: DbQueryType::Select,
+                        table: type_name.to_lowercase() + "s",
+                        filters: vec![DbFilter {
+                            field: field.to_string(),
+                            op: FilterOp::Eq,
+                            value: CIRValue::Bool(true),
+                        }],
+                        order_by: None,
+                        limit: None,
+                        result: "result".to_string(),
+                    })
+                    .with_op(CIROperation::Return {
+                        value: CIRValue::var("result"),
+                    }),
+            )
         }
         "save" => {
             let param_name = type_name.to_lowercase();
-            Some(CIRFunction::new(format!("save_{}", param_name))
-                .with_description(format!("Save a {type_name}"))
-                .with_param(&param_name, type_name)
-                .returning("none")
-                .with_op(CIROperation::DbQuery {
-                    query_type: DbQueryType::Insert,
-                    table: type_name.to_lowercase() + "s",
-                    filters: vec![],
-                    order_by: None,
-                    limit: None,
-                    result: "_".to_string(),
-                })
-                .with_op(CIROperation::Return {
-                    value: CIRValue::None,
-                }))
+            Some(
+                CIRFunction::new(format!("save_{}", param_name))
+                    .with_description(format!("Save a {type_name}"))
+                    .with_param(&param_name, type_name)
+                    .returning("none")
+                    .with_op(CIROperation::DbQuery {
+                        query_type: DbQueryType::Insert,
+                        table: type_name.to_lowercase() + "s",
+                        filters: vec![],
+                        order_by: None,
+                        limit: None,
+                        result: "_".to_string(),
+                    })
+                    .with_op(CIROperation::Return {
+                        value: CIRValue::None,
+                    }),
+            )
         }
         "delete" => {
             let param_name = type_name.to_lowercase();
-            Some(CIRFunction::new(format!("delete_{}", param_name))
-                .with_description(format!("Delete a {type_name}"))
-                .with_param(&param_name, type_name)
-                .returning("none")
-                .with_op(CIROperation::DbQuery {
-                    query_type: DbQueryType::Delete,
-                    table: type_name.to_lowercase() + "s",
-                    filters: vec![],
-                    order_by: None,
-                    limit: None,
-                    result: "_".to_string(),
-                })
-                .with_op(CIROperation::Return {
-                    value: CIRValue::None,
-                }))
+            Some(
+                CIRFunction::new(format!("delete_{}", param_name))
+                    .with_description(format!("Delete a {type_name}"))
+                    .with_param(&param_name, type_name)
+                    .returning("none")
+                    .with_op(CIROperation::DbQuery {
+                        query_type: DbQueryType::Delete,
+                        table: type_name.to_lowercase() + "s",
+                        filters: vec![],
+                        order_by: None,
+                        limit: None,
+                        result: "_".to_string(),
+                    })
+                    .with_op(CIROperation::Return {
+                        value: CIRValue::None,
+                    }),
+            )
         }
-        "count" => {
-            Some(CIRFunction::new(format!("count_{}s", type_name.to_lowercase()))
+        "count" => Some(
+            CIRFunction::new(format!("count_{}s", type_name.to_lowercase()))
                 .with_description(format!("Count all {type_name} records"))
                 .returning("int")
                 .with_op(CIROperation::DbQuery {
@@ -263,8 +334,8 @@ pub fn build_simple_pattern_prompt(
                 })
                 .with_op(CIROperation::Return {
                     value: CIRValue::var("result"),
-                }))
-        }
+                }),
+        ),
         _ => None,
     }
 }
@@ -301,13 +372,21 @@ pub fn parse_function_name(name: &str) -> Option<(String, String, Option<String>
                 if field == "id" {
                     return Some(("get_by_id".to_string(), capitalize(type_name), None));
                 }
-                return Some(("get_by_field".to_string(), capitalize(type_name), Some(field)));
+                return Some((
+                    "get_by_field".to_string(),
+                    capitalize(type_name),
+                    Some(field),
+                ));
             }
             if parts.len() == 3 {
                 // get_active_users -> get_filtered User active
                 let adjective = parts[1];
                 let type_name = singular(parts[2]);
-                return Some(("get_filtered".to_string(), capitalize(&type_name), Some(adjective.to_string())));
+                return Some((
+                    "get_filtered".to_string(),
+                    capitalize(&type_name),
+                    Some(adjective.to_string()),
+                ));
             }
         }
         "save" => {
@@ -361,25 +440,45 @@ mod tests {
     #[test]
     fn test_parse_get_all() {
         let result = parse_function_name("get_users");
-        assert_eq!(result, Some(("get_all".to_string(), "User".to_string(), None)));
+        assert_eq!(
+            result,
+            Some(("get_all".to_string(), "User".to_string(), None))
+        );
     }
 
     #[test]
     fn test_parse_get_by_id() {
         let result = parse_function_name("get_user_by_id");
-        assert_eq!(result, Some(("get_by_id".to_string(), "User".to_string(), None)));
+        assert_eq!(
+            result,
+            Some(("get_by_id".to_string(), "User".to_string(), None))
+        );
     }
 
     #[test]
     fn test_parse_get_by_field() {
         let result = parse_function_name("get_user_by_email");
-        assert_eq!(result, Some(("get_by_field".to_string(), "User".to_string(), Some("email".to_string()))));
+        assert_eq!(
+            result,
+            Some((
+                "get_by_field".to_string(),
+                "User".to_string(),
+                Some("email".to_string())
+            ))
+        );
     }
 
     #[test]
     fn test_parse_get_filtered() {
         let result = parse_function_name("get_active_users");
-        assert_eq!(result, Some(("get_filtered".to_string(), "User".to_string(), Some("active".to_string()))));
+        assert_eq!(
+            result,
+            Some((
+                "get_filtered".to_string(),
+                "User".to_string(),
+                Some("active".to_string())
+            ))
+        );
     }
 
     #[test]

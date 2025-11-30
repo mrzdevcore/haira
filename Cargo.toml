@@ -13,6 +13,7 @@ members = [
     "crates/haira-codegen",
     "crates/haira-driver",
     "crates/haira-cli",
+    "crates/haira-lsp",       # Language Server Protocol implementation
 ]
 
 [workspace.package]

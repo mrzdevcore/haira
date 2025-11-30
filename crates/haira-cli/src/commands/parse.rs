@@ -5,8 +5,8 @@ use std::fs;
 use std::path::Path;
 
 pub fn run(file: &Path, json: bool) -> miette::Result<()> {
-    let source = fs::read_to_string(file)
-        .map_err(|e| miette::miette!("Failed to read file: {}", e))?;
+    let source =
+        fs::read_to_string(file).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 
     println!("Parsing: {}\n", file.display());
 
@@ -81,11 +81,28 @@ fn print_item(item: &haira_ast::Item, source: &str, indent: usize) {
         haira_ast::ItemKind::MethodDef(def) => {
             println!(
                 "{}MethodDef: {}.{} ({} params)",
-                prefix, def.type_name.node, def.name.node, def.params.len()
+                prefix,
+                def.type_name.node,
+                def.name.node,
+                def.params.len()
             );
         }
         haira_ast::ItemKind::TypeAlias(alias) => {
             println!("{}TypeAlias: {}", prefix, alias.name.node);
+        }
+        haira_ast::ItemKind::AiFunctionDef(ai_block) => {
+            let name = ai_block
+                .name
+                .as_ref()
+                .map(|n| n.node.as_str())
+                .unwrap_or("<anonymous>");
+            println!(
+                "{}AiFunctionDef: {} ({} params)",
+                prefix,
+                name,
+                ai_block.params.len()
+            );
+            println!("{}  intent: {}", prefix, ai_block.intent);
         }
         haira_ast::ItemKind::Statement(stmt) => {
             print_statement_kind(stmt, source, indent);
@@ -98,7 +115,11 @@ fn print_statement_kind(stmt: &haira_ast::StatementKind, source: &str, indent: u
 
     match stmt {
         haira_ast::StatementKind::Assignment(assign) => {
-            let targets: Vec<_> = assign.targets.iter().map(|t| t.name.node.as_str()).collect();
+            let targets: Vec<_> = assign
+                .targets
+                .iter()
+                .map(|t| t.name.node.as_str())
+                .collect();
             println!("{}Assignment: {} = ...", prefix, targets.join(", "));
         }
         haira_ast::StatementKind::If(_) => {

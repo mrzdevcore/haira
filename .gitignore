@@ -52,6 +52,7 @@ examples/structs
 examples/while_loop
 examples/match
 examples/match_simple
+examples/async_block
 
 # Object files
 *.o

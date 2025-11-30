@@ -1,0 +1,28 @@
+[package]
+name = "haira-lsp"
+version = "0.1.0"
+edition = "2021"
+description = "Language Server Protocol implementation for Haira"
+license = "MIT"
+
+[[bin]]
+name = "haira-lsp"
+path = "src/main.rs"
+
+[dependencies]
+# LSP dependencies
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+
+# Haira compiler components
+haira-lexer = { path = "../haira-lexer" }
+haira-parser = { path = "../haira-parser" }
+haira-ast = { path = "../haira-ast" }
+
+# Utilities
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dashmap = "5"
+ropey = "1.6"
+log = "0.4"
+env_logger = "0.10"

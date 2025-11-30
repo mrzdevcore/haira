@@ -66,8 +66,8 @@ pub async fn compile_file(
     output: &Path,
     config: CompilerConfig,
 ) -> miette::Result<CompilationResult> {
-    let source = std::fs::read_to_string(path)
-        .map_err(|e| miette::miette!("Failed to read file: {}", e))?;
+    let source =
+        std::fs::read_to_string(path).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 
     compile_source(&source, Some(path), output, config).await
 }
@@ -158,8 +158,8 @@ pub async fn compile_source(
 
 /// Check a source file without generating code.
 pub fn check_file(path: &Path) -> miette::Result<CompilationResult> {
-    let source = std::fs::read_to_string(path)
-        .map_err(|e| miette::miette!("Failed to read file: {}", e))?;
+    let source =
+        std::fs::read_to_string(path).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 
     check_source(&source, Some(path))
 }

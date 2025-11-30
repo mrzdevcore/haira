@@ -98,10 +98,7 @@ pub enum CIROperation {
     },
 
     /// Count elements
-    Count {
-        source: String,
-        result: String,
-    },
+    Count { source: String, result: String },
 
     /// Find first matching element
     Find {
@@ -131,28 +128,16 @@ pub enum CIROperation {
     // Aggregations
     // ========================================================================
     /// Sum of numbers
-    Sum {
-        source: String,
-        result: String,
-    },
+    Sum { source: String, result: String },
 
     /// Minimum value
-    Min {
-        source: String,
-        result: String,
-    },
+    Min { source: String, result: String },
 
     /// Maximum value
-    Max {
-        source: String,
-        result: String,
-    },
+    Max { source: String, result: String },
 
     /// Average value
-    Avg {
-        source: String,
-        result: String,
-    },
+    Avg { source: String, result: String },
 
     /// Maximum by a key
     MaxBy {
@@ -246,16 +231,10 @@ pub enum CIROperation {
     },
 
     /// Literal value
-    Literal {
-        value: CIRValue,
-        result: String,
-    },
+    Literal { value: CIRValue, result: String },
 
     /// Variable reference
-    Var {
-        name: String,
-        result: String,
-    },
+    Var { name: String, result: String },
 
     // ========================================================================
     // I/O (Abstract)
@@ -285,16 +264,10 @@ pub enum CIROperation {
     },
 
     /// File read
-    FileRead {
-        path: CIRValue,
-        result: String,
-    },
+    FileRead { path: CIRValue, result: String },
 
     /// File write
-    FileWrite {
-        path: CIRValue,
-        content: CIRValue,
-    },
+    FileWrite { path: CIRValue, content: CIRValue },
 
     // ========================================================================
     // String Operations
@@ -316,9 +289,7 @@ pub enum CIROperation {
     // Return
     // ========================================================================
     /// Return a value
-    Return {
-        value: CIRValue,
-    },
+    Return { value: CIRValue },
 }
 
 /// A value in CIR.
@@ -406,10 +377,7 @@ pub enum CIRPattern {
     /// Variable binding
     Binding { name: String },
     /// Constructor pattern
-    Constructor {
-        name: String,
-        fields: Vec<String>,
-    },
+    Constructor { name: String, fields: Vec<String> },
 }
 
 /// Database query types.

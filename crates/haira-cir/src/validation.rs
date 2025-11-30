@@ -1,8 +1,8 @@
 //! CIR Validation - ensure AI output is well-formed.
 
-use thiserror::Error;
 use crate::{CIRFunction, CIROperation, CIRValue};
 use std::collections::HashSet;
+use thiserror::Error;
 
 /// Validation errors.
 #[derive(Debug, Error)]
@@ -48,7 +48,10 @@ pub fn validate(func: &CIRFunction) -> Result<(), Vec<ValidationError>> {
     }
 
     // Check that last operation is a return (or the function returns none)
-    let has_return = func.body.iter().any(|op| matches!(op, CIROperation::Return { .. }));
+    let has_return = func
+        .body
+        .iter()
+        .any(|op| matches!(op, CIROperation::Return { .. }));
     if !has_return && !matches!(&func.returns, crate::CIRType::Simple(s) if s == "none") {
         errors.push(ValidationError::MissingReturn);
     }
@@ -70,7 +73,11 @@ fn validate_operation(
             check_defined(source, defined, errors);
             define_var(result, defined, errors);
         }
-        CIROperation::GetIndex { source, index, result } => {
+        CIROperation::GetIndex {
+            source,
+            index,
+            result,
+        } => {
             check_defined(source, defined, errors);
             check_value(index, defined, errors);
             define_var(result, defined, errors);
@@ -79,7 +86,12 @@ fn validate_operation(
             check_defined(target, defined, errors);
             check_value(value, defined, errors);
         }
-        CIROperation::Map { source, element_var, transform, result } => {
+        CIROperation::Map {
+            source,
+            element_var,
+            transform,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -88,7 +100,12 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Filter { source, element_var, predicate, result } => {
+        CIROperation::Filter {
+            source,
+            element_var,
+            predicate,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -97,7 +114,14 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Reduce { source, initial, accumulator_var, element_var, reducer, result } => {
+        CIROperation::Reduce {
+            source,
+            initial,
+            accumulator_var,
+            element_var,
+            reducer,
+            result,
+        } => {
             check_defined(source, defined, errors);
             check_value(initial, defined, errors);
             let mut inner_defined = defined.clone();
@@ -108,7 +132,12 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::GroupBy { source, element_var, key, result } => {
+        CIROperation::GroupBy {
+            source,
+            element_var,
+            key,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -117,7 +146,13 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Sort { source, element_var, key, result, .. } => {
+        CIROperation::Sort {
+            source,
+            element_var,
+            key,
+            result,
+            ..
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -126,12 +161,20 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Take { source, count, result } => {
+        CIROperation::Take {
+            source,
+            count,
+            result,
+        } => {
             check_defined(source, defined, errors);
             check_value(count, defined, errors);
             define_var(result, defined, errors);
         }
-        CIROperation::Skip { source, count, result } => {
+        CIROperation::Skip {
+            source,
+            count,
+            result,
+        } => {
             check_defined(source, defined, errors);
             check_value(count, defined, errors);
             define_var(result, defined, errors);
@@ -140,7 +183,12 @@ fn validate_operation(
             check_defined(source, defined, errors);
             define_var(result, defined, errors);
         }
-        CIROperation::Find { source, element_var, predicate, result } => {
+        CIROperation::Find {
+            source,
+            element_var,
+            predicate,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -149,8 +197,18 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Any { source, element_var, predicate, result } |
-        CIROperation::All { source, element_var, predicate, result } => {
+        CIROperation::Any {
+            source,
+            element_var,
+            predicate,
+            result,
+        }
+        | CIROperation::All {
+            source,
+            element_var,
+            predicate,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -159,15 +217,25 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Sum { source, result } |
-        CIROperation::Min { source, result } |
-        CIROperation::Max { source, result } |
-        CIROperation::Avg { source, result } => {
+        CIROperation::Sum { source, result }
+        | CIROperation::Min { source, result }
+        | CIROperation::Max { source, result }
+        | CIROperation::Avg { source, result } => {
             check_defined(source, defined, errors);
             define_var(result, defined, errors);
         }
-        CIROperation::MaxBy { source, element_var, key, result } |
-        CIROperation::MinBy { source, element_var, key, result } => {
+        CIROperation::MaxBy {
+            source,
+            element_var,
+            key,
+            result,
+        }
+        | CIROperation::MinBy {
+            source,
+            element_var,
+            key,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -176,7 +244,12 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::If { condition, then_ops, else_ops, result } => {
+        CIROperation::If {
+            condition,
+            then_ops,
+            else_ops,
+            result,
+        } => {
             for inner_op in condition {
                 validate_operation(inner_op, defined, errors);
             }
@@ -188,7 +261,11 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Match { subject, arms, result } => {
+        CIROperation::Match {
+            subject,
+            arms,
+            result,
+        } => {
             check_defined(subject, defined, errors);
             for arm in arms {
                 let mut inner_defined = defined.clone();
@@ -207,7 +284,12 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::Loop { source, element_var, body, result } => {
+        CIROperation::Loop {
+            source,
+            element_var,
+            body,
+            result,
+        } => {
             check_defined(source, defined, errors);
             let mut inner_defined = defined.clone();
             inner_defined.insert(element_var.clone());
@@ -235,12 +317,19 @@ fn validate_operation(
             }
             define_var(result, defined, errors);
         }
-        CIROperation::BinaryOp { left, right, result, .. } => {
+        CIROperation::BinaryOp {
+            left,
+            right,
+            result,
+            ..
+        } => {
             check_value(left, defined, errors);
             check_value(right, defined, errors);
             define_var(result, defined, errors);
         }
-        CIROperation::UnaryOp { operand, result, .. } => {
+        CIROperation::UnaryOp {
+            operand, result, ..
+        } => {
             check_value(operand, defined, errors);
             define_var(result, defined, errors);
         }
@@ -260,7 +349,9 @@ fn validate_operation(
         CIROperation::DbQuery { result, .. } => {
             define_var(result, defined, errors);
         }
-        CIROperation::HttpRequest { url, body, result, .. } => {
+        CIROperation::HttpRequest {
+            url, body, result, ..
+        } => {
             check_value(url, defined, errors);
             if let Some(b) = body {
                 check_value(b, defined, errors);
@@ -366,7 +457,9 @@ mod tests {
         let result = validate(&func);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, ValidationError::UndefinedVariable(_))));
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::UndefinedVariable(_))));
     }
 
     #[test]
@@ -390,6 +483,8 @@ mod tests {
         let result = validate(&func);
         assert!(result.is_err());
         let errors = result.unwrap_err();
-        assert!(errors.iter().any(|e| matches!(e, ValidationError::MissingReturn)));
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::MissingReturn)));
     }
 }

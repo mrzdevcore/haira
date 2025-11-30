@@ -75,6 +75,8 @@ pub enum TokenKind {
     From,
     #[token("default")]
     Default,
+    #[token("ai")]
+    Ai,
 
     // ========================================================================
     // Operators
@@ -222,6 +224,7 @@ impl TokenKind {
                 | TokenKind::Continue
                 | TokenKind::From
                 | TokenKind::Default
+                | TokenKind::Ai
         )
     }
 

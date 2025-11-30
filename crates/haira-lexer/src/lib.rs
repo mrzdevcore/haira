@@ -17,13 +17,13 @@
 //! }
 //! ```
 
-mod token;
-mod lexer;
 mod error;
+mod lexer;
+mod token;
 
-pub use token::{Token, TokenKind};
-pub use lexer::Lexer;
 pub use error::LexError;
+pub use lexer::Lexer;
+pub use token::{Token, TokenKind};
 
 /// Tokenize source code into a vector of tokens.
 pub fn tokenize(source: &str) -> (Vec<Token>, Vec<LexError>) {

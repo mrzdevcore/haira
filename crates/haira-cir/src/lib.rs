@@ -26,14 +26,14 @@
 //! }
 //! ```
 
-mod types;
-mod operations;
 mod function;
+mod operations;
+mod types;
 mod validation;
 
-pub use types::*;
-pub use operations::*;
 pub use function::*;
+pub use operations::*;
+pub use types::*;
 pub use validation::*;
 
 use serde::{Deserialize, Serialize};

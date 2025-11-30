@@ -44,7 +44,10 @@ pub enum CIRTypeKind {
     /// List type
     List { element: Box<CIRType> },
     /// Map type
-    Map { key: Box<CIRType>, value: Box<CIRType> },
+    Map {
+        key: Box<CIRType>,
+        value: Box<CIRType>,
+    },
     /// Option type
     Option { inner: Box<CIRType> },
     /// Function type

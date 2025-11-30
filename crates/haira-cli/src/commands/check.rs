@@ -26,10 +26,7 @@ pub fn run(files: &[std::path::PathBuf]) -> miette::Result<()> {
         );
         Err(miette::miette!("{} errors found", total_errors))
     } else if total_warnings > 0 {
-        println!(
-            "Check complete: {} warning(s)",
-            total_warnings
-        );
+        println!("Check complete: {} warning(s)", total_warnings);
         Ok(())
     } else {
         println!("Check complete: no issues found");

@@ -65,10 +65,7 @@ pub enum HirExprKind {
         rhs: Idx<HirExpr>,
     },
     /// Unary operation.
-    Unary {
-        op: UnaryOp,
-        operand: Idx<HirExpr>,
-    },
+    Unary { op: UnaryOp, operand: Idx<HirExpr> },
     /// Function call.
     Call {
         func: FunctionId,
@@ -81,10 +78,7 @@ pub enum HirExprKind {
         args: Vec<Idx<HirExpr>>,
     },
     /// Field access.
-    Field {
-        base: Idx<HirExpr>,
-        field: SmolStr,
-    },
+    Field { base: Idx<HirExpr>, field: SmolStr },
     /// Index access.
     Index {
         base: Idx<HirExpr>,
@@ -123,11 +117,24 @@ pub enum HirExprKind {
 /// Binary operators.
 #[derive(Debug, Clone, Copy)]
 pub enum BinaryOp {
-    Add, Sub, Mul, Div, Mod,
-    Eq, Ne, Lt, Le, Gt, Ge,
-    And, Or,
-    BitAnd, BitOr, BitXor,
-    Shl, Shr,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
 }
 
 /// Unary operators.

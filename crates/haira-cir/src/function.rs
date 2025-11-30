@@ -1,7 +1,7 @@
 //! CIR Function definitions.
 
-use serde::{Deserialize, Serialize};
 use crate::{CIROperation, CIRType, TypeDefinition};
+use serde::{Deserialize, Serialize};
 
 /// A complete function definition in CIR.
 #[derive(Debug, Clone, Serialize, Deserialize)]

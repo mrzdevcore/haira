@@ -6,8 +6,8 @@
 //! It preserves source locations for error reporting and is the input to
 //! name resolution and type checking.
 
-mod span;
 mod ast;
+mod span;
 
-pub use span::{Span, Spanned};
 pub use ast::*;
+pub use span::{Span, Spanned};

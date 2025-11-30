@@ -19,3 +19,4 @@ base64 = "0.21"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = "3"

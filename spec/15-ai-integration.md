@@ -493,7 +493,131 @@ git pull
 haira build  # Uses cached interpretations
 ```
 
-## 15.13 Future: Local AI
+## 15.13 Explicit AI Intent Blocks
+
+While AI can implicitly interpret unresolved function calls, Haira also supports **explicit AI intent blocks** for cases where developers want precise control over AI-generated code.
+
+### Syntax
+
+```haira
+ai function_name(params) -> ReturnType {
+    Natural language description of what the function should do.
+    Can span multiple lines.
+}
+```
+
+### Named AI Functions
+
+Define a reusable AI-generated function at module level:
+
+```haira
+// Top-level definition
+ai summarize_activity(user: User) -> ActivitySummary {
+    Summarize the user's activity over the last 30 days.
+    Group by activity type and find the most common.
+    Return total count, most frequent type, and last active timestamp.
+}
+
+// Usage - calls the AI-generated function
+main() {
+    user = get_current_user()
+    summary = summarize_activity(user)
+    print(summary)
+}
+```
+
+### Anonymous AI Blocks
+
+Use AI inline without naming the function:
+
+```haira
+// Anonymous AI block assigned to variable
+process_data(data: Data) -> Result {
+    analysis = ai(d: Data) -> Stats {
+        Calculate mean, median, mode, and standard deviation.
+        Handle empty data gracefully.
+    }
+    
+    // Call the anonymous function
+    analysis(data)
+}
+```
+
+### Type Inference
+
+Return types can be omitted when inferrable:
+
+```haira
+// AI will infer the return type
+ai find_active_users(users: [User]) {
+    Filter users who have been active in the last 7 days.
+    Sort by most recent activity.
+}
+```
+
+### Caching Behavior
+
+Explicit AI blocks are cached using:
+- Hash of the intent text
+- Function signature (name, parameters, return type)
+- Types in scope
+
+```
+Cache key: sha256(intent + signature + context_types)
+```
+
+This ensures:
+1. Same intent text always produces same cached result
+2. Changes to intent text trigger regeneration
+3. Changes to referenced types trigger regeneration
+
+### Intent vs Implicit Resolution
+
+| Feature | Implicit (unresolved call) | Explicit (ai block) |
+|---------|---------------------------|---------------------|
+| Syntax | `result = summarize(data)` | `ai summarize(data: Data) { ... }` |
+| Intent | Inferred from name | Explicitly specified |
+| Control | Less precise | Full control |
+| Readability | Concise | Self-documenting |
+| Best for | Simple, obvious functions | Complex business logic |
+
+### Best Practices
+
+1. **Use explicit blocks for complex logic**
+   ```haira
+   // Good: Complex logic is explicit
+   ai generate_quarterly_report(sales: [Sale], period: Quarter) -> Report {
+       Aggregate sales by region and product category.
+       Calculate year-over-year growth percentages.
+       Identify top performers and underperformers.
+       Include trend analysis and recommendations.
+   }
+   ```
+
+2. **Use implicit for simple patterns**
+   ```haira
+   // Good: Simple patterns are implicit
+   active_users = get_active_users()
+   sorted = sort_by_name(users)
+   ```
+
+3. **Be specific in intent descriptions**
+   ```haira
+   // Good: Specific
+   ai calculate_churn_risk(user: User) -> ChurnRisk {
+       Analyze user's activity patterns over last 90 days.
+       Compare against historical churn indicators.
+       Weight factors: login frequency (30%), feature usage (40%), support tickets (30%).
+       Return risk score 0-100 with contributing factors.
+   }
+   
+   // Bad: Vague
+   ai calculate_churn_risk(user: User) {
+       Calculate if user might leave.
+   }
+   ```
+
+## 15.14 Future: Local AI
 
 For fully offline operation, Haira will support local models:
 

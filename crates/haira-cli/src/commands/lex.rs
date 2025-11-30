@@ -5,8 +5,8 @@ use std::fs;
 use std::path::Path;
 
 pub fn run(file: &Path) -> miette::Result<()> {
-    let source = fs::read_to_string(file)
-        .map_err(|e| miette::miette!("Failed to read file: {}", e))?;
+    let source =
+        fs::read_to_string(file).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 
     println!("Tokenizing: {}\n", file.display());
 
@@ -28,7 +28,10 @@ pub fn run(file: &Path) -> miette::Result<()> {
                     "{:4}..{:4}  {:20}  {:?}",
                     token.span.start,
                     token.span.end,
-                    format!("{:?}", token.kind).chars().take(20).collect::<String>(),
+                    format!("{:?}", token.kind)
+                        .chars()
+                        .take(20)
+                        .collect::<String>(),
                     text_display.replace('\n', "\\n")
                 );
                 token_count += 1;

@@ -26,6 +26,7 @@ clean:
 	rm -f examples/hello examples/fibonacci examples/for_loop examples/functions
 	rm -f examples/if_else examples/arrays examples/methods examples/pattern_matching
 	rm -f examples/structs examples/while_loop examples/match examples/match_simple
+	rm -f examples/async_block
 	@# Remove object files
 	rm -f *.o examples/*.o
 	@echo "Cleaned all build artifacts"

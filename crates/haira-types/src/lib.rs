@@ -110,8 +110,14 @@ impl InferenceContext {
                 Ok(())
             }
             (
-                Type::Function { params: pa, returns: ra },
-                Type::Function { params: pb, returns: rb },
+                Type::Function {
+                    params: pa,
+                    returns: ra,
+                },
+                Type::Function {
+                    params: pb,
+                    returns: rb,
+                },
             ) if pa.len() == pb.len() => {
                 for (ta, tb) in pa.iter().zip(pb.iter()) {
                     self.unify(ta, tb)?;

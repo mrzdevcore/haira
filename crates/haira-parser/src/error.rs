@@ -1,7 +1,7 @@
 //! Parser error definitions.
 
-use thiserror::Error;
 use haira_lexer::TokenKind;
+use thiserror::Error;
 
 /// A parser error.
 #[derive(Debug, Clone, Error)]
@@ -20,34 +20,22 @@ pub enum ParseError {
     },
 
     #[error("expected expression")]
-    ExpectedExpr {
-        span: std::ops::Range<usize>,
-    },
+    ExpectedExpr { span: std::ops::Range<usize> },
 
     #[error("expected statement")]
-    ExpectedStatement {
-        span: std::ops::Range<usize>,
-    },
+    ExpectedStatement { span: std::ops::Range<usize> },
 
     #[error("expected type")]
-    ExpectedType {
-        span: std::ops::Range<usize>,
-    },
+    ExpectedType { span: std::ops::Range<usize> },
 
     #[error("expected identifier")]
-    ExpectedIdent {
-        span: std::ops::Range<usize>,
-    },
+    ExpectedIdent { span: std::ops::Range<usize> },
 
     #[error("expected block")]
-    ExpectedBlock {
-        span: std::ops::Range<usize>,
-    },
+    ExpectedBlock { span: std::ops::Range<usize> },
 
     #[error("lexer error")]
-    LexError {
-        span: std::ops::Range<usize>,
-    },
+    LexError { span: std::ops::Range<usize> },
 }
 
 impl ParseError {

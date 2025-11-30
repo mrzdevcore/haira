@@ -28,19 +28,19 @@
 //! let response = engine.interpret(request).await?;
 //! ```
 
-mod client;
-mod engine;
 mod cache;
-mod prompt;
+mod client;
 mod config;
+mod engine;
+mod prompt;
 
-pub use client::ClaudeClient;
-pub use engine::AIEngine;
 pub use cache::AICache;
+pub use client::ClaudeClient;
 pub use config::AIConfig;
+pub use engine::AIEngine;
 
 // Re-export CIR types for convenience
 pub use haira_cir::{
-    AIRequest, AIResponse, CIRFunction, CIROperation, CIRType, CIRValue,
-    InterpretationContext, TypeDefinition,
+    AIRequest, AIResponse, CIRFunction, CIROperation, CIRType, CIRValue, InterpretationContext,
+    TypeDefinition,
 };

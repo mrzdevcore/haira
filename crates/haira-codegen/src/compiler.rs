@@ -75,6 +75,12 @@ pub struct Compiler {
     spawn_functions: HashMap<u32, SmolStr>,
     /// Collected spawn blocks from AST (span start -> block).
     spawn_blocks: Vec<(u32, Block)>,
+    /// Counter for generating unique async function names.
+    async_counter: usize,
+    /// Map of async block span start to their function names (one per statement in block).
+    async_functions: HashMap<u32, Vec<SmolStr>>,
+    /// Collected async blocks from AST (span start -> block).
+    async_blocks: Vec<(u32, Block)>,
 }
 
 impl Compiler {
@@ -112,6 +118,9 @@ impl Compiler {
             spawn_counter: 0,
             spawn_functions: HashMap::new(),
             spawn_blocks: Vec::new(),
+            async_counter: 0,
+            async_functions: HashMap::new(),
+            async_blocks: Vec::new(),
         })
     }
 
@@ -302,6 +311,25 @@ impl Compiler {
         self.functions
             .insert(SmolStr::from("spawn_thread"), spawn_id);
 
+        // haira_spawn_joinable(func: ptr) -> i64 (for async blocks)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type)); // function pointer
+        sig.returns.push(AbiParam::new(types::I64)); // thread handle
+        let spawn_joinable_id =
+            self.module
+                .declare_function("haira_spawn_joinable", Linkage::Import, &sig)?;
+        self.functions
+            .insert(SmolStr::from("spawn_joinable"), spawn_joinable_id);
+
+        // haira_thread_join(handle: i64)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64)); // thread handle
+        let thread_join_id =
+            self.module
+                .declare_function("haira_thread_join", Linkage::Import, &sig)?;
+        self.functions
+            .insert(SmolStr::from("thread_join"), thread_join_id);
+
         Ok(())
     }
 
@@ -388,6 +416,9 @@ impl Compiler {
         // Declare spawn block functions (no params, returns i64)
         self.declare_spawn_functions()?;
 
+        // Declare async block functions (no params, returns i64)
+        self.declare_async_functions()?;
+
         // Third pass: compile function and method bodies
         for item in &ast.items {
             if let ItemKind::FunctionDef(func) = &item.node {
@@ -400,6 +431,9 @@ impl Compiler {
 
         // Compile spawn block functions
         self.compile_spawn_functions()?;
+
+        // Compile async block functions
+        self.compile_async_functions()?;
 
         // Compile main function from top-level statements
         self.compile_main(ast)?;
@@ -572,6 +606,19 @@ impl Compiler {
                 }
             },
             ExprKind::Async(block) => {
+                // Found an async block! Record it with its span start as key
+                // Each statement in the block will become a separate function
+                let span_start = expr.span.start;
+                let mut func_names = Vec::new();
+                for (i, _stmt) in block.statements.iter().enumerate() {
+                    let func_name =
+                        SmolStr::from(format!("__async_block_{}_{}", self.async_counter, i));
+                    func_names.push(func_name);
+                }
+                self.async_counter += 1;
+                self.async_functions.insert(span_start, func_names);
+                self.async_blocks.push((span_start, block.clone()));
+                // Also collect any nested spawn/async blocks within
                 self.collect_spawn_blocks_from_block(block);
             }
             ExprKind::Pipe(pipe) => {
@@ -598,6 +645,10 @@ impl Compiler {
             ExprKind::Range(range) => {
                 self.collect_spawn_blocks_from_expr(&range.start);
                 self.collect_spawn_blocks_from_expr(&range.end);
+            }
+            ExprKind::Ai(_ai_block) => {
+                // AI blocks are handled separately during pre-interpretation.
+                // No nested spawn/async blocks to collect from the intent text.
             }
             _ => {}
         }
@@ -665,9 +716,101 @@ impl Compiler {
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
+                async_functions: &self.async_functions,
             };
 
             let result = func_compiler.compile_block(block, &mut scope, &mut builder)?;
+
+            if !builder.is_unreachable() {
+                let ret_val = result.unwrap_or_else(|| builder.ins().iconst(types::I64, 0));
+                builder.ins().return_(&[ret_val]);
+            }
+
+            builder.finalize();
+        }
+
+        self.module
+            .define_function(func_id, &mut self.ctx)
+            .map_err(|e| CodegenError::ModuleError(e))?;
+
+        self.ctx.clear();
+
+        Ok(())
+    }
+
+    /// Declare async block functions.
+    fn declare_async_functions(&mut self) -> Result<(), CodegenError> {
+        for (_, func_names) in &self.async_functions {
+            for func_name in func_names {
+                // Async functions take no parameters and return i64
+                let mut sig = self.module.make_signature();
+                sig.returns.push(AbiParam::new(types::I64));
+
+                let id = self
+                    .module
+                    .declare_function(func_name.as_str(), Linkage::Local, &sig)?;
+                self.functions.insert(func_name.clone(), id);
+            }
+        }
+        Ok(())
+    }
+
+    /// Compile async block functions.
+    fn compile_async_functions(&mut self) -> Result<(), CodegenError> {
+        // Take ownership of async_blocks to avoid borrow issues
+        let async_blocks = std::mem::take(&mut self.async_blocks);
+
+        for (span_start, block) in async_blocks {
+            let func_names = self.async_functions.get(&span_start).unwrap().clone();
+            // Compile each statement as a separate function
+            for (i, stmt) in block.statements.iter().enumerate() {
+                if i < func_names.len() {
+                    self.compile_async_statement_function(&func_names[i], stmt)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Compile a single async statement as a function.
+    fn compile_async_statement_function(
+        &mut self,
+        func_name: &SmolStr,
+        stmt: &Statement,
+    ) -> Result<(), CodegenError> {
+        let func_id = *self
+            .functions
+            .get(func_name)
+            .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+
+        self.ctx.func.signature = self
+            .module
+            .declarations()
+            .get_function_decl(func_id)
+            .signature
+            .clone();
+
+        {
+            let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
+
+            let entry_block = builder.create_block();
+            builder.switch_to_block(entry_block);
+            builder.seal_block(entry_block);
+
+            let mut scope = FunctionScope::new(self.ptr_type);
+
+            let mut func_compiler = FunctionCompiler {
+                module: &mut self.module,
+                strings: &mut self.strings,
+                functions: &self.functions,
+                structs: &self.structs,
+                ptr_type: self.ptr_type,
+                spawn_functions: &self.spawn_functions,
+                async_functions: &self.async_functions,
+            };
+
+            let result = func_compiler.compile_statement(stmt, &mut scope, &mut builder)?;
 
             if !builder.is_unreachable() {
                 let ret_val = result.unwrap_or_else(|| builder.ins().iconst(types::I64, 0));
@@ -731,6 +874,7 @@ impl Compiler {
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
+                async_functions: &self.async_functions,
             };
 
             // Compile function body
@@ -806,6 +950,7 @@ impl Compiler {
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
+                async_functions: &self.async_functions,
             };
 
             let result = func_compiler.compile_block(&method.body, &mut scope, &mut builder)?;
@@ -857,6 +1002,7 @@ impl Compiler {
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
+                async_functions: &self.async_functions,
             };
 
             // Compile all top-level statements (not function defs)
@@ -899,6 +1045,8 @@ struct FunctionCompiler<'a> {
     ptr_type: Type,
     /// Map of spawn block span start to their function names.
     spawn_functions: &'a HashMap<u32, SmolStr>,
+    /// Map of async block span start to their function names.
+    async_functions: &'a HashMap<u32, Vec<SmolStr>>,
 }
 
 impl<'a> FunctionCompiler<'a> {
@@ -1488,12 +1636,53 @@ impl<'a> FunctionCompiler<'a> {
             }
             ExprKind::Async(_block) => {
                 // Async blocks run operations concurrently and wait for all to complete
-                // This requires a more complex runtime with futures/promises
-                // For now, just execute the block synchronously
-                Err(CodegenError::Unsupported(
-                    "Async blocks not yet supported. Use spawn for fire-and-forget concurrency."
-                        .to_string(),
-                ))
+                // Look up the pre-compiled functions for each statement
+                let span_start = expr.span.start;
+                let func_names = self.async_functions.get(&span_start).ok_or_else(|| {
+                    CodegenError::Unsupported(format!(
+                        "Async block not found (span {}). This is a compiler bug.",
+                        span_start
+                    ))
+                })?;
+
+                // Get runtime functions
+                let spawn_joinable_id = *self
+                    .functions
+                    .get(&SmolStr::from("spawn_joinable"))
+                    .unwrap();
+                let spawn_joinable_func = self
+                    .module
+                    .declare_func_in_func(spawn_joinable_id, builder.func);
+                let thread_join_id = *self.functions.get(&SmolStr::from("thread_join")).unwrap();
+                let thread_join_func = self
+                    .module
+                    .declare_func_in_func(thread_join_id, builder.func);
+
+                // Spawn all statements as joinable threads
+                let mut thread_handles = Vec::new();
+                for func_name in func_names {
+                    let func_id = *self
+                        .functions
+                        .get(func_name)
+                        .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+
+                    // Get function address
+                    let local_target = self.module.declare_func_in_func(func_id, builder.func);
+                    let func_ptr = builder.ins().func_addr(self.ptr_type, local_target);
+
+                    // Call haira_spawn_joinable with function pointer
+                    let call_inst = builder.ins().call(spawn_joinable_func, &[func_ptr]);
+                    let thread_handle = builder.inst_results(call_inst)[0];
+                    thread_handles.push(thread_handle);
+                }
+
+                // Join all threads (wait for completion)
+                for thread_handle in thread_handles {
+                    builder.ins().call(thread_join_func, &[thread_handle]);
+                }
+
+                // Return 0 (async blocks don't produce a value currently)
+                Ok(builder.ins().iconst(types::I64, 0))
             }
             ExprKind::Spawn(_block) => {
                 // Spawn blocks create a new thread to run the block
@@ -1608,6 +1797,30 @@ impl<'a> FunctionCompiler<'a> {
                 let shifted = builder.ins().ishl(val, one);
                 let tagged = builder.ins().bor(shifted, one);
                 Ok(tagged)
+            }
+            ExprKind::Ai(ai_block) => {
+                // AI blocks require pre-interpretation before compilation.
+                // The AI engine must interpret the intent and generate CIR,
+                // which is then compiled to native code.
+                //
+                // For now, we return an error indicating that AI blocks need
+                // to be pre-processed. In a full implementation:
+                // 1. A pre-compilation pass would interpret all AI blocks
+                // 2. The generated CIR would be stored alongside the AST
+                // 3. This code would compile the pre-generated CIR
+                //
+                // See `haira-ai` crate's `AIEngine::interpret_intent()` for
+                // the AI interpretation logic.
+                let name = ai_block
+                    .name
+                    .as_ref()
+                    .map(|n| n.node.as_str())
+                    .unwrap_or("<anonymous>");
+                Err(CodegenError::Unsupported(format!(
+                    "AI block '{}' requires pre-interpretation. \
+                     Run `haira build --interpret-ai` to generate code from AI intents.",
+                    name
+                )))
             }
             _ => Err(CodegenError::Unsupported(format!(
                 "Expression type not yet supported: {:?}",

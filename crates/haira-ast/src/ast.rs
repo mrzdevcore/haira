@@ -1,7 +1,7 @@
 //! AST node definitions for Haira.
 
-use smol_str::SmolStr;
 use crate::{Span, Spanned};
+use smol_str::SmolStr;
 
 /// A complete Haira source file.
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +27,8 @@ pub enum ItemKind {
     MethodDef(MethodDef),
     /// Type alias: `UserId = int`
     TypeAlias(TypeAlias),
+    /// AI-generated function: `ai summarize(user: User) -> Summary { ... }`
+    AiFunctionDef(AiBlock),
     /// A statement at module level
     Statement(Statement),
 }
@@ -338,6 +340,8 @@ pub enum ExprKind {
     Select(SelectExpr),
     /// Parenthesized expression
     Paren(Box<Expr>),
+    /// AI intent block: `ai func_name(params) -> Type { intent }` or anonymous `ai(params) { intent }`
+    Ai(AiBlock),
 }
 
 /// A literal value.
@@ -380,21 +384,21 @@ pub struct BinaryExpr {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum BinaryOp {
     // Arithmetic
-    Add,      // +
-    Sub,      // -
-    Mul,      // *
-    Div,      // /
-    Mod,      // %
+    Add, // +
+    Sub, // -
+    Mul, // *
+    Div, // /
+    Mod, // %
     // Comparison
-    Eq,       // ==
-    Ne,       // !=
-    Lt,       // <
-    Gt,       // >
-    Le,       // <=
-    Ge,       // >=
+    Eq, // ==
+    Ne, // !=
+    Lt, // <
+    Gt, // >
+    Le, // <=
+    Ge, // >=
     // Logical
-    And,      // and
-    Or,       // or
+    And, // and
+    Or,  // or
 }
 
 /// A unary expression: `-x`, `not x`
@@ -409,8 +413,8 @@ pub struct UnaryExpr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum UnaryOp {
-    Neg,  // -
-    Not,  // not
+    Neg, // -
+    Not, // not
 }
 
 /// A function call: `foo(x, y)`
@@ -595,6 +599,36 @@ pub struct SelectArm {
     /// Body
     pub body: MatchArmBody,
     /// Span
+    pub span: Span,
+}
+
+/// An AI intent block for explicit AI-generated functions.
+///
+/// Syntax:
+/// ```haira
+/// // Named function
+/// ai summarize_activity(user: User) -> ActivitySummary {
+///     Summarize the user activity over the last 30 days.
+///     Group by activity type and find most common.
+/// }
+///
+/// // Anonymous/inline
+/// result = ai(data: Data) -> Summary {
+///     Analyze and summarize this data
+/// }(my_data)
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AiBlock {
+    /// Optional function name (None for anonymous)
+    pub name: Option<Spanned<SmolStr>>,
+    /// Parameters
+    pub params: Vec<Param>,
+    /// Optional return type annotation
+    pub return_ty: Option<Spanned<Type>>,
+    /// Natural language intent description (the block body)
+    pub intent: SmolStr,
+    /// Span of the entire block
     pub span: Span,
 }
 

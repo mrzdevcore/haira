@@ -1,6 +1,6 @@
 //! AI response caching for reproducibility.
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;

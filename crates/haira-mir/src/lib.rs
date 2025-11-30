@@ -55,8 +55,14 @@ pub struct LocalId(pub u32);
 #[derive(Clone)]
 pub enum Place {
     Local(LocalId),
-    Field { base: Box<Place>, field: SmolStr },
-    Index { base: Box<Place>, index: Box<Operand> },
+    Field {
+        base: Box<Place>,
+        field: SmolStr,
+    },
+    Index {
+        base: Box<Place>,
+        index: Box<Operand>,
+    },
 }
 
 /// An rvalue.
@@ -89,10 +95,22 @@ pub enum Constant {
 /// Binary operations.
 #[derive(Debug, Clone, Copy)]
 pub enum BinOp {
-    Add, Sub, Mul, Div, Rem,
-    Eq, Ne, Lt, Le, Gt, Ge,
-    BitAnd, BitOr, BitXor,
-    Shl, Shr,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
 }
 
 /// Unary operations.

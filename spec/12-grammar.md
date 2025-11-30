@@ -51,7 +51,7 @@ keyword         = "if" | "else" | "for" | "while" | "return"
                 | "and" | "or" | "not" | "in"
                 | "async" | "spawn" | "select"
                 | "try" | "catch" | "public"
-                | "err" | "ok" ;
+                | "err" | "ok" | "ai" ;
 ```
 
 ### Literals
@@ -102,6 +102,7 @@ top_level       = type_definition
                 | function_definition
                 | method_definition
                 | type_alias
+                | ai_function_definition
                 | statement ;
 ```
 
@@ -147,6 +148,12 @@ function_definition = [ "public" ] identifier "(" [ param_list ] ")"
 
 method_definition   = identifier "." identifier "(" [ param_list ] ")"
                       [ "->" type ] block ;
+
+ai_function_definition = "ai" [ identifier ] "(" [ param_list ] ")"
+                         [ "->" type ] intent_block ;
+
+intent_block        = "{" intent_text "}" ;
+intent_text         = { any_char - "}" } ;  (* Natural language description *)
 
 param_list      = param { "," param } ;
 param           = identifier [ ":" type ] [ "=" expression ] [ "..." ] ;
@@ -238,8 +245,12 @@ primary_expr    = identifier
                 | async_expr
                 | spawn_expr
                 | select_expr
+                | ai_expr
                 | "(" expression ")"
                 | "some" "(" expression ")" ;
+
+ai_expr         = "ai" [ identifier ] "(" [ param_list ] ")"
+                  [ "->" type ] intent_block ;
 
 arg_list        = arg { "," arg } ;
 arg             = [ identifier "=" ] expression ;

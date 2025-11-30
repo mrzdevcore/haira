@@ -24,7 +24,10 @@ pub struct ResolvedModule {
 #[derive(Debug, Clone)]
 pub enum Definition {
     /// Local variable.
-    Local { name: SmolStr, span: std::ops::Range<usize> },
+    Local {
+        name: SmolStr,
+        span: std::ops::Range<usize>,
+    },
     /// Function parameter.
     Parameter { name: SmolStr, index: usize },
     /// Type definition.

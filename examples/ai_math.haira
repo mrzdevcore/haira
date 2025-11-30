@@ -1,0 +1,21 @@
+// AI Math Functions
+
+// Check if a number is even
+ai is_even(n: int) -> bool {
+    Return true if n modulo 2 equals 0, false otherwise.
+}
+
+// Double a number
+ai double(x: int) -> int {
+    Return x multiplied by 2.
+}
+
+// Main program
+result1 = is_even(4)
+print(result1)
+
+result2 = is_even(7)
+print(result2)
+
+d = double(21)
+print(d)

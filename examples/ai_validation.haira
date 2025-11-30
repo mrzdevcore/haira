@@ -1,0 +1,30 @@
+// AI Validation Functions
+// Simple functions that work with primitive types
+
+// AI function for validation
+ai validate_email(email: string) -> bool {
+    Check if the email contains an @ symbol.
+    Return true if valid, false otherwise.
+}
+
+// AI function for math
+ai calculate_factorial(n: int) -> int {
+    Calculate the factorial of n.
+    If n is 0 or 1, return 1.
+    Otherwise multiply n by factorial of n-1.
+}
+
+// AI function for comparison
+ai is_even(n: int) -> bool {
+    Return true if n is divisible by 2.
+}
+
+// Main program
+print("AI Validation Functions")
+
+// Test is_even
+even1 = is_even(4)
+print(even1)
+
+even2 = is_even(7)
+print(even2)

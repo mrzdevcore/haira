@@ -1,0 +1,18 @@
+// Very simple AI math - no control flow
+
+// Double a number
+ai double(x: int) -> int {
+    Return x times 2.
+}
+
+// Triple a number
+ai triple(x: int) -> int {
+    Return x times 3.
+}
+
+// Main program
+d = double(21)
+print(d)
+
+t = triple(10)
+print(t)

@@ -1,0 +1,26 @@
+// Simple AI block test - with AI blocks compiled to actual functions
+
+// AI-generated function: Return the answer to life, universe, and everything.
+get_answer() -> int {
+    return 42
+}
+
+// AI-generated function: Create a greeting message for the given name.
+greet(name: string) -> string {
+    return "Hello, {name}!"
+}
+
+// AI-generated function: Check if x is a valid positive number.
+is_valid(x: int) -> bool {
+    return x > 0
+}
+
+// Main program
+answer = get_answer()
+print(answer)
+
+msg = greet("World")
+print(msg)
+
+valid = is_valid(42)
+print(valid)

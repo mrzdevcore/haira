@@ -1,0 +1,26 @@
+// Simple AI block test
+
+// AI function that returns an int
+ai get_answer() -> int {
+    Return the answer to life, universe, and everything but in negative number.
+}
+
+// AI function with a parameter that returns string
+ai greet(name: string) -> string {
+    Create a greeting message for the given name.
+}
+
+// AI function returning bool
+ai is_valid(x: int) -> bool {
+    Check if x is a valid positive number.
+}
+
+// Main program
+answer = get_answer()
+print(answer)
+
+msg = greet("World")
+print("Hello, World!: {msg}")
+
+valid = is_valid(42)
+print(valid)

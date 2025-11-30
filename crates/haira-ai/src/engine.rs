@@ -6,13 +6,25 @@ use tracing::{debug, info, warn};
 use crate::cache::AICache;
 use crate::client::{ClaudeClient, ClientError};
 use crate::config::AIConfig;
+use crate::ollama::{OllamaClient, OllamaError};
 use crate::prompt::{self, SYSTEM_PROMPT};
-use haira_cir::{AIRequest, AIResponse, CIRFunction, InterpretationContext};
+use haira_cir::{AIResponse, CIRFunction, InterpretationContext};
+
+/// AI backend type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AIBackend {
+    /// Use Claude API (requires ANTHROPIC_API_KEY)
+    Claude,
+    /// Use local Ollama server
+    Ollama,
+}
 
 /// AI Engine for interpreting developer intent.
 pub struct AIEngine {
     config: AIConfig,
-    client: Option<ClaudeClient>,
+    claude_client: Option<ClaudeClient>,
+    ollama_client: Option<OllamaClient>,
+    backend: AIBackend,
     cache: AICache,
 }
 
@@ -21,6 +33,8 @@ pub struct AIEngine {
 pub enum AIError {
     #[error("client error: {0}")]
     Client(#[from] ClientError),
+    #[error("ollama error: {0}")]
+    Ollama(#[from] OllamaError),
     #[error("cache error: {0}")]
     Cache(#[from] crate::cache::CacheError),
     #[error("parse error: {0}")]
@@ -33,12 +47,14 @@ pub enum AIError {
     InterpretationFailed(String),
     #[error("missing API key - set ANTHROPIC_API_KEY environment variable")]
     MissingApiKey,
+    #[error("no AI backend available")]
+    NoBackend,
 }
 
 impl AIEngine {
-    /// Create a new AI engine.
+    /// Create a new AI engine with Claude backend.
     pub fn new(config: AIConfig) -> Self {
-        let client = if config.api_key.is_empty() {
+        let claude_client = if config.api_key.is_empty() {
             None
         } else {
             ClaudeClient::new(config.clone()).ok()
@@ -48,8 +64,70 @@ impl AIEngine {
 
         Self {
             config,
-            client,
+            claude_client,
+            ollama_client: None,
+            backend: AIBackend::Claude,
             cache,
+        }
+    }
+
+    /// Create a new AI engine with Ollama backend.
+    pub fn with_ollama(config: AIConfig, ollama_model: Option<&str>) -> Self {
+        let ollama_client = if let Some(model) = ollama_model {
+            OllamaClient::new().with_model(model)
+        } else {
+            OllamaClient::new()
+        };
+
+        let cache = AICache::new(config.cache_dir.clone());
+
+        Self {
+            config,
+            claude_client: None,
+            ollama_client: Some(ollama_client),
+            backend: AIBackend::Ollama,
+            cache,
+        }
+    }
+
+    /// Set the AI backend to use.
+    pub fn set_backend(&mut self, backend: AIBackend) {
+        self.backend = backend;
+    }
+
+    /// Get the current backend.
+    pub fn backend(&self) -> AIBackend {
+        self.backend
+    }
+
+    /// Check if the current backend is available.
+    pub async fn check_availability(&self) -> Result<(), AIError> {
+        match self.backend {
+            AIBackend::Claude => {
+                if self.claude_client.is_none() {
+                    return Err(AIError::MissingApiKey);
+                }
+                Ok(())
+            }
+            AIBackend::Ollama => {
+                let client = self.ollama_client.as_ref().ok_or(AIError::NoBackend)?;
+                client.check_availability().await?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Complete a prompt using the configured backend.
+    async fn complete(&self, system: &str, user_message: &str) -> Result<String, AIError> {
+        match self.backend {
+            AIBackend::Claude => {
+                let client = self.claude_client.as_ref().ok_or(AIError::MissingApiKey)?;
+                Ok(client.complete(system, user_message).await?)
+            }
+            AIBackend::Ollama => {
+                let client = self.ollama_client.as_ref().ok_or(AIError::NoBackend)?;
+                Ok(client.complete(system, user_message).await?)
+            }
         }
     }
 
@@ -89,13 +167,11 @@ impl AIEngine {
             }
         }
 
-        // 3. Call Claude API
-        let client = self.client.as_ref().ok_or(AIError::MissingApiKey)?;
-
+        // 3. Call AI backend
         let user_prompt = prompt::build_user_prompt(function_name, &context);
 
-        debug!("Calling Claude API...");
-        let response_text = client.complete(SYSTEM_PROMPT, &user_prompt).await?;
+        debug!("Calling {:?} backend...", self.backend);
+        let response_text = self.complete(SYSTEM_PROMPT, &user_prompt).await?;
 
         // 4. Parse response
         let response: AIResponse = self.parse_response(&response_text)?;
@@ -182,14 +258,12 @@ impl AIEngine {
             }
         }
 
-        // 3. Call Claude API
-        let client = self.client.as_ref().ok_or(AIError::MissingApiKey)?;
-
+        // 3. Call AI backend
         let user_prompt =
             prompt::build_intent_prompt(function_name, intent, params, return_type, &context);
 
-        debug!("Calling Claude API for intent...");
-        let response_text = client.complete(SYSTEM_PROMPT, &user_prompt).await?;
+        debug!("Calling {:?} backend for intent...", self.backend);
+        let response_text = self.complete(SYSTEM_PROMPT, &user_prompt).await?;
 
         // 4. Parse response
         let response: AIResponse = self.parse_response(&response_text)?;
@@ -287,18 +361,760 @@ impl AIEngine {
 
     /// Parse AI response, handling potential JSON issues.
     fn parse_response(&self, text: &str) -> Result<AIResponse, serde_json::Error> {
+        debug!("Raw AI response ({} chars):\n{}", text.len(), text);
+
+        // Clean up common LLM artifacts
+        let cleaned = Self::clean_llm_output(text);
+
         // Try to extract JSON from the response
-        let json_text = if let Some(start) = text.find('{') {
-            if let Some(end) = text.rfind('}') {
-                &text[start..=end]
+        let json_text = if let Some(start) = cleaned.find('{') {
+            if let Some(end) = cleaned.rfind('}') {
+                &cleaned[start..=end]
             } else {
-                text
+                &cleaned
             }
         } else {
-            text
+            &cleaned
         };
 
-        serde_json::from_str(json_text)
+        debug!("Extracted JSON:\n{}", json_text);
+
+        // Normalize the JSON to handle common model variations
+        let normalized = self.normalize_cir_json(json_text);
+        debug!("Normalized JSON:\n{}", normalized);
+
+        let result = serde_json::from_str(&normalized);
+        if let Err(ref e) = result {
+            warn!("JSON parse error: {}", e);
+            warn!("Failed to parse JSON:\n{}", normalized);
+        }
+
+        result
+    }
+
+    /// Clean up common LLM output artifacts.
+    fn clean_llm_output(text: &str) -> String {
+        let mut cleaned = text.to_string();
+
+        // Remove common special tokens from various models
+        let tokens_to_remove = [
+            "<｜begin▁of▁sentence｜>",
+            "<｜end▁of▁sentence｜>",
+            "<|endoftext|>",
+            "<|im_end|>",
+            "<|im_start|>",
+            "</s>",
+            "<s>",
+        ];
+
+        for token in tokens_to_remove {
+            cleaned = cleaned.replace(token, "");
+        }
+
+        // Fix common JSON errors
+        loop {
+            let new_cleaned = cleaned
+                // Fix trailing commas before closing braces/brackets
+                .replace(",}", "}")
+                .replace(",]", "]")
+                .replace(", }", "}")
+                .replace(", ]", "]")
+                // Fix double commas
+                .replace(",,", ",")
+                .replace(", ,", ",");
+            if new_cleaned == cleaned {
+                break;
+            }
+            cleaned = new_cleaned;
+        }
+
+        cleaned
+    }
+
+    /// Normalize CIR JSON to handle common variations from different models.
+    fn normalize_cir_json(&self, json: &str) -> String {
+        // Parse as generic JSON value for manipulation
+        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(json) else {
+            return json.to_string();
+        };
+
+        // Normalize the interpretation if present
+        if let Some(interp) = value.get_mut("interpretation") {
+            Self::normalize_function(interp);
+        }
+
+        serde_json::to_string(&value).unwrap_or_else(|_| json.to_string())
+    }
+
+    /// Normalize a CIR function object.
+    fn normalize_function(func: &mut serde_json::Value) {
+        // Normalize body operations
+        if let Some(body) = func.get_mut("body") {
+            if let Some(arr) = body.as_array_mut() {
+                // First pass: normalize each operation
+                for op in arr.iter_mut() {
+                    Self::normalize_operation(op);
+                }
+
+                // Second pass: fix return statements that use literals when they should use results
+                Self::fix_return_values(arr);
+            }
+        }
+    }
+
+    /// Fix return statements that use literal values when they should reference results.
+    fn fix_return_values(body: &mut [serde_json::Value]) {
+        // Find the last result variable before return
+        let mut last_result: Option<String> = None;
+
+        for op in body.iter_mut() {
+            if let Some(obj) = op.as_object_mut() {
+                let kind = obj.get("kind").and_then(|k| k.as_str());
+
+                match kind {
+                    Some("binary_op") | Some("call") | Some("get_field") | Some("format")
+                    | Some("concat") | Some("literal") | Some("var") => {
+                        // Track the result variable
+                        if let Some(result) = obj.get("result").and_then(|r| r.as_str()) {
+                            last_result = Some(result.to_string());
+                        }
+                    }
+                    Some("return") => {
+                        // If return has a literal bool/int and we have a previous result,
+                        // the model probably meant to return the result
+                        if let Some(ref result_var) = last_result {
+                            if let Some(value) = obj.get("value") {
+                                // Check if it's a simple literal that should be the result
+                                let should_replace = match value {
+                                    serde_json::Value::Bool(_) => true,
+                                    serde_json::Value::String(s) => {
+                                        // Don't replace if it's already a variable reference
+                                        // Check if the string could be a result variable
+                                        s == "true" || s == "false" || s == "result"
+                                    }
+                                    _ => false,
+                                };
+
+                                if should_replace {
+                                    obj.insert(
+                                        "value".to_string(),
+                                        serde_json::Value::String(result_var.clone()),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Normalize a CIR operation.
+    fn normalize_operation(op: &mut serde_json::Value) {
+        if let Some(obj) = op.as_object_mut() {
+            // Convert "op" to "kind" if present
+            if let Some(op_val) = obj.remove("op") {
+                if !obj.contains_key("kind") {
+                    obj.insert("kind".to_string(), op_val);
+                }
+            }
+
+            // Convert "operator" to "op" for binary_op (model sometimes uses this)
+            if let Some(operator_val) = obj.remove("operator") {
+                if !obj.contains_key("op") {
+                    obj.insert("op".to_string(), operator_val);
+                }
+            }
+
+            // Get the operation kind for args conversion
+            let kind = obj
+                .get("kind")
+                .and_then(|k| k.as_str())
+                .map(|s| s.to_string());
+
+            // For binary_op, ensure left/right are properly structured
+            if kind.as_deref() == Some("binary_op") {
+                // If left/right are just strings (variable refs), wrap them in CIRValue format
+                Self::normalize_binary_op_operand(obj, "left");
+                Self::normalize_binary_op_operand(obj, "right");
+
+                // Normalize operator symbols to CIR names
+                if let Some(op_val) = obj.get_mut("op") {
+                    if let Some(op_str) = op_val.as_str() {
+                        let normalized = match op_str {
+                            ">" => "gt",
+                            "<" => "lt",
+                            ">=" => "ge",
+                            "<=" => "le",
+                            "==" | "=" => "eq",
+                            "!=" | "<>" => "ne",
+                            "+" => "add",
+                            "-" => "sub",
+                            "*" => "mul",
+                            "/" => "div",
+                            "%" => "mod",
+                            "&&" | "and" => "and",
+                            "||" | "or" => "or",
+                            _ => op_str, // Already normalized
+                        };
+                        *op_val = serde_json::Value::String(normalized.to_string());
+                    }
+                }
+
+                // Ensure result field exists
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_cmp".to_string()),
+                    );
+                }
+            }
+
+            // Convert "args" array to named fields based on operation kind
+            if let Some(args) = obj.remove("args") {
+                if let Some(args_arr) = args.as_array() {
+                    Self::convert_args_to_fields(obj, kind.as_deref(), args_arr);
+                }
+            }
+
+            // Normalize nested operations in value fields
+            if let Some(value) = obj.get_mut("value") {
+                Self::normalize_value(value);
+            }
+
+            // Normalize nested values in "values" map (for Format)
+            if let Some(values) = obj.get_mut("values") {
+                if let Some(values_obj) = values.as_object_mut() {
+                    for (_, v) in values_obj.iter_mut() {
+                        Self::normalize_value(v);
+                    }
+                }
+            }
+
+            // Normalize condition, then_ops, else_ops for If
+            for key in [
+                "condition",
+                "then_ops",
+                "else_ops",
+                "body",
+                "transform",
+                "predicate",
+                "reducer",
+                "key",
+            ] {
+                if let Some(nested) = obj.get_mut(key) {
+                    if let Some(arr) = nested.as_array_mut() {
+                        for item in arr {
+                            Self::normalize_operation(item);
+                        }
+                    }
+                }
+            }
+
+            // Normalize left/right for BinaryOp
+            if let Some(left) = obj.get_mut("left") {
+                Self::normalize_value(left);
+            }
+            if let Some(right) = obj.get_mut("right") {
+                Self::normalize_value(right);
+            }
+
+            // Normalize parts for Concat
+            if let Some(parts) = obj.get_mut("parts") {
+                if let Some(arr) = parts.as_array_mut() {
+                    for item in arr {
+                        Self::normalize_value(item);
+                    }
+                }
+            }
+
+            // Normalize operation-specific fields (construct, filter, sort, etc.)
+            Self::normalize_operation_fields(obj);
+        }
+    }
+
+    /// Normalize a binary_op operand - model may return bare strings instead of proper values.
+    fn normalize_binary_op_operand(
+        obj: &mut serde_json::Map<String, serde_json::Value>,
+        field: &str,
+    ) {
+        if let Some(val) = obj.get_mut(field) {
+            // If it's a string that looks like a number, parse it
+            if let Some(s) = val.as_str() {
+                if let Ok(n) = s.parse::<i64>() {
+                    *val = serde_json::Value::Number(n.into());
+                }
+                // Otherwise leave as string (variable reference)
+            }
+            // Normalize nested operations
+            Self::normalize_value(val);
+        }
+    }
+
+    /// Convert args array to named fields based on operation kind.
+    fn convert_args_to_fields(
+        obj: &mut serde_json::Map<String, serde_json::Value>,
+        kind: Option<&str>,
+        args: &[serde_json::Value],
+    ) {
+        match kind {
+            Some("format") => {
+                // format(template, ...values) -> { template, values: {0: v0, 1: v1, ...}, result }
+                if let Some(template) = args.first() {
+                    obj.insert("template".to_string(), template.clone());
+                }
+                if args.len() > 1 {
+                    let mut values = serde_json::Map::new();
+                    for (i, v) in args.iter().skip(1).enumerate() {
+                        let mut normalized = v.clone();
+                        Self::normalize_value(&mut normalized);
+                        values.insert(i.to_string(), normalized);
+                    }
+                    obj.insert("values".to_string(), serde_json::Value::Object(values));
+                } else {
+                    obj.insert(
+                        "values".to_string(),
+                        serde_json::Value::Object(serde_json::Map::new()),
+                    );
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_fmt".to_string()),
+                    );
+                }
+            }
+            Some("get_field") => {
+                // get_field(source, field) or get_field(source) where source is "obj.field"
+                if args.len() >= 2 {
+                    obj.insert("source".to_string(), args[0].clone());
+                    obj.insert("field".to_string(), args[1].clone());
+                    if !obj.contains_key("result") {
+                        obj.insert(
+                            "result".to_string(),
+                            serde_json::Value::String("_field".to_string()),
+                        );
+                    }
+                } else if let Some(source) = args.first() {
+                    // Try to split "source.field" format
+                    if let Some(s) = source.as_str() {
+                        if let Some((src, field)) = s.rsplit_once('.') {
+                            obj.insert(
+                                "source".to_string(),
+                                serde_json::Value::String(src.to_string()),
+                            );
+                            obj.insert(
+                                "field".to_string(),
+                                serde_json::Value::String(field.to_string()),
+                            );
+                            if !obj.contains_key("result") {
+                                obj.insert(
+                                    "result".to_string(),
+                                    serde_json::Value::String("_field".to_string()),
+                                );
+                            }
+                        } else {
+                            // Just a variable reference - convert to "var" operation
+                            obj.remove("kind");
+                            obj.insert("kind".to_string(), serde_json::json!("var"));
+                            obj.insert("name".to_string(), source.clone());
+                            if !obj.contains_key("result") {
+                                obj.insert(
+                                    "result".to_string(),
+                                    serde_json::Value::String("_var".to_string()),
+                                );
+                            }
+                        }
+                    } else {
+                        obj.insert("source".to_string(), source.clone());
+                    }
+                }
+            }
+            Some("concat") => {
+                // concat(parts...) -> { parts, result }
+                let mut parts = Vec::new();
+                for arg in args {
+                    let mut normalized = arg.clone();
+                    Self::normalize_value(&mut normalized);
+                    parts.push(normalized);
+                }
+                obj.insert("parts".to_string(), serde_json::Value::Array(parts));
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_concat".to_string()),
+                    );
+                }
+            }
+            Some("binary_op") => {
+                // binary_op(op, left, right) -> { op, left, right, result }
+                if args.len() >= 3 {
+                    obj.insert("op".to_string(), args[0].clone());
+                    let mut left = args[1].clone();
+                    let mut right = args[2].clone();
+                    Self::normalize_value(&mut left);
+                    Self::normalize_value(&mut right);
+                    obj.insert("left".to_string(), left);
+                    obj.insert("right".to_string(), right);
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_binop".to_string()),
+                    );
+                }
+            }
+            Some("call") => {
+                // call(function, ...args) -> { function, args, result }
+                if let Some(func) = args.first() {
+                    obj.insert("function".to_string(), func.clone());
+                }
+                let call_args: Vec<_> = args.iter().skip(1).cloned().collect();
+                obj.insert("args".to_string(), serde_json::Value::Array(call_args));
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_call".to_string()),
+                    );
+                }
+            }
+            Some("return") => {
+                // return(value) -> { value }
+                if let Some(value) = args.first() {
+                    let mut normalized = value.clone();
+                    Self::normalize_value(&mut normalized);
+                    obj.insert("value".to_string(), normalized);
+                }
+            }
+            Some("var") => {
+                // var(name) -> { name, result }
+                if let Some(name) = args.first() {
+                    obj.insert("name".to_string(), name.clone());
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_var".to_string()),
+                    );
+                }
+            }
+            Some("literal") => {
+                // literal(value) -> { value, result }
+                if let Some(value) = args.first() {
+                    obj.insert("value".to_string(), value.clone());
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_lit".to_string()),
+                    );
+                }
+            }
+            _ => {
+                // Unknown operation - keep args as-is for debugging
+                debug!("Unknown operation kind {:?} with args, keeping as-is", kind);
+            }
+        }
+    }
+
+    /// Normalize operations that may have incomplete or non-standard fields.
+    fn normalize_operation_fields(obj: &mut serde_json::Map<String, serde_json::Value>) {
+        let kind = obj
+            .get("kind")
+            .and_then(|k| k.as_str())
+            .map(|s| s.to_string());
+
+        match kind.as_deref() {
+            Some("construct") => {
+                // Normalize type_name to type
+                if let Some(type_name) = obj.remove("type_name") {
+                    if !obj.contains_key("type") {
+                        obj.insert("type".to_string(), type_name);
+                    }
+                }
+                // Ensure fields exists (even if empty)
+                if !obj.contains_key("fields") {
+                    obj.insert(
+                        "fields".to_string(),
+                        serde_json::Value::Object(serde_json::Map::new()),
+                    );
+                }
+                // Ensure result exists
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_obj".to_string()),
+                    );
+                }
+            }
+            Some("return") => {
+                // Ensure return has a value
+                if !obj.contains_key("value") {
+                    // Default to returning none/unit
+                    obj.insert("value".to_string(), serde_json::Value::Null);
+                }
+            }
+            Some("if") => {
+                // Normalize condition - model may return object instead of array
+                if let Some(cond) = obj.get("condition") {
+                    if cond.is_object() && !cond.is_array() {
+                        let cond_clone = cond.clone();
+                        obj.insert(
+                            "condition".to_string(),
+                            serde_json::Value::Array(vec![cond_clone]),
+                        );
+                    }
+                }
+                if !obj.contains_key("condition") {
+                    obj.insert("condition".to_string(), serde_json::Value::Array(vec![]));
+                }
+                // Normalize condition operations
+                if let Some(cond) = obj.get_mut("condition") {
+                    if let Some(arr) = cond.as_array_mut() {
+                        for item in arr.iter_mut() {
+                            Self::normalize_operation(item);
+                        }
+                    }
+                }
+                // Ensure then_ops and else_ops exist (may be named "then" and "else")
+                if let Some(then_val) = obj.remove("then") {
+                    if !obj.contains_key("then_ops") {
+                        obj.insert("then_ops".to_string(), then_val);
+                    }
+                }
+                if let Some(else_val) = obj.remove("else") {
+                    if !obj.contains_key("else_ops") {
+                        obj.insert("else_ops".to_string(), else_val);
+                    }
+                }
+                if !obj.contains_key("then_ops") {
+                    obj.insert("then_ops".to_string(), serde_json::Value::Array(vec![]));
+                }
+                if !obj.contains_key("else_ops") {
+                    obj.insert("else_ops".to_string(), serde_json::Value::Array(vec![]));
+                }
+                // Normalize operations inside then_ops and else_ops
+                for key in ["then_ops", "else_ops"] {
+                    if let Some(ops) = obj.get_mut(key) {
+                        if let Some(arr) = ops.as_array_mut() {
+                            for item in arr.iter_mut() {
+                                Self::normalize_operation(item);
+                            }
+                        }
+                    }
+                }
+                // Ensure result exists
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_if".to_string()),
+                    );
+                }
+            }
+            Some("filter") => {
+                // Normalize filter predicate format
+                if !obj.contains_key("source") {
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String("_input".to_string()),
+                    );
+                }
+                if !obj.contains_key("element_var") {
+                    obj.insert(
+                        "element_var".to_string(),
+                        serde_json::Value::String("item".to_string()),
+                    );
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_filtered".to_string()),
+                    );
+                }
+                // Convert predicate object to array if needed
+                if let Some(pred) = obj.get("predicate") {
+                    if pred.is_object() && !pred.is_array() {
+                        let pred_clone = pred.clone();
+                        obj.insert(
+                            "predicate".to_string(),
+                            serde_json::Value::Array(vec![pred_clone]),
+                        );
+                    }
+                }
+                if !obj.contains_key("predicate") {
+                    obj.insert("predicate".to_string(), serde_json::Value::Array(vec![]));
+                }
+                // Normalize operations inside predicate array
+                if let Some(pred) = obj.get_mut("predicate") {
+                    if let Some(arr) = pred.as_array_mut() {
+                        for item in arr.iter_mut() {
+                            Self::normalize_operation(item);
+                        }
+                    }
+                }
+            }
+            Some("get_field") => {
+                // Model may return various formats:
+                // {"op": "get_field", "field": "name", "value": true}
+                // {"op": "get_field", "object": "$0", "value": "active"}
+                // {"op": "get_field", "source": {"op": "var", "name": "user"}, "field": "active"}
+                // {"op": "get_field", "field": 0, ...} - numeric field index
+                // We need: {"kind": "get_field", "source": "...", "field": "...", "result": "..."}
+
+                // Normalize "object" to "source"
+                if let Some(object) = obj.remove("object") {
+                    if !obj.contains_key("source") {
+                        obj.insert("source".to_string(), object);
+                    }
+                }
+
+                // If source is an object (like {"op": "var", "name": "user"}), extract the name
+                if let Some(source) = obj.get("source") {
+                    if let Some(source_obj) = source.as_object() {
+                        // Check if it's a var operation
+                        let is_var = source_obj.get("op").and_then(|v| v.as_str()) == Some("var")
+                            || source_obj.get("kind").and_then(|v| v.as_str()) == Some("var");
+                        if is_var {
+                            if let Some(name) = source_obj.get("name").and_then(|n| n.as_str()) {
+                                obj.insert(
+                                    "source".to_string(),
+                                    serde_json::Value::String(name.to_string()),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Normalize "value" to "field" (when value is a string field name)
+                if let Some(value) = obj.get("value") {
+                    if value.is_string() && !obj.contains_key("field") {
+                        obj.insert("field".to_string(), value.clone());
+                    }
+                }
+
+                // If field is a number (index), convert to string
+                if let Some(field) = obj.get("field") {
+                    if let Some(n) = field.as_i64() {
+                        obj.insert(
+                            "field".to_string(),
+                            serde_json::Value::String(n.to_string()),
+                        );
+                    }
+                }
+
+                // If "field" is present but "source" is not, use default source
+                if obj.contains_key("field") && !obj.contains_key("source") {
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String("item".to_string()),
+                    );
+                }
+
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_field".to_string()),
+                    );
+                }
+            }
+            Some("sort") => {
+                // Normalize sort key format
+                if !obj.contains_key("source") {
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String("_input".to_string()),
+                    );
+                }
+                if !obj.contains_key("element_var") {
+                    obj.insert(
+                        "element_var".to_string(),
+                        serde_json::Value::String("item".to_string()),
+                    );
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_sorted".to_string()),
+                    );
+                }
+                // Convert key object to array if needed
+                if let Some(key) = obj.get("key") {
+                    if key.is_object() && !key.is_array() {
+                        let key_clone = key.clone();
+                        obj.insert("key".to_string(), serde_json::Value::Array(vec![key_clone]));
+                    }
+                }
+                if !obj.contains_key("key") {
+                    obj.insert("key".to_string(), serde_json::Value::Array(vec![]));
+                }
+                // Normalize operations inside key array
+                if let Some(key) = obj.get_mut("key") {
+                    if let Some(arr) = key.as_array_mut() {
+                        for item in arr.iter_mut() {
+                            Self::normalize_operation(item);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Normalize a CIR value - wrap raw literals in proper format.
+    fn normalize_value(value: &mut serde_json::Value) {
+        // If value is a string that looks like a number (including negative), convert it
+        if let Some(s) = value.as_str() {
+            // Try to parse as integer (including negative numbers like "-42")
+            if let Ok(n) = s.parse::<i64>() {
+                *value = serde_json::Value::Number(n.into());
+                return;
+            }
+            // Try to parse as float
+            if let Ok(f) = s.parse::<f64>() {
+                if let Some(num) = serde_json::Number::from_f64(f) {
+                    *value = serde_json::Value::Number(num);
+                    return;
+                }
+            }
+        }
+
+        // If value is an object with "kind"/"op", it's an operation - normalize it
+        if let Some(obj) = value.as_object_mut() {
+            // First normalize the operation itself
+            if obj.contains_key("op") || obj.contains_key("kind") {
+                Self::normalize_operation(value);
+            }
+
+            // After normalization, check for simplifications
+            if let Some(obj) = value.as_object() {
+                let kind = obj.get("kind").and_then(|k| k.as_str());
+
+                match kind {
+                    Some("var") => {
+                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                            // Check if the name is actually a number
+                            if let Ok(n) = name.parse::<i64>() {
+                                *value = serde_json::Value::Number(n.into());
+                                return;
+                            }
+                            // Convert {"kind": "var", "name": "x"} to just "x"
+                            *value = serde_json::Value::String(name.to_string());
+                            return;
+                        }
+                    }
+                    Some("literal") => {
+                        // Convert {"kind": "literal", "value": X} to just X
+                        if let Some(inner_value) = obj.get("value") {
+                            *value = inner_value.clone();
+                            return;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        // Raw values (int, string, bool) are fine as-is since CIRValue uses untagged
     }
 
     /// Check if a function name matches a known pattern.
@@ -399,5 +1215,12 @@ mod tests {
         assert_eq!(AIEngine::confidence_level(0.85), "medium");
         assert_eq!(AIEngine::confidence_level(0.6), "low");
         assert_eq!(AIEngine::confidence_level(0.3), "failed");
+    }
+
+    #[test]
+    fn test_ollama_backend() {
+        let config = AIConfig::default();
+        let engine = AIEngine::with_ollama(config, Some("codellama:7b"));
+        assert_eq!(engine.backend(), AIBackend::Ollama);
     }
 }

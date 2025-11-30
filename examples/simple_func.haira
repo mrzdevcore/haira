@@ -1,0 +1,8 @@
+// Simple function test
+
+get_answer() {
+    return 42
+}
+
+answer = get_answer()
+print(answer)

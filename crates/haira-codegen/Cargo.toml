@@ -8,6 +8,7 @@ description = "Code generation for the Haira programming language"
 [dependencies]
 haira-mir.workspace = true
 haira-ast.workspace = true
+haira-cir.workspace = true
 haira-types.workspace = true
 thiserror.workspace = true
 smol_str.workspace = true

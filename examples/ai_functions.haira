@@ -1,5 +1,5 @@
-// AI Intent Block Examples in Haira
-// This file demonstrates the explicit AI intent block syntax
+// AI Function Examples in Haira
+// Demonstrates named AI function definitions
 
 // Define a User type
 User { id, name, email, age, active }
@@ -29,15 +29,9 @@ ai validate_email(email: string) -> bool {
     Return true if valid, false otherwise.
 }
 
-name = ai(str: string) -> string {
-    Capitalize the first letter of each word in the string.
-}
-
 // Main program
-print("AI Intent Block Examples: {name}")
+print("AI Function Examples")
 
-// These would call the AI-generated functions:
-// users = get_active_users()
-// adults = find_users_by_age(18, 65)
-// summary = summarize_user(rakoto)
-// is_valid = validate_email("test@example.com")
+// Call the AI-generated functions
+result = validate_email("test@example.com")
+print(result)

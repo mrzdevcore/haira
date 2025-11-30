@@ -1,0 +1,8 @@
+// Minimal AI block test - just a function that returns int
+
+ai get_number() -> int {
+    Return zero.
+}
+
+x = get_number()
+print(x)

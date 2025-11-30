@@ -32,12 +32,14 @@ mod cache;
 mod client;
 mod config;
 mod engine;
+mod ollama;
 mod prompt;
 
 pub use cache::AICache;
 pub use client::ClaudeClient;
 pub use config::AIConfig;
-pub use engine::AIEngine;
+pub use engine::{AIBackend, AIEngine, AIError};
+pub use ollama::{OllamaClient, OllamaError, DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL};
 
 // Re-export CIR types for convenience
 pub use haira_cir::{

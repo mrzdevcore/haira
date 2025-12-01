@@ -33,8 +33,8 @@ enum Commands {
         /// Use local Ollama for AI interpretation (requires ollama server running)
         #[arg(long)]
         ollama: bool,
-        /// Ollama model to use (default: deepseek-coder:6.7b)
-        #[arg(long, default_value = "deepseek-coder:6.7b")]
+        /// Ollama model to use (default: deepseek-coder-v2:16b)
+        #[arg(long, default_value = "deepseek-coder-v2:16b")]
         ollama_model: String,
         /// Use mock AI interpretation for testing (generates stub implementations)
         #[arg(long)]

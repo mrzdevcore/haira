@@ -330,6 +330,462 @@ impl Compiler {
         self.functions
             .insert(SmolStr::from("thread_join"), thread_join_id);
 
+        // ====================================================================
+        // Standard Library - String Functions
+        // ====================================================================
+
+        // haira_string_len(ptr, len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_len", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("len"), id);
+
+        // haira_string_is_empty(ptr, len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_is_empty", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("is_empty"), id);
+
+        // haira_string_upper(ptr, len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_upper", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("upper"), id);
+
+        // haira_string_lower(ptr, len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_lower", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("lower"), id);
+
+        // haira_string_trim(ptr, len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_trim", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("trim"), id);
+
+        // haira_string_slice(ptr, len, start, end) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_slice", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("slice"), id);
+
+        // haira_string_contains(ptr, len, needle_ptr, needle_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_contains", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("contains"), id);
+
+        // haira_string_starts_with(ptr, len, prefix_ptr, prefix_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_starts_with", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("starts_with"), id);
+
+        // haira_string_ends_with(ptr, len, suffix_ptr, suffix_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_ends_with", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("ends_with"), id);
+
+        // haira_string_index_of(ptr, len, needle_ptr, needle_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_index_of", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("index_of"), id);
+
+        // haira_string_replace(ptr, len, old_ptr, old_len, new_ptr, new_len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_replace", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("replace"), id);
+
+        // haira_string_repeat(ptr, len, n) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_repeat", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("repeat"), id);
+
+        // haira_string_reverse(ptr, len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_string_reverse", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("reverse"), id);
+
+        // haira_string_char_at(ptr, len, index) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_string_char_at", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("char_at"), id);
+
+        // ====================================================================
+        // Standard Library - Math Functions
+        // ====================================================================
+
+        // haira_abs(x) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_abs", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("abs"), id);
+
+        // haira_min(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_min", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("min"), id);
+
+        // haira_max(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_max", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("max"), id);
+
+        // haira_clamp(x, min, max) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_clamp", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("clamp"), id);
+
+        // haira_floor(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_floor", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("floor"), id);
+
+        // haira_ceil(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_ceil", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("ceil"), id);
+
+        // haira_round(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_round", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("round"), id);
+
+        // haira_pow(base, exp) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_pow", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("pow"), id);
+
+        // haira_sqrt(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_sqrt", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("sqrt"), id);
+
+        // haira_log(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_log", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("log"), id);
+
+        // haira_log10(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_log10", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("log10"), id);
+
+        // haira_exp(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_exp", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("exp"), id);
+
+        // haira_sin(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_sin", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("sin"), id);
+
+        // haira_cos(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_cos", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("cos"), id);
+
+        // haira_tan(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_tan", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("tan"), id);
+
+        // haira_asin(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_asin", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("asin"), id);
+
+        // haira_acos(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_acos", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("acos"), id);
+
+        // haira_atan(x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_atan", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("atan"), id);
+
+        // haira_atan2(y, x) -> f64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::F64));
+        sig.params.push(AbiParam::new(types::F64));
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_atan2", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("atan2"), id);
+
+        // haira_random_int(max) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_random_int", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("random_int"), id);
+
+        // haira_random_float() -> f64
+        let mut sig = self.module.make_signature();
+        sig.returns.push(AbiParam::new(types::F64));
+        let id = self
+            .module
+            .declare_function("haira_random_float", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("random_float"), id);
+
+        // haira_random_seed(seed)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_random_seed", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("random_seed"), id);
+
+        // ====================================================================
+        // Standard Library - File I/O Functions
+        // ====================================================================
+
+        // haira_file_read(path_ptr, path_len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_file_read", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("file_read"), id);
+
+        // haira_file_write(path_ptr, path_len, content_ptr, content_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_file_write", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("file_write"), id);
+
+        // haira_file_append(path_ptr, path_len, content_ptr, content_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_file_append", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("file_append"), id);
+
+        // haira_file_exists(path_ptr, path_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_file_exists", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("file_exists"), id);
+
+        // ====================================================================
+        // Standard Library - Environment Functions
+        // ====================================================================
+
+        // haira_env_get(name_ptr, name_len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_env_get", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("env"), id);
+
+        // haira_exit(code)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_exit", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("exit"), id);
+
+        // ====================================================================
+        // Standard Library - Time Functions
+        // ====================================================================
+
+        // haira_time_now() -> i64
+        let mut sig = self.module.make_signature();
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_time_now", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("time_now"), id);
+
+        // haira_time_monotonic() -> i64
+        let mut sig = self.module.make_signature();
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_time_monotonic", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("time_monotonic"), id);
+
         Ok(())
     }
 
@@ -2493,20 +2949,33 @@ pub fn compile_to_executable(
 
 /// Link object file with runtime to create executable.
 fn link_executable(obj_path: &Path, output_path: &Path) -> Result<(), CodegenError> {
-    // First, we need to compile the runtime
-    let runtime_path = compile_runtime()?;
+    // Find the haira-runtime staticlib
+    let runtime_path = find_runtime_library()?;
 
-    // Use cc to link (with pthread for concurrency support)
-    let status = Command::new("cc")
-        .arg(obj_path)
+    // Determine platform-specific linker flags
+    #[cfg(target_os = "macos")]
+    let platform_libs = vec!["-framework", "Security", "-framework", "CoreFoundation"];
+
+    #[cfg(target_os = "linux")]
+    let platform_libs = vec!["-ldl", "-lm"];
+
+    #[cfg(target_os = "windows")]
+    let platform_libs = vec!["-lws2_32", "-luserenv"];
+
+    // Use cc to link with pthread for concurrency support
+    let mut cmd = Command::new("cc");
+    cmd.arg(obj_path)
         .arg(&runtime_path)
         .arg("-o")
         .arg(output_path)
-        .arg("-lpthread")
-        .status()?;
+        .arg("-lpthread");
 
-    // Clean up runtime object
-    std::fs::remove_file(&runtime_path).ok();
+    // Add platform-specific libraries
+    for lib in &platform_libs {
+        cmd.arg(lib);
+    }
+
+    let status = cmd.status()?;
 
     if !status.success() {
         return Err(CodegenError::LinkerError("Linker failed".to_string()));
@@ -2515,30 +2984,72 @@ fn link_executable(obj_path: &Path, output_path: &Path) -> Result<(), CodegenErr
     Ok(())
 }
 
-/// Compile the runtime library.
-fn compile_runtime() -> Result<std::path::PathBuf, CodegenError> {
-    let runtime_c = include_str!("runtime.c");
+/// Find the haira-runtime static library.
+fn find_runtime_library() -> Result<std::path::PathBuf, CodegenError> {
+    // Try to find the runtime library in common locations
 
-    let tmp_dir = std::env::temp_dir();
-    let c_path = tmp_dir.join("haira_runtime.c");
-    let o_path = tmp_dir.join("haira_runtime.o");
-
-    std::fs::write(&c_path, runtime_c)?;
-
-    let status = Command::new("cc")
-        .arg("-c")
-        .arg(&c_path)
-        .arg("-o")
-        .arg(&o_path)
-        .status()?;
-
-    std::fs::remove_file(&c_path).ok();
-
-    if !status.success() {
-        return Err(CodegenError::LinkerError(
-            "Failed to compile runtime".to_string(),
-        ));
+    // 1. Check if HAIRA_RUNTIME_LIB env var is set
+    if let Ok(path) = std::env::var("HAIRA_RUNTIME_LIB") {
+        let path = std::path::PathBuf::from(path);
+        if path.exists() {
+            return Ok(path);
+        }
     }
 
-    Ok(o_path)
+    // 2. Check relative to the executable (for installed binaries)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            // Check ../lib/libhaira_runtime.a
+            let lib_path = exe_dir.join("../lib/libhaira_runtime.a");
+            if lib_path.exists() {
+                return Ok(lib_path);
+            }
+
+            // Check in same directory
+            let lib_path = exe_dir.join("libhaira_runtime.a");
+            if lib_path.exists() {
+                return Ok(lib_path);
+            }
+        }
+    }
+
+    // 3. Check in target directory (for development)
+    let target_dirs = [
+        "target/release/libhaira_runtime.a",
+        "target/debug/libhaira_runtime.a",
+        "../target/release/libhaira_runtime.a",
+        "../target/debug/libhaira_runtime.a",
+        "../../target/release/libhaira_runtime.a",
+        "../../target/debug/libhaira_runtime.a",
+    ];
+
+    for dir in &target_dirs {
+        let path = std::path::PathBuf::from(dir);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+
+    // 4. Check CARGO_MANIFEST_DIR for development builds
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        let workspace_root = std::path::Path::new(&manifest_dir)
+            .parent()
+            .and_then(|p| p.parent());
+
+        if let Some(root) = workspace_root {
+            for profile in &["release", "debug"] {
+                let lib_path = root.join("target").join(profile).join("libhaira_runtime.a");
+                if lib_path.exists() {
+                    return Ok(lib_path);
+                }
+            }
+        }
+    }
+
+    Err(CodegenError::LinkerError(
+        "Could not find haira-runtime library. \
+         Build with `cargo build -p haira-runtime --release` or \
+         set HAIRA_RUNTIME_LIB environment variable."
+            .to_string(),
+    ))
 }

@@ -293,8 +293,18 @@ pub enum CIROperation {
 }
 
 /// A value in CIR.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+///
+/// JSON representation uses untagged deserialization with the following priority:
+/// - `null` -> None
+/// - `true`/`false` -> Bool
+/// - number (no decimal) -> Int
+/// - number (with decimal) -> Float
+/// - `{"ref": "name"}` -> Ref (variable reference)
+/// - `"string"` -> String (literal string)
+/// - object with "kind" -> Operation
+///
+/// For serialization, Ref uses `{"ref": "name"}` format.
+#[derive(Debug, Clone)]
 pub enum CIRValue {
     /// Reference to a variable
     Ref(String),
@@ -310,6 +320,153 @@ pub enum CIRValue {
     None,
     /// Inline operation (for complex expressions)
     Operation(Box<CIROperation>),
+}
+
+impl serde::Serialize for CIRValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        match self {
+            CIRValue::Ref(name) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("ref", name)?;
+                map.end()
+            }
+            CIRValue::Int(n) => serializer.serialize_i64(*n),
+            CIRValue::Float(f) => serializer.serialize_f64(*f),
+            CIRValue::String(s) => serializer.serialize_str(s),
+            CIRValue::Bool(b) => serializer.serialize_bool(*b),
+            CIRValue::None => serializer.serialize_none(),
+            CIRValue::Operation(op) => op.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CIRValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, MapAccess, Visitor};
+
+        struct CIRValueVisitor;
+
+        impl<'de> Visitor<'de> for CIRValueVisitor {
+            type Value = CIRValue;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a CIR value (null, bool, number, string, or object)")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
+                Ok(CIRValue::Bool(v))
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
+                Ok(CIRValue::Int(v))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(CIRValue::Int(v as i64))
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
+                Ok(CIRValue::Float(v))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CIRValue::String(v.to_string()))
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
+                Ok(CIRValue::String(v))
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E> {
+                Ok(CIRValue::None)
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E> {
+                Ok(CIRValue::None)
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                // Check if this is a {"ref": "name"} or {"literal": value} object
+                let mut ref_name: Option<String> = None;
+                let mut literal_value: Option<serde_json::Value> = None;
+                let mut is_operation = false;
+                let mut collected: std::collections::HashMap<String, serde_json::Value> =
+                    std::collections::HashMap::new();
+
+                while let Some(key) = map.next_key::<String>()? {
+                    let value: serde_json::Value = map.next_value()?;
+                    if key == "ref" {
+                        if let serde_json::Value::String(s) = &value {
+                            ref_name = Some(s.clone());
+                        }
+                    }
+                    if key == "literal" || key == "value" {
+                        literal_value = Some(value.clone());
+                    }
+                    if key == "kind" || key == "op" {
+                        is_operation = true;
+                    }
+                    collected.insert(key, value);
+                }
+
+                // If it's just {"ref": "name"}, return a Ref
+                if let Some(name) = ref_name {
+                    if collected.len() == 1 {
+                        return Ok(CIRValue::Ref(name));
+                    }
+                }
+
+                // If it's {"literal": value} or {"value": value}, extract the literal
+                if let Some(lit_val) = literal_value {
+                    if collected.len() == 1 {
+                        return match lit_val {
+                            serde_json::Value::String(s) => Ok(CIRValue::String(s)),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    Ok(CIRValue::Int(i))
+                                } else if let Some(f) = n.as_f64() {
+                                    Ok(CIRValue::Float(f))
+                                } else {
+                                    Err(de::Error::custom("invalid number"))
+                                }
+                            }
+                            serde_json::Value::Bool(b) => Ok(CIRValue::Bool(b)),
+                            serde_json::Value::Null => Ok(CIRValue::None),
+                            _ => Err(de::Error::custom("unsupported literal type")),
+                        };
+                    }
+                }
+
+                // Otherwise try to parse as an operation
+                if is_operation {
+                    let json_obj = serde_json::Value::Object(
+                        collected.into_iter().collect()
+                    );
+                    match serde_json::from_value::<CIROperation>(json_obj) {
+                        Ok(op) => return Ok(CIRValue::Operation(Box::new(op))),
+                        Err(e) => return Err(de::Error::custom(format!("invalid operation: {}", e))),
+                    }
+                }
+
+                Err(de::Error::custom("expected a CIR value object with 'ref', 'literal', or 'kind' key"))
+            }
+        }
+
+        deserializer.deserialize_any(CIRValueVisitor)
+    }
 }
 
 impl CIRValue {

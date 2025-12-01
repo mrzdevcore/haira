@@ -8,7 +8,7 @@ use thiserror::Error;
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 
 /// Default model for code generation.
-pub const DEFAULT_OLLAMA_MODEL: &str = "deepseek-coder:6.7b";
+pub const DEFAULT_OLLAMA_MODEL: &str = "deepseek-coder-v2";
 
 /// Ollama API client.
 pub struct OllamaClient {

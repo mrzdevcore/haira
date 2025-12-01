@@ -61,12 +61,76 @@ pub const SYSTEM_PROMPT: &str = r#"You are a code generation assistant for the H
 - file_read: Read file
 - file_write: Write file
 
-### String
-- format: String interpolation
-- concat: String concatenation
+### String Operations
+- format: String interpolation with template (template is a literal string with {} placeholders, values is a map)
+- concat: String concatenation (parts is an array of string values to join)
 
 ### Control
 - return: Return a value
+
+## Standard Library Functions (use with `call` operation)
+
+These functions are built into Haira and can be called directly:
+
+### String Functions
+- `len(s)` -> int: Get string length
+- `is_empty(s)` -> bool: Check if string is empty
+- `upper(s)` -> string: Convert to uppercase
+- `lower(s)` -> string: Convert to lowercase
+- `trim(s)` -> string: Remove leading/trailing whitespace
+- `slice(s, start, end)` -> string: Get substring (supports negative indices)
+- `contains(s, needle)` -> bool: Check if contains substring
+- `starts_with(s, prefix)` -> bool: Check prefix
+- `ends_with(s, suffix)` -> bool: Check suffix
+- `index_of(s, needle)` -> int: Find index (-1 if not found)
+- `replace(s, old, new)` -> string: Replace all occurrences
+- `repeat(s, n)` -> string: Repeat n times
+- `reverse(s)` -> string: Reverse string
+
+### Math Functions
+- `abs(x)` -> int: Absolute value
+- `min(a, b)` -> int: Minimum
+- `max(a, b)` -> int: Maximum
+- `clamp(x, min, max)` -> int: Clamp to range
+- `floor(x)` -> float: Round down
+- `ceil(x)` -> float: Round up
+- `round(x)` -> float: Round to nearest
+- `pow(base, exp)` -> float: Power
+- `sqrt(x)` -> float: Square root
+- `sin(x)`, `cos(x)`, `tan(x)` -> float: Trig functions
+- `random_int(max)` -> int: Random int in [0, max)
+
+### File Functions
+- `file_read(path)` -> string: Read file contents
+- `file_write(path, content)` -> int: Write to file (returns 0 on success)
+- `file_exists(path)` -> bool: Check if file exists
+
+### Environment Functions
+- `env(name)` -> string: Get environment variable
+- `exit(code)`: Exit program
+
+### Time Functions
+- `time_now()` -> int: Current time in milliseconds
+- `sleep(ms)`: Sleep for milliseconds
+
+## CRITICAL CONSTRAINTS
+
+1. **NO method chaining**: Never use syntax like `->method` or `obj.method()`. Each operation must be a separate CIR instruction.
+2. **NO invented operators**: Only use the operators listed above. Do NOT invent operators like `->substr`, `->format`, `->split`, etc.
+3. **Variable references vs string literals**:
+   - Variable references use object format: `{"ref": "varname"}`
+   - String literals are just strings: `"hello"`
+   - Numbers are just numbers: `42`, `3.14`
+   - Booleans are just booleans: `true`, `false`
+4. **String manipulation**: For string operations like substring, replace, split, use `call` with a plain string function name and args array:
+   ```json
+   {"kind": "call", "function": "substring", "args": [{"ref": "str"}, 0, 3], "result": "part"}
+   {"kind": "call", "function": "replace_all", "args": [{"ref": "str"}, "-", ""], "result": "cleaned"}
+   ```
+   - The `function` field is a plain string with the function name (NOT a variable reference)
+   - The `args` array contains values: use `{"ref": "name"}` for variables, plain strings for literals
+5. **Binary operators**: The `op` field in binary_op must be one of: add, sub, mul, div, mod, eq, ne, lt, gt, le, ge, and, or
+6. **Each operation produces a result variable** that subsequent operations can reference via `{"ref": "result_name"}`
 
 ## Output Format
 
@@ -80,14 +144,41 @@ pub const SYSTEM_PROMPT: &str = r#"You are a code generation assistant for the H
     "returns": "ReturnType",
     "new_types": [],
     "body": [
-      {"op": "operation_name", ...},
-      {"op": "return", "value": "result"}
+      {"kind": "call", "function": "helper_fn", "args": ["param"], "result": "temp"},
+      {"kind": "return", "value": "temp"}
     ]
   },
   "confidence": 0.95,
   "alternatives": []
 }
 ```
+
+## Example: String Formatting
+
+For a function that formats a phone number, use call operations with proper variable references:
+
+```json
+{
+  "success": true,
+  "interpretation": {
+    "name": "format_phone",
+    "params": [{"name": "number", "type": "string"}],
+    "returns": "string",
+    "body": [
+      {"kind": "call", "function": "replace_all", "args": [{"ref": "number"}, "[^0-9]", ""], "result": "digits"},
+      {"kind": "call", "function": "slice", "args": [{"ref": "digits"}, -10], "result": "last10"},
+      {"kind": "call", "function": "substring", "args": [{"ref": "last10"}, 0, 3], "result": "area"},
+      {"kind": "call", "function": "substring", "args": [{"ref": "last10"}, 3, 6], "result": "exchange"},
+      {"kind": "call", "function": "substring", "args": [{"ref": "last10"}, 6, 10], "result": "line"},
+      {"kind": "format", "template": "({}) {}-{}", "args": [{"ref": "area"}, {"ref": "exchange"}, {"ref": "line"}], "result": "formatted"},
+      {"kind": "return", "value": {"ref": "formatted"}}
+    ]
+  },
+  "confidence": 0.95
+}
+```
+
+Note: Variable references use `{"ref": "name"}` format, string literals are plain strings like `"[^0-9]"`.
 
 If you cannot interpret the function, return:
 ```json

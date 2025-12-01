@@ -533,6 +533,18 @@ impl AIEngine {
                 .and_then(|k| k.as_str())
                 .map(|s| s.to_string());
 
+            // For call operations, ensure function is a plain string (not a {"ref": ...} object)
+            if kind.as_deref() == Some("call") {
+                if let Some(func) = obj.get_mut("function") {
+                    // If function is {"ref": "name"}, extract the name as a plain string
+                    if let Some(func_obj) = func.as_object() {
+                        if let Some(ref_val) = func_obj.get("ref").and_then(|v| v.as_str()) {
+                            *func = serde_json::Value::String(ref_val.to_string());
+                        }
+                    }
+                }
+            }
+
             // For binary_op, ensure left/right are properly structured
             if kind.as_deref() == Some("binary_op") {
                 // If left/right are just strings (variable refs), wrap them in CIRValue format

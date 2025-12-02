@@ -10,7 +10,6 @@ use crate::error::ParseError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Precedence {
     None,
-    Assignment, // =
     Pipe,       // |
     Or,         // or
     And,        // and
@@ -20,7 +19,6 @@ enum Precedence {
     Factor,     // * / %
     Unary,      // - not
     Call,       // () [] .
-    Primary,
 }
 
 impl Precedence {
@@ -382,31 +380,6 @@ impl<'source> Parser<'source> {
     // ========================================================================
     // Function definitions
     // ========================================================================
-
-    fn parse_function_def_body(
-        &mut self,
-        is_public: bool,
-        name: Spanned<SmolStr>,
-    ) -> Option<FunctionDef> {
-        let params = self.parse_params()?;
-
-        let return_ty = if self.check(&TokenKind::Arrow) {
-            self.advance();
-            Some(self.parse_type()?)
-        } else {
-            None
-        };
-
-        let body = self.parse_block()?;
-
-        Some(FunctionDef {
-            is_public,
-            name,
-            params,
-            return_ty,
-            body,
-        })
-    }
 
     fn parse_method_def_body(
         &mut self,
@@ -1273,7 +1246,6 @@ impl<'source> Parser<'source> {
 
             // Check for named argument
             let name = if matches!(self.current.kind, TokenKind::Ident(_)) {
-                let saved_pos = self.current.span.clone();
                 let ident = self.parse_identifier()?;
 
                 if self.check(&TokenKind::Eq) {

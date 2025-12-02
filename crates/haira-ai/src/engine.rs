@@ -448,8 +448,6 @@ impl AIEngine {
 
     /// Fix invalid JSON patterns where LLM generates { {...} } instead of [...]
     fn fix_nested_brace_objects(json: &str) -> String {
-        use std::collections::VecDeque;
-
         let chars: Vec<char> = json.chars().collect();
         let mut result = String::with_capacity(json.len());
         let mut i = 0;
@@ -492,11 +490,6 @@ impl AIEngine {
                         // Replace opening brace with bracket
                         result.push('[');
                         i = brace_start + 1;
-
-                        // Now we need to find the matching closing brace and replace it
-                        // Track brace depth to find the correct closing brace
-                        let mut depth = 1;
-                        let content_start = i;
 
                         // Skip to where the inner content starts
                         while i < chars.len() && chars[i].is_whitespace() {

@@ -83,21 +83,6 @@ impl<'source> Iterator for Lexer<'source> {
     }
 }
 
-/// Extension trait for token sequences.
-pub trait TokenStream {
-    /// Filter out newlines and comments.
-    fn filter_trivia(self) -> impl Iterator<Item = Result<Token, LexError>>;
-}
-
-impl<I: Iterator<Item = Result<Token, LexError>>> TokenStream for I {
-    fn filter_trivia(self) -> impl Iterator<Item = Result<Token, LexError>> {
-        self.filter(|result| match result {
-            Ok(token) => !matches!(token.kind, TokenKind::LineComment | TokenKind::BlockComment),
-            Err(_) => true,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

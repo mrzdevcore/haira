@@ -390,7 +390,7 @@ fn check_defined(name: &str, defined: &HashSet<String>, errors: &mut Vec<Validat
     }
 }
 
-fn define_var(name: &str, defined: &mut HashSet<String>, errors: &mut Vec<ValidationError>) {
+fn define_var(name: &str, defined: &mut HashSet<String>, _errors: &mut Vec<ValidationError>) {
     if defined.contains(name) {
         // Allow shadowing - this is fine
     }

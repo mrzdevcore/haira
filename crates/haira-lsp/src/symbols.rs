@@ -20,6 +20,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     func.name.span.start as usize,
                     func.name.span.end as usize,
                 );
+                #[allow(deprecated)]
                 symbols.push(SymbolInformation {
                     name: func.name.node.to_string(),
                     kind: SymbolKind::FUNCTION,
@@ -38,6 +39,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     type_def.name.span.start as usize,
                     type_def.name.span.end as usize,
                 );
+                #[allow(deprecated)]
                 symbols.push(SymbolInformation {
                     name: type_def.name.node.to_string(),
                     kind: SymbolKind::STRUCT,
@@ -57,6 +59,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                         field.name.span.start as usize,
                         field.name.span.end as usize,
                     );
+                    #[allow(deprecated)]
                     symbols.push(SymbolInformation {
                         name: field.name.node.to_string(),
                         kind: SymbolKind::FIELD,
@@ -76,6 +79,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     method.name.span.start as usize,
                     method.name.span.end as usize,
                 );
+                #[allow(deprecated)]
                 symbols.push(SymbolInformation {
                     name: format!("{}.{}", method.type_name.node, method.name.node),
                     kind: SymbolKind::METHOD,
@@ -94,6 +98,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     alias.name.span.start as usize,
                     alias.name.span.end as usize,
                 );
+                #[allow(deprecated)]
                 symbols.push(SymbolInformation {
                     name: alias.name.node.to_string(),
                     kind: SymbolKind::TYPE_PARAMETER,
@@ -111,6 +116,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                 if let Some(name) = &ai_block.name {
                     let range =
                         span_to_range(source, name.span.start as usize, name.span.end as usize);
+                    #[allow(deprecated)]
                     symbols.push(SymbolInformation {
                         name: name.node.to_string(),
                         kind: SymbolKind::FUNCTION,
@@ -133,6 +139,7 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                             target.name.span.start as usize,
                             target.name.span.end as usize,
                         );
+                        #[allow(deprecated)]
                         symbols.push(SymbolInformation {
                             name: target.name.node.to_string(),
                             kind: SymbolKind::VARIABLE,

@@ -1,6 +1,5 @@
 //! Ollama API client for local LLM inference.
 
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -53,6 +52,7 @@ struct OllamaOptions {
 #[derive(Debug, Deserialize)]
 struct OllamaResponse {
     response: String,
+    #[allow(dead_code)]
     done: bool,
     #[serde(default)]
     error: Option<String>,

@@ -1927,10 +1927,6 @@ impl<'a> FunctionCompiler<'a> {
 
                 Ok(None)
             }
-            _ => Err(CodegenError::Unsupported(format!(
-                "Statement type not yet supported: {:?}",
-                std::mem::discriminant(&stmt.node)
-            ))),
         }
     }
 

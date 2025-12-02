@@ -129,53 +129,6 @@ impl AICache {
     }
 }
 
-/// Lock file for tracking AI-generated functions.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
-pub struct LockFile {
-    /// Version of the lock file format
-    pub version: u32,
-    /// AI model used
-    pub ai_model: String,
-    /// CIR version
-    pub cir_version: String,
-    /// Generated functions: name -> hash
-    pub generated: HashMap<String, String>,
-}
-
-impl LockFile {
-    /// Load from file.
-    pub fn load(path: &PathBuf) -> Result<Self, CacheError> {
-        if path.exists() {
-            let content = fs::read_to_string(path)?;
-            Ok(serde_json::from_str(&content)?)
-        } else {
-            Ok(Self::default())
-        }
-    }
-
-    /// Save to file.
-    pub fn save(&self, path: &PathBuf) -> Result<(), CacheError> {
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(path, content)?;
-        Ok(())
-    }
-
-    /// Add a generated function.
-    pub fn add(&mut self, name: String, hash: String) {
-        self.generated.insert(name, hash);
-    }
-
-    /// Check if a function is generated.
-    pub fn contains(&self, name: &str) -> bool {
-        self.generated.contains_key(name)
-    }
-
-    /// Get the hash for a function.
-    pub fn get_hash(&self, name: &str) -> Option<&String> {
-        self.generated.get(name)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

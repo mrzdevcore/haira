@@ -1,6 +1,6 @@
 //! Lex command - tokenize a file.
 
-use haira_lexer::{Lexer, TokenKind};
+use haira_lexer::Lexer;
 use std::fs;
 use std::path::Path;
 

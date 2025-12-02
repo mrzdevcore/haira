@@ -45,18 +45,22 @@ struct Message {
 #[derive(Debug, Deserialize)]
 struct ClaudeResponse {
     content: Vec<ContentBlock>,
+    #[allow(dead_code)]
     stop_reason: Option<String>,
+    #[allow(dead_code)]
     usage: Option<Usage>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ContentBlock {
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     block_type: String,
     text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Usage {
     input_tokens: u32,
     output_tokens: u32,
@@ -72,6 +76,7 @@ struct ErrorResponse {
 struct ApiError {
     message: String,
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     error_type: String,
 }
 

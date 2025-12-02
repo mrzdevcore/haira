@@ -4,9 +4,9 @@
 //! into Haira AST nodes that can be compiled normally.
 
 use haira_ast::{
-    AssignTarget, Assignment, BinaryExpr, BinaryOp, Block, CallExpr, ElseBranch, Expr, ExprKind,
-    Field, FieldExpr, FunctionDef, IfStatement, InstanceExpr, InstanceField, Literal, Param,
-    ReturnStatement, Span, Spanned, StatementKind, Type, TypeDef,
+    AssignPath, AssignTarget, Assignment, BinaryExpr, BinaryOp, Block, CallExpr, ElseBranch, Expr,
+    ExprKind, Field, FieldExpr, FunctionDef, IfStatement, InstanceExpr, InstanceField, Literal,
+    Param, ReturnStatement, Span, Spanned, StatementKind, Type, TypeDef,
 };
 use haira_cir::{
     BinaryOperator, CIRFunction, CIROperation, CIRParam, CIRType, CIRTypeKind, CIRValue,
@@ -610,7 +610,7 @@ fn make_assignment(target: &str, value: Expr) -> Spanned<StatementKind> {
     Spanned::new(
         StatementKind::Assignment(Assignment {
             targets: vec![AssignTarget {
-                name: Spanned::new(SmolStr::from(target), dummy_span()),
+                path: AssignPath::Identifier(Spanned::new(SmolStr::from(target), dummy_span())),
                 ty: None,
             }],
             value,

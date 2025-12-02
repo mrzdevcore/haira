@@ -1,6 +1,6 @@
 //! Code analysis for go-to-definition and find-references.
 
-use haira_ast::{ItemKind, StatementKind};
+use haira_ast::{AssignPath, ItemKind, StatementKind};
 use haira_parser::parse;
 use tower_lsp::lsp_types::*;
 
@@ -59,13 +59,16 @@ pub fn find_definition(source: &str, position: Position, uri: Url) -> Option<Loc
             ItemKind::Statement(stmt) => {
                 if let StatementKind::Assignment(assign) = &stmt.node {
                     for target in &assign.targets {
-                        if target.name.node.as_str() == word {
-                            let range = span_to_range(
-                                source,
-                                target.name.span.start as usize,
-                                target.name.span.end as usize,
-                            );
-                            return Some(Location { uri, range });
+                        // Only match simple identifier assignments
+                        if let AssignPath::Identifier(name) = &target.path {
+                            if name.node.as_str() == word {
+                                let range = span_to_range(
+                                    source,
+                                    name.span.start as usize,
+                                    name.span.end as usize,
+                                );
+                                return Some(Location { uri, range });
+                            }
                         }
                     }
                 }

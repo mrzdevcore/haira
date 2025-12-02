@@ -1,7 +1,7 @@
 //! Build command - compile a Haira file to a native binary.
 
 use haira_ai::{AIConfig, AIEngine, AIError};
-use haira_ast::{Item, ItemKind, SourceFile, Type};
+use haira_ast::{Item, ItemKind, SourceFile, Spanned, Type};
 use haira_cir::{
     CIRFunction, CIROperation, CIRType, CIRValue, CallSiteInfo, FieldDefinition,
     InterpretationContext, TypeDefinition,
@@ -17,6 +17,7 @@ pub fn run(
     interpret_ai: bool,
     use_ollama: bool,
     ollama_model: &str,
+    use_local_ai: bool,
     mock_ai: bool,
 ) -> miette::Result<()> {
     let source =
@@ -225,6 +226,127 @@ pub fn run(
             }
 
             eprintln!("All AI blocks interpreted successfully.\n");
+        } else if use_local_ai {
+            // Use local llama.cpp for AI interpretation
+            eprintln!(
+                "Found {} AI block(s) - using local AI (llama.cpp)...",
+                ai_block_indices.len()
+            );
+
+            // Build interpretation context from the AST
+            let context = build_interpretation_context(&ast, file);
+
+            // Initialize AI engine with local AI backend
+            let config = AIConfig::default();
+            let mut engine = AIEngine::with_local_ai(config, None);
+
+            // Check local AI availability
+            let runtime = tokio::runtime::Runtime::new()
+                .map_err(|e| miette::miette!("Failed to create async runtime: {}", e))?;
+
+            runtime
+                .block_on(async { engine.check_availability().await })
+                .map_err(|e| {
+                    miette::miette!(
+                        "Local AI not available: {}\n\n\
+                     Make sure you have:\n\
+                       1. Installed the model: haira model pull\n\
+                       2. The llama-server binary in ~/.haira/bin/\n\n\
+                     Or use --mock-ai for testing with stub implementations.",
+                        e
+                    )
+                })?;
+
+            // Start the local AI server
+            eprintln!("  Starting local AI server...");
+            runtime
+                .block_on(async { engine.start_local_server().await })
+                .map_err(|e| miette::miette!("Failed to start local AI server: {}", e))?;
+
+            eprintln!("  Local AI server ready");
+
+            // Process each AI block
+            for &idx in &ai_block_indices {
+                let ai_block = match &ast.items[idx].node {
+                    ItemKind::AiFunctionDef(block) => block.clone(),
+                    _ => continue,
+                };
+
+                let name = ai_block
+                    .name
+                    .as_ref()
+                    .map(|n| n.node.to_string())
+                    .unwrap_or_else(|| format!("__ai_anon_{}", idx));
+
+                eprintln!("  Interpreting: {} ...", name);
+
+                // Extract parameters as (name, type) pairs
+                let params: Vec<(String, String)> = ai_block
+                    .params
+                    .iter()
+                    .map(|p| {
+                        let ty =
+                            p.ty.as_ref()
+                                .map(|t| type_to_string(&t.node))
+                                .unwrap_or_else(|| "any".to_string());
+                        (p.name.node.to_string(), ty)
+                    })
+                    .collect();
+
+                // Extract return type
+                let return_type = ai_block.return_ty.as_ref().map(|t| type_to_string(&t.node));
+
+                // Call AI engine with local AI
+                let cir_result = runtime.block_on(engine.interpret_intent(
+                    Some(&name),
+                    ai_block.intent.as_str(),
+                    &params,
+                    return_type.as_deref(),
+                    context.clone(),
+                ));
+
+                match cir_result {
+                    Ok(cir_func) => {
+                        eprintln!("    Generated CIR for: {}", cir_func.name);
+
+                        // Convert CIR to AST FunctionDef
+                        match cir_to_function_def(&cir_func) {
+                            Ok(func_def) => {
+                                let span = ast.items[idx].span;
+                                ast.items[idx] = Item {
+                                    node: ItemKind::FunctionDef(func_def),
+                                    span,
+                                };
+                                eprintln!("    Converted to AST: {}", name);
+                            }
+                            Err(e) => {
+                                // Stop the server before returning error
+                                let _ = engine.stop_local_server();
+                                return Err(miette::miette!(
+                                    "Failed to convert CIR to AST for '{}': {}",
+                                    name,
+                                    e
+                                ));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Stop the server before returning error
+                        let _ = engine.stop_local_server();
+                        let error_msg = format_ai_error(&e);
+                        return Err(miette::miette!(
+                            "Failed to interpret AI block '{}': {}",
+                            name,
+                            error_msg
+                        ));
+                    }
+                }
+            }
+
+            // Stop the local AI server
+            let _ = engine.stop_local_server();
+
+            eprintln!("All AI blocks interpreted successfully.\n");
         } else if interpret_ai {
             eprintln!(
                 "Found {} AI block(s) to interpret (Claude API)...",
@@ -241,6 +363,7 @@ pub fn run(
                     "ANTHROPIC_API_KEY environment variable not set.\n\
                      Set it to your Anthropic API key to enable AI interpretation.\n\n\
                      Alternatively:\n\
+                     - Use --local-ai for local AI with llama.cpp\n\
                      - Use --ollama for local AI with Ollama\n\
                      - Use --mock-ai for testing with stub implementations"
                 ));
@@ -331,13 +454,18 @@ pub fn run(
             return Err(miette::miette!(
                 "Source contains {} AI block(s) which require interpretation.\n\n\
                  Options:\n\
-                 - Use --ollama for local AI with Ollama (recommended)\n\
+                 - Use --local-ai for local AI with llama.cpp (recommended)\n\
+                 - Use --ollama for local AI with Ollama\n\
                  - Use --interpret-ai for Claude API (requires ANTHROPIC_API_KEY)\n\
                  - Use --mock-ai for testing with stub implementations",
                 ai_block_indices.len()
             ));
         }
     }
+
+    // Infer types for struct fields that don't have explicit type annotations
+    // This uses AI to determine types based on field names
+    let ast = infer_struct_field_types(ast, use_ollama, ollama_model, use_local_ai, interpret_ai)?;
 
     // Determine output binary name
     let output_file = output.map(|p| p.to_path_buf()).unwrap_or_else(|| {
@@ -379,6 +507,9 @@ fn format_ai_error(e: &AIError) -> String {
         }
         AIError::Ollama(ollama_err) => {
             format!("Ollama error: {}", ollama_err)
+        }
+        AIError::LocalAI(local_err) => {
+            format!("Local AI error: {}", local_err)
         }
         _ => e.to_string(),
     }
@@ -566,5 +697,219 @@ fn type_to_string(ty: &Type) -> String {
                 .join(", ");
             format!("{}<{}>", name, args_str)
         }
+    }
+}
+
+/// Infer types for struct fields that don't have explicit type annotations.
+///
+/// This function scans all struct definitions in the AST and uses AI to infer
+/// types for fields that don't have type annotations.
+fn infer_struct_field_types(
+    mut ast: SourceFile,
+    use_ollama: bool,
+    ollama_model: &str,
+    use_local_ai: bool,
+    use_claude: bool,
+) -> miette::Result<SourceFile> {
+    // Find all structs with untyped fields
+    let mut structs_needing_inference: Vec<(usize, String, Vec<String>)> = Vec::new();
+
+    for (idx, item) in ast.items.iter().enumerate() {
+        if let ItemKind::TypeDef(type_def) = &item.node {
+            let untyped_fields: Vec<String> = type_def
+                .fields
+                .iter()
+                .filter(|f| f.ty.is_none())
+                .map(|f| f.name.node.to_string())
+                .collect();
+
+            if !untyped_fields.is_empty() {
+                structs_needing_inference.push((
+                    idx,
+                    type_def.name.node.to_string(),
+                    untyped_fields,
+                ));
+            }
+        }
+    }
+
+    if structs_needing_inference.is_empty() {
+        return Ok(ast);
+    }
+
+    eprintln!(
+        "Found {} struct(s) with untyped fields - inferring types with AI...",
+        structs_needing_inference.len()
+    );
+
+    // Initialize AI engine based on flags
+    let config = AIConfig::default();
+    let engine = if use_ollama {
+        AIEngine::with_ollama(config, Some(ollama_model))
+    } else if use_local_ai {
+        AIEngine::with_local_ai(config, None)
+    } else if use_claude {
+        let config = AIConfig::from_env();
+        if !config.is_valid() {
+            eprintln!("  Warning: No AI backend available for type inference, using defaults");
+            return Ok(apply_default_types(ast, &structs_needing_inference));
+        }
+        AIEngine::new(config)
+    } else {
+        eprintln!("  No AI backend specified, using default type inference");
+        return Ok(apply_default_types(ast, &structs_needing_inference));
+    };
+
+    // Create async runtime
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| miette::miette!("Failed to create async runtime: {}", e))?;
+
+    // Infer types for each struct
+    for (idx, struct_name, field_names) in &structs_needing_inference {
+        eprintln!("  Inferring types for struct '{}'...", struct_name);
+
+        let inferred_types = runtime.block_on(async {
+            engine
+                .infer_struct_field_types(struct_name, field_names)
+                .await
+        });
+
+        match inferred_types {
+            Ok(types) => {
+                // Update the AST with inferred types
+                if let ItemKind::TypeDef(ref mut type_def) = ast.items[*idx].node {
+                    for field in &mut type_def.fields {
+                        if field.ty.is_none() {
+                            let field_name = field.name.node.to_string();
+                            if let Some(type_str) = types.get(&field_name) {
+                                let inferred_type = string_to_type(type_str);
+                                field.ty = Some(Spanned {
+                                    node: inferred_type,
+                                    span: field.name.span,
+                                });
+                                eprintln!("    {} -> {}", field_name, type_str);
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "  Warning: Failed to infer types for '{}': {}",
+                    struct_name, e
+                );
+                eprintln!("  Using default types (int for unknown fields)");
+                // Apply default types for this struct
+                if let ItemKind::TypeDef(ref mut type_def) = ast.items[*idx].node {
+                    for field in &mut type_def.fields {
+                        if field.ty.is_none() {
+                            let default_type = infer_type_from_name(&field.name.node);
+                            field.ty = Some(Spanned {
+                                node: string_to_type(&default_type),
+                                span: field.name.span,
+                            });
+                            eprintln!("    {} -> {} (default)", field.name.node, default_type);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    eprintln!("Type inference complete.\n");
+    Ok(ast)
+}
+
+/// Apply default types to structs without using AI.
+fn apply_default_types(
+    mut ast: SourceFile,
+    structs: &[(usize, String, Vec<String>)],
+) -> SourceFile {
+    for (idx, struct_name, _) in structs {
+        eprintln!("  Applying default types for struct '{}'...", struct_name);
+        if let ItemKind::TypeDef(ref mut type_def) = ast.items[*idx].node {
+            for field in &mut type_def.fields {
+                if field.ty.is_none() {
+                    let default_type = infer_type_from_name(&field.name.node);
+                    field.ty = Some(Spanned {
+                        node: string_to_type(&default_type),
+                        span: field.name.span,
+                    });
+                    eprintln!("    {} -> {}", field.name.node, default_type);
+                }
+            }
+        }
+    }
+    ast
+}
+
+/// Infer a default type from a field name using simple heuristics.
+fn infer_type_from_name(name: &str) -> String {
+    let lower = name.to_lowercase();
+
+    // Boolean patterns
+    if lower.starts_with("is_")
+        || lower.starts_with("has_")
+        || lower.starts_with("can_")
+        || lower.starts_with("should_")
+        || lower == "active"
+        || lower == "enabled"
+        || lower == "visible"
+        || lower == "valid"
+        || lower == "done"
+        || lower == "completed"
+    {
+        return "bool".to_string();
+    }
+
+    // Integer patterns
+    if lower == "id"
+        || lower.ends_with("_id")
+        || lower == "age"
+        || lower == "count"
+        || lower == "quantity"
+        || lower == "index"
+        || lower == "size"
+        || lower == "length"
+        || lower == "year"
+        || lower == "month"
+        || lower == "day"
+        || lower == "hour"
+        || lower == "minute"
+        || lower == "second"
+    {
+        return "int".to_string();
+    }
+
+    // Float patterns
+    if lower == "price"
+        || lower == "amount"
+        || lower == "rate"
+        || lower == "ratio"
+        || lower == "percentage"
+        || lower == "score"
+        || lower == "weight"
+        || lower == "height"
+        || lower == "width"
+        || lower == "latitude"
+        || lower == "longitude"
+        || lower.ends_with("_rate")
+        || lower.ends_with("_ratio")
+    {
+        return "float".to_string();
+    }
+
+    // Default to string for names, descriptions, etc.
+    "string".to_string()
+}
+
+/// Convert a type string to an AST Type.
+fn string_to_type(s: &str) -> Type {
+    match s {
+        "int" | "i64" | "i32" => Type::Named(s.into()),
+        "float" | "f64" | "f32" => Type::Named("float".into()),
+        "bool" | "boolean" => Type::Named("bool".into()),
+        "string" | "str" => Type::Named("string".into()),
+        _ => Type::Named(s.into()),
     }
 }

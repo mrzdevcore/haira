@@ -6,6 +6,7 @@ members = [
     "crates/haira-ast",
     "crates/haira-resolver",
     "crates/haira-ai",        # AI intent engine (Claude integration)
+    "crates/haira-local-ai",  # Local AI backend using llama.cpp
     "crates/haira-cir",       # Canonical IR definitions
     "crates/haira-types",
     "crates/haira-hir",
@@ -58,6 +59,7 @@ haira-hir = { path = "crates/haira-hir" }
 haira-mir = { path = "crates/haira-mir" }
 haira-codegen = { path = "crates/haira-codegen" }
 haira-driver = { path = "crates/haira-driver" }
+haira-local-ai = { path = "crates/haira-local-ai" }
 
 [profile.release]
 lto = true

@@ -9,6 +9,7 @@ use crate::config::AIConfig;
 use crate::ollama::{OllamaClient, OllamaError};
 use crate::prompt::{self, SYSTEM_PROMPT};
 use haira_cir::{AIResponse, CIRFunction, InterpretationContext};
+use haira_local_ai::{LlamaCppServer, LocalAIError};
 
 /// AI backend type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +18,8 @@ pub enum AIBackend {
     Claude,
     /// Use local Ollama server
     Ollama,
+    /// Use local llama.cpp server (self-managed)
+    LocalAI,
 }
 
 /// AI Engine for interpreting developer intent.
@@ -24,6 +27,7 @@ pub struct AIEngine {
     config: AIConfig,
     claude_client: Option<ClaudeClient>,
     ollama_client: Option<OllamaClient>,
+    local_ai_server: Option<LlamaCppServer>,
     backend: AIBackend,
     cache: AICache,
 }
@@ -35,6 +39,8 @@ pub enum AIError {
     Client(#[from] ClientError),
     #[error("ollama error: {0}")]
     Ollama(#[from] OllamaError),
+    #[error("local AI error: {0}")]
+    LocalAI(#[from] LocalAIError),
     #[error("cache error: {0}")]
     Cache(#[from] crate::cache::CacheError),
     #[error("parse error: {0}")]
@@ -66,6 +72,7 @@ impl AIEngine {
             config,
             claude_client,
             ollama_client: None,
+            local_ai_server: None,
             backend: AIBackend::Claude,
             cache,
         }
@@ -85,7 +92,29 @@ impl AIEngine {
             config,
             claude_client: None,
             ollama_client: Some(ollama_client),
+            local_ai_server: None,
             backend: AIBackend::Ollama,
+            cache,
+        }
+    }
+
+    /// Create a new AI engine with local llama.cpp backend.
+    ///
+    /// The model filename should be the name of a GGUF file in ~/.haira/models/
+    pub fn with_local_ai(config: AIConfig, model_filename: Option<&str>) -> Self {
+        let filename = model_filename
+            .unwrap_or(haira_local_ai::DEFAULT_MODEL_FILENAME)
+            .to_string();
+
+        let server = LlamaCppServer::new(filename);
+        let cache = AICache::new(config.cache_dir.clone());
+
+        Self {
+            config,
+            claude_client: None,
+            ollama_client: None,
+            local_ai_server: Some(server),
+            backend: AIBackend::LocalAI,
             cache,
         }
     }
@@ -98,6 +127,44 @@ impl AIEngine {
     /// Get the current backend.
     pub fn backend(&self) -> AIBackend {
         self.backend
+    }
+
+    /// Start the local AI server (only for LocalAI backend).
+    ///
+    /// This starts the llama-server process and waits for it to become ready.
+    pub async fn start_local_server(&mut self) -> Result<(), AIError> {
+        if self.backend != AIBackend::LocalAI {
+            return Ok(()); // No-op for other backends
+        }
+
+        let server = self.local_ai_server.as_mut().ok_or(AIError::NoBackend)?;
+
+        // Start the server process
+        server.start()?;
+
+        // Wait for it to become ready (up to 60 seconds for model loading)
+        server
+            .wait_ready(std::time::Duration::from_secs(60))
+            .await?;
+
+        Ok(())
+    }
+
+    /// Stop the local AI server (only for LocalAI backend).
+    pub fn stop_local_server(&mut self) -> Result<(), AIError> {
+        if let Some(ref mut server) = self.local_ai_server {
+            server.stop()?;
+        }
+        Ok(())
+    }
+
+    /// Check if the local AI server is running.
+    pub fn is_local_server_running(&mut self) -> bool {
+        if let Some(ref mut server) = self.local_ai_server {
+            server.is_running()
+        } else {
+            false
+        }
     }
 
     /// Check if the current backend is available.
@@ -114,6 +181,23 @@ impl AIEngine {
                 client.check_availability().await?;
                 Ok(())
             }
+            AIBackend::LocalAI => {
+                let server = self.local_ai_server.as_ref().ok_or(AIError::NoBackend)?;
+                // Check that the server binary and model exist
+                if !server.binary_exists() {
+                    return Err(AIError::LocalAI(LocalAIError::ServerBinaryNotFound(
+                        haira_local_ai::paths::llama_server_path()
+                            .display()
+                            .to_string(),
+                    )));
+                }
+                if !server.model_exists() {
+                    return Err(AIError::LocalAI(LocalAIError::ModelNotFound(
+                        "Model not found. Run: haira model pull".to_string(),
+                    )));
+                }
+                Ok(())
+            }
         }
     }
 
@@ -126,6 +210,11 @@ impl AIEngine {
             }
             AIBackend::Ollama => {
                 let client = self.ollama_client.as_ref().ok_or(AIError::NoBackend)?;
+                Ok(client.complete(system, user_message).await?)
+            }
+            AIBackend::LocalAI => {
+                let server = self.local_ai_server.as_ref().ok_or(AIError::NoBackend)?;
+                let client = server.client();
                 Ok(client.complete(system, user_message).await?)
             }
         }
@@ -369,9 +458,29 @@ impl AIEngine {
         // Clean up common LLM artifacts
         let cleaned = Self::clean_llm_output(text);
 
-        // Try to extract JSON from the response
+        // Try to extract the first complete JSON object from the response
+        // This handles cases where the model repeats the JSON multiple times
         let json_text = if let Some(start) = cleaned.find('{') {
-            if let Some(end) = cleaned.rfind('}') {
+            // Find the matching closing brace by counting braces
+            let chars: Vec<char> = cleaned[start..].chars().collect();
+            let mut depth = 0;
+            let mut end_offset = 0;
+            for (i, ch) in chars.iter().enumerate() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end_offset = i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if end_offset > 0 {
+                &cleaned[start..=start + end_offset]
+            } else if let Some(end) = cleaned.rfind('}') {
                 &cleaned[start..=end]
             } else {
                 &cleaned
@@ -1512,6 +1621,75 @@ impl AIEngine {
     pub fn clear_cache(&mut self) -> Result<(), AIError> {
         self.cache.clear()?;
         Ok(())
+    }
+
+    /// Infer types for struct fields that don't have explicit type annotations.
+    ///
+    /// Given a struct definition like `User { name, age, email }`, this uses AI
+    /// to infer the most likely types for each field based on the field names.
+    ///
+    /// Returns a map of field name -> type string (e.g., "string", "int", "float", "bool").
+    pub async fn infer_struct_field_types(
+        &self,
+        struct_name: &str,
+        field_names: &[String],
+    ) -> Result<std::collections::HashMap<String, String>, AIError> {
+        use std::collections::HashMap;
+
+        // Build a simple prompt for type inference
+        let fields_list = field_names.join(", ");
+        let prompt = format!(
+            r#"Infer the most likely types for each field in the struct below.
+
+Struct: {struct_name} {{ {fields_list} }}
+
+For each field, determine the most appropriate type from: string, int, float, bool
+
+Output ONLY a JSON object mapping field names to types. Example:
+{{"name": "string", "age": "int", "is_active": "bool"}}
+
+Be smart about common field names:
+- "name", "email", "title", "description", etc. -> string
+- "age", "count", "id", "quantity", etc. -> int
+- "price", "amount", "rate", etc. -> float
+- "is_*", "has_*", "active", "enabled", etc. -> bool
+
+Output only the JSON object, nothing else:"#
+        );
+
+        let system = "You are a type inference assistant. Given field names, infer their types. Output only valid JSON.";
+
+        let response = self.complete(system, &prompt).await?;
+
+        // Parse the response as JSON
+        let cleaned = Self::clean_llm_output(&response);
+
+        // Find the JSON object in the response
+        let json_text = if let Some(start) = cleaned.find('{') {
+            if let Some(end) = cleaned.rfind('}') {
+                &cleaned[start..=end]
+            } else {
+                &cleaned
+            }
+        } else {
+            &cleaned
+        };
+
+        let types: HashMap<String, String> = serde_json::from_str(json_text).map_err(|e| {
+            AIError::InterpretationFailed(format!("Failed to parse type inference response: {}", e))
+        })?;
+
+        // Validate that we got types for all fields
+        for field in field_names {
+            if !types.contains_key(field) {
+                warn!(
+                    "AI did not infer type for field '{}', defaulting to 'any'",
+                    field
+                );
+            }
+        }
+
+        Ok(types)
     }
 }
 

@@ -5,6 +5,21 @@ use std::path::PathBuf;
 
 mod commands;
 
+/// Model management actions.
+#[derive(Subcommand)]
+enum ModelAction {
+    /// Download the default Haira AI model
+    Pull {
+        /// Path to a local .gguf file to install instead of downloading
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+    /// List installed models
+    List,
+    /// Show local AI configuration info
+    Info,
+}
+
 /// Haira - A programming language for expressing intent
 #[derive(Parser)]
 #[command(name = "haira")]
@@ -36,9 +51,18 @@ enum Commands {
         /// Ollama model to use (default: deepseek-coder-v2:16b)
         #[arg(long, default_value = "deepseek-coder-v2:16b")]
         ollama_model: String,
+        /// Use local AI (llama.cpp) for AI interpretation
+        #[arg(long)]
+        local_ai: bool,
         /// Use mock AI interpretation for testing (generates stub implementations)
         #[arg(long)]
         mock_ai: bool,
+    },
+
+    /// Manage local AI models
+    Model {
+        #[command(subcommand)]
+        action: ModelAction,
     },
 
     /// Build and run a Haira file
@@ -99,6 +123,7 @@ fn main() -> miette::Result<()> {
             interpret_ai,
             ollama,
             ollama_model,
+            local_ai,
             mock_ai,
         } => commands::build::run(
             &file,
@@ -106,8 +131,16 @@ fn main() -> miette::Result<()> {
             interpret_ai,
             ollama,
             &ollama_model,
+            local_ai,
             mock_ai,
         ),
+        Commands::Model { action } => match action {
+            ModelAction::Pull { path } => tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(commands::model::pull(path.as_deref())),
+            ModelAction::List => commands::model::list(),
+            ModelAction::Info => commands::model::info(),
+        },
         Commands::Run { file } => commands::run::run(&file),
         Commands::Parse { file, json } => commands::parse::run(&file, json),
         Commands::Check { files } => commands::check::run(&files),

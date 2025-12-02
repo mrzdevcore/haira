@@ -5,5 +5,6 @@ pub mod check;
 pub mod info;
 pub mod interpret;
 pub mod lex;
+pub mod model;
 pub mod parse;
 pub mod run;

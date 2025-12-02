@@ -452,16 +452,18 @@ impl<'de> serde::Deserialize<'de> for CIRValue {
 
                 // Otherwise try to parse as an operation
                 if is_operation {
-                    let json_obj = serde_json::Value::Object(
-                        collected.into_iter().collect()
-                    );
+                    let json_obj = serde_json::Value::Object(collected.into_iter().collect());
                     match serde_json::from_value::<CIROperation>(json_obj) {
                         Ok(op) => return Ok(CIRValue::Operation(Box::new(op))),
-                        Err(e) => return Err(de::Error::custom(format!("invalid operation: {}", e))),
+                        Err(e) => {
+                            return Err(de::Error::custom(format!("invalid operation: {}", e)))
+                        }
                     }
                 }
 
-                Err(de::Error::custom("expected a CIR value object with 'ref', 'literal', or 'kind' key"))
+                Err(de::Error::custom(
+                    "expected a CIR value object with 'ref', 'literal', or 'kind' key",
+                ))
             }
         }
 

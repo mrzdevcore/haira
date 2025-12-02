@@ -251,12 +251,26 @@ impl<'source> Parser<'source> {
                             Some(Spanned::new(ItemKind::Statement(stmt), self.span(start)))
                         }
                     }
-                    // Method definition: `Type.method(...) { ... }`
+                    // Method definition: `Type.method(...) { ... }` OR field access/assignment
                     TokenKind::Dot => {
-                        self.advance(); // consume .
-                        let method_name = self.parse_identifier()?;
-                        let method = self.parse_method_def_body(name, method_name)?;
-                        Some(Spanned::new(ItemKind::MethodDef(method), self.span(start)))
+                        // Method definitions have uppercase type name (e.g., User.greet)
+                        // Field access/assignment has lowercase variable name (e.g., user.age)
+                        let first_char = name.node.chars().next().unwrap_or('a');
+                        if first_char.is_uppercase() {
+                            // Method definition
+                            self.advance(); // consume .
+                            let method_name = self.parse_identifier()?;
+                            let method = self.parse_method_def_body(name, method_name)?;
+                            Some(Spanned::new(ItemKind::MethodDef(method), self.span(start)))
+                        } else {
+                            // Field access expression - parse as statement
+                            let expr =
+                                Spanned::new(ExprKind::Identifier(name.node.clone()), name.span);
+                            // Continue parsing the expression (including the dot)
+                            let full_expr = self.parse_expr_rest(expr)?;
+                            let stmt = self.parse_statement_rest(full_expr)?;
+                            Some(Spanned::new(ItemKind::Statement(stmt), self.span(start)))
+                        }
                     }
                     // Type alias: `UserId = int` OR assignment: `x = 10`
                     // Type aliases have uppercase first letter, assignments have lowercase
@@ -687,11 +701,30 @@ impl<'source> Parser<'source> {
     }
 
     fn expr_to_assign_target(&mut self, expr: Expr) -> Option<AssignTarget> {
-        match expr.node {
-            ExprKind::Identifier(name) => Some(AssignTarget {
-                name: Spanned::new(name, expr.span),
-                ty: None,
-            }),
+        let path = self.expr_to_assign_path(&expr)?;
+        Some(AssignTarget { path, ty: None })
+    }
+
+    fn expr_to_assign_path(&mut self, expr: &Expr) -> Option<AssignPath> {
+        match &expr.node {
+            ExprKind::Identifier(name) => Some(AssignPath::Identifier(Spanned::new(
+                name.clone(),
+                expr.span,
+            ))),
+            ExprKind::Field(field_expr) => {
+                let object = self.expr_to_assign_path(&field_expr.object)?;
+                Some(AssignPath::Field {
+                    object: Box::new(object),
+                    field: field_expr.field.clone(),
+                })
+            }
+            ExprKind::Index(index_expr) => {
+                let object = self.expr_to_assign_path(&index_expr.object)?;
+                Some(AssignPath::Index {
+                    object: Box::new(object),
+                    index: index_expr.index.clone(),
+                })
+            }
             _ => {
                 self.error(ParseError::ExpectedIdent {
                     span: expr.span.start as usize..expr.span.end as usize,
@@ -828,9 +861,13 @@ impl<'source> Parser<'source> {
         self.parse_expr_precedence(Precedence::None)
     }
 
-    fn parse_expr_precedence(&mut self, min_prec: Precedence) -> Option<Expr> {
-        let mut left = self.parse_prefix()?;
+    /// Continue parsing an expression from a starting expression (for infix operators).
+    fn parse_expr_rest(&mut self, left: Expr) -> Option<Expr> {
+        self.parse_expr_rest_precedence(left, Precedence::None)
+    }
 
+    /// Continue parsing an expression from a starting expression with minimum precedence.
+    fn parse_expr_rest_precedence(&mut self, mut left: Expr, min_prec: Precedence) -> Option<Expr> {
         while !self.at_end() {
             let prec = Precedence::of(&self.current.kind);
             if prec <= min_prec {
@@ -841,6 +878,11 @@ impl<'source> Parser<'source> {
         }
 
         Some(left)
+    }
+
+    fn parse_expr_precedence(&mut self, min_prec: Precedence) -> Option<Expr> {
+        let left = self.parse_prefix()?;
+        self.parse_expr_rest_precedence(left, min_prec)
     }
 
     fn parse_prefix(&mut self) -> Option<Expr> {
@@ -1255,7 +1297,7 @@ impl<'source> Parser<'source> {
                     // Not a named argument, put it back
                     // We need to re-parse this as an expression
                     let value = Spanned::new(ExprKind::Identifier(ident.node), ident.span);
-                    let value = self.parse_infix(value, Precedence::None)?;
+                    let value = self.parse_expr_rest(value)?;
                     args.push(Argument {
                         name: None,
                         value,

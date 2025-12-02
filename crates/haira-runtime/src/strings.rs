@@ -44,6 +44,17 @@ impl HairaString {
     }
 }
 
+/// Create a HairaString from a static string pointer and length
+/// This wraps a static string in a HairaString struct for consistent handling
+#[no_mangle]
+pub extern "C" fn haira_string_from_static(ptr: *const u8, len: i64) -> *mut HairaString {
+    if ptr.is_null() || len <= 0 {
+        return HairaString::empty();
+    }
+    let slice = unsafe { std::slice::from_raw_parts(ptr, len as usize) };
+    HairaString::new(slice)
+}
+
 /// String concatenation
 #[no_mangle]
 pub extern "C" fn haira_string_concat(

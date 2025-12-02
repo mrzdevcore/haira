@@ -118,7 +118,7 @@ fn print_statement_kind(stmt: &haira_ast::StatementKind, source: &str, indent: u
             let targets: Vec<_> = assign
                 .targets
                 .iter()
-                .map(|t| t.name.node.as_str())
+                .map(|t| format_assign_path(&t.path))
                 .collect();
             println!("{}Assignment: {} = ...", prefix, targets.join(", "));
         }
@@ -213,4 +213,16 @@ fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     }
 
     (line, col)
+}
+
+fn format_assign_path(path: &haira_ast::AssignPath) -> String {
+    match path {
+        haira_ast::AssignPath::Identifier(name) => name.node.to_string(),
+        haira_ast::AssignPath::Field { object, field } => {
+            format!("{}.{}", format_assign_path(object), field.node)
+        }
+        haira_ast::AssignPath::Index { object, .. } => {
+            format!("{}[...]", format_assign_path(object))
+        }
+    }
 }

@@ -4,8 +4,8 @@ use cranelift::prelude::*;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use haira_ast::{
-    BinaryOp, Block, Expr, ExprKind, Item, ItemKind, Literal, MethodDef, SourceFile, Statement,
-    StatementKind, TypeDef, UnaryOp,
+    AssignPath, BinaryOp, Block, Expr, ExprKind, Item, ItemKind, Literal, MethodDef, SourceFile,
+    Statement, StatementKind, TypeDef, UnaryOp,
 };
 use smol_str::SmolStr;
 use std::collections::HashMap;
@@ -17,6 +17,8 @@ use std::process::Command;
 struct StructInfo {
     /// Field names in order.
     fields: Vec<SmolStr>,
+    /// Field types (for type tracking).
+    field_types: Vec<ValueType>,
     /// Size of each field in bytes (all i64 for now).
     field_offsets: Vec<usize>,
     /// Total size of the struct in bytes.
@@ -53,6 +55,15 @@ pub enum CodegenError {
     UndefinedVariable(String),
 }
 
+/// Function signature for type tracking.
+#[derive(Debug, Clone)]
+struct FuncSignature {
+    /// Parameter types (true = F64, false = I64)
+    params_are_float: Vec<bool>,
+    /// Return type (true = F64, false = I64)
+    returns_float: bool,
+}
+
 /// Haira compiler using Cranelift.
 pub struct Compiler {
     /// The Cranelift module.
@@ -63,6 +74,8 @@ pub struct Compiler {
     ctx: codegen::Context,
     /// Map of function names to their IDs.
     functions: HashMap<SmolStr, FuncId>,
+    /// Map of function names to their type signatures.
+    func_signatures: HashMap<SmolStr, FuncSignature>,
     /// Map of string constants to their data IDs.
     strings: HashMap<SmolStr, cranelift_module::DataId>,
     /// Map of struct type names to their info.
@@ -112,6 +125,7 @@ impl Compiler {
             builder_ctx: FunctionBuilderContext::new(),
             ctx: codegen::Context::new(),
             functions: HashMap::new(),
+            func_signatures: HashMap::new(),
             strings: HashMap::new(),
             structs: HashMap::new(),
             ptr_type,
@@ -122,6 +136,22 @@ impl Compiler {
             async_functions: HashMap::new(),
             async_blocks: Vec::new(),
         })
+    }
+
+    /// Register a function signature for type tracking.
+    fn register_func_signature(
+        &mut self,
+        name: &str,
+        params_are_float: Vec<bool>,
+        returns_float: bool,
+    ) {
+        self.func_signatures.insert(
+            SmolStr::from(name),
+            FuncSignature {
+                params_are_float,
+                returns_float,
+            },
+        );
     }
 
     /// Declare external runtime functions.
@@ -198,6 +228,17 @@ impl Compiler {
                 .declare_function("haira_string_concat", Linkage::Import, &sig)?;
         self.functions
             .insert(SmolStr::from("string_concat"), concat_id);
+
+        // haira_string_from_static(ptr, len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type)); // ptr
+        sig.params.push(AbiParam::new(types::I64)); // len
+        sig.returns.push(AbiParam::new(self.ptr_type)); // result HairaString*
+        let string_from_static_id =
+            self.module
+                .declare_function("haira_string_from_static", Linkage::Import, &sig)?;
+        self.functions
+            .insert(SmolStr::from("string_from_static"), string_from_static_id);
 
         // haira_int_to_string(value) -> HairaString*
         let mut sig = self.module.make_signature();
@@ -901,24 +942,60 @@ impl Compiler {
             .declare_function("haira_test_section", Linkage::Import, &sig)?;
         self.functions.insert(SmolStr::from("test_section"), id);
 
+        // Register float function signatures for type tracking
+        // Single float param, float return
+        for name in &[
+            "sqrt", "log", "log10", "exp", "sin", "cos", "tan", "asin", "acos", "atan", "floor",
+            "ceil", "round",
+        ] {
+            self.register_func_signature(name, vec![true], true);
+        }
+        // Two float params, float return
+        for name in &["pow", "atan2"] {
+            self.register_func_signature(name, vec![true, true], true);
+        }
+        // random_float takes no params, returns float
+        self.register_func_signature("random_float", vec![], true);
+        // print_float takes float param
+        self.register_func_signature("print_float", vec![true], false);
+
         Ok(())
     }
 
     /// Register a struct type definition.
     fn register_struct(&mut self, type_def: &TypeDef) {
         let mut fields = Vec::new();
+        let mut field_types = Vec::new();
         let mut field_offsets = Vec::new();
         let mut offset = 0;
 
         for field in &type_def.fields {
             fields.push(field.name.node.clone());
+            // Infer type from type annotation if present, otherwise default to Ptr
+            // (since strings are common and we can't know without type inference)
+            let field_type = if let Some(ref ty) = field.ty {
+                match &ty.node {
+                    haira_ast::Type::Named(name) => match name.as_str() {
+                        "int" | "i64" | "i32" | "i16" | "i8" => ValueType::Int,
+                        "float" | "f64" | "f32" => ValueType::Float,
+                        "string" | "str" => ValueType::Ptr,
+                        _ => ValueType::Ptr, // Default to Ptr for unknown/struct types
+                    },
+                    _ => ValueType::Ptr,
+                }
+            } else {
+                // No type annotation - default to Int (most common for untyped fields)
+                ValueType::Int
+            };
+            field_types.push(field_type);
             field_offsets.push(offset);
-            // All fields are i64 (8 bytes) for now
+            // All fields are 8 bytes (i64 or f64 or ptr)
             offset += 8;
         }
 
         let info = StructInfo {
             fields,
+            field_types,
             field_offsets,
             size: offset,
         };
@@ -1284,6 +1361,7 @@ impl Compiler {
                 module: &mut self.module,
                 strings: &mut self.strings,
                 functions: &self.functions,
+                func_signatures: &self.func_signatures,
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
@@ -1375,6 +1453,7 @@ impl Compiler {
                 module: &mut self.module,
                 strings: &mut self.strings,
                 functions: &self.functions,
+                func_signatures: &self.func_signatures,
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
@@ -1442,6 +1521,7 @@ impl Compiler {
                 module: &mut self.module,
                 strings: &mut self.strings,
                 functions: &self.functions,
+                func_signatures: &self.func_signatures,
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
@@ -1518,6 +1598,7 @@ impl Compiler {
                 module: &mut self.module,
                 strings: &mut self.strings,
                 functions: &self.functions,
+                func_signatures: &self.func_signatures,
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
@@ -1570,6 +1651,7 @@ impl Compiler {
                 module: &mut self.module,
                 strings: &mut self.strings,
                 functions: &self.functions,
+                func_signatures: &self.func_signatures,
                 structs: &self.structs,
                 ptr_type: self.ptr_type,
                 spawn_functions: &self.spawn_functions,
@@ -1612,6 +1694,7 @@ struct FunctionCompiler<'a> {
     module: &'a mut ObjectModule,
     strings: &'a mut HashMap<SmolStr, cranelift_module::DataId>,
     functions: &'a HashMap<SmolStr, FuncId>,
+    func_signatures: &'a HashMap<SmolStr, FuncSignature>,
     structs: &'a HashMap<SmolStr, StructInfo>,
     ptr_type: Type,
     /// Map of spawn block span start to their function names.
@@ -1658,6 +1741,173 @@ impl<'a> FunctionCompiler<'a> {
         Ok(last_value)
     }
 
+    /// Compile an assignment target (variable, field, or index).
+    /// Compile an assignment target with type awareness.
+    fn compile_assign_target_typed(
+        &mut self,
+        path: &AssignPath,
+        typed_value: TypedValue,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<(), CodegenError> {
+        match path {
+            AssignPath::Identifier(name) => {
+                // Simple variable assignment with proper type
+                let var = scope.get_or_declare_var_typed(&name.node, typed_value.ty, builder);
+                builder.def_var(var, typed_value.value);
+                Ok(())
+            }
+            AssignPath::Field { object, field } => {
+                // Field assignment: obj.field = value
+                // For struct fields, we still store as raw value (I64 or F64)
+                let obj_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
+                let field_name = &field.node;
+
+                for (_, struct_info) in self.structs.iter() {
+                    if let Some(field_idx) = struct_info.fields.iter().position(|f| f == field_name)
+                    {
+                        let offset = struct_info.field_offsets[field_idx];
+                        let offset_val = builder.ins().iconst(types::I64, offset as i64);
+                        let field_ptr = builder.ins().iadd(obj_ptr, offset_val);
+                        builder
+                            .ins()
+                            .store(MemFlags::new(), typed_value.value, field_ptr, 0);
+                        return Ok(());
+                    }
+                }
+
+                Err(CodegenError::Unsupported(format!(
+                    "Unknown field: {}",
+                    field_name
+                )))
+            }
+            AssignPath::Index { object, index } => {
+                // Index assignment: arr[i] = value
+                let arr_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
+                let index_val = self.compile_expr(index, scope, builder)?;
+
+                let eight = builder.ins().iconst(types::I64, 8);
+                let offset = builder.ins().imul(index_val, eight);
+                let base_offset = builder.ins().iadd(offset, eight);
+                let elem_ptr = builder.ins().iadd(arr_ptr, base_offset);
+
+                builder
+                    .ins()
+                    .store(MemFlags::new(), typed_value.value, elem_ptr, 0);
+                Ok(())
+            }
+        }
+    }
+
+    fn compile_assign_target(
+        &mut self,
+        path: &AssignPath,
+        value: Value,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<(), CodegenError> {
+        match path {
+            AssignPath::Identifier(name) => {
+                // Simple variable assignment
+                let var = scope.get_or_declare_var(&name.node, builder);
+                builder.def_var(var, value);
+                Ok(())
+            }
+            AssignPath::Field { object, field } => {
+                // Field assignment: obj.field = value
+                let obj_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
+                let field_name = &field.node;
+
+                // Find the field offset by searching through all known structs
+                for (_, struct_info) in self.structs.iter() {
+                    if let Some(field_idx) = struct_info.fields.iter().position(|f| f == field_name)
+                    {
+                        let offset = struct_info.field_offsets[field_idx];
+                        let offset_val = builder.ins().iconst(types::I64, offset as i64);
+                        let field_ptr = builder.ins().iadd(obj_ptr, offset_val);
+                        builder.ins().store(MemFlags::new(), value, field_ptr, 0);
+                        return Ok(());
+                    }
+                }
+
+                Err(CodegenError::Unsupported(format!(
+                    "Unknown field: {}",
+                    field_name
+                )))
+            }
+            AssignPath::Index { object, index } => {
+                // Index assignment: arr[i] = value
+                let arr_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
+                let index_val = self.compile_expr(index, scope, builder)?;
+
+                // Element is at offset 8 + (index * 8)
+                let eight = builder.ins().iconst(types::I64, 8);
+                let offset = builder.ins().imul(index_val, eight);
+                let base_offset = builder.ins().iadd(offset, eight);
+                let elem_ptr = builder.ins().iadd(arr_ptr, base_offset);
+
+                builder.ins().store(MemFlags::new(), value, elem_ptr, 0);
+                Ok(())
+            }
+        }
+    }
+
+    /// Get the pointer for an assignment path (used for nested field/index access).
+    fn compile_assign_path_to_ptr(
+        &mut self,
+        path: &AssignPath,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<Value, CodegenError> {
+        match path {
+            AssignPath::Identifier(name) => {
+                // Get the variable value (which should be a pointer for structs)
+                if let Some(var) = scope.get_var(&name.node) {
+                    Ok(builder.use_var(var))
+                } else {
+                    Err(CodegenError::UndefinedVariable(name.node.to_string()))
+                }
+            }
+            AssignPath::Field { object, field } => {
+                // Get the object pointer, then compute field pointer
+                let obj_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
+                let field_name = &field.node;
+
+                for (_, struct_info) in self.structs.iter() {
+                    if let Some(field_idx) = struct_info.fields.iter().position(|f| f == field_name)
+                    {
+                        let offset = struct_info.field_offsets[field_idx];
+                        let offset_val = builder.ins().iconst(types::I64, offset as i64);
+                        let field_ptr = builder.ins().iadd(obj_ptr, offset_val);
+                        // Load the pointer value at this field (for nested struct access)
+                        let value = builder
+                            .ins()
+                            .load(types::I64, MemFlags::new(), field_ptr, 0);
+                        return Ok(value);
+                    }
+                }
+
+                Err(CodegenError::Unsupported(format!(
+                    "Unknown field: {}",
+                    field_name
+                )))
+            }
+            AssignPath::Index { object, index } => {
+                // Get the array pointer, then compute element pointer
+                let arr_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
+                let index_val = self.compile_expr(index, scope, builder)?;
+
+                let eight = builder.ins().iconst(types::I64, 8);
+                let offset = builder.ins().imul(index_val, eight);
+                let base_offset = builder.ins().iadd(offset, eight);
+                let elem_ptr = builder.ins().iadd(arr_ptr, base_offset);
+
+                let value = builder.ins().load(types::I64, MemFlags::new(), elem_ptr, 0);
+                Ok(value)
+            }
+        }
+    }
+
     /// Compile a statement.
     fn compile_statement(
         &mut self,
@@ -1671,13 +1921,11 @@ impl<'a> FunctionCompiler<'a> {
                 Ok(Some(val))
             }
             StatementKind::Assignment(assign) => {
-                let value = self.compile_expr(&assign.value, scope, builder)?;
+                let typed_value = self.compile_expr_typed(&assign.value, scope, builder)?;
                 for target in &assign.targets {
-                    // Use Cranelift variables for proper SSA handling
-                    let var = scope.get_or_declare_var(&target.name.node, builder);
-                    builder.def_var(var, value);
+                    self.compile_assign_target_typed(&target.path, typed_value, scope, builder)?;
                 }
-                Ok(Some(value))
+                Ok(Some(typed_value.value))
             }
             StatementKind::Return(ret) => {
                 if ret.values.is_empty() {
@@ -1930,6 +2178,382 @@ impl<'a> FunctionCompiler<'a> {
         }
     }
 
+    /// Convert a value to float if it's an integer.
+    fn coerce_to_float(&self, tv: TypedValue, builder: &mut FunctionBuilder) -> TypedValue {
+        match tv.ty {
+            ValueType::Float => tv,
+            ValueType::Int => {
+                let float_val = builder.ins().fcvt_from_sint(types::F64, tv.value);
+                TypedValue {
+                    value: float_val,
+                    ty: ValueType::Float,
+                }
+            }
+            ValueType::Ptr => tv, // Can't coerce pointers
+        }
+    }
+
+    /// Convert a value to int if it's a float.
+    fn coerce_to_int(&self, tv: TypedValue, builder: &mut FunctionBuilder) -> TypedValue {
+        match tv.ty {
+            ValueType::Int => tv,
+            ValueType::Float => {
+                let int_val = builder.ins().fcvt_to_sint(types::I64, tv.value);
+                TypedValue {
+                    value: int_val,
+                    ty: ValueType::Int,
+                }
+            }
+            ValueType::Ptr => tv, // Can't coerce pointers
+        }
+    }
+
+    /// Compile an expression and return typed value.
+    fn compile_expr_typed(
+        &mut self,
+        expr: &Expr,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<TypedValue, CodegenError> {
+        match &expr.node {
+            ExprKind::Literal(lit) => self.compile_literal_typed(lit, scope, builder),
+            ExprKind::Identifier(name) => {
+                if let Some(var) = scope.get_var(name) {
+                    let ty = scope.get_var_type(name).unwrap_or(ValueType::Int);
+                    Ok(TypedValue {
+                        value: builder.use_var(var),
+                        ty,
+                    })
+                } else {
+                    Err(CodegenError::UndefinedVariable(name.to_string()))
+                }
+            }
+            ExprKind::Binary(bin) => {
+                let left = self.compile_expr_typed(&bin.left, scope, builder)?;
+                let right = self.compile_expr_typed(&bin.right, scope, builder)?;
+                self.compile_binary_op_typed(&bin.op.node, left, right, builder)
+            }
+            ExprKind::Unary(unary) => {
+                let operand = self.compile_expr_typed(&unary.operand, scope, builder)?;
+                self.compile_unary_op_typed(&unary.op.node, operand, builder)
+            }
+            ExprKind::Call(call) => self.compile_call_typed(call, scope, builder),
+            ExprKind::Field(field_expr) => {
+                // Field access: look up the field type from the struct definition
+                let field_name = &field_expr.field.node;
+
+                // Find the struct and field type by checking all known structs
+                let mut field_type = ValueType::Int; // Default to Int
+                for (_, struct_info) in self.structs.iter() {
+                    if let Some(field_idx) = struct_info.fields.iter().position(|f| f == field_name)
+                    {
+                        // Found the field - get its type
+                        if field_idx < struct_info.field_types.len() {
+                            field_type = struct_info.field_types[field_idx];
+                        }
+                        break;
+                    }
+                }
+
+                let value = self.compile_expr(expr, scope, builder)?;
+                Ok(TypedValue {
+                    value,
+                    ty: field_type,
+                })
+            }
+            // For other expression types, fall back to untyped compilation
+            _ => {
+                let value = self.compile_expr(expr, scope, builder)?;
+                Ok(TypedValue {
+                    value,
+                    ty: ValueType::Int,
+                })
+            }
+        }
+    }
+
+    /// Compile a literal with type information.
+    fn compile_literal_typed(
+        &mut self,
+        lit: &Literal,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<TypedValue, CodegenError> {
+        match lit {
+            Literal::Int(n) => Ok(TypedValue {
+                value: builder.ins().iconst(types::I64, *n),
+                ty: ValueType::Int,
+            }),
+            Literal::Float(n) => Ok(TypedValue {
+                value: builder.ins().f64const(*n),
+                ty: ValueType::Float,
+            }),
+            Literal::Bool(b) => Ok(TypedValue {
+                value: builder.ins().iconst(types::I64, if *b { 1 } else { 0 }),
+                ty: ValueType::Int,
+            }),
+            Literal::String(s) => {
+                // Create a HairaString* from the static string data
+                // This ensures consistent string handling throughout the codebase
+                let data_id = self.define_string(s)?;
+                let local_id = self.module.declare_data_in_func(data_id, builder.func);
+                let ptr = builder.ins().symbol_value(self.ptr_type, local_id);
+                let len = builder.ins().iconst(types::I64, s.len() as i64);
+
+                // Call haira_string_from_static to wrap in HairaString*
+                let string_from_static_id = *self
+                    .functions
+                    .get(&SmolStr::from("string_from_static"))
+                    .unwrap();
+                let string_from_static_func = self
+                    .module
+                    .declare_func_in_func(string_from_static_id, builder.func);
+                let call = builder.ins().call(string_from_static_func, &[ptr, len]);
+                let haira_string_ptr = builder.inst_results(call)[0];
+
+                Ok(TypedValue {
+                    value: haira_string_ptr,
+                    ty: ValueType::Ptr,
+                })
+            }
+            Literal::InterpolatedString(parts) => {
+                let value = self.compile_interpolated_string(parts, scope, builder)?;
+                Ok(TypedValue {
+                    value,
+                    ty: ValueType::Ptr,
+                })
+            }
+        }
+    }
+
+    /// Compile a binary operation with type awareness.
+    fn compile_binary_op_typed(
+        &mut self,
+        op: &BinaryOp,
+        left: TypedValue,
+        right: TypedValue,
+        builder: &mut FunctionBuilder,
+    ) -> Result<TypedValue, CodegenError> {
+        // If either operand is float, promote both to float
+        let (left, right, result_ty) =
+            if left.ty == ValueType::Float || right.ty == ValueType::Float {
+                let left = self.coerce_to_float(left, builder);
+                let right = self.coerce_to_float(right, builder);
+                (left, right, ValueType::Float)
+            } else {
+                (left, right, ValueType::Int)
+            };
+
+        let value = match result_ty {
+            ValueType::Float => match op {
+                BinaryOp::Add => builder.ins().fadd(left.value, right.value),
+                BinaryOp::Sub => builder.ins().fsub(left.value, right.value),
+                BinaryOp::Mul => builder.ins().fmul(left.value, right.value),
+                BinaryOp::Div => builder.ins().fdiv(left.value, right.value),
+                BinaryOp::Mod => {
+                    // F64 modulo: a - floor(a/b) * b
+                    let div = builder.ins().fdiv(left.value, right.value);
+                    let floored = builder.ins().floor(div);
+                    let mult = builder.ins().fmul(floored, right.value);
+                    builder.ins().fsub(left.value, mult)
+                }
+                // Comparison operators return int (0 or 1)
+                BinaryOp::Eq => {
+                    let cmp = builder.ins().fcmp(FloatCC::Equal, left.value, right.value);
+                    return Ok(TypedValue {
+                        value: builder.ins().uextend(types::I64, cmp),
+                        ty: ValueType::Int,
+                    });
+                }
+                BinaryOp::Ne => {
+                    let cmp = builder
+                        .ins()
+                        .fcmp(FloatCC::NotEqual, left.value, right.value);
+                    return Ok(TypedValue {
+                        value: builder.ins().uextend(types::I64, cmp),
+                        ty: ValueType::Int,
+                    });
+                }
+                BinaryOp::Lt => {
+                    let cmp = builder
+                        .ins()
+                        .fcmp(FloatCC::LessThan, left.value, right.value);
+                    return Ok(TypedValue {
+                        value: builder.ins().uextend(types::I64, cmp),
+                        ty: ValueType::Int,
+                    });
+                }
+                BinaryOp::Le => {
+                    let cmp = builder
+                        .ins()
+                        .fcmp(FloatCC::LessThanOrEqual, left.value, right.value);
+                    return Ok(TypedValue {
+                        value: builder.ins().uextend(types::I64, cmp),
+                        ty: ValueType::Int,
+                    });
+                }
+                BinaryOp::Gt => {
+                    let cmp = builder
+                        .ins()
+                        .fcmp(FloatCC::GreaterThan, left.value, right.value);
+                    return Ok(TypedValue {
+                        value: builder.ins().uextend(types::I64, cmp),
+                        ty: ValueType::Int,
+                    });
+                }
+                BinaryOp::Ge => {
+                    let cmp =
+                        builder
+                            .ins()
+                            .fcmp(FloatCC::GreaterThanOrEqual, left.value, right.value);
+                    return Ok(TypedValue {
+                        value: builder.ins().uextend(types::I64, cmp),
+                        ty: ValueType::Int,
+                    });
+                }
+                BinaryOp::And | BinaryOp::Or => {
+                    // Logical ops: convert to int, do op, return int
+                    let left_int = self.coerce_to_int(left, builder);
+                    let right_int = self.coerce_to_int(right, builder);
+                    let result = if *op == BinaryOp::And {
+                        builder.ins().band(left_int.value, right_int.value)
+                    } else {
+                        builder.ins().bor(left_int.value, right_int.value)
+                    };
+                    return Ok(TypedValue {
+                        value: result,
+                        ty: ValueType::Int,
+                    });
+                }
+            },
+            ValueType::Int => {
+                // Use existing integer binary op logic
+                let result = self.compile_binary_op(op, left.value, right.value, builder)?;
+                return Ok(TypedValue {
+                    value: result,
+                    ty: ValueType::Int,
+                });
+            }
+            ValueType::Ptr => {
+                return Err(CodegenError::Unsupported(
+                    "Binary operations on pointers".to_string(),
+                ));
+            }
+        };
+
+        Ok(TypedValue {
+            value,
+            ty: result_ty,
+        })
+    }
+
+    /// Compile a unary operation with type awareness.
+    fn compile_unary_op_typed(
+        &self,
+        op: &UnaryOp,
+        operand: TypedValue,
+        builder: &mut FunctionBuilder,
+    ) -> Result<TypedValue, CodegenError> {
+        match op {
+            UnaryOp::Neg => match operand.ty {
+                ValueType::Float => Ok(TypedValue {
+                    value: builder.ins().fneg(operand.value),
+                    ty: ValueType::Float,
+                }),
+                ValueType::Int => Ok(TypedValue {
+                    value: builder.ins().ineg(operand.value),
+                    ty: ValueType::Int,
+                }),
+                ValueType::Ptr => Err(CodegenError::Unsupported(
+                    "Cannot negate a pointer".to_string(),
+                )),
+            },
+            UnaryOp::Not => {
+                // Logical not: treat as integer
+                let int_val = self.coerce_to_int(operand, builder);
+                let zero = builder.ins().iconst(types::I64, 0);
+                let is_zero = builder.ins().icmp(IntCC::Equal, int_val.value, zero);
+                Ok(TypedValue {
+                    value: builder.ins().uextend(types::I64, is_zero),
+                    ty: ValueType::Int,
+                })
+            }
+        }
+    }
+
+    /// Compile a function call with type awareness.
+    fn compile_call_typed(
+        &mut self,
+        call: &haira_ast::CallExpr,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<TypedValue, CodegenError> {
+        // Get function name
+        let func_name = match &call.callee.node {
+            ExprKind::Identifier(name) => name.clone(),
+            _ => {
+                return Err(CodegenError::Unsupported(
+                    "Only direct function calls are supported".to_string(),
+                ))
+            }
+        };
+
+        // Check if this is a known float function
+        let func_sig = self.func_signatures.get(&func_name).cloned();
+
+        if let Some(sig) = func_sig {
+            // This is a float function - compile with proper types
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            // Compile and coerce arguments
+            let mut args = Vec::new();
+            for (i, arg) in call.args.iter().enumerate() {
+                let typed_val = self.compile_expr_typed(&arg.value, scope, builder)?;
+                let needs_float = sig.params_are_float.get(i).copied().unwrap_or(false);
+
+                let coerced = if needs_float {
+                    self.coerce_to_float(typed_val, builder)
+                } else {
+                    self.coerce_to_int(typed_val, builder)
+                };
+                args.push(coerced.value);
+            }
+
+            let call_inst = builder.ins().call(local_callee, &args);
+            let results = builder.inst_results(call_inst);
+
+            let result_ty = if sig.returns_float {
+                ValueType::Float
+            } else {
+                ValueType::Int
+            };
+
+            if results.is_empty() {
+                Ok(TypedValue {
+                    value: builder.ins().iconst(types::I64, 0),
+                    ty: ValueType::Int,
+                })
+            } else {
+                Ok(TypedValue {
+                    value: results[0],
+                    ty: result_ty,
+                })
+            }
+        } else {
+            // Fall back to untyped compilation for other functions
+            let value = self.compile_call(call, scope, builder)?;
+            Ok(TypedValue {
+                value,
+                ty: ValueType::Int,
+            })
+        }
+    }
+
     /// Compile an expression.
     fn compile_expr(
         &mut self,
@@ -2099,7 +2723,7 @@ impl<'a> FunctionCompiler<'a> {
                         .map(|n| n.node.clone())
                         .unwrap_or_else(|| SmolStr::from(""));
 
-                    // Find field offset
+                    // Find field offset and type
                     let field_idx = struct_info
                         .fields
                         .iter()
@@ -2112,7 +2736,19 @@ impl<'a> FunctionCompiler<'a> {
                         })?;
 
                     let offset = struct_info.field_offsets[field_idx];
-                    let value = self.compile_expr(&inst_field.value, scope, builder)?;
+                    let field_type = struct_info
+                        .field_types
+                        .get(field_idx)
+                        .copied()
+                        .unwrap_or(ValueType::Int);
+
+                    // Use typed compilation for string fields to ensure HairaString* wrapping
+                    let value = if field_type == ValueType::Ptr {
+                        self.compile_expr_typed(&inst_field.value, scope, builder)?
+                            .value
+                    } else {
+                        self.compile_expr(&inst_field.value, scope, builder)?
+                    };
 
                     // Store value at ptr + offset
                     let offset_val = builder.ins().iconst(types::I64, offset as i64);
@@ -2974,11 +3610,44 @@ impl<'a> FunctionCompiler<'a> {
                 builder.ins().call(local_callee, &[]);
             }
             _ => {
-                // Assume integer for other expressions
-                let val = self.compile_expr(arg, scope, builder)?;
-                let print_int_id = *self.functions.get(&SmolStr::from("print_int")).unwrap();
-                let local_callee = self.module.declare_func_in_func(print_int_id, builder.func);
-                builder.ins().call(local_callee, &[val]);
+                // Use typed expression compilation to detect the type
+                let typed_val = self.compile_expr_typed(arg, scope, builder)?;
+
+                match typed_val.ty {
+                    ValueType::Float => {
+                        let print_float_id =
+                            *self.functions.get(&SmolStr::from("print_float")).unwrap();
+                        let local_callee = self
+                            .module
+                            .declare_func_in_func(print_float_id, builder.func);
+                        builder.ins().call(local_callee, &[typed_val.value]);
+                    }
+                    ValueType::Ptr => {
+                        // Pointer type - assume it's a HairaString* (ptr to struct with data, len, cap)
+                        // Load data pointer (offset 0) and len (offset 8)
+                        let haira_string_ptr = typed_val.value;
+                        let data_ptr =
+                            builder
+                                .ins()
+                                .load(self.ptr_type, MemFlags::new(), haira_string_ptr, 0);
+                        let len =
+                            builder
+                                .ins()
+                                .load(types::I64, MemFlags::new(), haira_string_ptr, 8);
+
+                        // Call haira_print with data and length
+                        let print_id = *self.functions.get(&SmolStr::from("print")).unwrap();
+                        let local_callee = self.module.declare_func_in_func(print_id, builder.func);
+                        builder.ins().call(local_callee, &[data_ptr, len]);
+                    }
+                    ValueType::Int => {
+                        let print_int_id =
+                            *self.functions.get(&SmolStr::from("print_int")).unwrap();
+                        let local_callee =
+                            self.module.declare_func_in_func(print_int_id, builder.func);
+                        builder.ins().call(local_callee, &[typed_val.value]);
+                    }
+                }
 
                 let println_id = *self.functions.get(&SmolStr::from("println")).unwrap();
                 let local_callee = self.module.declare_func_in_func(println_id, builder.func);
@@ -2992,9 +3661,45 @@ impl<'a> FunctionCompiler<'a> {
 
 /// Scope for variables within a function.
 /// Uses Cranelift Variables for proper SSA handling.
+/// Runtime type for values during compilation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ValueType {
+    /// 64-bit integer
+    Int,
+    /// 64-bit floating point
+    Float,
+    /// Pointer (for strings, structs, lists)
+    Ptr,
+}
+
+impl ValueType {
+    /// Get the Cranelift type for this value type.
+    fn cranelift_type(&self) -> Type {
+        match self {
+            ValueType::Int => types::I64,
+            ValueType::Float => types::F64,
+            ValueType::Ptr => types::I64, // Pointers are I64
+        }
+    }
+}
+
+/// A typed value during compilation.
+#[derive(Debug, Clone, Copy)]
+struct TypedValue {
+    value: Value,
+    ty: ValueType,
+}
+
 struct FunctionScope {
     /// Map of variable names to Cranelift Variables.
     variables: HashMap<SmolStr, Variable>,
+    /// Map of variable names to their types.
+    var_types: HashMap<SmolStr, ValueType>,
+    /// Map of variable names to their struct type names (for struct instances).
+    var_struct_types: HashMap<SmolStr, SmolStr>,
+    /// Map of variable names to their field types (for struct instances).
+    /// Key is variable name, value is map of field name -> field type.
+    var_field_types: HashMap<SmolStr, HashMap<SmolStr, ValueType>>,
     /// Counter for generating unique variable indices.
     next_var: usize,
     #[allow(dead_code)]
@@ -3005,32 +3710,87 @@ impl FunctionScope {
     fn new(ptr_type: Type) -> Self {
         Self {
             variables: HashMap::new(),
+            var_types: HashMap::new(),
+            var_struct_types: HashMap::new(),
+            var_field_types: HashMap::new(),
             next_var: 0,
             ptr_type,
         }
     }
 
-    /// Declare a new Cranelift variable.
-    fn declare_var(&mut self, name: &SmolStr, builder: &mut FunctionBuilder) -> Variable {
+    /// Declare a new Cranelift variable with a specific type.
+    fn declare_var_typed(
+        &mut self,
+        name: &SmolStr,
+        ty: ValueType,
+        builder: &mut FunctionBuilder,
+    ) -> Variable {
         let var = Variable::new(self.next_var);
         self.next_var += 1;
-        builder.declare_var(var, types::I64);
+        builder.declare_var(var, ty.cranelift_type());
         self.variables.insert(name.clone(), var);
+        self.var_types.insert(name.clone(), ty);
         var
     }
 
-    /// Get an existing variable or declare a new one.
-    fn get_or_declare_var(&mut self, name: &SmolStr, builder: &mut FunctionBuilder) -> Variable {
+    /// Declare a new Cranelift variable (defaults to I64 for backward compatibility).
+    fn declare_var(&mut self, name: &SmolStr, builder: &mut FunctionBuilder) -> Variable {
+        self.declare_var_typed(name, ValueType::Int, builder)
+    }
+
+    /// Get an existing variable or declare a new one with the given type.
+    fn get_or_declare_var_typed(
+        &mut self,
+        name: &SmolStr,
+        ty: ValueType,
+        builder: &mut FunctionBuilder,
+    ) -> Variable {
         if let Some(&var) = self.variables.get(name) {
             var
         } else {
-            self.declare_var(name, builder)
+            self.declare_var_typed(name, ty, builder)
         }
+    }
+
+    /// Get an existing variable or declare a new one (defaults to I64).
+    fn get_or_declare_var(&mut self, name: &SmolStr, builder: &mut FunctionBuilder) -> Variable {
+        self.get_or_declare_var_typed(name, ValueType::Int, builder)
     }
 
     /// Get an existing variable.
     fn get_var(&self, name: &SmolStr) -> Option<Variable> {
         self.variables.get(name).copied()
+    }
+
+    /// Get the type of a variable.
+    fn get_var_type(&self, name: &SmolStr) -> Option<ValueType> {
+        self.var_types.get(name).copied()
+    }
+
+    /// Set the struct type for a variable (for struct instances).
+    fn set_var_struct_type(&mut self, name: &SmolStr, struct_type: SmolStr) {
+        self.var_struct_types.insert(name.clone(), struct_type);
+    }
+
+    /// Get the struct type of a variable.
+    fn get_var_struct_type(&self, name: &SmolStr) -> Option<&SmolStr> {
+        self.var_struct_types.get(name)
+    }
+
+    /// Set the field types for a struct variable.
+    fn set_var_field_types(
+        &mut self,
+        var_name: &SmolStr,
+        field_types: HashMap<SmolStr, ValueType>,
+    ) {
+        self.var_field_types.insert(var_name.clone(), field_types);
+    }
+
+    /// Get the type of a specific field for a struct variable.
+    fn get_var_field_type(&self, var_name: &SmolStr, field_name: &SmolStr) -> Option<ValueType> {
+        self.var_field_types
+            .get(var_name)
+            .and_then(|fields| fields.get(field_name).copied())
     }
 }
 

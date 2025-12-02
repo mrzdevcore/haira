@@ -44,13 +44,27 @@ lint:
 doc:
 	cargo doc --no-deps --open
 
-# Install haira binary
+# Install haira binary (via cargo)
 install:
 	cargo install --path crates/haira-cli
 
+# Install haira binary to ~/.local/bin (no cargo needed after build)
+install-local: release
+	@mkdir -p ~/.local/bin
+	@cp ./target/release/haira ~/.local/bin/
+	@echo "Installed haira to ~/.local/bin/haira"
+	@echo ""
+	@echo "Make sure ~/.local/bin is in your PATH:"
+	@echo '  export PATH="$$PATH:$$HOME/.local/bin"'
+
+# Install haira system-wide (requires sudo)
+install-system: release
+	@sudo cp ./target/release/haira /usr/local/bin/
+	@echo "Installed haira to /usr/local/bin/haira"
+
 # Uninstall haira binary
 uninstall:
-	cargo uninstall haira
+	cargo uninstall haira || rm -f ~/.local/bin/haira || sudo rm -f /usr/local/bin/haira
 
 # Run haira with arguments (use: make run ARGS="parse examples/hello.haira")
 run:
@@ -154,8 +168,10 @@ help:
 	@echo "  fmt-check    - Check formatting"
 	@echo "  lint         - Run clippy linter"
 	@echo "  doc          - Generate and open documentation"
-	@echo "  install      - Install haira binary"
-	@echo "  uninstall    - Uninstall haira binary"
+	@echo "  install        - Install haira binary (via cargo)"
+	@echo "  install-local  - Install to ~/.local/bin"
+	@echo "  install-system - Install to /usr/local/bin (sudo)"
+	@echo "  uninstall      - Uninstall haira binary"
 	@echo "  run          - Run haira (use ARGS=\"...\")"
 	@echo "  dev          - Format, check, test"
 	@echo "  ci           - CI pipeline"

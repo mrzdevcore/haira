@@ -1,6 +1,6 @@
 //! Document symbols for Haira.
 
-use haira_ast::{ItemKind, StatementKind};
+use haira_ast::{AssignPath, ItemKind, StatementKind};
 use haira_parser::parse;
 use tower_lsp::lsp_types::*;
 
@@ -134,23 +134,26 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                 // Check for top-level assignments (global variables)
                 if let StatementKind::Assignment(assign) = &stmt.node {
                     for target in &assign.targets {
-                        let range = span_to_range(
-                            source,
-                            target.name.span.start as usize,
-                            target.name.span.end as usize,
-                        );
-                        #[allow(deprecated)]
-                        symbols.push(SymbolInformation {
-                            name: target.name.node.to_string(),
-                            kind: SymbolKind::VARIABLE,
-                            tags: None,
-                            deprecated: None,
-                            location: Location {
-                                uri: Url::parse("file:///").unwrap(),
-                                range,
-                            },
-                            container_name: None,
-                        });
+                        // Only extract simple identifier assignments as symbols
+                        if let AssignPath::Identifier(name) = &target.path {
+                            let range = span_to_range(
+                                source,
+                                name.span.start as usize,
+                                name.span.end as usize,
+                            );
+                            #[allow(deprecated)]
+                            symbols.push(SymbolInformation {
+                                name: name.node.to_string(),
+                                kind: SymbolKind::VARIABLE,
+                                tags: None,
+                                deprecated: None,
+                                location: Location {
+                                    uri: Url::parse("file:///").unwrap(),
+                                    range,
+                                },
+                                container_name: None,
+                            });
+                        }
                     }
                 }
             }

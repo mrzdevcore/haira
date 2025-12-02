@@ -204,10 +204,28 @@ pub struct Assignment {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AssignTarget {
-    /// Variable name
-    pub name: Spanned<SmolStr>,
-    /// Optional type annotation
+    /// The path being assigned to (variable, field, or index)
+    pub path: AssignPath,
+    /// Optional type annotation (only valid for simple identifiers)
     pub ty: Option<Spanned<Type>>,
+}
+
+/// A path that can be assigned to.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum AssignPath {
+    /// Simple variable: `x`
+    Identifier(Spanned<SmolStr>),
+    /// Field access: `obj.field`
+    Field {
+        object: Box<AssignPath>,
+        field: Spanned<SmolStr>,
+    },
+    /// Index access: `arr[index]`
+    Index {
+        object: Box<AssignPath>,
+        index: Box<Expr>,
+    },
 }
 
 /// An if statement.

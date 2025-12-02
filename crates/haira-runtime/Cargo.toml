@@ -5,6 +5,8 @@ edition = "2021"
 description = "Runtime library for compiled Haira programs"
 license = "Apache-2.0"
 
+[workspace]
+
 [lib]
 crate-type = ["staticlib", "rlib"]
 

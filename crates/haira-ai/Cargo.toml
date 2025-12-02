@@ -7,6 +7,7 @@ description = "AI (Claude) integration for Haira intent interpretation"
 
 [dependencies]
 haira-cir.workspace = true
+haira-local-ai.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 async-trait.workspace = true

@@ -1,10 +1,27 @@
 // Hello World in Haira
-print("Hello, World! d")
+print("Hello, World!")
 
-User { name, age, email }
+User {
+    name,
+    age,
+    email,
+    address,
+    phoneNumber
+}
 
-rakoto = User { name = "Rakoto", age = 30, email = "rakoto@example.com" }
+rakoto = User {
+    name = "Rakoto",
+            age = 34,
+            email = "rakoto@example.com",
+            address = "123 Main St",
+            phoneNumber = "555-1234" }
 
+// Update age using field assignment
+rakoto.age = rakoto.age + 2
+
+print(rakoto.name)
 print(rakoto.email)
-
-//rakoto.printInfo()
+print(rakoto)
+// Demo float math with sqrt
+result = sin(rakoto.age * 3)
+print(result)

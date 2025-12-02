@@ -1922,10 +1922,16 @@ impl<'a> FunctionCompiler<'a> {
             }
             StatementKind::Assignment(assign) => {
                 let typed_value = self.compile_expr_typed(&assign.value, scope, builder)?;
+                let result_value = typed_value.value;
                 for target in &assign.targets {
-                    self.compile_assign_target_typed(&target.path, typed_value, scope, builder)?;
+                    self.compile_assign_target_typed(
+                        &target.path,
+                        typed_value.clone(),
+                        scope,
+                        builder,
+                    )?;
                 }
-                Ok(Some(typed_value.value))
+                Ok(Some(result_value))
             }
             StatementKind::Return(ret) => {
                 if ret.values.is_empty() {
@@ -2189,7 +2195,7 @@ impl<'a> FunctionCompiler<'a> {
                     ty: ValueType::Float,
                 }
             }
-            ValueType::Ptr => tv, // Can't coerce pointers
+            ValueType::Ptr | ValueType::Struct(_) => tv, // Can't coerce pointers or structs
         }
     }
 
@@ -2204,7 +2210,7 @@ impl<'a> FunctionCompiler<'a> {
                     ty: ValueType::Int,
                 }
             }
-            ValueType::Ptr => tv, // Can't coerce pointers
+            ValueType::Ptr | ValueType::Struct(_) => tv, // Can't coerce pointers or structs
         }
     }
 
@@ -2249,7 +2255,7 @@ impl<'a> FunctionCompiler<'a> {
                     {
                         // Found the field - get its type
                         if field_idx < struct_info.field_types.len() {
-                            field_type = struct_info.field_types[field_idx];
+                            field_type = struct_info.field_types[field_idx].clone();
                         }
                         break;
                     }
@@ -2259,6 +2265,15 @@ impl<'a> FunctionCompiler<'a> {
                 Ok(TypedValue {
                     value,
                     ty: field_type,
+                })
+            }
+            ExprKind::Instance(instance) => {
+                // Struct instantiation - return the struct type
+                let type_name = instance.type_name.node.clone();
+                let value = self.compile_expr(expr, scope, builder)?;
+                Ok(TypedValue {
+                    value,
+                    ty: ValueType::Struct(type_name),
                 })
             }
             // For other expression types, fall back to untyped compilation
@@ -2439,6 +2454,11 @@ impl<'a> FunctionCompiler<'a> {
                     "Binary operations on pointers".to_string(),
                 ));
             }
+            ValueType::Struct(_) => {
+                return Err(CodegenError::Unsupported(
+                    "Binary operations on structs".to_string(),
+                ));
+            }
         };
 
         Ok(TypedValue {
@@ -2466,6 +2486,9 @@ impl<'a> FunctionCompiler<'a> {
                 }),
                 ValueType::Ptr => Err(CodegenError::Unsupported(
                     "Cannot negate a pointer".to_string(),
+                )),
+                ValueType::Struct(_) => Err(CodegenError::Unsupported(
+                    "Cannot negate a struct".to_string(),
                 )),
             },
             UnaryOp::Not => {
@@ -2739,7 +2762,7 @@ impl<'a> FunctionCompiler<'a> {
                     let field_type = struct_info
                         .field_types
                         .get(field_idx)
-                        .copied()
+                        .cloned()
                         .unwrap_or(ValueType::Int);
 
                     // Use typed compilation for string fields to ensure HairaString* wrapping
@@ -3647,6 +3670,10 @@ impl<'a> FunctionCompiler<'a> {
                             self.module.declare_func_in_func(print_int_id, builder.func);
                         builder.ins().call(local_callee, &[typed_val.value]);
                     }
+                    ValueType::Struct(struct_name) => {
+                        // Print struct in format: StructName { field1: value1, field2: value2, ... }
+                        self.compile_print_struct(&struct_name, typed_val.value, builder)?;
+                    }
                 }
 
                 let println_id = *self.functions.get(&SmolStr::from("println")).unwrap();
@@ -3657,19 +3684,148 @@ impl<'a> FunctionCompiler<'a> {
 
         Ok(builder.ins().iconst(types::I64, 0))
     }
+
+    /// Compile code to print a struct in format: StructName { field1: value1, field2: value2, ... }
+    fn compile_print_struct(
+        &mut self,
+        struct_name: &str,
+        struct_ptr: Value,
+        builder: &mut FunctionBuilder,
+    ) -> Result<(), CodegenError> {
+        let struct_info = self
+            .structs
+            .get(&SmolStr::from(struct_name))
+            .ok_or_else(|| {
+                CodegenError::Unsupported(format!("Unknown struct type: {}", struct_name))
+            })?
+            .clone();
+
+        let print_id = *self.functions.get(&SmolStr::from("print")).unwrap();
+        let print_int_id = *self.functions.get(&SmolStr::from("print_int")).unwrap();
+        let print_float_id = *self.functions.get(&SmolStr::from("print_float")).unwrap();
+
+        // Print "StructName { "
+        let open_str = format!("{} {{ ", struct_name);
+        let open_data_id = self.define_string(&open_str)?;
+        let open_local_id = self.module.declare_data_in_func(open_data_id, builder.func);
+        let open_ptr = builder.ins().symbol_value(self.ptr_type, open_local_id);
+        let open_len = builder.ins().iconst(types::I64, open_str.len() as i64);
+        let print_func = self.module.declare_func_in_func(print_id, builder.func);
+        builder.ins().call(print_func, &[open_ptr, open_len]);
+
+        // Print each field
+        for (i, field_name) in struct_info.fields.iter().enumerate() {
+            // Print "field_name: "
+            let field_prefix = if i > 0 {
+                format!(", {}: ", field_name)
+            } else {
+                format!("{}: ", field_name)
+            };
+            let prefix_data_id = self.define_string(&field_prefix)?;
+            let prefix_local_id = self
+                .module
+                .declare_data_in_func(prefix_data_id, builder.func);
+            let prefix_ptr = builder.ins().symbol_value(self.ptr_type, prefix_local_id);
+            let prefix_len = builder.ins().iconst(types::I64, field_prefix.len() as i64);
+            builder.ins().call(print_func, &[prefix_ptr, prefix_len]);
+
+            // Load field value from struct
+            let offset = struct_info.field_offsets[i];
+            let offset_val = builder.ins().iconst(types::I64, offset as i64);
+            let field_ptr = builder.ins().iadd(struct_ptr, offset_val);
+
+            // Get field type and print accordingly
+            let field_type = struct_info
+                .field_types
+                .get(i)
+                .cloned()
+                .unwrap_or(ValueType::Int);
+
+            match field_type {
+                ValueType::Int => {
+                    let value = builder
+                        .ins()
+                        .load(types::I64, MemFlags::new(), field_ptr, 0);
+                    let print_int_func =
+                        self.module.declare_func_in_func(print_int_id, builder.func);
+                    builder.ins().call(print_int_func, &[value]);
+                }
+                ValueType::Float => {
+                    let value = builder
+                        .ins()
+                        .load(types::F64, MemFlags::new(), field_ptr, 0);
+                    let print_float_func = self
+                        .module
+                        .declare_func_in_func(print_float_id, builder.func);
+                    builder.ins().call(print_float_func, &[value]);
+                }
+                ValueType::Ptr => {
+                    // String field - load HairaString* then print
+                    let haira_string_ptr =
+                        builder
+                            .ins()
+                            .load(self.ptr_type, MemFlags::new(), field_ptr, 0);
+
+                    // Print opening quote
+                    let quote_data_id = self.define_string("\"")?;
+                    let quote_local_id = self
+                        .module
+                        .declare_data_in_func(quote_data_id, builder.func);
+                    let quote_ptr = builder.ins().symbol_value(self.ptr_type, quote_local_id);
+                    let quote_len = builder.ins().iconst(types::I64, 1);
+                    builder.ins().call(print_func, &[quote_ptr, quote_len]);
+
+                    // Load data pointer and length from HairaString
+                    let data_ptr =
+                        builder
+                            .ins()
+                            .load(self.ptr_type, MemFlags::new(), haira_string_ptr, 0);
+                    let len = builder
+                        .ins()
+                        .load(types::I64, MemFlags::new(), haira_string_ptr, 8);
+                    builder.ins().call(print_func, &[data_ptr, len]);
+
+                    // Print closing quote
+                    builder.ins().call(print_func, &[quote_ptr, quote_len]);
+                }
+                ValueType::Struct(nested_struct_name) => {
+                    // Recursively print nested struct
+                    let nested_ptr =
+                        builder
+                            .ins()
+                            .load(self.ptr_type, MemFlags::new(), field_ptr, 0);
+                    self.compile_print_struct(&nested_struct_name, nested_ptr, builder)?;
+                }
+            }
+        }
+
+        // Print " }"
+        let close_str = " }";
+        let close_data_id = self.define_string(close_str)?;
+        let close_local_id = self
+            .module
+            .declare_data_in_func(close_data_id, builder.func);
+        let close_ptr = builder.ins().symbol_value(self.ptr_type, close_local_id);
+        let close_len = builder.ins().iconst(types::I64, close_str.len() as i64);
+        builder.ins().call(print_func, &[close_ptr, close_len]);
+
+        Ok(())
+    }
 }
 
 /// Scope for variables within a function.
 /// Uses Cranelift Variables for proper SSA handling.
 /// Runtime type for values during compilation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ValueType {
     /// 64-bit integer
     Int,
     /// 64-bit floating point
     Float,
-    /// Pointer (for strings, structs, lists)
+    /// Pointer to a string (HairaString*)
     Ptr,
+    /// Pointer to a struct instance (includes the struct type name)
+    Struct(SmolStr),
 }
 
 impl ValueType {
@@ -3678,13 +3834,14 @@ impl ValueType {
         match self {
             ValueType::Int => types::I64,
             ValueType::Float => types::F64,
-            ValueType::Ptr => types::I64, // Pointers are I64
+            ValueType::Ptr => types::I64,       // Pointers are I64
+            ValueType::Struct(_) => types::I64, // Struct pointers are I64
         }
     }
 }
 
 /// A typed value during compilation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct TypedValue {
     value: Value,
     ty: ValueType,
@@ -3764,7 +3921,7 @@ impl FunctionScope {
 
     /// Get the type of a variable.
     fn get_var_type(&self, name: &SmolStr) -> Option<ValueType> {
-        self.var_types.get(name).copied()
+        self.var_types.get(name).cloned()
     }
 
     /// Set the struct type for a variable (for struct instances).
@@ -3790,7 +3947,7 @@ impl FunctionScope {
     fn get_var_field_type(&self, var_name: &SmolStr, field_name: &SmolStr) -> Option<ValueType> {
         self.var_field_types
             .get(var_name)
-            .and_then(|fields| fields.get(field_name).copied())
+            .and_then(|fields| fields.get(field_name).cloned())
     }
 }
 

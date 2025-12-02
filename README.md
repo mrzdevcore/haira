@@ -2,7 +2,7 @@
 
 **Express intention, not mechanics.**
 
-Haira is a programming language where you write what you want, and the compiler (powered by AI) figures out how to do it.
+Haira is a programming language where you write what you want, and the compiler (powered by a fine-tuned AI model) figures out how to do it.
 
 ## Quick Example
 
@@ -41,15 +41,16 @@ print(check)
 └──────────────┘     └──────┬───────┘     └──────────────┘
                            │
                     ┌──────┴───────┐
-                    │   Claude AI   │
-                    │  (Interprets  │
-                    │    Intent)    │
+                    │  Fine-tuned  │
+                    │   AI Model   │
+                    │  (Interprets │
+                    │    Intent)   │
                     └──────────────┘
 ```
 
 1. You write high-level, intent-based code
 2. The compiler identifies undefined functions
-3. AI (Claude) interprets your intent from function names and context
+3. A fine-tuned AI model interprets your intent from function names and context
 4. Generated code is cached for reproducibility
 5. Everything compiles to a fast native binary
 
@@ -59,8 +60,9 @@ print(check)
 - **No null** - Option types prevent null pointer errors
 - **No boilerplate** - AI generates CRUD, transformations, I/O
 - **Type inference** - Types exist but you rarely write them
-- **Fast binaries** - Compiles to native code via LLVM
+- **Fast binaries** - Compiles to native code via Cranelift
 - **Reproducible** - AI outputs are cached and locked
+- **Local-first** - Run AI models locally with Ollama, no API keys required
 
 ## Project Structure
 
@@ -93,12 +95,12 @@ haira/
 │   ├── haira-parser/       # AST generation
 │   ├── haira-ast/          # AST definitions
 │   ├── haira-resolver/     # Name resolution
-│   ├── haira-ai/           # AI intent engine (Claude)
+│   ├── haira-ai/           # AI intent engine
 │   ├── haira-cir/          # Canonical IR
 │   ├── haira-types/        # Type system
 │   ├── haira-hir/          # High-level IR
 │   ├── haira-mir/          # Mid-level IR
-│   ├── haira-codegen/      # LLVM code generation
+│   ├── haira-codegen/      # Cranelift code generation
 │   ├── haira-driver/       # Compiler driver
 │   └── haira-cli/          # CLI interface
 └── Cargo.toml              # Rust workspace
@@ -154,49 +156,42 @@ ai add(a: int, b: int) -> int {
     Return the sum of a and b.
 }
 
-ai double(x: int) -> int {
-    Return x times 2.
+ai factorial(n: int) -> int {
+    Return the factorial of n.
 }
 
 // Use them like normal functions
 answer = get_answer()  // Returns 42
 sum = add(10, 32)      // Returns 42
-d = double(21)         // Returns 42
+f = factorial(5)       // Returns 120
 ```
 
-### Using with Claude API
+### Using with Ollama (Recommended)
+
+Run AI interpretation locally with Ollama - no API keys required:
 
 ```bash
-export ANTHROPIC_API_KEY=your_key_here
-./target/debug/haira build examples/ai_simple.haira --interpret-ai
-```
-
-### Using with Ollama (Local LLM)
-
-Run AI interpretation locally without an API key:
-
-```bash
-# Start Ollama with a coding model
-ollama run deepseek-coder:6.7b
+# Install Ollama (https://ollama.ai)
+# Then pull a coding model
+ollama pull deepseek-coder-v2:16b
 
 # Build with local AI
-./target/debug/haira build examples/ai_simple.haira --interpret-ai --ollama
+./target/debug/haira build examples/ai_minimal.haira --ollama
 
 # Use a different model
-./target/debug/haira build examples/ai_simple.haira --interpret-ai --ollama --ollama-model codellama:7b
+./target/debug/haira build examples/ai_minimal.haira --ollama --ollama-model codellama:7b
 ```
 
 Recommended models for code generation:
-- `deepseek-coder:6.7b` (default) - Best balance of speed and quality
-- `codellama:7b` - Good alternative
+- `deepseek-coder-v2:16b` (default) - Best quality for complex logic
+- `deepseek-coder:6.7b` - Good balance of speed and quality
+- `codellama:7b` - Fast alternative
 - `qwen2.5-coder:7b` - Strong reasoning capabilities
 
 ## Requirements
 
 - Rust (for building the compiler)
-- For AI features, one of:
-  - Anthropic API key (`ANTHROPIC_API_KEY` environment variable)
-  - Ollama running locally (no API key needed)
+- Ollama running locally (for AI features)
 
 ## License
 

@@ -138,17 +138,19 @@ pub extern "C" fn haira_atan2(y: f64, x: f64) -> f64 {
     y.atan2(x)
 }
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+// Global RNG seed shared between all random functions
+static RNG_SEED: AtomicU64 = AtomicU64::new(0);
+
 /// Random integer in range [0, max)
 #[no_mangle]
 pub extern "C" fn haira_random_int(max: i64) -> i64 {
     if max <= 0 {
         return 0;
     }
-    // Simple LCG random - good enough for basic use
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SEED: AtomicU64 = AtomicU64::new(0);
 
-    let mut seed = SEED.load(Ordering::Relaxed);
+    let mut seed = RNG_SEED.load(Ordering::SeqCst);
     if seed == 0 {
         // Initialize with time-based seed
         seed = std::time::SystemTime::now()
@@ -159,7 +161,7 @@ pub extern "C" fn haira_random_int(max: i64) -> i64 {
 
     // LCG parameters (same as glibc)
     seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-    SEED.store(seed, Ordering::Relaxed);
+    RNG_SEED.store(seed, Ordering::SeqCst);
 
     ((seed >> 16) as i64).abs() % max
 }
@@ -173,7 +175,5 @@ pub extern "C" fn haira_random_float() -> f64 {
 /// Seed random number generator
 #[no_mangle]
 pub extern "C" fn haira_random_seed(seed: i64) {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SEED: AtomicU64 = AtomicU64::new(0);
-    SEED.store(seed as u64, Ordering::Relaxed);
+    RNG_SEED.store(seed as u64, Ordering::SeqCst);
 }

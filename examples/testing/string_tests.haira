@@ -1,0 +1,225 @@
+// String Function Tests
+// Tests for all string manipulation functions in the stdlib
+
+print("String Function Tests")
+print("=====================")
+
+// ============================================
+// Test Section: Basic String Operations
+// ============================================
+test_section("Basic String Operations")
+
+test_start("len empty string")
+assert_eq(len(""), 0)
+test_pass()
+
+test_start("len non-empty")
+assert_eq(len("hello"), 5)
+test_pass()
+
+test_start("is_empty true")
+assert_eq(is_empty(""), 1)
+test_pass()
+
+test_start("is_empty false")
+assert_eq(is_empty("hi"), 0)
+test_pass()
+
+// ============================================
+// Test Section: Case Conversion
+// ============================================
+test_section("Case Conversion")
+
+test_start("upper")
+result = upper("hello")
+assert_str_eq("HELLO", result)
+test_pass()
+
+test_start("lower")
+result = lower("HELLO")
+assert_str_eq("hello", result)
+test_pass()
+
+test_start("mixed case upper")
+result = upper("HeLLo WoRLD")
+assert_str_eq("HELLO WORLD", result)
+test_pass()
+
+// ============================================
+// Test Section: Trimming
+// ============================================
+test_section("Trimming")
+
+test_start("trim both sides")
+result = trim("  hello  ")
+assert_str_eq("hello", result)
+test_pass()
+
+test_start("trim_start")
+result = trim_start("  hello  ")
+assert_str_eq("hello  ", result)
+test_pass()
+
+test_start("trim_end")
+result = trim_end("  hello  ")
+assert_str_eq("  hello", result)
+test_pass()
+
+test_start("trim no whitespace")
+result = trim("hello")
+assert_str_eq("hello", result)
+test_pass()
+
+// ============================================
+// Test Section: Search Operations
+// ============================================
+test_section("Search Operations")
+
+text = "the quick brown fox"
+
+test_start("contains found")
+assert_eq(contains(text, "quick"), 1)
+test_pass()
+
+test_start("contains not found")
+assert_eq(contains(text, "slow"), 0)
+test_pass()
+
+test_start("starts_with true")
+assert_eq(starts_with(text, "the"), 1)
+test_pass()
+
+test_start("starts_with false")
+assert_eq(starts_with(text, "quick"), 0)
+test_pass()
+
+test_start("ends_with true")
+assert_eq(ends_with(text, "fox"), 1)
+test_pass()
+
+test_start("ends_with false")
+assert_eq(ends_with(text, "dog"), 0)
+test_pass()
+
+test_start("index_of found")
+assert_eq(index_of(text, "quick"), 4)
+test_pass()
+
+test_start("index_of not found")
+assert_eq(index_of(text, "slow"), -1)
+test_pass()
+
+test_start("count occurrences")
+assert_eq(count("banana", "a"), 3)
+test_pass()
+
+// ============================================
+// Test Section: Transformation
+// ============================================
+test_section("Transformation")
+
+test_start("replace single")
+result = replace("hello world", "world", "haira")
+assert_str_eq("hello haira", result)
+test_pass()
+
+test_start("replace multiple")
+result = replace("aaa", "a", "b")
+assert_str_eq("bbb", result)
+test_pass()
+
+test_start("repeat")
+result = repeat("ab", 3)
+assert_str_eq("ababab", result)
+test_pass()
+
+test_start("reverse")
+result = reverse("hello")
+assert_str_eq("olleh", result)
+test_pass()
+
+// ============================================
+// Test Section: Slicing
+// ============================================
+test_section("Slicing")
+
+test_start("slice basic")
+result = slice("hello world", 0, 5)
+assert_str_eq("hello", result)
+test_pass()
+
+test_start("slice middle")
+result = slice("hello world", 6, 11)
+assert_str_eq("world", result)
+test_pass()
+
+test_start("char_at")
+assert_eq(char_at("hello", 0), 104)  // 'h' = 104
+test_pass()
+
+test_start("char_at last")
+assert_eq(char_at("hello", 4), 111)  // 'o' = 111
+test_pass()
+
+// ============================================
+// Test Section: Padding
+// ============================================
+test_section("Padding")
+
+test_start("pad_left with zeros")
+result = pad_left("42", 5, 48)  // 48 = '0'
+assert_str_eq("00042", result)
+test_pass()
+
+test_start("pad_right with spaces")
+result = pad_right("hi", 5, 32)  // 32 = ' '
+assert_str_eq("hi   ", result)
+test_pass()
+
+// ============================================
+// Test Section: Parsing
+// ============================================
+test_section("Parsing")
+
+test_start("parse_int valid")
+result = parse_int("12345")
+assert_eq(result, 12345)
+test_pass()
+
+test_start("parse_int negative")
+result = parse_int("-42")
+assert_eq(result, -42)
+test_pass()
+
+test_start("parse_int with whitespace")
+result = parse_int("  100  ")
+assert_eq(result, 100)
+test_pass()
+
+// ============================================
+// Test Section: Split
+// ============================================
+test_section("Split")
+
+test_start("split by comma")
+count = split("a,b,c", ",")
+assert_eq(count, 3)
+test_pass()
+
+test_start("split_get first")
+split("one,two,three", ",")
+result = split_get(0)
+assert_str_eq("one", result)
+test_pass()
+
+test_start("split_get last")
+split("one,two,three", ",")
+result = split_get(2)
+assert_str_eq("three", result)
+test_pass()
+
+// ============================================
+// Print Test Summary
+// ============================================
+exit_code = test_summary()
+exit(exit_code)

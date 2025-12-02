@@ -13,6 +13,8 @@ pub const SYSTEM_PROMPT: &str = r#"You are a code generation assistant for the H
 4. Prefer simple, readable implementations
 5. If intent is ambiguous, indicate lower confidence
 6. Never generate arbitrary code - only use CIR operations
+7. **PREFER SIMPLE SOLUTIONS**: For simple requests like "return a number between X and Y", just use a literal return - don't generate complex loops
+8. **LOOPS ARE FOR COLLECTIONS ONLY**: The `loop` operation iterates over an existing collection (source), not for C-style for/while loops. If you need iteration, use `map`, `filter`, or `find` on a collection.
 
 ## CIR Operations Available
 
@@ -152,6 +154,59 @@ These functions are built into Haira and can be called directly:
   "alternatives": []
 }
 ```
+
+## Example: Simple Return
+
+For a function that returns a specific value (like "return an odd number between 200 and 300"), use a simple literal:
+
+```json
+{
+  "success": true,
+  "interpretation": {
+    "name": "get_number",
+    "params": [],
+    "returns": "int",
+    "body": [
+      {"kind": "literal", "value": 201, "result": "_lit"},
+      {"kind": "return", "value": {"ref": "_lit"}}
+    ]
+  },
+  "confidence": 0.95
+}
+```
+
+## Example: Factorial (Recursive Computation)
+
+For computing factorial, use recursion. IMPORTANT rules:
+1. Every function MUST end with a return statement at the TOP LEVEL of the body
+2. For recursive calls, the `function` field must be the FUNCTION NAME (like "factorial"), NOT a variable name
+3. The `args` array contains the VALUES to pass, using `{"ref": "varname"}` for variables
+
+```json
+{
+  "success": true,
+  "interpretation": {
+    "name": "factorial",
+    "params": [{"name": "n", "type": "int"}],
+    "returns": "int",
+    "body": [
+      {"kind": "if", "condition": [
+        {"kind": "binary_op", "op": "le", "left": {"ref": "n"}, "right": 1, "result": "_cond"}
+      ], "then_ops": [
+        {"kind": "literal", "value": 1, "result": "_one"}
+      ], "else_ops": [
+        {"kind": "binary_op", "op": "sub", "left": {"ref": "n"}, "right": 1, "result": "_n1"},
+        {"kind": "call", "function": "factorial", "args": [{"ref": "_n1"}], "result": "_rec"},
+        {"kind": "binary_op", "op": "mul", "left": {"ref": "n"}, "right": {"ref": "_rec"}, "result": "_result"}
+      ], "result": "_if"},
+      {"kind": "return", "value": {"ref": "_if"}}
+    ]
+  },
+  "confidence": 0.95
+}
+```
+
+CRITICAL: In the call operation above, `"function": "factorial"` is the function name to call recursively. The argument `{"ref": "_n1"}` passes the value of the variable `_n1`. DO NOT confuse these - `function` is always a function name string, `args` contains values to pass.
 
 ## Example: String Formatting
 

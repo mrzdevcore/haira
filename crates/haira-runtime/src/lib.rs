@@ -12,6 +12,7 @@ mod io;
 mod math;
 mod memory;
 mod strings;
+mod testing;
 mod time;
 
 // Re-export all runtime functions
@@ -22,4 +23,5 @@ pub use io::*;
 pub use math::*;
 pub use memory::*;
 pub use strings::*;
+pub use testing::*;
 pub use time::*;

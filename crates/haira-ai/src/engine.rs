@@ -298,6 +298,9 @@ impl AIEngine {
             func.name = name.to_string();
         }
 
+        // 6.5. Fix recursive calls - LLMs often confuse variable names with function names
+        Self::fix_recursive_calls(&mut func);
+
         // 7. Validate CIR
         if let Err(errors) = haira_cir::validate(&func) {
             let error_msg = errors
@@ -428,7 +431,111 @@ impl AIEngine {
             cleaned = new_cleaned;
         }
 
+        // Fix invalid nested brace patterns like "then": { {"kind": ...} }
+        // This should become "then": [{"kind": ...}]
+        // The pattern is: ": {" followed by whitespace and another "{"
+        // Keep applying until no more changes
+        loop {
+            let fixed = Self::fix_nested_brace_objects(&cleaned);
+            if fixed == cleaned {
+                break;
+            }
+            cleaned = fixed;
+        }
+
         cleaned
+    }
+
+    /// Fix invalid JSON patterns where LLM generates { {...} } instead of [...]
+    fn fix_nested_brace_objects(json: &str) -> String {
+        use std::collections::VecDeque;
+
+        let chars: Vec<char> = json.chars().collect();
+        let mut result = String::with_capacity(json.len());
+        let mut i = 0;
+
+        while i < chars.len() {
+            // Look for pattern: ": {" followed by whitespace/newlines and "{"
+            if i + 2 < chars.len() && chars[i] == ':' {
+                // Check for ": {" pattern
+                let mut j = i + 1;
+
+                // Skip whitespace after colon
+                while j < chars.len() && chars[j].is_whitespace() {
+                    j += 1;
+                }
+
+                if j < chars.len() && chars[j] == '{' {
+                    let brace_start = j;
+                    j += 1;
+
+                    // Skip whitespace after first brace
+                    while j < chars.len() && chars[j].is_whitespace() {
+                        j += 1;
+                    }
+
+                    // Check if next non-whitespace is another '{'
+                    if j < chars.len() && chars[j] == '{' {
+                        // Found the problematic pattern!
+                        // We need to convert { {...} } to [{...}]
+
+                        // Copy up to and including the colon
+                        result.push(chars[i]);
+                        i += 1;
+
+                        // Copy whitespace
+                        while i < brace_start {
+                            result.push(chars[i]);
+                            i += 1;
+                        }
+
+                        // Replace opening brace with bracket
+                        result.push('[');
+                        i = brace_start + 1;
+
+                        // Now we need to find the matching closing brace and replace it
+                        // Track brace depth to find the correct closing brace
+                        let mut depth = 1;
+                        let content_start = i;
+
+                        // Skip to where the inner content starts
+                        while i < chars.len() && chars[i].is_whitespace() {
+                            result.push(chars[i]);
+                            i += 1;
+                        }
+
+                        // Now copy content, tracking braces to find the outer closing one
+                        let mut inner_depth = 0;
+                        while i < chars.len() {
+                            let c = chars[i];
+                            if c == '{' {
+                                inner_depth += 1;
+                                result.push(c);
+                            } else if c == '}' {
+                                if inner_depth > 0 {
+                                    inner_depth -= 1;
+                                    result.push(c);
+                                } else {
+                                    // This is the outer closing brace - replace with bracket
+                                    result.push(']');
+                                    i += 1;
+                                    break;
+                                }
+                            } else {
+                                result.push(c);
+                            }
+                            i += 1;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            result.push(chars[i]);
+            i += 1;
+        }
+
+        result
     }
 
     /// Normalize CIR JSON to handle common variations from different models.
@@ -513,10 +620,62 @@ impl AIEngine {
     /// Normalize a CIR operation.
     fn normalize_operation(op: &mut serde_json::Value) {
         if let Some(obj) = op.as_object_mut() {
-            // Convert "op" to "kind" if present
-            if let Some(op_val) = obj.remove("op") {
-                if !obj.contains_key("kind") {
-                    obj.insert("kind".to_string(), op_val);
+            // Handle nested operation format where operation type is a key
+            // e.g., {"binary_op": {"left": ..., "right": ..., "op": ...}, "eq": true}
+            // should become {"kind": "binary_op", "left": ..., "right": ..., "op": ...}
+            if !obj.contains_key("kind") && !obj.contains_key("op") {
+                // Check for known operation type keys
+                let op_types = [
+                    "binary_op",
+                    "unary_op",
+                    "call",
+                    "get_field",
+                    "get_index",
+                    "set_field",
+                    "literal",
+                    "var",
+                    "return",
+                    "if",
+                    "loop",
+                    "map",
+                    "filter",
+                    "reduce",
+                    "sort",
+                    "construct",
+                    "format",
+                    "concat",
+                ];
+
+                for op_type in op_types {
+                    if let Some(inner) = obj.remove(op_type) {
+                        // Flatten the structure: take fields from inner and add kind
+                        if let Some(inner_obj) = inner.as_object() {
+                            for (k, v) in inner_obj {
+                                if !obj.contains_key(k) {
+                                    obj.insert(k.clone(), v.clone());
+                                }
+                            }
+                        }
+                        obj.insert("kind".to_string(), serde_json::json!(op_type));
+                        break;
+                    }
+                }
+            }
+
+            // Convert "op" to "kind" if present, BUT only if it's not a binary_op
+            // (binary_op uses "op" for the operator, not the kind)
+            let current_kind = obj
+                .get("kind")
+                .and_then(|k| k.as_str())
+                .map(|s| s.to_string());
+            if current_kind.as_deref() != Some("binary_op") {
+                if let Some(op_val) = obj.remove("op") {
+                    if !obj.contains_key("kind") {
+                        obj.insert("kind".to_string(), op_val);
+                    } else {
+                        // Put it back since we already have a kind
+                        obj.insert("op".to_string(), op_val);
+                    }
                 }
             }
 
@@ -906,6 +1065,15 @@ impl AIEngine {
                 if !obj.contains_key("else_ops") {
                     obj.insert("else_ops".to_string(), serde_json::Value::Array(vec![]));
                 }
+                // Wrap single objects in arrays for then_ops/else_ops
+                for key in ["then_ops", "else_ops"] {
+                    if let Some(ops) = obj.get(key) {
+                        if ops.is_object() && !ops.is_array() {
+                            let ops_clone = ops.clone();
+                            obj.insert(key.to_string(), serde_json::Value::Array(vec![ops_clone]));
+                        }
+                    }
+                }
                 // Normalize operations inside then_ops and else_ops
                 for key in ["then_ops", "else_ops"] {
                     if let Some(ops) = obj.get_mut(key) {
@@ -925,7 +1093,8 @@ impl AIEngine {
                 }
             }
             Some("filter") => {
-                // Normalize filter predicate format
+                // Normalize source field if it's an object like {"ref": "n"}
+                Self::normalize_source_field(obj);
                 if !obj.contains_key("source") {
                     obj.insert(
                         "source".to_string(),
@@ -960,6 +1129,61 @@ impl AIEngine {
                 // Normalize operations inside predicate array
                 if let Some(pred) = obj.get_mut("predicate") {
                     if let Some(arr) = pred.as_array_mut() {
+                        for item in arr.iter_mut() {
+                            Self::normalize_operation(item);
+                        }
+                    }
+                }
+            }
+            Some("reduce") => {
+                // Normalize source field if it's an object like {"ref": "n"}
+                Self::normalize_source_field(obj);
+                if !obj.contains_key("source") {
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String("_input".to_string()),
+                    );
+                }
+                if !obj.contains_key("element_var") {
+                    obj.insert(
+                        "element_var".to_string(),
+                        serde_json::Value::String("item".to_string()),
+                    );
+                }
+                if !obj.contains_key("accumulator_var") {
+                    obj.insert(
+                        "accumulator_var".to_string(),
+                        serde_json::Value::String("acc".to_string()),
+                    );
+                }
+                // Normalize "accumulator" to "initial"
+                if let Some(acc) = obj.remove("accumulator") {
+                    if !obj.contains_key("initial") {
+                        obj.insert("initial".to_string(), acc);
+                    }
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_reduced".to_string()),
+                    );
+                }
+                // Convert reducer object to array if needed
+                if let Some(reducer) = obj.get("reducer") {
+                    if reducer.is_object() && !reducer.is_array() {
+                        let reducer_clone = reducer.clone();
+                        obj.insert(
+                            "reducer".to_string(),
+                            serde_json::Value::Array(vec![reducer_clone]),
+                        );
+                    }
+                }
+                if !obj.contains_key("reducer") {
+                    obj.insert("reducer".to_string(), serde_json::Value::Array(vec![]));
+                }
+                // Normalize operations inside reducer array
+                if let Some(reducer) = obj.get_mut("reducer") {
+                    if let Some(arr) = reducer.as_array_mut() {
                         for item in arr.iter_mut() {
                             Self::normalize_operation(item);
                         }
@@ -1069,7 +1293,86 @@ impl AIEngine {
                     }
                 }
             }
+            Some("loop") => {
+                // Model may generate C-style loop with condition/step/body
+                // instead of foreach-style loop with source/element_var/body
+                // Convert: {condition: {...}, step: {...}, body: [...]}
+                // To: {source: "_range", element_var: "loop_index", body: [...], result: "_loop"}
+
+                // If condition exists but source doesn't, it's a C-style loop
+                if obj.contains_key("condition") && !obj.contains_key("source") {
+                    // Extract loop bounds from condition if possible
+                    // For now, use a placeholder range source
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String("_range".to_string()),
+                    );
+
+                    // Remove C-style specific fields
+                    obj.remove("condition");
+                    obj.remove("step");
+                }
+
+                // Normalize source field if it's an object like {"ref": "n"}
+                Self::normalize_source_field(obj);
+
+                // Ensure required fields exist
+                if !obj.contains_key("source") {
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String("_input".to_string()),
+                    );
+                }
+                if !obj.contains_key("element_var") {
+                    obj.insert(
+                        "element_var".to_string(),
+                        serde_json::Value::String("loop_index".to_string()),
+                    );
+                }
+                if !obj.contains_key("result") {
+                    obj.insert(
+                        "result".to_string(),
+                        serde_json::Value::String("_loop".to_string()),
+                    );
+                }
+
+                // Normalize operations inside body array
+                if let Some(body) = obj.get_mut("body") {
+                    if let Some(arr) = body.as_array_mut() {
+                        for item in arr.iter_mut() {
+                            Self::normalize_operation(item);
+                        }
+                    }
+                }
+                if !obj.contains_key("body") {
+                    obj.insert("body".to_string(), serde_json::Value::Array(vec![]));
+                }
+            }
             _ => {}
+        }
+    }
+
+    /// Normalize source field - convert {"ref": "name"} to just "name"
+    fn normalize_source_field(obj: &mut serde_json::Map<String, serde_json::Value>) {
+        if let Some(source) = obj.get("source") {
+            if let Some(source_obj) = source.as_object() {
+                // Check if it's {"ref": "name"}
+                if let Some(ref_val) = source_obj.get("ref").and_then(|v| v.as_str()) {
+                    obj.insert(
+                        "source".to_string(),
+                        serde_json::Value::String(ref_val.to_string()),
+                    );
+                }
+                // Check if it's {"kind": "var", "name": "x"}
+                else if source_obj.get("kind").and_then(|k| k.as_str()) == Some("var") {
+                    if let Some(name) = source_obj.get("name").and_then(|n| n.as_str()) {
+                        obj.insert(
+                            "source".to_string(),
+                            serde_json::Value::String(name.to_string()),
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -1127,6 +1430,71 @@ impl AIEngine {
             }
         }
         // Raw values (int, string, bool) are fine as-is since CIRValue uses untagged
+    }
+
+    /// Fix recursive calls where the LLM confused variable names with function names.
+    ///
+    /// Common mistake: LLM generates `{"kind": "call", "function": "_n1", "args": []}`
+    /// when it should be `{"kind": "call", "function": "factorial", "args": [{"ref": "_n1"}]}`
+    fn fix_recursive_calls(func: &mut haira_cir::CIRFunction) {
+        let func_name = func.name.clone();
+        for op in &mut func.body {
+            Self::fix_recursive_calls_in_op(op, &func_name);
+        }
+    }
+
+    fn fix_recursive_calls_in_op(op: &mut haira_cir::CIROperation, func_name: &str) {
+        use haira_cir::CIROperation;
+
+        match op {
+            CIROperation::Call { function, args, .. } => {
+                // If function name starts with _ (temp var) and args is empty,
+                // this is likely a confused recursive call
+                if function.starts_with('_') && args.is_empty() {
+                    // The function field probably contains what should be an arg
+                    let var_name = function.clone();
+                    *function = func_name.to_string();
+                    args.push(haira_cir::CIRValue::Ref(var_name));
+                }
+            }
+            CIROperation::If {
+                condition,
+                then_ops,
+                else_ops,
+                ..
+            } => {
+                for inner in condition.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+                for inner in then_ops.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+                for inner in else_ops.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+            }
+            CIROperation::Loop { body, .. } => {
+                for inner in body.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+            }
+            CIROperation::Map { transform, .. } => {
+                for inner in transform.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+            }
+            CIROperation::Filter { predicate, .. } => {
+                for inner in predicate.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+            }
+            CIROperation::Reduce { reducer, .. } => {
+                for inner in reducer.iter_mut() {
+                    Self::fix_recursive_calls_in_op(inner, func_name);
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Check if a function name matches a known pattern.

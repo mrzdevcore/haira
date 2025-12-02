@@ -786,6 +786,121 @@ impl Compiler {
             .declare_function("haira_time_monotonic", Linkage::Import, &sig)?;
         self.functions.insert(SmolStr::from("time_monotonic"), id);
 
+        // ====================================================================
+        // Standard Library - Testing Functions
+        // ====================================================================
+
+        // haira_test_start(name_ptr, name_len)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_test_start", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("test_start"), id);
+
+        // haira_test_pass()
+        let sig = self.module.make_signature();
+        let id = self
+            .module
+            .declare_function("haira_test_pass", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("test_pass"), id);
+
+        // haira_test_fail(msg_ptr, msg_len)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_test_fail", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("test_fail"), id);
+
+        // haira_assert(condition) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert"), id);
+
+        // haira_assert_eq(expected, actual) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert_eq", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert_eq"), id);
+
+        // haira_assert_ne(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert_ne", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert_ne"), id);
+
+        // haira_assert_gt(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert_gt", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert_gt"), id);
+
+        // haira_assert_ge(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert_ge", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert_ge"), id);
+
+        // haira_assert_lt(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert_lt", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert_lt"), id);
+
+        // haira_assert_le(a, b) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_assert_le", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("assert_le"), id);
+
+        // haira_test_summary() -> i64
+        let mut sig = self.module.make_signature();
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_test_summary", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("test_summary"), id);
+
+        // haira_test_section(name_ptr, name_len)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_test_section", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("test_section"), id);
+
         Ok(())
     }
 

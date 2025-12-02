@@ -1,0 +1,98 @@
+// Basic Unit Testing Example
+// Demonstrates the Haira testing framework
+
+print("Haira Unit Testing Demo")
+print("========================")
+
+// ============================================
+// Test Section: Basic Assertions
+// ============================================
+test_section("Basic Assertions")
+
+test_start("assert true")
+assert(1 == 1)
+test_pass()
+
+test_start("assert false detection")
+result = assert(2 + 2 == 4)
+if result {
+    test_pass()
+}
+
+test_start("assert_eq integers")
+assert_eq(42, 42)
+test_pass()
+
+test_start("assert_ne integers")
+assert_ne(10, 20)
+test_pass()
+
+// ============================================
+// Test Section: Comparison Assertions
+// ============================================
+test_section("Comparison Assertions")
+
+test_start("assert_gt")
+assert_gt(10, 5)
+test_pass()
+
+test_start("assert_ge equal")
+assert_ge(10, 10)
+test_pass()
+
+test_start("assert_ge greater")
+assert_ge(15, 10)
+test_pass()
+
+test_start("assert_lt")
+assert_lt(5, 10)
+test_pass()
+
+test_start("assert_le equal")
+assert_le(10, 10)
+test_pass()
+
+test_start("assert_le less")
+assert_le(5, 10)
+test_pass()
+
+// ============================================
+// Test Section: Math Functions
+// ============================================
+test_section("Math Functions")
+
+test_start("abs positive")
+assert_eq(abs(42), 42)
+test_pass()
+
+test_start("abs negative")
+assert_eq(abs(-42), 42)
+test_pass()
+
+test_start("min")
+assert_eq(min(10, 20), 10)
+test_pass()
+
+test_start("max")
+assert_eq(max(10, 20), 20)
+test_pass()
+
+test_start("clamp in range")
+assert_eq(clamp(50, 0, 100), 50)
+test_pass()
+
+test_start("clamp below range")
+assert_eq(clamp(-10, 0, 100), 0)
+test_pass()
+
+test_start("clamp above range")
+assert_eq(clamp(150, 0, 100), 100)
+test_pass()
+
+// ============================================
+// Print Test Summary
+// ============================================
+exit_code = test_summary()
+
+// Return the exit code (0 = all passed, 1 = some failed)
+exit(exit_code)

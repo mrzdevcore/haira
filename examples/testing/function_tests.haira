@@ -1,0 +1,173 @@
+// Function Testing Example
+// Shows how to test your own functions with the Haira testing framework
+
+print("Testing Custom Functions")
+print("========================")
+
+// ============================================
+// Define functions to test
+// ============================================
+
+// Factorial function
+factorial(n) {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+// Fibonacci function
+fibonacci(n) {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+// Is even check
+is_even(n) {
+    return n % 2 == 0
+}
+
+// Is prime check (simple implementation)
+is_prime(n) {
+    if n < 2 {
+        return 0
+    }
+    if n == 2 {
+        return 1
+    }
+    if n % 2 == 0 {
+        return 0
+    }
+    i = 3
+    while i * i <= n {
+        if n % i == 0 {
+            return 0
+        }
+        i = i + 2
+    }
+    return 1
+}
+
+// Sum of array elements
+sum_range(start, end) {
+    total = 0
+    for i in start..end {
+        total = total + i
+    }
+    return total
+}
+
+// ============================================
+// Test Section: Factorial
+// ============================================
+test_section("Factorial Function")
+
+test_start("factorial(0)")
+assert_eq(factorial(0), 1)
+test_pass()
+
+test_start("factorial(1)")
+assert_eq(factorial(1), 1)
+test_pass()
+
+test_start("factorial(5)")
+assert_eq(factorial(5), 120)
+test_pass()
+
+test_start("factorial(10)")
+assert_eq(factorial(10), 3628800)
+test_pass()
+
+// ============================================
+// Test Section: Fibonacci
+// ============================================
+test_section("Fibonacci Function")
+
+test_start("fibonacci(0)")
+assert_eq(fibonacci(0), 0)
+test_pass()
+
+test_start("fibonacci(1)")
+assert_eq(fibonacci(1), 1)
+test_pass()
+
+test_start("fibonacci(10)")
+assert_eq(fibonacci(10), 55)
+test_pass()
+
+test_start("fibonacci(15)")
+assert_eq(fibonacci(15), 610)
+test_pass()
+
+// ============================================
+// Test Section: Is Even
+// ============================================
+test_section("Is Even Function")
+
+test_start("is_even(0)")
+assert_eq(is_even(0), 1)
+test_pass()
+
+test_start("is_even(2)")
+assert_eq(is_even(2), 1)
+test_pass()
+
+test_start("is_even(3)")
+assert_eq(is_even(3), 0)
+test_pass()
+
+test_start("is_even(100)")
+assert_eq(is_even(100), 1)
+test_pass()
+
+// ============================================
+// Test Section: Is Prime
+// ============================================
+test_section("Is Prime Function")
+
+test_start("is_prime(1)")
+assert_eq(is_prime(1), 0)
+test_pass()
+
+test_start("is_prime(2)")
+assert_eq(is_prime(2), 1)
+test_pass()
+
+test_start("is_prime(17)")
+assert_eq(is_prime(17), 1)
+test_pass()
+
+test_start("is_prime(18)")
+assert_eq(is_prime(18), 0)
+test_pass()
+
+test_start("is_prime(97)")
+assert_eq(is_prime(97), 1)
+test_pass()
+
+// ============================================
+// Test Section: Sum Range
+// ============================================
+test_section("Sum Range Function")
+
+test_start("sum_range(0, 0)")
+assert_eq(sum_range(0, 0), 0)
+test_pass()
+
+test_start("sum_range(1, 5)")
+// 1 + 2 + 3 + 4 = 10
+assert_eq(sum_range(1, 5), 10)
+test_pass()
+
+test_start("sum_range(1, 101)")
+// Sum of 1..100 = 5050
+assert_eq(sum_range(1, 101), 5050)
+test_pass()
+
+// ============================================
+// Print Test Summary
+// ============================================
+exit_code = test_summary()
+exit(exit_code)

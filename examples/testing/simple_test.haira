@@ -1,0 +1,30 @@
+// Simple Unit Testing Example
+// A minimal test to verify the testing framework works
+
+print("Simple Test")
+print("===========")
+
+// Test basic assertions
+test_start("basic assert")
+assert(1 == 1)
+test_pass()
+
+test_start("assert_eq")
+assert_eq(42, 42)
+test_pass()
+
+test_start("assert_ne")
+assert_ne(10, 20)
+test_pass()
+
+test_start("assert_gt")
+assert_gt(10, 5)
+test_pass()
+
+test_start("assert_lt")
+assert_lt(5, 10)
+test_pass()
+
+// Print summary
+result = test_summary()
+print("Exit code: " + result)

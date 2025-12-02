@@ -1,8 +1,15 @@
 // Minimal AI block test - just a function that returns int
 
 ai get_number() -> int {
-    Return zero.
+    Return even number between 2 and 10.
 }
 
+ai getFactorialOf(n: int) -> int {
+    Return the factorial of n. Use recursion by calling getFactorialOf.
+}
+
+
 x = get_number()
-print(x)
+y = getFactorialOf(x)
+print("x = {x}")
+print("y = {y}")

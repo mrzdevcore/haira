@@ -1,0 +1,90 @@
+// Math Function Tests
+// Tests for math functions in the stdlib
+
+print("Math Function Tests")
+print("===================")
+
+// ============================================
+// Test Section: Integer Math
+// ============================================
+test_section("Integer Math")
+
+test_start("abs positive")
+assert_eq(abs(42), 42)
+test_pass()
+
+test_start("abs negative")
+assert_eq(abs(-42), 42)
+test_pass()
+
+test_start("abs zero")
+assert_eq(abs(0), 0)
+test_pass()
+
+test_start("min first smaller")
+assert_eq(min(5, 10), 5)
+test_pass()
+
+test_start("min second smaller")
+assert_eq(min(10, 5), 5)
+test_pass()
+
+test_start("min equal")
+assert_eq(min(7, 7), 7)
+test_pass()
+
+test_start("max first larger")
+assert_eq(max(10, 5), 10)
+test_pass()
+
+test_start("max second larger")
+assert_eq(max(5, 10), 10)
+test_pass()
+
+test_start("max equal")
+assert_eq(max(7, 7), 7)
+test_pass()
+
+// ============================================
+// Test Section: Clamping
+// ============================================
+test_section("Clamping")
+
+test_start("clamp in range")
+assert_eq(clamp(50, 0, 100), 50)
+test_pass()
+
+test_start("clamp at min")
+assert_eq(clamp(0, 0, 100), 0)
+test_pass()
+
+test_start("clamp at max")
+assert_eq(clamp(100, 0, 100), 100)
+test_pass()
+
+test_start("clamp below min")
+assert_eq(clamp(-50, 0, 100), 0)
+test_pass()
+
+test_start("clamp above max")
+assert_eq(clamp(150, 0, 100), 100)
+test_pass()
+
+// ============================================
+// Test Section: Random Numbers
+// ============================================
+test_section("Random Numbers")
+
+test_start("random_int reproducible")
+random_seed(42)
+r1 = random_int(1000)
+random_seed(42)
+r2 = random_int(1000)
+assert_eq(r1, r2)
+test_pass()
+
+// ============================================
+// Print Test Summary
+// ============================================
+exit_code = test_summary()
+exit(exit_code)

@@ -342,7 +342,12 @@ pub fn run(
     // Determine output binary name
     let output_file = output.map(|p| p.to_path_buf()).unwrap_or_else(|| {
         let stem = file.file_stem().unwrap_or_default();
-        Path::new(stem).to_path_buf()
+        let output_dir = Path::new(".output");
+        // Create .output directory if it doesn't exist
+        if !output_dir.exists() {
+            let _ = fs::create_dir_all(output_dir);
+        }
+        output_dir.join(stem)
     });
 
     // Compile to native binary

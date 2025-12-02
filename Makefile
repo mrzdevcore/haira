@@ -18,17 +18,10 @@ test:
 # Clean build artifacts
 clean:
 	cargo clean
-	@# Remove compiled Haira executables from root
-	rm -f spawn_block hello errors interpolation lambda option pipe concurrency async spawn
-	@# Remove compiled Haira executables from examples
-	rm -f examples/async examples/concurrency examples/errors examples/interpolation
-	rm -f examples/lambda examples/option examples/pipe examples/spawn examples/spawn_block
-	rm -f examples/hello examples/fibonacci examples/for_loop examples/functions
-	rm -f examples/if_else examples/arrays examples/methods examples/pattern_matching
-	rm -f examples/structs examples/while_loop examples/match examples/match_simple
-	rm -f examples/async_block
+	@# Remove compiled Haira output directory
+	rm -rf .output
 	@# Remove object files
-	rm -f *.o examples/*.o
+	rm -f *.o
 	@echo "Cleaned all build artifacts"
 
 # Check code without building
@@ -85,6 +78,70 @@ info:
 interpret:
 	cargo run -- interpret get_active_users
 
+# Build all examples (non-AI)
+build-examples: build
+	@echo "Building all examples..."
+	@failed=0; \
+	for f in $$(find examples -name "*.haira" ! -path "examples/ai/*" ! -path "examples/testing/*"); do \
+		echo "Building $$f..."; \
+		./target/debug/haira build "$$f" 2>&1 || { echo "FAILED: $$f"; failed=$$((failed + 1)); }; \
+	done; \
+	echo ""; \
+	if [ $$failed -gt 0 ]; then \
+		echo "$$failed example(s) failed to build"; \
+		exit 1; \
+	else \
+		echo "All examples built successfully!"; \
+	fi
+
+# Build AI examples (requires --ollama flag)
+build-ai-examples: build
+	@echo "Building AI examples with Ollama..."
+	@failed=0; \
+	for f in examples/ai/*.haira; do \
+		echo "Building $$f..."; \
+		./target/debug/haira build --ollama "$$f" 2>&1 || { echo "FAILED: $$f"; failed=$$((failed + 1)); }; \
+	done; \
+	echo ""; \
+	if [ $$failed -gt 0 ]; then \
+		echo "$$failed AI example(s) failed to build"; \
+		exit 1; \
+	else \
+		echo "All AI examples built successfully!"; \
+	fi
+
+# Run test examples
+test-examples: build
+	@echo "Running test examples..."
+	@failed=0; \
+	for f in examples/testing/*.haira; do \
+		echo "Testing $$f..."; \
+		./target/debug/haira build "$$f" 2>&1 || { echo "FAILED: $$f"; failed=$$((failed + 1)); }; \
+	done; \
+	echo ""; \
+	if [ $$failed -gt 0 ]; then \
+		echo "$$failed test(s) failed"; \
+		exit 1; \
+	else \
+		echo "All tests passed!"; \
+	fi
+
+# Build and run all non-AI examples
+run-examples: build-examples
+	@echo "Running all built examples..."
+	@for f in $$(find examples -name "*.haira" ! -path "examples/ai/*" ! -path "examples/testing/*"); do \
+		name=$$(basename "$$f" .haira); \
+		if [ -f ".output/$$name" ]; then \
+			echo "Running $$name..."; \
+			".output/$$name" 2>&1 || true; \
+			echo ""; \
+		fi; \
+	done
+
+# Build all examples (including AI with Ollama)
+build-all-examples: build-examples build-ai-examples test-examples
+	@echo "All examples built!"
+
 # Help
 help:
 	@echo "Haira Makefile targets:"
@@ -106,3 +163,10 @@ help:
 	@echo "  lex-hello    - Lex examples/hello.haira"
 	@echo "  info         - Show haira info"
 	@echo "  interpret    - Test AI interpretation"
+	@echo ""
+	@echo "Examples:"
+	@echo "  build-examples     - Build all non-AI examples"
+	@echo "  build-ai-examples  - Build AI examples (requires Ollama)"
+	@echo "  test-examples      - Run test examples"
+	@echo "  run-examples       - Build and run all non-AI examples"
+	@echo "  build-all-examples - Build all examples (including AI)"

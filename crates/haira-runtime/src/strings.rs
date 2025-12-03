@@ -11,7 +11,7 @@ pub struct HairaString {
 }
 
 impl HairaString {
-    fn new(s: &[u8]) -> *mut HairaString {
+    pub fn new(s: &[u8]) -> *mut HairaString {
         let len = s.len() as i64;
         let cap = len + 1;
         let data = unsafe {
@@ -27,7 +27,7 @@ impl HairaString {
         Box::into_raw(result)
     }
 
-    fn empty() -> *mut HairaString {
+    pub fn empty() -> *mut HairaString {
         let data = unsafe {
             let ptr = libc::malloc(1) as *mut u8;
             if !ptr.is_null() {

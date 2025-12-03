@@ -12,6 +12,8 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 libc = "0.2"
+regex = "1"
+lazy_static = "1.4"
 
 [features]
 default = []

@@ -959,6 +959,75 @@ impl Compiler {
         // print_float takes float param
         self.register_func_signature("print_float", vec![true], false);
 
+        // ====================================================================
+        // Standard Library - Regex Functions
+        // ====================================================================
+
+        // haira_regex_match(str_ptr, str_len, pattern_ptr, pattern_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_regex_match", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("regex_match"), id);
+
+        // haira_regex_find(str_ptr, str_len, pattern_ptr, pattern_len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_regex_find", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("regex_find"), id);
+
+        // haira_regex_replace(str_ptr, str_len, pattern_ptr, pattern_len, replacement_ptr, replacement_len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_regex_replace", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("regex_replace"), id);
+
+        // haira_regex_replace_all(str_ptr, str_len, pattern_ptr, pattern_len, replacement_ptr, replacement_len) -> HairaString*
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(self.ptr_type));
+        let id = self
+            .module
+            .declare_function("haira_regex_replace_all", Linkage::Import, &sig)?;
+        self.functions
+            .insert(SmolStr::from("regex_replace_all"), id);
+
+        // haira_regex_count(str_ptr, str_len, pattern_ptr, pattern_len) -> i64
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.params.push(AbiParam::new(self.ptr_type));
+        sig.params.push(AbiParam::new(types::I64));
+        sig.returns.push(AbiParam::new(types::I64));
+        let id = self
+            .module
+            .declare_function("haira_regex_count", Linkage::Import, &sig)?;
+        self.functions.insert(SmolStr::from("regex_count"), id);
+
         Ok(())
     }
 
@@ -2018,7 +2087,7 @@ impl<'a> FunctionCompiler<'a> {
                     .collect();
                 builder.ins().jump(header_block, &initial_values);
 
-                // Header block
+                // Header block - DON'T seal yet, we need to add the back-edge from body
                 builder.switch_to_block(header_block);
 
                 // Update variables with block parameters (phi values)
@@ -2027,14 +2096,11 @@ impl<'a> FunctionCompiler<'a> {
                     builder.def_var(*var, header_params[i]);
                 }
 
-                // Seal header after setting up block params
-                builder.seal_block(header_block);
-
                 // Compile condition
                 let cond = self.compile_expr(&while_stmt.condition, scope, builder)?;
                 builder.ins().brif(cond, body_block, &[], exit_block, &[]);
 
-                // Body
+                // Body block - seal it since it only has one predecessor (header)
                 builder.switch_to_block(body_block);
                 builder.seal_block(body_block);
                 self.compile_block(&while_stmt.body, scope, builder)?;
@@ -2045,6 +2111,9 @@ impl<'a> FunctionCompiler<'a> {
                     .map(|(_, var)| builder.use_var(*var))
                     .collect();
                 builder.ins().jump(header_block, &loop_values);
+
+                // NOW seal header - after the back-edge has been added
+                builder.seal_block(header_block);
 
                 // Exit block
                 builder.switch_to_block(exit_block);
@@ -2568,11 +2637,34 @@ impl<'a> FunctionCompiler<'a> {
                 })
             }
         } else {
+            // Check if this is a string function that returns HairaString*
+            let string_returning_funcs = [
+                "upper",
+                "lower",
+                "trim",
+                "reverse",
+                "slice",
+                "repeat",
+                "replace",
+                "string_concat",
+                "int_to_string",
+                "float_to_string",
+                "regex_find",
+                "regex_replace",
+                "regex_replace_all",
+            ];
+
+            let returns_ptr = string_returning_funcs.contains(&func_name.as_str());
+
             // Fall back to untyped compilation for other functions
             let value = self.compile_call(call, scope, builder)?;
             Ok(TypedValue {
                 value,
-                ty: ValueType::Int,
+                ty: if returns_ptr {
+                    ValueType::Ptr
+                } else {
+                    ValueType::Int
+                },
             })
         }
     }
@@ -3515,6 +3607,161 @@ impl<'a> FunctionCompiler<'a> {
             return Ok(builder.inst_results(call_inst)[0]);
         }
 
+        // String functions that take (ptr, len) from HairaString* or string literal
+        // These need special handling to unpack the string
+        let string_funcs_1arg = ["len", "is_empty", "upper", "lower", "trim", "reverse"];
+        let string_funcs_2arg = ["contains", "starts_with", "ends_with", "index_of"];
+
+        if string_funcs_1arg.contains(&func_name.as_str()) && !call.args.is_empty() {
+            // Single string argument -> unpack to (ptr, len)
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (data_ptr, len) = self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+
+            let call_inst = builder.ins().call(local_callee, &[data_ptr, len]);
+            let results = builder.inst_results(call_inst);
+            return Ok(if results.is_empty() {
+                builder.ins().iconst(types::I64, 0)
+            } else {
+                results[0]
+            });
+        }
+
+        if string_funcs_2arg.contains(&func_name.as_str()) && call.args.len() >= 2 {
+            // Two string arguments -> unpack both to (ptr, len, ptr2, len2)
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (data1_ptr, len1) = self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+            let (data2_ptr, len2) = self.get_string_ptr_len(&call.args[1].value, scope, builder)?;
+
+            let call_inst = builder
+                .ins()
+                .call(local_callee, &[data1_ptr, len1, data2_ptr, len2]);
+            let results = builder.inst_results(call_inst);
+            return Ok(if results.is_empty() {
+                builder.ins().iconst(types::I64, 0)
+            } else {
+                results[0]
+            });
+        }
+
+        if func_name.as_str() == "slice" && call.args.len() >= 3 {
+            // slice(str, start, end) -> (ptr, len, start, end)
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (data_ptr, len) = self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+            let start = self.compile_expr(&call.args[1].value, scope, builder)?;
+            let end = self.compile_expr(&call.args[2].value, scope, builder)?;
+
+            let call_inst = builder
+                .ins()
+                .call(local_callee, &[data_ptr, len, start, end]);
+            let results = builder.inst_results(call_inst);
+            return Ok(results[0]);
+        }
+
+        if func_name.as_str() == "repeat" && call.args.len() >= 2 {
+            // repeat(str, n) -> (ptr, len, n)
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (data_ptr, len) = self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+            let n = self.compile_expr(&call.args[1].value, scope, builder)?;
+
+            let call_inst = builder.ins().call(local_callee, &[data_ptr, len, n]);
+            let results = builder.inst_results(call_inst);
+            return Ok(results[0]);
+        }
+
+        if func_name.as_str() == "replace" && call.args.len() >= 3 {
+            // replace(str, old, new) -> (ptr, len, old_ptr, old_len, new_ptr, new_len)
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (data_ptr, len) = self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+            let (old_data, old_len) =
+                self.get_string_ptr_len(&call.args[1].value, scope, builder)?;
+            let (new_data, new_len) =
+                self.get_string_ptr_len(&call.args[2].value, scope, builder)?;
+
+            let call_inst = builder.ins().call(
+                local_callee,
+                &[data_ptr, len, old_data, old_len, new_data, new_len],
+            );
+            let results = builder.inst_results(call_inst);
+            return Ok(results[0]);
+        }
+
+        // Regex functions with 2 string arguments: regex_match, regex_find, regex_count
+        let regex_funcs_2arg = ["regex_match", "regex_find", "regex_count"];
+        if regex_funcs_2arg.contains(&func_name.as_str()) && call.args.len() >= 2 {
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (str_ptr, str_len) =
+                self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+            let (pattern_ptr, pattern_len) =
+                self.get_string_ptr_len(&call.args[1].value, scope, builder)?;
+
+            let call_inst = builder
+                .ins()
+                .call(local_callee, &[str_ptr, str_len, pattern_ptr, pattern_len]);
+            let results = builder.inst_results(call_inst);
+            return Ok(results[0]);
+        }
+
+        // Regex functions with 3 string arguments: regex_replace, regex_replace_all
+        let regex_funcs_3arg = ["regex_replace", "regex_replace_all"];
+        if regex_funcs_3arg.contains(&func_name.as_str()) && call.args.len() >= 3 {
+            let func_id = *self
+                .functions
+                .get(&func_name)
+                .ok_or_else(|| CodegenError::UndefinedFunction(func_name.to_string()))?;
+            let local_callee = self.module.declare_func_in_func(func_id, builder.func);
+
+            let (str_ptr, str_len) =
+                self.get_string_ptr_len(&call.args[0].value, scope, builder)?;
+            let (pattern_ptr, pattern_len) =
+                self.get_string_ptr_len(&call.args[1].value, scope, builder)?;
+            let (replacement_ptr, replacement_len) =
+                self.get_string_ptr_len(&call.args[2].value, scope, builder)?;
+
+            let call_inst = builder.ins().call(
+                local_callee,
+                &[
+                    str_ptr,
+                    str_len,
+                    pattern_ptr,
+                    pattern_len,
+                    replacement_ptr,
+                    replacement_len,
+                ],
+            );
+            let results = builder.inst_results(call_inst);
+            return Ok(results[0]);
+        }
+
         // Look up function
         let func_id = *self
             .functions
@@ -3683,6 +3930,38 @@ impl<'a> FunctionCompiler<'a> {
         }
 
         Ok(builder.ins().iconst(types::I64, 0))
+    }
+
+    /// Get (ptr, len) from a string expression.
+    /// For string literals, returns (ptr, len) directly.
+    /// For HairaString*, loads ptr and len from the struct.
+    fn get_string_ptr_len(
+        &mut self,
+        expr: &Expr,
+        scope: &mut FunctionScope,
+        builder: &mut FunctionBuilder,
+    ) -> Result<(Value, Value), CodegenError> {
+        match &expr.node {
+            ExprKind::Literal(Literal::String(s)) => {
+                let data_id = self.define_string(s)?;
+                let local_id = self.module.declare_data_in_func(data_id, builder.func);
+                let ptr = builder.ins().symbol_value(self.ptr_type, local_id);
+                let len = builder.ins().iconst(types::I64, s.len() as i64);
+                Ok((ptr, len))
+            }
+            _ => {
+                // Assume it's a HairaString* - load ptr and len from struct
+                let haira_string_ptr = self.compile_expr(expr, scope, builder)?;
+                let data_ptr =
+                    builder
+                        .ins()
+                        .load(self.ptr_type, MemFlags::new(), haira_string_ptr, 0);
+                let len = builder
+                    .ins()
+                    .load(types::I64, MemFlags::new(), haira_string_ptr, 8);
+                Ok((data_ptr, len))
+            }
+        }
     }
 
     /// Compile code to print a struct in format: StructName { field1: value1, field2: value2, ... }

@@ -42,16 +42,13 @@ enum Commands {
         /// Output file (default: input filename without extension)
         #[arg(short, long)]
         output: Option<PathBuf>,
-        /// Interpret AI blocks using Claude API (requires ANTHROPIC_API_KEY)
-        #[arg(long)]
-        interpret_ai: bool,
         /// Use local Ollama for AI interpretation (requires ollama server running)
         #[arg(long)]
         ollama: bool,
         /// Ollama model to use (default: deepseek-coder-v2:16b)
         #[arg(long, default_value = "deepseek-coder-v2:16b")]
         ollama_model: String,
-        /// Use local AI (llama.cpp) for AI interpretation
+        /// Use local AI (llama.cpp) for AI interpretation (default)
         #[arg(long)]
         local_ai: bool,
         /// Use mock AI interpretation for testing (generates stub implementations)
@@ -120,7 +117,6 @@ fn main() -> miette::Result<()> {
         Commands::Build {
             file,
             output,
-            interpret_ai,
             ollama,
             ollama_model,
             local_ai,
@@ -128,7 +124,6 @@ fn main() -> miette::Result<()> {
         } => commands::build::run(
             &file,
             output.as_deref(),
-            interpret_ai,
             ollama,
             &ollama_model,
             local_ai,

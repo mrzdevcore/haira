@@ -30,7 +30,3 @@ indicatif = "0.17"
 
 # Platform-specific paths
 dirs = "5.0"
-
-# Unix signal handling
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"

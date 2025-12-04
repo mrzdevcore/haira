@@ -14,10 +14,9 @@ use haira_parser::parse;
 use std::fs;
 use std::path::Path;
 
-pub fn run(
+pub(crate) fn run(
     file: &Path,
     output: Option<&Path>,
-    interpret_ai: bool,
     use_ollama: bool,
     ollama_model: &str,
     use_local_ai: bool,
@@ -429,153 +428,12 @@ pub fn run(
             }
 
             eprintln!("All AI blocks interpreted successfully.\n");
-        } else if interpret_ai {
-            eprintln!(
-                "Found {} AI block(s) to interpret (Claude API)...",
-                ai_block_indices.len()
-            );
-
-            // Build interpretation context from the AST
-            let context = build_interpretation_context(&ast, file);
-
-            // Initialize AI engine with Claude backend
-            let config = AIConfig::from_env();
-            if !config.is_valid() {
-                return Err(miette::miette!(
-                    "ANTHROPIC_API_KEY environment variable not set.\n\
-                     Set it to your Anthropic API key to enable AI interpretation.\n\n\
-                     Alternatively:\n\
-                     - Use --local-ai for local AI with llama.cpp\n\
-                     - Use --ollama for local AI with Ollama\n\
-                     - Use --mock-ai for testing with stub implementations"
-                ));
-            }
-
-            let mut engine = AIEngine::new(config);
-
-            // Process each AI block
-            let runtime = tokio::runtime::Runtime::new()
-                .map_err(|e| miette::miette!("Failed to create async runtime: {}", e))?;
-
-            for &idx in &ai_block_indices {
-                let ai_block = match &ast.items[idx].node {
-                    ItemKind::AiFunctionDef(block) => block.clone(),
-                    _ => continue,
-                };
-
-                let name = ai_block
-                    .name
-                    .as_ref()
-                    .map(|n| n.node.to_string())
-                    .unwrap_or_else(|| format!("__ai_anon_{}", idx));
-
-                // Compute hash for cache lookup
-                let intent_hash = compute_intent_hash(&name, &ai_block.intent);
-
-                // Check HIF cache first
-                if let Some(cached_intent) = hif_file.get_intent(&name) {
-                    if cached_intent.hash == intent_hash {
-                        eprintln!("  Using cached: {} (from .hif)", name);
-                        let cir_func = hif_intent_to_cir_function(cached_intent);
-
-                        match cir_to_function_def(&cir_func) {
-                            Ok(func_def) => {
-                                let span = ast.items[idx].span;
-                                ast.items[idx] = Item {
-                                    node: ItemKind::FunctionDef(func_def),
-                                    span,
-                                };
-                                continue;
-                            }
-                            Err(e) => {
-                                eprintln!("    Cache invalid, re-interpreting: {}", e);
-                            }
-                        }
-                    } else {
-                        eprintln!("  Cache stale for: {} (intent changed)", name);
-                    }
-                }
-
-                eprintln!("  Interpreting: {}", name);
-
-                // Extract parameters as (name, type) pairs
-                let params: Vec<(String, String)> = ai_block
-                    .params
-                    .iter()
-                    .map(|p| {
-                        let ty =
-                            p.ty.as_ref()
-                                .map(|t| type_to_string(&t.node))
-                                .unwrap_or_else(|| "any".to_string());
-                        (p.name.node.to_string(), ty)
-                    })
-                    .collect();
-
-                // Extract return type
-                let return_type = ai_block.return_ty.as_ref().map(|t| type_to_string(&t.node));
-
-                // Call AI engine
-                let cir_result = runtime.block_on(engine.interpret_intent(
-                    Some(&name),
-                    ai_block.intent.as_str(),
-                    &params,
-                    return_type.as_deref(),
-                    context.clone(),
-                ));
-
-                match cir_result {
-                    Ok(cir_func) => {
-                        eprintln!("    Generated CIR for: {}", cir_func.name);
-
-                        // Save to HIF cache
-                        let hif_intent = cir_function_to_hif_intent(&cir_func, &intent_hash);
-                        hif_file.add_intent(hif_intent);
-                        hif_modified = true;
-
-                        // Convert CIR to AST FunctionDef
-                        match cir_to_function_def(&cir_func) {
-                            Ok(func_def) => {
-                                // Replace AI block with generated function
-                                let span = ast.items[idx].span;
-                                ast.items[idx] = Item {
-                                    node: ItemKind::FunctionDef(func_def),
-                                    span,
-                                };
-                                eprintln!("    Converted to AST: {}", name);
-                            }
-                            Err(e) => {
-                                return Err(miette::miette!(
-                                    "Failed to convert CIR to AST for '{}': {}",
-                                    name,
-                                    e
-                                ));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        let error_msg = format_ai_error(&e);
-                        return Err(miette::miette!(
-                            "Failed to interpret AI block '{}': {}",
-                            name,
-                            error_msg
-                        ));
-                    }
-                }
-            }
-
-            // Save HIF file if modified
-            if hif_modified {
-                save_hif_file(&hif_path, &hif_file);
-            }
-
-            eprintln!("All AI blocks interpreted successfully.\n");
         } else {
             return Err(miette::miette!(
                 "Source contains {} AI block(s) which require interpretation.\n\n\
                  Options:\n\
                  - Use --local-ai for local AI with llama.cpp (recommended)\n\
                  - Use --ollama for local AI with Ollama\n\
-                 - Use --interpret-ai for Claude API (requires ANTHROPIC_API_KEY)\n\
                  - Use --mock-ai for testing with stub implementations",
                 ai_block_indices.len()
             ));
@@ -584,7 +442,7 @@ pub fn run(
 
     // Infer types for struct fields that don't have explicit type annotations
     // This uses AI to determine types based on field names
-    let ast = infer_struct_field_types(ast, use_ollama, ollama_model, use_local_ai, interpret_ai)?;
+    let ast = infer_struct_field_types(ast, use_ollama, ollama_model, use_local_ai)?;
 
     // Determine output binary name
     let output_file = output.map(|p| p.to_path_buf()).unwrap_or_else(|| {
@@ -610,7 +468,6 @@ pub fn run(
 /// Format AI error for display.
 fn format_ai_error(e: &AIError) -> String {
     match e {
-        AIError::MissingApiKey => "ANTHROPIC_API_KEY not set".to_string(),
         AIError::LowConfidence {
             confidence,
             minimum,
@@ -828,7 +685,6 @@ fn infer_struct_field_types(
     use_ollama: bool,
     ollama_model: &str,
     use_local_ai: bool,
-    use_claude: bool,
 ) -> miette::Result<SourceFile> {
     // Find all structs with untyped fields
     let mut structs_needing_inference: Vec<(usize, String, Vec<String>)> = Vec::new();
@@ -867,13 +723,6 @@ fn infer_struct_field_types(
         AIEngine::with_ollama(config, Some(ollama_model))
     } else if use_local_ai {
         AIEngine::with_local_ai(config, None)
-    } else if use_claude {
-        let config = AIConfig::from_env();
-        if !config.is_valid() {
-            eprintln!("  Warning: No AI backend available for type inference, using defaults");
-            return Ok(apply_default_types(ast, &structs_needing_inference));
-        }
-        AIEngine::new(config)
     } else {
         eprintln!("  No AI backend specified, using default type inference");
         return Ok(apply_default_types(ast, &structs_needing_inference));

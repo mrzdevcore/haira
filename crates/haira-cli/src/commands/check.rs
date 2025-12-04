@@ -4,7 +4,7 @@ use haira_parser::parse;
 use std::fs;
 use std::path::Path;
 
-pub fn run(files: &[std::path::PathBuf]) -> miette::Result<()> {
+pub(crate) fn run(files: &[std::path::PathBuf]) -> miette::Result<()> {
     if files.is_empty() {
         return Err(miette::miette!("No files specified"));
     }

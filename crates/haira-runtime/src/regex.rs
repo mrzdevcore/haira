@@ -118,10 +118,7 @@ pub extern "C" fn haira_regex_replace(
         Ok(p) => p,
         Err(_) => return HairaString::empty(),
     };
-    let replacement = match std::str::from_utf8(replacement_slice) {
-        Ok(r) => r,
-        Err(_) => "",
-    };
+    let replacement = std::str::from_utf8(replacement_slice).unwrap_or_default();
 
     match get_or_compile_regex(pattern) {
         Some(re) => {
@@ -162,10 +159,7 @@ pub extern "C" fn haira_regex_replace_all(
         Ok(p) => p,
         Err(_) => return HairaString::empty(),
     };
-    let replacement = match std::str::from_utf8(replacement_slice) {
-        Ok(r) => r,
-        Err(_) => "",
-    };
+    let replacement = std::str::from_utf8(replacement_slice).unwrap_or_default();
 
     match get_or_compile_regex(pattern) {
         Some(re) => {

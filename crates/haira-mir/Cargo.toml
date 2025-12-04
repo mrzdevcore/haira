@@ -6,6 +6,7 @@ license.workspace = true
 description = "Mid-level IR for the Haira programming language"
 
 [dependencies]
+haira-ast.workspace = true
 haira-types.workspace = true
 thiserror.workspace = true
 smol_str.workspace = true

@@ -1,10 +1,10 @@
 //! CLI commands.
 
-pub mod build;
-pub mod check;
-pub mod info;
-pub mod interpret;
-pub mod lex;
-pub mod model;
-pub mod parse;
-pub mod run;
+pub(crate) mod build;
+pub(crate) mod check;
+pub(crate) mod info;
+pub(crate) mod interpret;
+pub(crate) mod lex;
+pub(crate) mod model;
+pub(crate) mod parse;
+pub(crate) mod run;

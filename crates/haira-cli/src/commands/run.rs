@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-pub fn run(file: &Path) -> miette::Result<()> {
+pub(crate) fn run(file: &Path) -> miette::Result<()> {
     let source =
         fs::read_to_string(file).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 

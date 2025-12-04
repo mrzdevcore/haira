@@ -1,6 +1,6 @@
 //! # Haira Canonical IR (CIR)
 //!
-//! The Canonical Intermediate Representation is the format that AI (Claude)
+//! The Canonical Intermediate Representation is the format that AI
 //! outputs when interpreting developer intent. It's a JSON-based, deterministic
 //! representation that can be reliably converted to Haira AST.
 //!

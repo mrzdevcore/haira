@@ -5,7 +5,7 @@ members = [
     "crates/haira-parser",
     "crates/haira-ast",
     "crates/haira-resolver",
-    "crates/haira-ai",        # AI intent engine (Claude integration)
+    "crates/haira-ai",        # AI intent engine (Local AI / Ollama)
     "crates/haira-local-ai",  # Local AI backend using llama.cpp
     "crates/haira-cir",       # Canonical IR definitions
     "crates/haira-types",
@@ -15,6 +15,7 @@ members = [
     "crates/haira-driver",
     "crates/haira-cli",
     "crates/haira-lsp",       # Language Server Protocol implementation
+    "crates/haira-runtime",   # Standard library / runtime
 ]
 
 [workspace.package]
@@ -60,6 +61,7 @@ haira-mir = { path = "crates/haira-mir" }
 haira-codegen = { path = "crates/haira-codegen" }
 haira-driver = { path = "crates/haira-driver" }
 haira-local-ai = { path = "crates/haira-local-ai" }
+haira-runtime = { path = "crates/haira-runtime" }
 
 [profile.release]
 lto = true

@@ -1,10 +1,13 @@
 //! AI Engine - the main entry point for intent interpretation.
+//!
+//! Supports two backends:
+//! - **Local AI** (primary) - Uses llama.cpp with local models
+//! - **Ollama** (fallback) - Uses Ollama server
 
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
 use crate::cache::AICache;
-use crate::client::{ClaudeClient, ClientError};
 use crate::config::AIConfig;
 use crate::ollama::{OllamaClient, OllamaError};
 use crate::prompt::{self, SYSTEM_PROMPT};
@@ -14,8 +17,6 @@ use haira_local_ai::{LlamaCppServer, LocalAIError};
 /// AI backend type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AIBackend {
-    /// Use Claude API (requires ANTHROPIC_API_KEY)
-    Claude,
     /// Use local Ollama server
     Ollama,
     /// Use local llama.cpp server (self-managed)
@@ -25,7 +26,6 @@ pub enum AIBackend {
 /// AI Engine for interpreting developer intent.
 pub struct AIEngine {
     config: AIConfig,
-    claude_client: Option<ClaudeClient>,
     ollama_client: Option<OllamaClient>,
     local_ai_server: Option<LlamaCppServer>,
     backend: AIBackend,
@@ -35,8 +35,6 @@ pub struct AIEngine {
 /// Errors from the AI engine.
 #[derive(Debug, Error)]
 pub enum AIError {
-    #[error("client error: {0}")]
-    Client(#[from] ClientError),
     #[error("ollama error: {0}")]
     Ollama(#[from] OllamaError),
     #[error("local AI error: {0}")]
@@ -51,31 +49,16 @@ pub enum AIError {
     LowConfidence { confidence: f64, minimum: f64 },
     #[error("AI interpretation failed: {0}")]
     InterpretationFailed(String),
-    #[error("missing API key - set ANTHROPIC_API_KEY environment variable")]
-    MissingApiKey,
     #[error("no AI backend available")]
     NoBackend,
 }
 
 impl AIEngine {
-    /// Create a new AI engine with Claude backend.
+    /// Create a new AI engine with Local AI backend (default).
+    ///
+    /// The model filename should be the name of a GGUF file in ~/.haira/models/
     pub fn new(config: AIConfig) -> Self {
-        let claude_client = if config.api_key.is_empty() {
-            None
-        } else {
-            ClaudeClient::new(config.clone()).ok()
-        };
-
-        let cache = AICache::new(config.cache_dir.clone());
-
-        Self {
-            config,
-            claude_client,
-            ollama_client: None,
-            local_ai_server: None,
-            backend: AIBackend::Claude,
-            cache,
-        }
+        Self::with_local_ai(config, None)
     }
 
     /// Create a new AI engine with Ollama backend.
@@ -90,7 +73,6 @@ impl AIEngine {
 
         Self {
             config,
-            claude_client: None,
             ollama_client: Some(ollama_client),
             local_ai_server: None,
             backend: AIBackend::Ollama,
@@ -111,7 +93,6 @@ impl AIEngine {
 
         Self {
             config,
-            claude_client: None,
             ollama_client: None,
             local_ai_server: Some(server),
             backend: AIBackend::LocalAI,
@@ -170,12 +151,6 @@ impl AIEngine {
     /// Check if the current backend is available.
     pub async fn check_availability(&self) -> Result<(), AIError> {
         match self.backend {
-            AIBackend::Claude => {
-                if self.claude_client.is_none() {
-                    return Err(AIError::MissingApiKey);
-                }
-                Ok(())
-            }
             AIBackend::Ollama => {
                 let client = self.ollama_client.as_ref().ok_or(AIError::NoBackend)?;
                 client.check_availability().await?;
@@ -204,10 +179,6 @@ impl AIEngine {
     /// Complete a prompt using the configured backend.
     async fn complete(&self, system: &str, user_message: &str) -> Result<String, AIError> {
         match self.backend {
-            AIBackend::Claude => {
-                let client = self.claude_client.as_ref().ok_or(AIError::MissingApiKey)?;
-                Ok(client.complete(system, user_message).await?)
-            }
             AIBackend::Ollama => {
                 let client = self.ollama_client.as_ref().ok_or(AIError::NoBackend)?;
                 Ok(client.complete(system, user_message).await?)

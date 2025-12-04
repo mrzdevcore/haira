@@ -4,7 +4,7 @@ use haira_ai::{local_ai_paths, ModelManager};
 use std::path::Path;
 
 /// List installed models.
-pub fn list() -> miette::Result<()> {
+pub(crate) fn list() -> miette::Result<()> {
     let manager = ModelManager::new();
     let models = manager
         .list_installed()
@@ -33,7 +33,7 @@ pub fn list() -> miette::Result<()> {
 }
 
 /// Pull/download a model.
-pub async fn pull(path: Option<&Path>) -> miette::Result<()> {
+pub(crate) async fn pull(path: Option<&Path>) -> miette::Result<()> {
     let manager = ModelManager::new();
 
     // Ensure directories exist
@@ -89,7 +89,7 @@ pub async fn pull(path: Option<&Path>) -> miette::Result<()> {
 }
 
 /// Show information about models and paths.
-pub fn info() -> miette::Result<()> {
+pub(crate) fn info() -> miette::Result<()> {
     println!("Haira Local AI Configuration");
     println!("=============================");
     println!();

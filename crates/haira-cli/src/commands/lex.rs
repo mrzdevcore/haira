@@ -4,7 +4,7 @@ use haira_lexer::Lexer;
 use std::fs;
 use std::path::Path;
 
-pub fn run(file: &Path) -> miette::Result<()> {
+pub(crate) fn run(file: &Path) -> miette::Result<()> {
     let source =
         fs::read_to_string(file).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 

@@ -5,6 +5,7 @@
 //! - Optimization passes
 //! - Lowering to machine code
 
+use haira_ast::Span;
 use haira_types::Type;
 use smol_str::SmolStr;
 
@@ -15,6 +16,8 @@ pub struct MirFunction {
     pub return_type: Type,
     pub locals: Vec<MirLocal>,
     pub blocks: Vec<BasicBlock>,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// A local variable.
@@ -22,6 +25,8 @@ pub struct MirFunction {
 pub struct MirLocal {
     pub name: SmolStr,
     pub ty: Type,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// A basic block.
@@ -29,6 +34,8 @@ pub struct BasicBlock {
     pub id: BlockId,
     pub statements: Vec<Statement>,
     pub terminator: Terminator,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// Block identifier.
@@ -144,13 +151,14 @@ pub enum Terminator {
 }
 
 impl MirFunction {
-    pub fn new(name: SmolStr, return_type: Type) -> Self {
+    pub fn new(name: SmolStr, return_type: Type, span: Span) -> Self {
         Self {
             name,
             params: Vec::new(),
             return_type,
             locals: Vec::new(),
             blocks: Vec::new(),
+            span,
         }
     }
 }

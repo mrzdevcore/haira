@@ -1,4 +1,4 @@
-//! Prompt engineering for Claude.
+//! Prompt engineering for AI intent interpretation.
 
 use haira_cir::InterpretationContext;
 

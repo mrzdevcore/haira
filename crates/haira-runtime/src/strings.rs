@@ -171,10 +171,10 @@ pub extern "C" fn haira_string_slice(
 
     // Handle negative indices
     if start < 0 {
-        start = len + start;
+        start += len;
     }
     if end < 0 {
-        end = len + end;
+        end += len;
     }
 
     // Clamp to valid range
@@ -361,7 +361,7 @@ pub extern "C" fn haira_string_char_at(ptr: *const u8, len: i64, mut index: i64)
 
     // Handle negative index
     if index < 0 {
-        index = len + index;
+        index += len;
     }
     if index < 0 || index >= len {
         return -1;

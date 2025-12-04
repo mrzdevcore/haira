@@ -3,6 +3,7 @@
 //! HIR is a desugared, type-annotated version of the AST.
 //! It includes resolved types, lowered constructs, and AI-generated implementations.
 
+use haira_ast::Span;
 use haira_types::Type;
 use la_arena::{Arena, Idx};
 use smol_str::SmolStr;
@@ -26,12 +27,16 @@ pub struct HirFunction {
     pub body: HirBody,
     /// Whether this function was AI-generated.
     pub ai_generated: bool,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// A function parameter.
 pub struct HirParam {
     pub name: SmolStr,
     pub ty: Type,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// Function body.
@@ -44,6 +49,8 @@ pub struct HirBody {
 pub struct HirExpr {
     pub kind: HirExprKind,
     pub ty: Type,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// HIR expression kinds.
@@ -148,6 +155,8 @@ pub enum UnaryOp {
 pub struct HirTypeDef {
     pub name: SmolStr,
     pub kind: HirTypeDefKind,
+    /// Source span for error reporting.
+    pub span: Span,
 }
 
 /// Type definition kinds.

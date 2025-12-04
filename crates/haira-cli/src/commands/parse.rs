@@ -4,7 +4,7 @@ use haira_parser::parse;
 use std::fs;
 use std::path::Path;
 
-pub fn run(file: &Path, json: bool) -> miette::Result<()> {
+pub(crate) fn run(file: &Path, json: bool) -> miette::Result<()> {
     let source =
         fs::read_to_string(file).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 

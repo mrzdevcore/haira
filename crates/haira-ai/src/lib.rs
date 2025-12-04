@@ -1,14 +1,14 @@
 //! # Haira AI Integration
 //!
-//! This crate provides integration with Claude AI for interpreting developer
-//! intent and generating code implementations.
+//! This crate provides AI integration for interpreting developer intent
+//! and generating code implementations.
 //!
 //! ## Architecture
 //!
 //! ```text
 //! ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 //! │  Unresolved     │ --> │    AI Engine    │ --> │  CIR Function   │
-//! │  Function Call  │     │  (Claude API)   │     │  (Generated)    │
+//! │  Function Call  │     │  (Local/Ollama) │     │  (Generated)    │
 //! └─────────────────┘     └─────────────────┘     └─────────────────┘
 //!                               │
 //!                         ┌─────┴─────┐
@@ -16,20 +16,23 @@
 //!                         └───────────┘
 //! ```
 //!
+//! ## AI Backends
+//!
+//! - **Local AI** (primary) - Uses llama.cpp with local models
+//! - **Ollama** (fallback) - Uses Ollama server
+//!
 //! ## Usage
 //!
 //! ```ignore
 //! use haira_ai::{AIEngine, AIConfig};
 //!
-//! let config = AIConfig::from_env();
-//! let engine = AIEngine::new(config);
+//! let config = AIConfig::default();
+//! let engine = AIEngine::with_local_ai(config, None);
 //!
-//! let request = AIRequest { ... };
-//! let response = engine.interpret(request).await?;
+//! let func = engine.interpret("get_active_users", context).await?;
 //! ```
 
 mod cache;
-mod client;
 mod config;
 mod engine;
 pub mod hif;
@@ -37,7 +40,6 @@ mod ollama;
 mod prompt;
 
 pub use cache::AICache;
-pub use client::ClaudeClient;
 pub use config::AIConfig;
 pub use engine::{AIBackend, AIEngine, AIError};
 pub use ollama::{OllamaClient, OllamaError, DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL};

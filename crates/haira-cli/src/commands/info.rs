@@ -1,6 +1,6 @@
 //! Info command - show information about Haira installation.
 
-pub fn run() -> miette::Result<()> {
+pub(crate) fn run() -> miette::Result<()> {
     println!("Haira Programming Language");
     println!("===========================");
     println!();
@@ -16,12 +16,9 @@ pub fn run() -> miette::Result<()> {
     println!();
 
     println!("AI Integration:");
-    if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-        println!("  Status: Enabled (ANTHROPIC_API_KEY found)");
-    } else {
-        println!("  Status: Disabled (ANTHROPIC_API_KEY not set)");
-        println!("  Note: Set ANTHROPIC_API_KEY to enable AI-powered interpretation");
-    }
+    println!("  Local AI: llama.cpp (recommended)");
+    println!("  Ollama:   Optional fallback");
+    println!("  Note: Use --local-ai or --ollama flags during build");
     println!();
 
     println!("Features:");

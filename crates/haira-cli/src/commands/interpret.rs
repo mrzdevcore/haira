@@ -4,7 +4,7 @@ use haira_ai::{AIConfig, AIEngine, InterpretationContext, TypeDefinition};
 use haira_cir::{CallSiteInfo, FieldDefinition};
 use std::path::Path;
 
-pub async fn run(name: &str, context_file: Option<&Path>) -> miette::Result<()> {
+pub(crate) async fn run(name: &str, context_file: Option<&Path>) -> miette::Result<()> {
     println!("Interpreting function: {}\n", name);
 
     // Load context if provided
@@ -26,25 +26,20 @@ pub async fn run(name: &str, context_file: Option<&Path>) -> miette::Result<()> 
         println!("  No pattern match, would use AI interpretation.\n");
     }
 
-    // Try AI interpretation if API key is available
-    if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-        println!("Calling AI for interpretation...\n");
+    // Try AI interpretation
+    println!("Calling AI for interpretation...\n");
 
-        match engine.interpret(name, context).await {
-            Ok(func) => {
-                println!("Interpretation successful!\n");
-                println!("Generated CIR:");
-                println!("{}", serde_json::to_string_pretty(&func).unwrap());
-            }
-            Err(e) => {
-                println!("AI interpretation failed: {}", e);
-                println!("\nFalling back to pattern analysis...");
-                analyze_name_patterns(name);
-            }
+    match engine.interpret(name, context).await {
+        Ok(func) => {
+            println!("Interpretation successful!\n");
+            println!("Generated CIR:");
+            println!("{}", serde_json::to_string_pretty(&func).unwrap());
         }
-    } else {
-        println!("ANTHROPIC_API_KEY not set. Showing pattern analysis only.\n");
-        analyze_name_patterns(name);
+        Err(e) => {
+            println!("AI interpretation failed: {}", e);
+            println!("\nFalling back to pattern analysis...");
+            analyze_name_patterns(name);
+        }
     }
 
     Ok(())

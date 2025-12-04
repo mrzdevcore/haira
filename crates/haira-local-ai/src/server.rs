@@ -3,7 +3,7 @@
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::client::LlamaCppClient;
 use crate::error::LocalAIError;
@@ -125,29 +125,15 @@ impl LlamaCppServer {
         if let Some(mut child) = self.process.take() {
             info!("Stopping llama-server (PID: {})", child.id());
 
-            // Try graceful shutdown first
-            #[cfg(unix)]
-            {
-                unsafe {
-                    libc::kill(child.id() as i32, libc::SIGTERM);
-                }
-                // Give it a moment to shut down gracefully
-                std::thread::sleep(Duration::from_millis(500));
-            }
-
-            // Force kill if still running
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    debug!("Server exited with status: {:?}", status);
-                }
-                Ok(None) => {
-                    warn!("Server didn't exit gracefully, killing...");
-                    let _ = child.kill();
+            // Kill the process
+            match child.kill() {
+                Ok(_) => {
                     let _ = child.wait();
+                    debug!("Server stopped");
                 }
                 Err(e) => {
-                    warn!("Error checking server status: {}", e);
-                    let _ = child.kill();
+                    // Process may have already exited
+                    debug!("Kill returned error (may have already exited): {}", e);
                 }
             }
         }

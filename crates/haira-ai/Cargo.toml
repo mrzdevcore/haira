@@ -3,7 +3,7 @@ name = "haira-ai"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "AI (Claude) integration for Haira intent interpretation"
+description = "AI integration for Haira intent interpretation"
 
 [dependencies]
 haira-cir.workspace = true

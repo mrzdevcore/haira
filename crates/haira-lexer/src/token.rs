@@ -395,8 +395,8 @@ mod tests {
 
     #[test]
     fn test_floats() {
-        let mut lex = TokenKind::lexer("3.14 1_000.5");
-        assert_eq!(lex.next(), Some(Ok(TokenKind::Float(3.14))));
+        let mut lex = TokenKind::lexer("3.15 1_000.5");
+        assert_eq!(lex.next(), Some(Ok(TokenKind::Float(3.15))));
         assert_eq!(lex.next(), Some(Ok(TokenKind::Float(1000.5))));
     }
 

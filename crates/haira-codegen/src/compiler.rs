@@ -1,5 +1,7 @@
 //! Cranelift-based compiler for Haira.
 
+#![allow(clippy::result_large_err)]
+
 use cranelift::prelude::*;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
@@ -1205,7 +1207,7 @@ impl Compiler {
                         haira_ast::ElseBranch::ElseIf(else_if) => {
                             let else_if_stmt = Statement {
                                 node: StatementKind::If(else_if.node.clone()),
-                                span: else_if.span.clone(),
+                                span: else_if.span,
                             };
                             self.collect_spawn_blocks_from_stmt(&else_if_stmt);
                         }
@@ -1373,7 +1375,7 @@ impl Compiler {
 
     /// Declare spawn block functions.
     fn declare_spawn_functions(&mut self) -> Result<(), CodegenError> {
-        for (_, func_name) in &self.spawn_functions {
+        for func_name in self.spawn_functions.values() {
             // Spawn functions take no parameters and return i64
             let mut sig = self.module.make_signature();
             sig.returns.push(AbiParam::new(types::I64));
@@ -1449,7 +1451,7 @@ impl Compiler {
 
         self.module
             .define_function(func_id, &mut self.ctx)
-            .map_err(|e| CodegenError::ModuleError(e))?;
+            .map_err(CodegenError::ModuleError)?;
 
         self.ctx.clear();
 
@@ -1458,7 +1460,7 @@ impl Compiler {
 
     /// Declare async block functions.
     fn declare_async_functions(&mut self) -> Result<(), CodegenError> {
-        for (_, func_names) in &self.async_functions {
+        for func_names in self.async_functions.values() {
             for func_name in func_names {
                 // Async functions take no parameters and return i64
                 let mut sig = self.module.make_signature();
@@ -1541,7 +1543,7 @@ impl Compiler {
 
         self.module
             .define_function(func_id, &mut self.ctx)
-            .map_err(|e| CodegenError::ModuleError(e))?;
+            .map_err(CodegenError::ModuleError)?;
 
         self.ctx.clear();
 
@@ -1613,7 +1615,7 @@ impl Compiler {
 
         self.module
             .define_function(func_id, &mut self.ctx)
-            .map_err(|e| CodegenError::ModuleError(e))?;
+            .map_err(CodegenError::ModuleError)?;
 
         self.ctx.clear();
 
@@ -1686,7 +1688,7 @@ impl Compiler {
 
         self.module
             .define_function(func_id, &mut self.ctx)
-            .map_err(|e| CodegenError::ModuleError(e))?;
+            .map_err(CodegenError::ModuleError)?;
 
         self.ctx.clear();
 
@@ -1743,7 +1745,7 @@ impl Compiler {
 
         self.module
             .define_function(main_id, &mut self.ctx)
-            .map_err(|e| CodegenError::ModuleError(e))?;
+            .map_err(CodegenError::ModuleError)?;
 
         self.ctx.clear();
 
@@ -1863,59 +1865,6 @@ impl<'a> FunctionCompiler<'a> {
                 builder
                     .ins()
                     .store(MemFlags::new(), typed_value.value, elem_ptr, 0);
-                Ok(())
-            }
-        }
-    }
-
-    fn compile_assign_target(
-        &mut self,
-        path: &AssignPath,
-        value: Value,
-        scope: &mut FunctionScope,
-        builder: &mut FunctionBuilder,
-    ) -> Result<(), CodegenError> {
-        match path {
-            AssignPath::Identifier(name) => {
-                // Simple variable assignment
-                let var = scope.get_or_declare_var(&name.node, builder);
-                builder.def_var(var, value);
-                Ok(())
-            }
-            AssignPath::Field { object, field } => {
-                // Field assignment: obj.field = value
-                let obj_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
-                let field_name = &field.node;
-
-                // Find the field offset by searching through all known structs
-                for (_, struct_info) in self.structs.iter() {
-                    if let Some(field_idx) = struct_info.fields.iter().position(|f| f == field_name)
-                    {
-                        let offset = struct_info.field_offsets[field_idx];
-                        let offset_val = builder.ins().iconst(types::I64, offset as i64);
-                        let field_ptr = builder.ins().iadd(obj_ptr, offset_val);
-                        builder.ins().store(MemFlags::new(), value, field_ptr, 0);
-                        return Ok(());
-                    }
-                }
-
-                Err(CodegenError::Unsupported(format!(
-                    "Unknown field: {}",
-                    field_name
-                )))
-            }
-            AssignPath::Index { object, index } => {
-                // Index assignment: arr[i] = value
-                let arr_ptr = self.compile_assign_path_to_ptr(object, scope, builder)?;
-                let index_val = self.compile_expr(index, scope, builder)?;
-
-                // Element is at offset 8 + (index * 8)
-                let eight = builder.ins().iconst(types::I64, 8);
-                let offset = builder.ins().imul(index_val, eight);
-                let base_offset = builder.ins().iadd(offset, eight);
-                let elem_ptr = builder.ins().iadd(arr_ptr, base_offset);
-
-                builder.ins().store(MemFlags::new(), value, elem_ptr, 0);
                 Ok(())
             }
         }
@@ -2043,7 +1992,7 @@ impl<'a> FunctionCompiler<'a> {
                         haira_ast::ElseBranch::ElseIf(else_if) => {
                             let else_if_stmt = Statement {
                                 node: StatementKind::If(else_if.node.clone()),
-                                span: else_if.span.clone(),
+                                span: else_if.span,
                             };
                             self.compile_statement(&else_if_stmt, scope, builder)?;
                         }
@@ -4131,11 +4080,6 @@ struct FunctionScope {
     variables: HashMap<SmolStr, Variable>,
     /// Map of variable names to their types.
     var_types: HashMap<SmolStr, ValueType>,
-    /// Map of variable names to their struct type names (for struct instances).
-    var_struct_types: HashMap<SmolStr, SmolStr>,
-    /// Map of variable names to their field types (for struct instances).
-    /// Key is variable name, value is map of field name -> field type.
-    var_field_types: HashMap<SmolStr, HashMap<SmolStr, ValueType>>,
     /// Counter for generating unique variable indices.
     next_var: usize,
     #[allow(dead_code)]
@@ -4147,8 +4091,6 @@ impl FunctionScope {
         Self {
             variables: HashMap::new(),
             var_types: HashMap::new(),
-            var_struct_types: HashMap::new(),
-            var_field_types: HashMap::new(),
             next_var: 0,
             ptr_type,
         }
@@ -4201,32 +4143,6 @@ impl FunctionScope {
     /// Get the type of a variable.
     fn get_var_type(&self, name: &SmolStr) -> Option<ValueType> {
         self.var_types.get(name).cloned()
-    }
-
-    /// Set the struct type for a variable (for struct instances).
-    fn set_var_struct_type(&mut self, name: &SmolStr, struct_type: SmolStr) {
-        self.var_struct_types.insert(name.clone(), struct_type);
-    }
-
-    /// Get the struct type of a variable.
-    fn get_var_struct_type(&self, name: &SmolStr) -> Option<&SmolStr> {
-        self.var_struct_types.get(name)
-    }
-
-    /// Set the field types for a struct variable.
-    fn set_var_field_types(
-        &mut self,
-        var_name: &SmolStr,
-        field_types: HashMap<SmolStr, ValueType>,
-    ) {
-        self.var_field_types.insert(var_name.clone(), field_types);
-    }
-
-    /// Get the type of a specific field for a struct variable.
-    fn get_var_field_type(&self, var_name: &SmolStr, field_name: &SmolStr) -> Option<ValueType> {
-        self.var_field_types
-            .get(var_name)
-            .and_then(|fields| fields.get(field_name).cloned())
     }
 }
 

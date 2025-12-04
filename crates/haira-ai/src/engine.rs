@@ -459,40 +459,13 @@ impl AIEngine {
         let cleaned = Self::clean_llm_output(text);
 
         // Try to extract the first complete JSON object from the response
-        // This handles cases where the model repeats the JSON multiple times
-        let json_text = if let Some(start) = cleaned.find('{') {
-            // Find the matching closing brace by counting braces
-            let chars: Vec<char> = cleaned[start..].chars().collect();
-            let mut depth = 0;
-            let mut end_offset = 0;
-            for (i, ch) in chars.iter().enumerate() {
-                match ch {
-                    '{' => depth += 1,
-                    '}' => {
-                        depth -= 1;
-                        if depth == 0 {
-                            end_offset = i;
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            if end_offset > 0 {
-                &cleaned[start..=start + end_offset]
-            } else if let Some(end) = cleaned.rfind('}') {
-                &cleaned[start..=end]
-            } else {
-                &cleaned
-            }
-        } else {
-            &cleaned
-        };
+        // This handles cases where the model includes trailing text after the JSON
+        let json_text = Self::extract_first_json_object(&cleaned);
 
         debug!("Extracted JSON:\n{}", json_text);
 
         // Normalize the JSON to handle common model variations
-        let normalized = self.normalize_cir_json(json_text);
+        let normalized = self.normalize_cir_json(&json_text);
         debug!("Normalized JSON:\n{}", normalized);
 
         let result = serde_json::from_str(&normalized);
@@ -502,6 +475,61 @@ impl AIEngine {
         }
 
         result
+    }
+
+    /// Extract the first complete JSON object from text.
+    /// Handles cases where LLMs include trailing explanations after the JSON.
+    fn extract_first_json_object(text: &str) -> String {
+        // Find the first opening brace
+        let Some(start) = text.find('{') else {
+            return text.to_string();
+        };
+
+        // Find the matching closing brace by counting braces
+        // We need to handle strings properly to avoid counting braces inside strings
+        let chars: Vec<char> = text[start..].chars().collect();
+        let mut depth = 0;
+        let mut in_string = false;
+        let mut escape_next = false;
+        let mut end_offset = 0;
+
+        for (i, ch) in chars.iter().enumerate() {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+
+            match ch {
+                '\\' if in_string => {
+                    escape_next = true;
+                }
+                '"' => {
+                    in_string = !in_string;
+                }
+                '{' if !in_string => {
+                    depth += 1;
+                }
+                '}' if !in_string => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end_offset = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if end_offset > 0 {
+            text[start..=start + end_offset].to_string()
+        } else {
+            // Fallback: try to find the last } but this is less reliable
+            if let Some(end) = text.rfind('}') {
+                text[start..=end].to_string()
+            } else {
+                text.to_string()
+            }
+        }
     }
 
     /// Clean up common LLM output artifacts.
@@ -1517,14 +1545,12 @@ impl AIEngine {
                             }
                             // Convert {"kind": "var", "name": "x"} to just "x"
                             *value = serde_json::Value::String(name.to_string());
-                            return;
                         }
                     }
                     Some("literal") => {
                         // Convert {"kind": "literal", "value": X} to just X
                         if let Some(inner_value) = obj.get("value") {
                             *value = inner_value.clone();
-                            return;
                         }
                     }
                     _ => {}

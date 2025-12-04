@@ -95,7 +95,7 @@ impl AICache {
         if self.cache_dir.exists() {
             for entry in fs::read_dir(&self.cache_dir)? {
                 let entry = entry?;
-                if entry.path().extension().map_or(false, |e| e == "json") {
+                if entry.path().extension().is_some_and(|e| e == "json") {
                     fs::remove_file(entry.path())?;
                 }
             }
@@ -112,7 +112,7 @@ impl AICache {
             for entry in fs::read_dir(&self.cache_dir)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.extension().map_or(false, |e| e == "json") {
+                if path.extension().is_some_and(|e| e == "json") {
                     if let Some(stem) = path.file_stem() {
                         let stem = stem.to_string_lossy();
                         if let Some(key) = stem.strip_suffix(".cir") {

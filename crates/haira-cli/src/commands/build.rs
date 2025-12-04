@@ -1,5 +1,8 @@
 //! Build command - compile a Haira file to a native binary.
 
+use haira_ai::hif::{
+    cir_function_to_hif_intent, hif_intent_to_cir_function, parse_hif, write_hif, HIFFile,
+};
 use haira_ai::{AIConfig, AIEngine, AIError};
 use haira_ast::{Item, ItemKind, SourceFile, Spanned, Type};
 use haira_cir::{
@@ -51,6 +54,11 @@ pub fn run(
         .collect();
 
     let mut ast = result.ast;
+
+    // Load HIF cache file if it exists
+    let hif_path = file.with_extension("hif");
+    let mut hif_file = load_hif_file(&hif_path);
+    let mut hif_modified = false;
 
     if !ai_block_indices.is_empty() {
         if mock_ai {
@@ -164,6 +172,33 @@ pub fn run(
                     .map(|n| n.node.to_string())
                     .unwrap_or_else(|| format!("__ai_anon_{}", idx));
 
+                // Compute hash for cache lookup
+                let intent_hash = compute_intent_hash(&name, &ai_block.intent);
+
+                // Check HIF cache first
+                if let Some(cached_intent) = hif_file.get_intent(&name) {
+                    if cached_intent.hash == intent_hash {
+                        eprintln!("  Using cached: {} (from .hif)", name);
+                        let cir_func = hif_intent_to_cir_function(cached_intent);
+
+                        match cir_to_function_def(&cir_func) {
+                            Ok(func_def) => {
+                                let span = ast.items[idx].span;
+                                ast.items[idx] = Item {
+                                    node: ItemKind::FunctionDef(func_def),
+                                    span,
+                                };
+                                continue;
+                            }
+                            Err(e) => {
+                                eprintln!("    Cache invalid, re-interpreting: {}", e);
+                            }
+                        }
+                    } else {
+                        eprintln!("  Cache stale for: {} (intent changed)", name);
+                    }
+                }
+
                 eprintln!("  Interpreting: {} ...", name);
 
                 // Extract parameters as (name, type) pairs
@@ -195,6 +230,11 @@ pub fn run(
                     Ok(cir_func) => {
                         eprintln!("    Generated CIR for: {}", cir_func.name);
 
+                        // Save to HIF cache
+                        let hif_intent = cir_function_to_hif_intent(&cir_func, &intent_hash);
+                        hif_file.add_intent(hif_intent);
+                        hif_modified = true;
+
                         // Convert CIR to AST FunctionDef
                         match cir_to_function_def(&cir_func) {
                             Ok(func_def) => {
@@ -223,6 +263,11 @@ pub fn run(
                         ));
                     }
                 }
+            }
+
+            // Save HIF file if modified
+            if hif_modified {
+                save_hif_file(&hif_path, &hif_file);
             }
 
             eprintln!("All AI blocks interpreted successfully.\n");
@@ -278,6 +323,33 @@ pub fn run(
                     .map(|n| n.node.to_string())
                     .unwrap_or_else(|| format!("__ai_anon_{}", idx));
 
+                // Compute hash for cache lookup
+                let intent_hash = compute_intent_hash(&name, &ai_block.intent);
+
+                // Check HIF cache first
+                if let Some(cached_intent) = hif_file.get_intent(&name) {
+                    if cached_intent.hash == intent_hash {
+                        eprintln!("  Using cached: {} (from .hif)", name);
+                        let cir_func = hif_intent_to_cir_function(cached_intent);
+
+                        match cir_to_function_def(&cir_func) {
+                            Ok(func_def) => {
+                                let span = ast.items[idx].span;
+                                ast.items[idx] = Item {
+                                    node: ItemKind::FunctionDef(func_def),
+                                    span,
+                                };
+                                continue;
+                            }
+                            Err(e) => {
+                                eprintln!("    Cache invalid, re-interpreting: {}", e);
+                            }
+                        }
+                    } else {
+                        eprintln!("  Cache stale for: {} (intent changed)", name);
+                    }
+                }
+
                 eprintln!("  Interpreting: {} ...", name);
 
                 // Extract parameters as (name, type) pairs
@@ -308,6 +380,11 @@ pub fn run(
                 match cir_result {
                     Ok(cir_func) => {
                         eprintln!("    Generated CIR for: {}", cir_func.name);
+
+                        // Save to HIF cache
+                        let hif_intent = cir_function_to_hif_intent(&cir_func, &intent_hash);
+                        hif_file.add_intent(hif_intent);
+                        hif_modified = true;
 
                         // Convert CIR to AST FunctionDef
                         match cir_to_function_def(&cir_func) {
@@ -345,6 +422,11 @@ pub fn run(
 
             // Stop the local AI server
             let _ = engine.stop_local_server();
+
+            // Save HIF file if modified
+            if hif_modified {
+                save_hif_file(&hif_path, &hif_file);
+            }
 
             eprintln!("All AI blocks interpreted successfully.\n");
         } else if interpret_ai {
@@ -387,6 +469,33 @@ pub fn run(
                     .map(|n| n.node.to_string())
                     .unwrap_or_else(|| format!("__ai_anon_{}", idx));
 
+                // Compute hash for cache lookup
+                let intent_hash = compute_intent_hash(&name, &ai_block.intent);
+
+                // Check HIF cache first
+                if let Some(cached_intent) = hif_file.get_intent(&name) {
+                    if cached_intent.hash == intent_hash {
+                        eprintln!("  Using cached: {} (from .hif)", name);
+                        let cir_func = hif_intent_to_cir_function(cached_intent);
+
+                        match cir_to_function_def(&cir_func) {
+                            Ok(func_def) => {
+                                let span = ast.items[idx].span;
+                                ast.items[idx] = Item {
+                                    node: ItemKind::FunctionDef(func_def),
+                                    span,
+                                };
+                                continue;
+                            }
+                            Err(e) => {
+                                eprintln!("    Cache invalid, re-interpreting: {}", e);
+                            }
+                        }
+                    } else {
+                        eprintln!("  Cache stale for: {} (intent changed)", name);
+                    }
+                }
+
                 eprintln!("  Interpreting: {}", name);
 
                 // Extract parameters as (name, type) pairs
@@ -418,6 +527,11 @@ pub fn run(
                     Ok(cir_func) => {
                         eprintln!("    Generated CIR for: {}", cir_func.name);
 
+                        // Save to HIF cache
+                        let hif_intent = cir_function_to_hif_intent(&cir_func, &intent_hash);
+                        hif_file.add_intent(hif_intent);
+                        hif_modified = true;
+
                         // Convert CIR to AST FunctionDef
                         match cir_to_function_def(&cir_func) {
                             Ok(func_def) => {
@@ -447,6 +561,11 @@ pub fn run(
                         ));
                     }
                 }
+            }
+
+            // Save HIF file if modified
+            if hif_modified {
+                save_hif_file(&hif_path, &hif_file);
             }
 
             eprintln!("All AI blocks interpreted successfully.\n");
@@ -912,4 +1031,49 @@ fn string_to_type(s: &str) -> Type {
         "string" | "str" => Type::Named("string".into()),
         _ => Type::Named(s.into()),
     }
+}
+
+/// Load a HIF cache file if it exists.
+fn load_hif_file(path: &Path) -> HIFFile {
+    if path.exists() {
+        match fs::read_to_string(path) {
+            Ok(content) => match parse_hif(&content) {
+                Ok(hif) => {
+                    eprintln!("Loaded HIF cache: {}", path.display());
+                    return hif;
+                }
+                Err(e) => {
+                    eprintln!("Warning: Failed to parse HIF cache: {}", e);
+                }
+            },
+            Err(e) => {
+                eprintln!("Warning: Failed to read HIF cache: {}", e);
+            }
+        }
+    }
+    HIFFile::new()
+}
+
+/// Save a HIF cache file.
+fn save_hif_file(path: &Path, hif: &HIFFile) {
+    let content = write_hif(hif);
+    match fs::write(path, &content) {
+        Ok(_) => {
+            eprintln!("Saved HIF cache: {}", path.display());
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to save HIF cache: {}", e);
+        }
+    }
+}
+
+/// Compute a hash for an intent based on name and content.
+fn compute_intent_hash(name: &str, intent: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    name.hash(&mut hasher);
+    intent.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
 }

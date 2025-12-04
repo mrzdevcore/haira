@@ -32,6 +32,7 @@ mod cache;
 mod client;
 mod config;
 mod engine;
+pub mod hif;
 mod ollama;
 mod prompt;
 

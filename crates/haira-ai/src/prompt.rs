@@ -559,12 +559,12 @@ pub fn parse_function_name(name: &str) -> Option<(String, String, Option<String>
 
 /// Convert plural to singular (simple version).
 fn singular(s: &str) -> String {
-    if s.ends_with("ies") {
-        format!("{}y", &s[..s.len() - 3])
-    } else if s.ends_with("es") {
-        s[..s.len() - 2].to_string()
-    } else if s.ends_with('s') {
-        s[..s.len() - 1].to_string()
+    if let Some(stripped) = s.strip_suffix("ies") {
+        format!("{}y", stripped)
+    } else if let Some(stripped) = s.strip_suffix("es") {
+        stripped.to_string()
+    } else if let Some(stripped) = s.strip_suffix('s') {
+        stripped.to_string()
     } else {
         s.to_string()
     }

@@ -15,6 +15,7 @@ use haira_codegen::CodegenOptions;
 use std::path::Path;
 
 /// Compiler configuration.
+#[derive(Default)]
 pub struct CompilerConfig {
     /// AI configuration.
     pub ai: AIConfig,
@@ -22,16 +23,6 @@ pub struct CompilerConfig {
     pub codegen: CodegenOptions,
     /// Enable verbose output.
     pub verbose: bool,
-}
-
-impl Default for CompilerConfig {
-    fn default() -> Self {
-        Self {
-            ai: AIConfig::default(),
-            codegen: CodegenOptions::default(),
-            verbose: false,
-        }
-    }
 }
 
 /// Compilation result.

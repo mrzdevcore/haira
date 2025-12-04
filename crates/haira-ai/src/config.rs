@@ -26,7 +26,8 @@ impl Default for AIConfig {
             model: "claude-3-5-sonnet-20241022".to_string(),
             max_tokens: 4096,
             cache_dir: PathBuf::from(".haira-cache/ai"),
-            use_cache: true,
+            // Disabled by default - HIF caching is used at the build level instead
+            use_cache: false,
             min_confidence: 0.5,
         }
     }
@@ -46,9 +47,10 @@ impl AIConfig {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from(".haira-cache/ai"));
 
+        // Disabled by default - HIF caching is used at the build level instead
         let use_cache = std::env::var("HAIRA_AI_CACHE")
-            .map(|v| v != "0" && v.to_lowercase() != "false")
-            .unwrap_or(true);
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false);
 
         let min_confidence = std::env::var("HAIRA_AI_MIN_CONFIDENCE")
             .ok()

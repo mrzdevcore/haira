@@ -48,7 +48,7 @@ fn check_file(file: &Path) -> miette::Result<(usize, usize)> {
     // Report parse errors
     for err in &result.errors {
         let span = err.span();
-        let (line, col) = offset_to_line_col(&source, span.start as usize);
+        let (line, col) = offset_to_line_col(&source, span.start);
         println!("  error[E0001]: {}", err);
         println!("   --> {}:{}:{}", file.display(), line, col);
         println!("    |");

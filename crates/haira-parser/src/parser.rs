@@ -322,7 +322,7 @@ impl<'source> Parser<'source> {
             | TokenKind::Spawn
             | TokenKind::Async => {
                 let stmt = self.parse_statement()?;
-                let span = stmt.span.clone();
+                let span = stmt.span;
                 Some(Spanned::new(ItemKind::Statement(stmt), span))
             }
             _ => {
@@ -451,11 +451,11 @@ impl<'source> Parser<'source> {
             match &arg.value.node {
                 ExprKind::Identifier(name) => {
                     params.push(Param {
-                        name: Spanned::new(name.clone(), arg.value.span.clone()),
+                        name: Spanned::new(name.clone(), arg.value.span),
                         ty: None,
                         default: None,
                         is_rest: false,
-                        span: arg.span.clone(),
+                        span: arg.span,
                     });
                 }
                 _ => {
@@ -466,7 +466,7 @@ impl<'source> Parser<'source> {
                             ty: None,
                             default: Some(arg.value.clone()),
                             is_rest: false,
-                            span: arg.span.clone(),
+                            span: arg.span,
                         });
                     } else {
                         self.error(ParseError::ExpectedIdent {
@@ -1721,10 +1721,8 @@ impl<'source> Parser<'source> {
                 self.advance();
                 self.consume(TokenKind::FatArrow, "=>");
                 default = Some(self.parse_block()?);
-            } else {
-                if let Some(arm) = self.parse_select_arm() {
-                    arms.push(arm);
-                }
+            } else if let Some(arm) = self.parse_select_arm() {
+                arms.push(arm);
             }
             self.skip_newlines();
         }
@@ -2147,6 +2145,7 @@ impl<'source> Parser<'source> {
                 let mut expr_str = String::new();
                 let mut brace_depth = 1;
 
+                #[allow(clippy::while_let_on_iterator)]
                 while let Some(ec) = chars.next() {
                     if ec == '{' {
                         brace_depth += 1;
@@ -2232,7 +2231,12 @@ mod tests {
             ItemKind::Statement(stmt) => match &stmt.node {
                 StatementKind::Assignment(assign) => {
                     assert_eq!(assign.targets.len(), 1);
-                    assert_eq!(assign.targets[0].name.node.as_str(), "x");
+                    match &assign.targets[0].path {
+                        AssignPath::Identifier(name) => {
+                            assert_eq!(name.node.as_str(), "x");
+                        }
+                        _ => panic!("expected identifier"),
+                    }
                 }
                 _ => panic!("expected assignment"),
             },

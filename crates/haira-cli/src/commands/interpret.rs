@@ -168,7 +168,7 @@ fn analyze_name_patterns(name: &str) {
 
     // Identify noun (likely type reference)
     if parts.len() > 1 {
-        let nouns: Vec<&str> = parts[1..].iter().copied().collect();
+        let nouns: Vec<&str> = parts[1..].to_vec();
         println!("  Nouns: {:?}", nouns);
 
         // Check for pluralization

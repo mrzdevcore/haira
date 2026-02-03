@@ -1,0 +1,308 @@
+\chapter{Overview}
+\label{ch:overview}
+
+\haira{} is a statically-typed, compiled programming language that brings AI-assisted code generation into the compilation pipeline. It compiles to native binaries via Cranelift, with no runtime dependencies.
+
+\section{Hello, World}
+
+\begin{lstlisting}
+import "io"
+
+fn main() {
+    io.println("Hello, World!")
+}
+\end{lstlisting}
+
+To compile and run:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ haira build hello.haira
+$ ./hello
+Hello, World!
+\end{lstlisting}
+
+\section{Language Characteristics}
+
+\subsection{Explicit Imports}
+
+All dependencies are explicitly declared at the top of each file:
+
+\begin{lstlisting}
+import "io"
+import "json"
+import db from "haira/postgres"
+\end{lstlisting}
+
+\subsection{Go-Style Error Handling}
+
+Functions that can fail return a tuple of result and error:
+
+\begin{lstlisting}
+import "io"
+import "fs"
+
+fn main() {
+    content, err = fs.read_file("config.json")
+    if err != nil {
+        io.println("Error: " + err.message)
+        return
+    }
+    io.println(content)
+}
+\end{lstlisting}
+
+\subsection{Explicit AI Blocks}
+
+AI-generated code is explicit, using the \keyword{ai} keyword:
+
+\begin{lstlisting}
+import "io"
+
+struct User {
+    name: string
+    email: string
+    posts: []Post
+}
+
+ai summarize_user(user: User) -> string {
+    Generate a brief, human-readable summary of this user
+    including their name and post count.
+}
+
+fn main() {
+    user = User{
+        name: "Alice",
+        email: "alice@example.com",
+        posts: []
+    }
+    io.println(summarize_user(user))
+}
+\end{lstlisting}
+
+\begin{note}
+AI blocks are processed at \textbf{compile time}. The generated code is cached and included in the binary. There are no AI dependencies at runtime.
+\end{note}
+
+\subsection{Local-First AI}
+
+AI code generation uses local models by default:
+
+\begin{enumerate}
+    \item \textbf{llama.cpp} -- Primary backend, runs local GGUF models
+    \item \textbf{Ollama} -- Secondary, connects to local Ollama server
+    \item \textbf{Cloud APIs} -- Optional fallback (Anthropic, OpenAI)
+\end{enumerate}
+
+Configuration in \code{haira.toml}:
+
+\begin{lstlisting}[language={}]
+[ai]
+backend = "llama.cpp"
+model_path = "~/.haira/models/codellama-7b.gguf"
+\end{lstlisting}
+
+\section{Type System}
+
+\haira{} uses structural typing with type inference for local variables:
+
+\begin{lstlisting}
+// Type inferred as int
+count = 42
+
+// Explicit type annotation
+name: string = "Haira"
+
+// Struct definition
+struct Point {
+    x: float
+    y: float
+}
+
+// Option type (nullable)
+maybe_value: int? = nil
+
+// Arrays and maps
+numbers: []int = [1, 2, 3]
+scores: [string:int] = ["alice": 100, "bob": 95]
+\end{lstlisting}
+
+\section{Control Flow}
+
+\begin{lstlisting}
+import "io"
+
+fn main() {
+    // If-else
+    x = 10
+    if x > 5 {
+        io.println("Large")
+    } else {
+        io.println("Small")
+    }
+
+    // For loop with range
+    for i in 0..5 {
+        io.println(i)
+    }
+
+    // While loop
+    n = 0
+    while n < 3 {
+        io.println(n)
+        n = n + 1
+    }
+
+    // Match expression
+    status = 200
+    match status {
+        200 => io.println("OK")
+        404 => io.println("Not Found")
+        500 => io.println("Server Error")
+        _ => io.println("Unknown")
+    }
+}
+\end{lstlisting}
+
+\section{Functions}
+
+Functions are declared with \keyword{fn}:
+
+\begin{lstlisting}
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+// Multiple return values
+fn divide(a: int, b: int) -> (int, Error?) {
+    if b == 0 {
+        return 0, Error{message: "division by zero"}
+    }
+    return a / b, nil
+}
+
+// Closures
+fn make_adder(n: int) -> fn(int) -> int {
+    return fn(x: int) -> int {
+        return x + n
+    }
+}
+\end{lstlisting}
+
+\section{Concurrency}
+
+\haira{} provides Go-style concurrency with \keyword{spawn} and channels:
+
+\begin{lstlisting}
+import "io"
+
+fn main() {
+    ch = chan<int>(10)  // Buffered channel
+
+    spawn {
+        for i in 0..5 {
+            ch <- i
+        }
+        close(ch)
+    }
+
+    for value in ch {
+        io.println(value)
+    }
+}
+\end{lstlisting}
+
+\section{Pipe Operator}
+
+The pipe operator \code{|} enables functional composition:
+
+\begin{lstlisting}
+import "io"
+import "string"
+import "array"
+
+fn main() {
+    result = "  hello, world  "
+        | string.trim
+        | string.to_upper
+        | string.split(", ")
+        | array.first
+
+    io.println(result)  // "HELLO"
+}
+\end{lstlisting}
+
+\section{A Complete Example}
+
+\begin{lstlisting}
+import "io"
+import "http"
+import "json"
+
+struct User {
+    id: int
+    name: string
+    email: string
+}
+
+ai validate_email(email: string) -> (bool, string?) {
+    Validate the email format and return whether it's valid.
+    If invalid, return an error message explaining why.
+}
+
+fn create_user(name: string, email: string) -> (User, Error?) {
+    valid, reason = validate_email(email)
+    if not valid {
+        return User{}, Error{message: reason or "Invalid email"}
+    }
+
+    user = User{
+        id: generate_id(),
+        name: name,
+        email: email
+    }
+
+    return user, nil
+}
+
+fn main() {
+    user, err = create_user("Alice", "alice@example.com")
+    if err != nil {
+        io.println("Failed: " + err.message)
+        return
+    }
+
+    io.println("Created user: " + user.name)
+}
+
+fn generate_id() -> int {
+    // Simple ID generation
+    return 1
+}
+\end{lstlisting}
+
+\section{Implementation Status}
+
+This specification documents the complete \haira{} language. Implementation proceeds incrementally:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llc}
+\toprule
+\textbf{Feature} & \textbf{Chapter} & \textbf{Target Release} \\
+\midrule
+Lexer \& Parser & 2--3 & v0.1 \\
+Expressions \& Statements & 4--5 & v0.2 \\
+Functions & 6 & v0.3 \\
+Error Handling & 7 & v0.3 \\
+Concurrency & 8 & v0.4 \\
+Modules \& Stdlib & 9--10 & v0.5 \\
+Advanced Features & 11 & v0.6 \\
+AI Integration & 12--13 & v1.0 \\
+\bottomrule
+\end{tabular}
+\caption{Implementation roadmap by chapter}
+\end{table}
+
+\begin{implementation}
+Features not yet implemented will produce clear error messages indicating the target release version.
+\end{implementation}

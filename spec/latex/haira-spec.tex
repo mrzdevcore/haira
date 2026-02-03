@@ -1,0 +1,343 @@
+% Haira Language Specification
+% Version 1.0 Draft
+\documentclass[11pt,a4paper]{book}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Page geometry
+\geometry{
+    left=3cm,
+    right=3cm,
+    top=2.5cm,
+    bottom=2.5cm
+}
+
+% Colors
+\definecolor{hairaBlue}{RGB}{41, 98, 255}
+\definecolor{hairaGray}{RGB}{100, 100, 100}
+\definecolor{codeBg}{RGB}{248, 248, 248}
+\definecolor{codeFrame}{RGB}{200, 200, 200}
+\definecolor{keyword}{RGB}{0, 0, 180}
+\definecolor{string}{RGB}{0, 128, 0}
+\definecolor{comment}{RGB}{128, 128, 128}
+\definecolor{identifier}{RGB}{0, 0, 0}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=hairaBlue,
+    urlcolor=hairaBlue,
+    citecolor=hairaBlue,
+    pdfauthor={Haira Team},
+    pdftitle={The Haira Programming Language Specification},
+    pdfsubject={Language Specification},
+}
+
+% Code listing style
+\lstdefinelanguage{Haira}{
+    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, from, as, nil, true, false, in, and, or, not, spawn, chan, select, ai, try, catch, defer},
+    keywordstyle=\color{keyword}\bfseries,
+    ndkeywords={int, float, bool, string, Error},
+    ndkeywordstyle=\color{hairaBlue},
+    identifierstyle=\color{identifier},
+    sensitive=true,
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    commentstyle=\color{comment}\itshape,
+    stringstyle=\color{string},
+    morestring=[b]",
+    morestring=[b]',
+}
+
+\lstset{
+    language=Haira,
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codeBg},
+    frame=single,
+    framesep=5pt,
+    rulecolor=\color{codeFrame},
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=4,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny\color{hairaGray},
+    numbersep=8pt,
+    xleftmargin=15pt,
+    xrightmargin=5pt,
+    aboveskip=10pt,
+    belowskip=10pt,
+}
+
+% EBNF style
+\lstdefinelanguage{EBNF}{
+    keywords={},
+    morestring=[b]",
+    commentstyle=\color{comment}\itshape,
+    stringstyle=\color{string},
+    basicstyle=\ttfamily\small,
+}
+
+% Header/footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[LO]{\nouppercase{\rightmark}}
+\fancyhead[RE]{\nouppercase{\leftmark}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Chapter title format
+\titleformat{\chapter}[display]
+    {\normalfont\huge\bfseries\color{hairaBlue}}
+    {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+% Custom environments
+\tcbuselibrary{skins,breakable}
+
+\newtcolorbox{note}{
+    colback=blue!5,
+    colframe=hairaBlue,
+    title=Note,
+    fonttitle=\bfseries,
+    breakable
+}
+
+\newtcolorbox{warning}{
+    colback=orange!5,
+    colframe=orange!80!black,
+    title=Warning,
+    fonttitle=\bfseries,
+    breakable
+}
+
+\newtcolorbox{implementation}{
+    colback=green!5,
+    colframe=green!60!black,
+    title=Implementation Note,
+    fonttitle=\bfseries,
+    breakable
+}
+
+% Custom commands
+\newcommand{\haira}{\textsc{Haira}}
+\newcommand{\keyword}[1]{\texttt{\textbf{#1}}}
+\newcommand{\type}[1]{\texttt{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Document info
+\title{
+    \vspace{-2cm}
+    {\Huge\bfseries\color{hairaBlue} The Haira Programming Language}\\[0.5cm]
+    {\Large Language Specification}\\[1cm]
+    {\large Version 1.0 Draft}
+}
+\author{Haira Team}
+\date{\today}
+
+\begin{document}
+
+% Title page
+\maketitle
+\thispagestyle{empty}
+
+% Copyright page
+\newpage
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+\textcopyright{} 2024-2026 Haira Team\\[1em]
+This specification is licensed under CC BY 4.0.\\[2em]
+\textbf{Document Version:} 1.0 Draft\\
+\textbf{Language Version:} 1.0\\
+\textbf{Last Updated:} \today
+\end{center}
+\vspace*{\fill}
+
+% Table of contents
+\tableofcontents
+
+% Preface
+\chapter*{Preface}
+\addcontentsline{toc}{chapter}{Preface}
+
+\haira{} is a modern, compiled programming language designed for the AI era. It combines the simplicity of Go, the safety of Rust, and the expressiveness of modern functional languages, while introducing first-class AI integration for code generation.
+
+\section*{Design Philosophy}
+
+\begin{enumerate}
+    \item \textbf{Explicit is better than implicit} -- All dependencies, AI invocations, and behaviors are clearly stated in code.
+    \item \textbf{Local-first AI} -- AI code generation happens at compile time using local models (llama.cpp, Ollama) with optional cloud fallback.
+    \item \textbf{Go-style simplicity} -- Familiar error handling, explicit imports, and straightforward syntax.
+    \item \textbf{Zero-cost abstractions} -- High-level constructs compile to efficient native code.
+    \item \textbf{Compile-time guarantees} -- No runtime AI dependencies; binaries are standalone.
+\end{enumerate}
+
+\section*{Target Domains}
+
+\haira{} is designed for:
+\begin{itemize}
+    \item Systems programming
+    \item Command-line tools
+    \item AI-assisted application development
+    \item Web services and APIs
+    \item Data processing pipelines
+\end{itemize}
+
+\section*{Implementation Roadmap}
+
+This specification is organized so that each chapter can be implemented incrementally:
+
+\begin{longtable}{lll}
+\toprule
+\textbf{Release} & \textbf{Chapters} & \textbf{Features} \\
+\midrule
+\endhead
+v0.1 & 1--3 & Lexer, parser, basic types \\
+v0.2 & 4--5 & Expressions, statements \\
+v0.3 & 6--7 & Functions, error handling \\
+v0.4 & 8 & Concurrency primitives \\
+v0.5 & 9--10 & Modules, standard library \\
+v0.6 & 11--12 & Advanced features, full grammar \\
+v1.0 & 13--15 & AI integration, compiler completion \\
+\bottomrule
+\end{longtable}
+
+% Part I: Core Language
+\part{Core Language}
+
+\input{chapters/01-overview}
+\input{chapters/02-lexical-structure}
+\input{chapters/03-types}
+\input{chapters/04-expressions}
+\input{chapters/05-statements}
+\input{chapters/06-functions}
+\input{chapters/07-error-handling}
+
+% Part II: Advanced Features
+\part{Advanced Features}
+
+\input{chapters/08-concurrency}
+\input{chapters/09-modules}
+\input{chapters/10-standard-library}
+\input{chapters/11-advanced-features}
+
+% Part III: AI Integration
+\part{AI Integration}
+
+\input{chapters/12-ai-integration}
+\input{chapters/13-cir-specification}
+
+% Part IV: Implementation
+\part{Implementation}
+
+\input{chapters/14-grammar}
+\input{chapters/15-compiler-architecture}
+
+% Appendices
+\appendix
+
+\chapter{Reserved Keywords}
+\label{app:keywords}
+
+The following identifiers are reserved as keywords and cannot be used as identifiers:
+
+\begin{lstlisting}[numbers=none]
+ai        and       as        break     catch
+chan      continue  defer     else      enum
+false     fn        for       from      if
+import    in        match     nil       not
+or        return    select    spawn     struct
+true      try       type      while
+\end{lstlisting}
+
+\chapter{Operator Precedence}
+\label{app:precedence}
+
+Operators are listed from highest to lowest precedence:
+
+\begin{longtable}{lll}
+\toprule
+\textbf{Precedence} & \textbf{Operators} & \textbf{Associativity} \\
+\midrule
+\endhead
+1 (highest) & \code{()} \code{[]} \code{.} & Left \\
+2 & \code{!} \code{-} (unary) \code{not} & Right \\
+3 & \code{*} \code{/} \code{\%} & Left \\
+4 & \code{+} \code{-} & Left \\
+5 & \code{..} \code{..=} & None \\
+6 & \code{|} (pipe) & Left \\
+7 & \code{<} \code{>} \code{<=} \code{>=} & Left \\
+8 & \code{==} \code{!=} & Left \\
+9 & \code{and} \code{\&\&} & Left \\
+10 & \code{or} \code{||} & Left \\
+11 (lowest) & \code{=} \code{+=} \code{-=} \code{*=} \code{/=} & Right \\
+\bottomrule
+\end{longtable}
+
+\chapter{Standard Library Reference}
+\label{app:stdlib}
+
+Quick reference for standard library modules. See Chapter~\ref{ch:stdlib} for full documentation.
+
+\begin{longtable}{ll}
+\toprule
+\textbf{Module} & \textbf{Description} \\
+\midrule
+\endhead
+\code{io} & Input/output operations \\
+\code{string} & String manipulation \\
+\code{math} & Mathematical functions \\
+\code{array} & Array operations \\
+\code{map} & Map/dictionary operations \\
+\code{json} & JSON encoding/decoding \\
+\code{http} & HTTP client/server \\
+\code{fs} & File system operations \\
+\code{os} & Operating system interface \\
+\code{time} & Time and duration \\
+\code{crypto} & Cryptographic functions \\
+\code{regex} & Regular expressions \\
+\code{net} & Network primitives \\
+\bottomrule
+\end{longtable}
+
+\chapter{CIR Schema}
+\label{app:cir}
+
+Complete JSON schema for the Canonical Intermediate Representation (CIR). See Chapter~\ref{ch:cir} for semantics.
+
+\begin{lstlisting}[language={}]
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CIR",
+  "type": "object",
+  "required": ["version", "body"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "body": { "$ref": "#/$defs/statement_list" }
+  }
+}
+\end{lstlisting}
+
+(Full schema in Chapter~\ref{ch:cir})
+
+% Index (uncomment when index entries are added)
+% \backmatter
+% \printindex
+
+\end{document}

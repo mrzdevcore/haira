@@ -1,0 +1,390 @@
+\chapter{AI Integration}
+\label{ch:ai}
+
+\haira{} provides first-class AI integration for code generation. AI blocks allow developers to describe intent in natural language, with implementations generated at compile time.
+
+\section{Philosophy}
+
+\begin{itemize}
+    \item \textbf{Explicit invocation} -- AI is only used when explicitly requested via \keyword{ai} blocks
+    \item \textbf{Compile-time generation} -- All AI processing happens during compilation
+    \item \textbf{Local-first} -- Prefer local models (llama.cpp, Ollama) over cloud APIs
+    \item \textbf{Deterministic builds} -- Generated code is cached for reproducibility
+    \item \textbf{Type-safe output} -- Generated code must match declared signatures
+\end{itemize}
+
+\section{AI Block Syntax}
+
+\begin{lstlisting}
+ai function_name(param1: Type1, param2: Type2) -> ReturnType {
+    Natural language description of what the function should do.
+    Can span multiple lines.
+    Include examples and constraints as needed.
+}
+\end{lstlisting}
+
+\subsection{Basic Example}
+
+\begin{lstlisting}
+import "io"
+
+struct User {
+    name: string
+    email: string
+    created_at: int
+}
+
+ai format_user(user: User) -> string {
+    Format the user information into a human-readable string.
+    Include the name, email, and how long ago they registered.
+    Example: "Alice (alice@example.com) - joined 3 days ago"
+}
+
+fn main() {
+    user = User{
+        name: "Alice",
+        email: "alice@example.com",
+        created_at: 1709251200
+    }
+    io.println(format_user(user))
+}
+\end{lstlisting}
+
+\subsection{Complex Example}
+
+\begin{lstlisting}
+struct Transaction {
+    id: string
+    amount: float
+    currency: string
+    timestamp: int
+    category: string
+}
+
+ai analyze_spending(transactions: []Transaction) -> SpendingReport {
+    Analyze the list of transactions and generate a spending report.
+
+    The report should include:
+    - Total spending per category
+    - Average transaction amount
+    - Highest and lowest transactions
+    - Month-over-month comparison if data spans multiple months
+
+    Handle edge cases:
+    - Empty transaction list should return a report with zero values
+    - Mixed currencies should be converted to USD using approximate rates
+}
+
+struct SpendingReport {
+    by_category: [string:float]
+    average_amount: float
+    highest: Transaction?
+    lowest: Transaction?
+    mom_change: float?
+}
+\end{lstlisting}
+
+\section{AI Backend Configuration}
+
+Configure AI backends in \code{haira.toml}:
+
+\begin{lstlisting}[language={}]
+[ai]
+# Primary backend (choose one)
+backend = "llama.cpp"    # Local llama.cpp
+# backend = "ollama"     # Local Ollama server
+# backend = "anthropic"  # Anthropic API
+# backend = "openai"     # OpenAI API
+
+# llama.cpp settings
+[ai.llama]
+model_path = "~/.haira/models/codellama-7b.gguf"
+context_size = 4096
+threads = 8
+gpu_layers = 32
+
+# Ollama settings
+[ai.ollama]
+host = "localhost:11434"
+model = "deepseek-coder-v2:16b"
+timeout = 60
+
+# Anthropic settings
+[ai.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
+model = "claude-sonnet-4-20250514"
+
+# OpenAI settings
+[ai.openai]
+api_key = "${OPENAI_API_KEY}"
+model = "gpt-4"
+
+# Caching
+[ai.cache]
+enabled = true
+directory = ".haira/ai-cache"
+\end{lstlisting}
+
+\subsection{Backend Priority}
+
+When multiple backends are available:
+
+\begin{enumerate}
+    \item Try configured primary backend
+    \item Fall back to other local backends
+    \item Fall back to cloud backends (if configured)
+    \item Error if no backend available
+\end{enumerate}
+
+\subsection{CLI Overrides}
+
+\begin{lstlisting}[language=bash,numbers=none]
+# Use specific backend
+haira build main.haira --ai-backend=ollama
+
+# Offline mode (cache only)
+haira build main.haira --offline
+
+# Regenerate all AI blocks
+haira build main.haira --refresh-ai
+
+# Disable AI (error on ai blocks)
+haira build main.haira --no-ai
+\end{lstlisting}
+
+\section{Compile-Time Processing}
+
+\subsection{Generation Flow}
+
+\begin{enumerate}
+    \item Parser encounters \keyword{ai} block
+    \item Extract: function signature, intent description, surrounding context
+    \item Generate cache key: \code{sha256(intent + signature + context)}
+    \item Check cache for existing generation
+    \item If not cached: invoke AI backend with structured prompt
+    \item Parse generated code (CIR format)
+    \item Validate against declared signature
+    \item Insert into AST as regular function
+    \item Cache result for future builds
+\end{enumerate}
+
+\subsection{Context Awareness}
+
+AI blocks have access to:
+
+\begin{itemize}
+    \item Function signature (parameters, return type)
+    \item Type definitions used in signature
+    \item Imported modules and their public interfaces
+    \item Other functions in the same file
+\end{itemize}
+
+\begin{lstlisting}
+struct User {
+    name: string
+    posts: []Post
+}
+
+struct Post {
+    title: string
+    likes: int
+}
+
+// AI can see User and Post definitions
+ai get_popular_posts(user: User, min_likes: int) -> []Post {
+    Return all posts from the user that have at least min_likes likes.
+    Sort by likes in descending order.
+}
+\end{lstlisting}
+
+\section{CIR: Canonical Intermediate Representation}
+
+AI backends output CIR, a JSON-based intermediate format that represents \haira{} code.
+
+\subsection{CIR Structure}
+
+\begin{lstlisting}[language={}]
+{
+  "version": "1.0",
+  "body": [
+    {
+      "type": "statement",
+      "kind": "variable_decl",
+      "name": "result",
+      "value": { ... }
+    },
+    {
+      "type": "statement",
+      "kind": "return",
+      "value": { ... }
+    }
+  ]
+}
+\end{lstlisting}
+
+See Chapter~\ref{ch:cir} for the complete CIR specification.
+
+\subsection{Why CIR?}
+
+\begin{itemize}
+    \item \textbf{Structured output} -- Easier for AI to generate correctly
+    \item \textbf{Validation} -- Can validate structure before code generation
+    \item \textbf{Language evolution} -- CIR can remain stable as syntax changes
+    \item \textbf{Debugging} -- Easier to inspect and debug than raw code
+\end{itemize}
+
+\section{Caching and Reproducibility}
+
+\subsection{Cache Key Generation}
+
+\begin{lstlisting}[language={}]
+cache_key = sha256(
+    intent_description +
+    function_signature +
+    type_definitions +
+    haira_version +
+    ai_backend_version
+)
+\end{lstlisting}
+
+\subsection{Cache Location}
+
+\begin{lstlisting}[language={}]
+.haira/
+  ai-cache/
+    ab12cd34.json     # Cached CIR
+    ab12cd34.meta     # Metadata (timestamps, backend used)
+\end{lstlisting}
+
+\subsection{Cache Commands}
+
+\begin{lstlisting}[language=bash,numbers=none]
+# View cache statistics
+haira ai cache-stats
+
+# Clear cache
+haira ai cache-clear
+
+# Export cache (for CI/CD)
+haira ai cache-export --output cache.tar.gz
+
+# Import cache
+haira ai cache-import cache.tar.gz
+\end{lstlisting}
+
+\section{Best Practices}
+
+\subsection{When to Use AI Blocks}
+
+\textbf{Good use cases:}
+\begin{itemize}
+    \item Data transformation and formatting
+    \item Text processing and parsing
+    \item Business logic with clear rules
+    \item Utility functions with well-defined behavior
+\end{itemize}
+
+\textbf{Poor use cases:}
+\begin{itemize}
+    \item Security-critical code
+    \item Performance-critical hot paths
+    \item Code requiring external state or I/O
+    \item Complex algorithms with specific requirements
+\end{itemize}
+
+\subsection{Writing Good Intent Descriptions}
+
+\begin{lstlisting}
+// BAD: Too vague
+ai process(data: []int) -> int {
+    Process the data.
+}
+
+// GOOD: Specific and detailed
+ai calculate_median(numbers: []int) -> float {
+    Calculate the median value of the given numbers.
+
+    For odd-length arrays, return the middle element.
+    For even-length arrays, return the average of the two middle elements.
+
+    Handle edge cases:
+    - Empty array: return 0.0
+    - Single element: return that element as float
+
+    Example:
+    - [1, 3, 5] -> 3.0
+    - [1, 2, 3, 4] -> 2.5
+}
+\end{lstlisting}
+
+\subsection{Testing AI-Generated Code}
+
+\begin{lstlisting}
+ai parse_date(s: string) -> (Date, Error?) {
+    Parse a date string in various formats:
+    - "2024-03-15"
+    - "March 15, 2024"
+    - "15/03/2024"
+    Return error for invalid formats.
+}
+
+#[test]
+fn test_parse_date() {
+    // Test ISO format
+    date, err = parse_date("2024-03-15")
+    assert(err == nil)
+    assert(date.year == 2024)
+    assert(date.month == 3)
+    assert(date.day == 15)
+
+    // Test invalid format
+    _, err = parse_date("not a date")
+    assert(err != nil)
+}
+\end{lstlisting}
+
+\section{Error Handling}
+
+\subsection{Compilation Errors}
+
+\begin{lstlisting}[language={}]
+error[AI001]: AI generation failed
+  --> src/main.haira:15:1
+   |
+15 | ai complex_function(...) -> Result {
+   | ^^^ AI backend returned invalid CIR
+   |
+   = note: Backend error: "Unable to generate implementation"
+   = help: Try simplifying the intent description
+
+error[AI002]: Generated code type mismatch
+  --> src/main.haira:20:1
+   |
+20 | ai transform(x: int) -> string {
+   | ^^^ Expected return type `string`, got `int`
+   |
+   = note: AI generated code returning wrong type
+   = help: Regenerate with --refresh-ai
+\end{lstlisting}
+
+\subsection{Fallback Behavior}
+
+\begin{lstlisting}
+// Provide fallback implementation
+ai smart_parse(input: string) -> Data {
+    Parse the input intelligently, handling various formats.
+} fallback {
+    // Manual implementation if AI fails
+    return basic_parse(input)
+}
+\end{lstlisting}
+
+\section{AI Block Grammar}
+
+\begin{lstlisting}[language=EBNF]
+ai_block = "ai" identifier "(" [ params ] ")" [ "->" type ]
+           "{" intent_description "}"
+           [ "fallback" block ] ;
+
+intent_description = { any_char } ;  (* Free-form text *)
+\end{lstlisting}

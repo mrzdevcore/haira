@@ -1,0 +1,450 @@
+\chapter{Functions}
+\label{ch:functions}
+
+Functions are the primary unit of code organization in \haira{}. They are first-class values that can be passed as arguments, returned from other functions, and stored in variables.
+
+\section{Function Declarations}
+
+\begin{lstlisting}
+fn function_name(param1: Type1, param2: Type2) -> ReturnType {
+    // body
+}
+\end{lstlisting}
+
+\subsection{Basic Examples}
+
+\begin{lstlisting}
+fn greet() {
+    io.println("Hello!")
+}
+
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn is_positive(n: int) -> bool {
+    return n > 0
+}
+\end{lstlisting}
+
+\subsection{No Return Type}
+
+Functions without a return type implicitly return \code{()}:
+
+\begin{lstlisting}
+fn log_message(msg: string) {
+    io.println("[LOG] " + msg)
+}
+\end{lstlisting}
+
+\section{Parameters}
+
+\subsection{Required Parameters}
+
+All parameters must have explicit type annotations:
+
+\begin{lstlisting}
+fn calculate(x: int, y: int, z: float) -> float {
+    return (x + y) as float * z
+}
+\end{lstlisting}
+
+\subsection{Default Parameters}
+
+Parameters can have default values:
+
+\begin{lstlisting}
+fn greet(name: string, greeting: string = "Hello") {
+    io.println(greeting + ", " + name + "!")
+}
+
+greet("Alice")              // "Hello, Alice!"
+greet("Bob", "Hi")          // "Hi, Bob!"
+\end{lstlisting}
+
+\begin{note}
+Parameters with defaults must come after parameters without defaults.
+\end{note}
+
+\subsection{Named Arguments}
+
+Functions can be called with named arguments:
+
+\begin{lstlisting}
+fn create_user(name: string, email: string, age: int = 0) -> User {
+    return User{name: name, email: email, age: age}
+}
+
+// Positional
+create_user("Alice", "alice@example.com", 30)
+
+// Named
+create_user(name: "Bob", email: "bob@example.com")
+
+// Mixed (positional first, then named)
+create_user("Charlie", email: "charlie@example.com", age: 25)
+\end{lstlisting}
+
+\subsection{Variadic Parameters}
+
+Functions can accept variable numbers of arguments:
+
+\begin{lstlisting}
+fn sum(numbers: ...int) -> int {
+    total = 0
+    for n in numbers {
+        total += n
+    }
+    return total
+}
+
+sum(1, 2, 3)        // 6
+sum(1, 2, 3, 4, 5)  // 15
+\end{lstlisting}
+
+\section{Return Values}
+
+\subsection{Single Return}
+
+\begin{lstlisting}
+fn double(n: int) -> int {
+    return n * 2
+}
+\end{lstlisting}
+
+\subsection{Multiple Returns}
+
+Functions can return multiple values using tuples:
+
+\begin{lstlisting}
+fn divide(a: int, b: int) -> (int, int) {
+    return a / b, a % b
+}
+
+quotient, remainder = divide(17, 5)  // 3, 2
+\end{lstlisting}
+
+\subsection{Implicit Return}
+
+The last expression in a function body is implicitly returned:
+
+\begin{lstlisting}
+fn add(a: int, b: int) -> int {
+    a + b  // Implicit return
+}
+
+fn max(a: int, b: int) -> int {
+    if a > b { a } else { b }  // Implicit return
+}
+\end{lstlisting}
+
+\subsection{Early Return}
+
+Use \keyword{return} for early exit:
+
+\begin{lstlisting}
+fn factorial(n: int) -> int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+\end{lstlisting}
+
+\section{Function Types}
+
+Functions have types that can be used in type annotations:
+
+\begin{lstlisting}
+// Function type: fn(int, int) -> int
+type BinaryOp = fn(int, int) -> int
+
+fn apply(op: BinaryOp, a: int, b: int) -> int {
+    return op(a, b)
+}
+
+fn add(a: int, b: int) -> int { a + b }
+fn mul(a: int, b: int) -> int { a * b }
+
+apply(add, 2, 3)  // 5
+apply(mul, 2, 3)  // 6
+\end{lstlisting}
+
+\section{Closures}
+
+Closures are anonymous functions that can capture values from their environment:
+
+\begin{lstlisting}
+fn make_counter() -> fn() -> int {
+    count = 0
+    return fn() -> int {
+        count += 1
+        return count
+    }
+}
+
+counter = make_counter()
+counter()  // 1
+counter()  // 2
+counter()  // 3
+\end{lstlisting}
+
+\subsection{Closure Syntax}
+
+\begin{lstlisting}
+// Full syntax
+fn(a: int, b: int) -> int {
+    return a + b
+}
+
+// Short syntax (single expression)
+fn(a: int, b: int) -> int { a + b }
+
+// With type inference (in context)
+numbers = [1, 2, 3]
+doubled = array.map(numbers, fn(n) { n * 2 })
+\end{lstlisting}
+
+\subsection{Capture Semantics}
+
+Closures capture variables by reference:
+
+\begin{lstlisting}
+fn example() {
+    values = []
+
+    for i in 0..3 {
+        // Captures 'i' by reference
+        values = array.push(values, fn() { i })
+    }
+
+    // All closures see final value of i
+    values[0]()  // 3
+    values[1]()  // 3
+    values[2]()  // 3
+}
+\end{lstlisting}
+
+To capture by value, use explicit binding:
+
+\begin{lstlisting}
+fn example() {
+    values = []
+
+    for i in 0..3 {
+        captured = i  // Capture current value
+        values = array.push(values, fn() { captured })
+    }
+
+    values[0]()  // 0
+    values[1]()  // 1
+    values[2]()  // 2
+}
+\end{lstlisting}
+
+\section{Methods}
+
+Methods are functions associated with a type:
+
+\begin{lstlisting}
+struct Rectangle {
+    width: float
+    height: float
+}
+
+fn (r: Rectangle) area() -> float {
+    return r.width * r.height
+}
+
+fn (r: Rectangle) perimeter() -> float {
+    return 2.0 * (r.width + r.height)
+}
+
+fn (r: Rectangle) scale(factor: float) -> Rectangle {
+    return Rectangle{
+        width: r.width * factor,
+        height: r.height * factor
+    }
+}
+
+// Usage
+rect = Rectangle{width: 10.0, height: 5.0}
+rect.area()       // 50.0
+rect.perimeter()  // 30.0
+rect.scale(2.0)   // Rectangle{width: 20.0, height: 10.0}
+\end{lstlisting}
+
+\subsection{Method Receiver}
+
+The receiver can be by value or by reference:
+
+\begin{lstlisting}
+// By value (receiver is copied)
+fn (p: Point) distance_to(other: Point) -> float {
+    dx = p.x - other.x
+    dy = p.y - other.y
+    return math.sqrt(dx*dx + dy*dy)
+}
+
+// By mutable reference (can modify receiver)
+fn (p: *Point) translate(dx: float, dy: float) {
+    p.x += dx
+    p.y += dy
+}
+\end{lstlisting}
+
+\section{Generic Functions}
+
+Functions can be parameterized over types:
+
+\begin{lstlisting}
+fn identity<T>(value: T) -> T {
+    return value
+}
+
+fn swap<T, U>(pair: (T, U)) -> (U, T) {
+    return (pair.1, pair.0)
+}
+
+fn first<T>(items: []T) -> T? {
+    if array.len(items) == 0 {
+        return nil
+    }
+    return items[0]
+}
+\end{lstlisting}
+
+\subsection{Type Constraints}
+
+Generic types can be constrained:
+
+\begin{lstlisting}
+constraint Comparable {
+    fn compare(other: Self) -> int
+}
+
+fn max<T: Comparable>(a: T, b: T) -> T {
+    if a.compare(b) > 0 {
+        return a
+    }
+    return b
+}
+
+fn sort<T: Comparable>(items: []T) -> []T {
+    // Sorting implementation
+}
+\end{lstlisting}
+
+\section{Higher-Order Functions}
+
+Functions that take or return other functions:
+
+\begin{lstlisting}
+// Function as parameter
+fn apply_twice(f: fn(int) -> int, x: int) -> int {
+    return f(f(x))
+}
+
+fn double(n: int) -> int { n * 2 }
+
+apply_twice(double, 5)  // 20
+
+// Function as return value
+fn make_multiplier(factor: int) -> fn(int) -> int {
+    return fn(n: int) -> int {
+        return n * factor
+    }
+}
+
+triple = make_multiplier(3)
+triple(7)  // 21
+\end{lstlisting}
+
+\section{Recursion}
+
+Functions can call themselves:
+
+\begin{lstlisting}
+fn factorial(n: int) -> int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fn fibonacci(n: int) -> int {
+    match n {
+        0 => 0
+        1 => 1
+        _ => fibonacci(n - 1) + fibonacci(n - 2)
+    }
+}
+\end{lstlisting}
+
+\subsection{Tail Call Optimization}
+
+\haira{} optimizes tail-recursive functions:
+
+\begin{lstlisting}
+fn factorial_tail(n: int, acc: int = 1) -> int {
+    if n <= 1 {
+        return acc
+    }
+    return factorial_tail(n - 1, n * acc)  // Tail call
+}
+\end{lstlisting}
+
+\section{Function Overloading}
+
+\haira{} does not support function overloading. Each function name must be unique within its scope. Use different names or generic functions instead:
+
+\begin{lstlisting}
+// Instead of overloading, use descriptive names
+fn add_ints(a: int, b: int) -> int { a + b }
+fn add_floats(a: float, b: float) -> float { a + b }
+
+// Or use generics
+fn add<T: Addable>(a: T, b: T) -> T { a + b }
+\end{lstlisting}
+
+\section{The main Function}
+
+Every executable \haira{} program must have a \code{main} function:
+
+\begin{lstlisting}
+fn main() {
+    io.println("Hello, World!")
+}
+
+// With exit code
+fn main() -> int {
+    io.println("Hello, World!")
+    return 0
+}
+\end{lstlisting}
+
+\section{Function Grammar}
+
+\begin{lstlisting}[language=EBNF]
+function_decl = "fn" [ receiver ] identifier [ type_params ]
+                "(" [ params ] ")" [ "->" type ] block ;
+
+receiver = "(" identifier ":" [ "*" ] type ")" ;
+
+type_params = "<" type_param { "," type_param } ">" ;
+
+type_param = identifier [ ":" constraint_list ] ;
+
+constraint_list = identifier { "+" identifier } ;
+
+params = param { "," param } ;
+
+param = identifier ":" [ "..." ] type [ "=" expression ] ;
+
+closure = "fn" "(" [ closure_params ] ")" [ "->" type ]
+          ( block | expression ) ;
+
+closure_params = closure_param { "," closure_param } ;
+
+closure_param = identifier [ ":" type ] ;
+\end{lstlisting}

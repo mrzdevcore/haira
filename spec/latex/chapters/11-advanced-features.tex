@@ -1,0 +1,555 @@
+\chapter{Advanced Features}
+\label{ch:advanced}
+
+This chapter covers advanced language features that build upon the core language.
+
+\section{Generics}
+
+Generics allow functions and types to be parameterized over types.
+
+\subsection{Generic Functions}
+
+\begin{lstlisting}
+fn identity<T>(value: T) -> T {
+    return value
+}
+
+fn swap<T, U>(pair: (T, U)) -> (U, T) {
+    return (pair.1, pair.0)
+}
+
+fn first<T>(items: []T) -> T? {
+    if array.len(items) == 0 {
+        return nil
+    }
+    return items[0]
+}
+
+// Usage - type inferred
+identity(42)           // T = int
+identity("hello")      // T = string
+swap((1, "one"))       // T = int, U = string
+\end{lstlisting}
+
+\subsection{Generic Types}
+
+\begin{lstlisting}
+struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+struct Stack<T> {
+    items: []T
+}
+
+fn (s: *Stack<T>) push<T>(item: T) {
+    s.items = array.push(s.items, item)
+}
+
+fn (s: *Stack<T>) pop<T>() -> T? {
+    if array.len(s.items) == 0 {
+        return nil
+    }
+    s.items, item = array.pop(s.items)
+    return item
+}
+
+// Usage
+stack: Stack<int> = Stack{items: []}
+stack.push(1)
+stack.push(2)
+value = stack.pop()  // 2
+\end{lstlisting}
+
+\subsection{Type Constraints}
+
+Constrain generic types to those implementing certain behaviors:
+
+\begin{lstlisting}
+constraint Comparable {
+    fn compare(other: Self) -> int
+}
+
+constraint Printable {
+    fn to_string() -> string
+}
+
+constraint Hashable {
+    fn hash() -> int
+}
+
+// Constrained generic
+fn max<T: Comparable>(a: T, b: T) -> T {
+    if a.compare(b) > 0 {
+        return a
+    }
+    return b
+}
+
+// Multiple constraints
+fn process<T: Comparable + Printable>(items: []T) {
+    sorted = array.sort(items)
+    for item in sorted {
+        io.println(item.to_string())
+    }
+}
+\end{lstlisting}
+
+\subsection{Where Clauses}
+
+For complex constraints:
+
+\begin{lstlisting}
+fn merge<K, V>(a: [K:V], b: [K:V]) -> [K:V]
+    where K: Hashable + Comparable {
+    result = a
+    for k, v in b {
+        result[k] = v
+    }
+    return result
+}
+\end{lstlisting}
+
+\section{Constraints (Traits)}
+
+Constraints define shared behavior that types can implement.
+
+\subsection{Defining Constraints}
+
+\begin{lstlisting}
+constraint Iterator<T> {
+    fn next() -> T?
+    fn has_next() -> bool
+}
+
+constraint Serializable {
+    fn serialize() -> []byte
+    fn deserialize(data: []byte) -> (Self, Error?)
+}
+
+constraint Ordered {
+    fn less_than(other: Self) -> bool
+    fn greater_than(other: Self) -> bool
+    fn equals(other: Self) -> bool
+}
+\end{lstlisting}
+
+\subsection{Implementing Constraints}
+
+\begin{lstlisting}
+struct Counter {
+    current: int
+    max: int
+}
+
+impl Iterator<int> for Counter {
+    fn next() -> int? {
+        if self.current >= self.max {
+            return nil
+        }
+        value = self.current
+        self.current += 1
+        return value
+    }
+
+    fn has_next() -> bool {
+        return self.current < self.max
+    }
+}
+
+// Usage
+counter = Counter{current: 0, max: 5}
+while counter.has_next() {
+    io.println(counter.next())
+}
+\end{lstlisting}
+
+\subsection{Built-in Constraints}
+
+\begin{lstlisting}
+constraint Eq {
+    fn equals(other: Self) -> bool
+}
+
+constraint Ord: Eq {
+    fn compare(other: Self) -> int  // -1, 0, or 1
+}
+
+constraint Hash {
+    fn hash() -> int
+}
+
+constraint Clone {
+    fn clone() -> Self
+}
+
+constraint Default {
+    fn default() -> Self
+}
+
+constraint Display {
+    fn display() -> string
+}
+
+constraint Debug {
+    fn debug() -> string
+}
+\end{lstlisting}
+
+\section{Union Types}
+
+Union types represent values that can be one of several types.
+
+\subsection{Simple Unions}
+
+\begin{lstlisting}
+type StringOrInt = string | int
+
+fn process(value: StringOrInt) {
+    match value {
+        s: string => io.println("String: " + s)
+        n: int => io.println("Int: " + to_string(n))
+    }
+}
+
+process("hello")
+process(42)
+\end{lstlisting}
+
+\subsection{Tagged Unions (Enums with Data)}
+
+\begin{lstlisting}
+enum Result<T, E> {
+    Ok(T),
+    Err(E)
+}
+
+enum Option<T> {
+    Some(T),
+    None
+}
+
+enum Json {
+    Null,
+    Bool(bool),
+    Number(float),
+    String(string),
+    Array([]Json),
+    Object([string:Json])
+}
+
+// Pattern matching
+fn process_json(json: Json) {
+    match json {
+        Json.Null => io.println("null")
+        Json.Bool(b) => io.println("bool: " + to_string(b))
+        Json.Number(n) => io.println("number: " + to_string(n))
+        Json.String(s) => io.println("string: " + s)
+        Json.Array(items) => {
+            for item in items {
+                process_json(item)
+            }
+        }
+        Json.Object(obj) => {
+            for key, value in obj {
+                io.print(key + ": ")
+                process_json(value)
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Pattern Matching}
+
+Advanced pattern matching features.
+
+\subsection{Destructuring}
+
+\begin{lstlisting}
+// Tuple destructuring
+(x, y, z) = get_coordinates()
+
+// Struct destructuring
+User{name, email, age} = get_user()
+
+// Nested destructuring
+Point{x: Point{x: inner_x, y: _}, y: _} = nested_point
+
+// Array destructuring
+[first, second, ...rest] = items
+[head, ...tail] = list
+\end{lstlisting}
+
+\subsection{Pattern Guards}
+
+\begin{lstlisting}
+match value {
+    n if n < 0 => io.println("negative")
+    n if n == 0 => io.println("zero")
+    n if n > 0 and n < 100 => io.println("small positive")
+    n if n >= 100 => io.println("large")
+}
+\end{lstlisting}
+
+\subsection{Or Patterns}
+
+\begin{lstlisting}
+match status_code {
+    200 | 201 | 204 => io.println("success")
+    400 | 404 | 422 => io.println("client error")
+    500 | 502 | 503 => io.println("server error")
+    _ => io.println("unknown")
+}
+\end{lstlisting}
+
+\subsection{Binding Patterns}
+
+\begin{lstlisting}
+match user {
+    User{name: n, age: a} if a >= 18 => {
+        io.println(n + " is an adult")
+    }
+    User{name: n, age: a} => {
+        io.println(n + " is " + to_string(a) + " years old")
+    }
+}
+\end{lstlisting}
+
+\section{Operator Overloading}
+
+Types can implement operators through constraints.
+
+\begin{lstlisting}
+constraint Add<T> {
+    fn add(other: T) -> T
+}
+
+constraint Sub<T> {
+    fn sub(other: T) -> T
+}
+
+constraint Mul<T> {
+    fn mul(other: T) -> T
+}
+
+constraint Div<T> {
+    fn div(other: T) -> T
+}
+
+struct Vector2 {
+    x: float
+    y: float
+}
+
+impl Add<Vector2> for Vector2 {
+    fn add(other: Vector2) -> Vector2 {
+        return Vector2{
+            x: self.x + other.x,
+            y: self.y + other.y
+        }
+    }
+}
+
+// Usage: a + b calls a.add(b)
+v1 = Vector2{x: 1.0, y: 2.0}
+v2 = Vector2{x: 3.0, y: 4.0}
+v3 = v1 + v2  // Vector2{x: 4.0, y: 6.0}
+\end{lstlisting}
+
+\section{Compile-Time Evaluation}
+
+Constant expressions evaluated at compile time.
+
+\begin{lstlisting}
+const PI = 3.14159265358979
+const TAU = PI * 2.0
+const MAX_BUFFER_SIZE = 1024 * 1024
+
+// Compile-time functions
+const fn factorial(n: int) -> int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+const FACTORIAL_10 = factorial(10)  // Computed at compile time
+\end{lstlisting}
+
+\section{Attributes}
+
+Attributes modify declaration behavior.
+
+\begin{lstlisting}
+// Deprecation
+#[deprecated("Use new_function instead")]
+fn old_function() { }
+
+// Conditional compilation
+#[cfg(os = "linux")]
+fn linux_specific() { }
+
+#[cfg(debug)]
+fn debug_only() { }
+
+// Inlining hints
+#[inline]
+fn small_function() { }
+
+#[inline(never)]
+fn large_function() { }
+
+// Testing
+#[test]
+fn test_something() { }
+
+// Serialization
+#[derive(Serialize, Deserialize)]
+struct Config {
+    #[rename("server_port")]
+    port: int
+
+    #[skip]
+    internal_state: InternalState
+}
+\end{lstlisting}
+
+\section{Macros}
+
+Compile-time code generation.
+
+\begin{lstlisting}
+// Simple macro
+macro debug!(expr) {
+    io.println(stringify!(expr) + " = " + to_string(expr))
+}
+
+debug!(x + y)  // Expands to: io.println("x + y" + " = " + to_string(x + y))
+
+// Variadic macro
+macro println!(format, ...args) {
+    io.printf(format + "\n", args...)
+}
+
+println!("Hello, %s!", name)
+
+// Assert macro
+macro assert!(condition, message = "assertion failed") {
+    if not condition {
+        panic(message + " at " + file!() + ":" + line!())
+    }
+}
+\end{lstlisting}
+
+\section{Unsafe Code}
+
+For low-level operations.
+
+\begin{lstlisting}
+unsafe {
+    // Raw pointer operations
+    ptr = raw_pointer(data)
+    value = *ptr
+    *ptr = new_value
+
+    // FFI calls
+    result = c_function(arg1, arg2)
+}
+
+// Unsafe function
+unsafe fn direct_memory_access(addr: usize) -> u8 {
+    ptr = addr as *u8
+    return *ptr
+}
+\end{lstlisting}
+
+\begin{warning}
+Unsafe code bypasses \haira{}'s safety guarantees. Use only when necessary and document thoroughly.
+\end{warning}
+
+\section{Foreign Function Interface (FFI)}
+
+Calling C code.
+
+\begin{lstlisting}
+// Declare external function
+extern "C" {
+    fn printf(format: *i8, ...) -> i32
+    fn malloc(size: usize) -> *void
+    fn free(ptr: *void)
+}
+
+// Use in unsafe block
+unsafe {
+    ptr = malloc(1024)
+    // Use memory...
+    free(ptr)
+}
+
+// Wrapper for safe interface
+fn safe_alloc(size: int) -> []byte {
+    unsafe {
+        ptr = malloc(size as usize)
+        return bytes_from_raw(ptr, size)
+    }
+}
+\end{lstlisting}
+
+\section{Reflection}
+
+Runtime type information.
+
+\begin{lstlisting}
+import "reflect"
+
+fn describe(value: any) {
+    t = reflect.type_of(value)
+    io.println("Type: " + t.name)
+    io.println("Kind: " + t.kind)
+
+    if t.kind == "struct" {
+        for field in t.fields {
+            io.println("  " + field.name + ": " + field.type.name)
+        }
+    }
+}
+
+struct User {
+    name: string
+    age: int
+}
+
+describe(User{name: "Alice", age: 30})
+// Output:
+// Type: User
+// Kind: struct
+//   name: string
+//   age: int
+\end{lstlisting}
+
+\section{Advanced Features Grammar}
+
+\begin{lstlisting}[language=EBNF]
+generic_params = "<" type_param { "," type_param } ">" ;
+
+type_param = identifier [ ":" constraint_list ] ;
+
+constraint_list = identifier { "+" identifier } ;
+
+where_clause = "where" where_item { "," where_item } ;
+
+where_item = identifier ":" constraint_list ;
+
+constraint_def = "constraint" identifier [ generic_params ] "{"
+                 { fn_signature }
+                 "}" ;
+
+impl_block = "impl" [ generic_params ] identifier "for" type
+             [ where_clause ] "{" { fn_def } "}" ;
+
+union_type = type { "|" type } ;
+
+attribute = "#[" identifier [ "(" attr_args ")" ] "]" ;
+\end{lstlisting}

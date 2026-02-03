@@ -1,0 +1,386 @@
+\chapter{Error Handling}
+\label{ch:errors}
+
+\haira{} uses explicit error handling inspired by Go. Errors are values, not exceptions. Functions that can fail return both a result and an optional error.
+
+\section{Philosophy}
+
+\begin{itemize}
+    \item \textbf{Errors are values} -- Not special control flow
+    \item \textbf{Explicit handling} -- Callers must handle or propagate errors
+    \item \textbf{No hidden control flow} -- No exceptions or stack unwinding
+    \item \textbf{Composable} -- Errors can be wrapped and chained
+\end{itemize}
+
+\section{The Error Type}
+
+The built-in \type{Error} type represents errors:
+
+\begin{lstlisting}
+struct Error {
+    message: string
+    code: int?
+    source: Error?
+}
+\end{lstlisting}
+
+\subsection{Creating Errors}
+
+\begin{lstlisting}
+// Simple error
+err = Error{message: "something went wrong"}
+
+// With error code
+err = Error{message: "permission denied", code: 403}
+
+// Wrapped error (error chaining)
+err = Error{
+    message: "failed to read config",
+    source: original_error
+}
+\end{lstlisting}
+
+\section{Error Return Pattern}
+
+Functions that can fail return a tuple of \code{(result, Error?)}:
+
+\begin{lstlisting}
+fn divide(a: int, b: int) -> (int, Error?) {
+    if b == 0 {
+        return 0, Error{message: "division by zero"}
+    }
+    return a / b, nil
+}
+
+fn read_file(path: string) -> (string, Error?) {
+    // Implementation
+}
+
+fn parse_int(s: string) -> (int, Error?) {
+    // Implementation
+}
+\end{lstlisting}
+
+\section{Handling Errors}
+
+\subsection{Basic Error Checking}
+
+\begin{lstlisting}
+result, err = divide(10, 0)
+if err != nil {
+    io.println("Error: " + err.message)
+    return
+}
+io.println("Result: " + to_string(result))
+\end{lstlisting}
+
+\subsection{Propagating Errors}
+
+\begin{lstlisting}
+fn process_file(path: string) -> (Data, Error?) {
+    content, err = read_file(path)
+    if err != nil {
+        return Data{}, err  // Propagate error
+    }
+
+    data, err = parse_data(content)
+    if err != nil {
+        return Data{}, err  // Propagate error
+    }
+
+    return data, nil
+}
+\end{lstlisting}
+
+\subsection{Wrapping Errors}
+
+Add context when propagating:
+
+\begin{lstlisting}
+fn load_config(path: string) -> (Config, Error?) {
+    content, err = read_file(path)
+    if err != nil {
+        return Config{}, Error{
+            message: "failed to load config from " + path,
+            source: err
+        }
+    }
+
+    config, err = parse_config(content)
+    if err != nil {
+        return Config{}, Error{
+            message: "invalid config format",
+            source: err
+        }
+    }
+
+    return config, nil
+}
+\end{lstlisting}
+
+\section{Error Checking Patterns}
+
+\subsection{Guard Pattern}
+
+Check errors early and return:
+
+\begin{lstlisting}
+fn process(input: string) -> (Output, Error?) {
+    // Guard: validate input
+    if string.len(input) == 0 {
+        return Output{}, Error{message: "input cannot be empty"}
+    }
+
+    // Guard: check prerequisites
+    ready, err = check_ready()
+    if err != nil {
+        return Output{}, err
+    }
+    if not ready {
+        return Output{}, Error{message: "system not ready"}
+    }
+
+    // Main logic
+    result = do_processing(input)
+    return result, nil
+}
+\end{lstlisting}
+
+\subsection{Defer for Cleanup}
+
+Use \keyword{defer} to ensure cleanup happens even on error:
+
+\begin{lstlisting}
+fn with_file(path: string) -> (string, Error?) {
+    file, err = fs.open(path)
+    if err != nil {
+        return "", err
+    }
+    defer fs.close(file)  // Always closes, even on error
+
+    content, err = fs.read_all(file)
+    if err != nil {
+        return "", err  // file is closed by defer
+    }
+
+    return content, nil  // file is closed by defer
+}
+\end{lstlisting}
+
+\section{Error Utilities}
+
+\subsection{Checking Error Types}
+
+\begin{lstlisting}
+fn is_not_found(err: Error?) -> bool {
+    if err == nil {
+        return false
+    }
+    return err.code == 404 or string.contains(err.message, "not found")
+}
+
+fn is_permission_denied(err: Error?) -> bool {
+    if err == nil {
+        return false
+    }
+    return err.code == 403
+}
+\end{lstlisting}
+
+\subsection{Error Chain Traversal}
+
+\begin{lstlisting}
+fn root_cause(err: Error?) -> Error? {
+    if err == nil {
+        return nil
+    }
+    current = err
+    while current.source != nil {
+        current = current.source
+    }
+    return current
+}
+
+fn error_chain(err: Error?) -> []Error {
+    errors = []
+    current = err
+    while current != nil {
+        errors = array.push(errors, current)
+        current = current.source
+    }
+    return errors
+}
+\end{lstlisting}
+
+\section{Option Types and Errors}
+
+For operations that may not find a value (not an error condition), use option types:
+
+\begin{lstlisting}
+// Use option when "not found" is normal
+fn find_user(id: int) -> User? {
+    // Returns nil if not found
+}
+
+// Use error when "not found" is exceptional
+fn get_user(id: int) -> (User, Error?) {
+    // Returns error if not found
+}
+\end{lstlisting}
+
+\subsection{Converting Between Options and Errors}
+
+\begin{lstlisting}
+// Option to error
+fn require_user(id: int) -> (User, Error?) {
+    user = find_user(id)
+    if user == nil {
+        return User{}, Error{message: "user not found", code: 404}
+    }
+    return user, nil
+}
+
+// Error to option (ignoring error)
+fn try_parse_int(s: string) -> int? {
+    result, err = parse_int(s)
+    if err != nil {
+        return nil
+    }
+    return result
+}
+\end{lstlisting}
+
+\section{Panic and Recovery}
+
+For truly unrecoverable situations, use \code{panic}:
+
+\begin{lstlisting}
+fn assert(condition: bool, message: string) {
+    if not condition {
+        panic(message)
+    }
+}
+
+fn unwrap<T>(opt: T?, message: string) -> T {
+    if opt == nil {
+        panic(message)
+    }
+    return opt
+}
+\end{lstlisting}
+
+\begin{warning}
+\code{panic} terminates the program. Use it only for programming errors, not for expected failure conditions. Prefer returning errors for all recoverable situations.
+\end{warning}
+
+\subsection{When to Use Panic}
+
+\begin{itemize}
+    \item Programming bugs (assertions)
+    \item Invariant violations
+    \item Unrecoverable initialization failures
+    \item Unreachable code paths
+\end{itemize}
+
+\subsection{When to Use Errors}
+
+\begin{itemize}
+    \item File not found
+    \item Network failures
+    \item Invalid user input
+    \item Resource exhaustion
+    \item Any expected failure condition
+\end{itemize}
+
+\section{Best Practices}
+
+\subsection{Return Errors, Don't Log and Continue}
+
+\begin{lstlisting}
+// Bad: logs and continues with invalid state
+fn process(data: Data) -> Result {
+    result, err = validate(data)
+    if err != nil {
+        log.error("validation failed: " + err.message)
+        // Continues with unvalidated data!
+    }
+    // ...
+}
+
+// Good: returns error to caller
+fn process(data: Data) -> (Result, Error?) {
+    result, err = validate(data)
+    if err != nil {
+        return Result{}, Error{
+            message: "validation failed",
+            source: err
+        }
+    }
+    // ...
+}
+\end{lstlisting}
+
+\subsection{Add Context When Wrapping}
+
+\begin{lstlisting}
+// Bad: just propagates
+if err != nil {
+    return Result{}, err
+}
+
+// Good: adds context
+if err != nil {
+    return Result{}, Error{
+        message: "failed to process user " + to_string(user_id),
+        source: err
+    }
+}
+\end{lstlisting}
+
+\subsection{Handle Errors at the Right Level}
+
+\begin{lstlisting}
+// Low-level: specific error
+fn read_config_file(path: string) -> ([]byte, Error?) {
+    // Returns "file not found" or "permission denied"
+}
+
+// Mid-level: wrapped with context
+fn load_config(path: string) -> (Config, Error?) {
+    data, err = read_config_file(path)
+    if err != nil {
+        return Config{}, Error{
+            message: "could not load config",
+            source: err
+        }
+    }
+    // Parse...
+}
+
+// High-level: user-friendly handling
+fn main() {
+    config, err = load_config("config.json")
+    if err != nil {
+        io.println("Error: " + err.message)
+        // Could show root_cause for debugging
+        os.exit(1)
+    }
+    // Continue...
+}
+\end{lstlisting}
+
+\section{Error Handling Grammar}
+
+Error handling uses standard language constructs:
+
+\begin{lstlisting}[language=EBNF]
+error_return = "(" type "," "Error?" ")" ;
+
+error_check = "if" identifier "!=" "nil" block ;
+
+error_create = "Error" "{"
+               "message" ":" expression
+               [ "," "code" ":" expression ]
+               [ "," "source" ":" expression ]
+               "}" ;
+\end{lstlisting}

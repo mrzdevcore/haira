@@ -1,0 +1,518 @@
+\chapter{Concurrency}
+\label{ch:concurrency}
+
+\haira{} provides Go-style concurrency primitives: lightweight spawned tasks and channels for communication. The philosophy is ``share memory by communicating'' rather than ``communicate by sharing memory.''
+
+\section{Concurrency Model}
+
+\begin{itemize}
+    \item \textbf{Spawned tasks} -- Lightweight concurrent execution units
+    \item \textbf{Channels} -- Typed conduits for communication
+    \item \textbf{Select} -- Multiplexing channel operations
+    \item \textbf{No shared mutable state} -- Communication via channels
+\end{itemize}
+
+\section{Spawn}
+
+The \keyword{spawn} keyword starts a new concurrent task:
+
+\begin{lstlisting}
+import "io"
+import "time"
+
+fn main() {
+    spawn {
+        time.sleep(1000)
+        io.println("Hello from spawned task!")
+    }
+
+    io.println("Main continues immediately")
+    time.sleep(2000)  // Wait for spawned task
+}
+\end{lstlisting}
+
+\subsection{Spawning Functions}
+
+\begin{lstlisting}
+fn worker(id: int) {
+    io.println("Worker " + to_string(id) + " started")
+    time.sleep(1000)
+    io.println("Worker " + to_string(id) + " done")
+}
+
+fn main() {
+    for i in 0..5 {
+        spawn worker(i)
+    }
+    time.sleep(3000)  // Wait for all workers
+}
+\end{lstlisting}
+
+\subsection{Spawn Returns Handle}
+
+\begin{lstlisting}
+fn compute() -> int {
+    time.sleep(1000)
+    return 42
+}
+
+fn main() {
+    handle = spawn compute()
+
+    // Do other work...
+
+    result = await handle  // Wait for result
+    io.println("Result: " + to_string(result))
+}
+\end{lstlisting}
+
+\section{Channels}
+
+Channels are typed conduits for passing values between tasks:
+
+\begin{lstlisting}
+// Create a channel
+ch = chan<int>()           // Unbuffered channel
+ch = chan<int>(10)         // Buffered channel (capacity 10)
+ch = chan<string>()        // String channel
+\end{lstlisting}
+
+\subsection{Sending and Receiving}
+
+\begin{lstlisting}
+ch = chan<int>()
+
+// Send (blocks until received for unbuffered)
+ch <- 42
+
+// Receive (blocks until value available)
+value = <-ch
+\end{lstlisting}
+
+\subsection{Basic Channel Example}
+
+\begin{lstlisting}
+import "io"
+
+fn main() {
+    ch = chan<string>()
+
+    spawn {
+        ch <- "Hello from spawned task!"
+    }
+
+    message = <-ch
+    io.println(message)
+}
+\end{lstlisting}
+
+\subsection{Buffered Channels}
+
+\begin{lstlisting}
+ch = chan<int>(3)  // Buffer size 3
+
+// These don't block (buffer has space)
+ch <- 1
+ch <- 2
+ch <- 3
+
+// This would block (buffer full)
+// ch <- 4
+
+// Receive
+io.println(<-ch)  // 1
+io.println(<-ch)  // 2
+io.println(<-ch)  // 3
+\end{lstlisting}
+
+\subsection{Closing Channels}
+
+\begin{lstlisting}
+ch = chan<int>(10)
+
+spawn {
+    for i in 0..10 {
+        ch <- i
+    }
+    close(ch)  // Signal no more values
+}
+
+// Iterate until channel closed
+for value in ch {
+    io.println(value)
+}
+
+io.println("Channel closed, loop exited")
+\end{lstlisting}
+
+\subsection{Checking Channel State}
+
+\begin{lstlisting}
+// Receive with closed check
+value, ok = <-ch
+if not ok {
+    io.println("Channel closed")
+}
+
+// Non-blocking receive
+value, ok = ch.try_receive()
+if ok {
+    io.println("Got: " + to_string(value))
+} else {
+    io.println("No value available")
+}
+
+// Non-blocking send
+ok = ch.try_send(42)
+if not ok {
+    io.println("Channel full or closed")
+}
+\end{lstlisting}
+
+\section{Select}
+
+The \keyword{select} statement waits on multiple channel operations:
+
+\begin{lstlisting}
+import "io"
+import "time"
+
+fn main() {
+    ch1 = chan<string>()
+    ch2 = chan<string>()
+
+    spawn {
+        time.sleep(1000)
+        ch1 <- "from channel 1"
+    }
+
+    spawn {
+        time.sleep(500)
+        ch2 <- "from channel 2"
+    }
+
+    // Wait for first available
+    select {
+        msg = <-ch1 => io.println("Received: " + msg)
+        msg = <-ch2 => io.println("Received: " + msg)
+    }
+}
+\end{lstlisting}
+
+\subsection{Select with Default}
+
+Non-blocking select:
+
+\begin{lstlisting}
+select {
+    value = <-ch => io.println("Got: " + to_string(value))
+    default => io.println("No value ready")
+}
+\end{lstlisting}
+
+\subsection{Select with Timeout}
+
+\begin{lstlisting}
+timeout = time.after(5000)  // 5 seconds
+
+select {
+    value = <-ch => io.println("Got: " + to_string(value))
+    <-timeout => io.println("Timed out!")
+}
+\end{lstlisting}
+
+\subsection{Select in Loop}
+
+\begin{lstlisting}
+fn worker(jobs: chan<Job>, results: chan<Result>, done: chan<bool>) {
+    while true {
+        select {
+            job = <-jobs => {
+                result = process(job)
+                results <- result
+            }
+            <-done => {
+                io.println("Worker shutting down")
+                return
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Common Patterns}
+
+\subsection{Worker Pool}
+
+\begin{lstlisting}
+fn worker(id: int, jobs: chan<int>, results: chan<int>) {
+    for job in jobs {
+        io.println("Worker " + to_string(id) + " processing " + to_string(job))
+        time.sleep(100)
+        results <- job * 2
+    }
+}
+
+fn main() {
+    num_jobs = 10
+    num_workers = 3
+
+    jobs = chan<int>(num_jobs)
+    results = chan<int>(num_jobs)
+
+    // Start workers
+    for i in 0..num_workers {
+        spawn worker(i, jobs, results)
+    }
+
+    // Send jobs
+    for j in 0..num_jobs {
+        jobs <- j
+    }
+    close(jobs)
+
+    // Collect results
+    for _ in 0..num_jobs {
+        result = <-results
+        io.println("Result: " + to_string(result))
+    }
+}
+\end{lstlisting}
+
+\subsection{Fan-Out, Fan-In}
+
+\begin{lstlisting}
+fn producer(out: chan<int>) {
+    for i in 0..100 {
+        out <- i
+    }
+    close(out)
+}
+
+fn worker(in: chan<int>, out: chan<int>) {
+    for value in in {
+        out <- value * value
+    }
+}
+
+fn main() {
+    input = chan<int>(100)
+    output = chan<int>(100)
+
+    // Producer
+    spawn producer(input)
+
+    // Fan-out to multiple workers
+    for _ in 0..4 {
+        spawn worker(input, output)
+    }
+
+    // Fan-in (collect results)
+    spawn {
+        time.sleep(1000)
+        close(output)
+    }
+
+    for result in output {
+        io.println(result)
+    }
+}
+\end{lstlisting}
+
+\subsection{Pipeline}
+
+\begin{lstlisting}
+fn generate(out: chan<int>) {
+    for i in 2..100 {
+        out <- i
+    }
+    close(out)
+}
+
+fn filter(in: chan<int>, out: chan<int>, prime: int) {
+    for n in in {
+        if n % prime != 0 {
+            out <- n
+        }
+    }
+    close(out)
+}
+
+fn sieve() -> chan<int> {
+    primes = chan<int>()
+
+    spawn {
+        ch = chan<int>(100)
+        spawn generate(ch)
+
+        while true {
+            prime, ok = <-ch
+            if not ok {
+                break
+            }
+            primes <- prime
+
+            next = chan<int>(100)
+            spawn filter(ch, next, prime)
+            ch = next
+        }
+        close(primes)
+    }
+
+    return primes
+}
+
+fn main() {
+    for prime in sieve() {
+        io.println(prime)
+        if prime > 50 {
+            break
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Semaphore}
+
+\begin{lstlisting}
+struct Semaphore {
+    ch: chan<bool>
+}
+
+fn new_semaphore(n: int) -> Semaphore {
+    sem = Semaphore{ch: chan<bool>(n)}
+    for _ in 0..n {
+        sem.ch <- true
+    }
+    return sem
+}
+
+fn (s: Semaphore) acquire() {
+    <-s.ch
+}
+
+fn (s: Semaphore) release() {
+    s.ch <- true
+}
+
+// Usage: limit concurrent operations
+fn main() {
+    sem = new_semaphore(3)  // Max 3 concurrent
+
+    for i in 0..10 {
+        spawn {
+            sem.acquire()
+            defer sem.release()
+
+            io.println("Task " + to_string(i) + " running")
+            time.sleep(1000)
+        }
+    }
+
+    time.sleep(5000)
+}
+\end{lstlisting}
+
+\section{Channel Types}
+
+\subsection{Directional Channels}
+
+Functions can restrict channel direction:
+
+\begin{lstlisting}
+// Send-only channel
+fn producer(out: chan<-int) {
+    out <- 42
+    // <-out  // Error: cannot receive from send-only channel
+}
+
+// Receive-only channel
+fn consumer(in: <-chan<int>) {
+    value = <-in
+    // in <- 42  // Error: cannot send to receive-only channel
+}
+
+fn main() {
+    ch = chan<int>()
+    spawn producer(ch)   // Converts to chan<-int
+    spawn consumer(ch)   // Converts to <-chan<int>
+}
+\end{lstlisting}
+
+\section{Synchronization}
+
+\subsection{WaitGroup}
+
+Wait for multiple tasks to complete:
+
+\begin{lstlisting}
+import "sync"
+
+fn main() {
+    wg = sync.WaitGroup{}
+
+    for i in 0..5 {
+        wg.add(1)
+        spawn {
+            defer wg.done()
+            io.println("Task " + to_string(i))
+            time.sleep(1000)
+        }
+    }
+
+    wg.wait()  // Block until all done
+    io.println("All tasks completed")
+}
+\end{lstlisting}
+
+\subsection{Mutex}
+
+For rare cases requiring shared state:
+
+\begin{lstlisting}
+import "sync"
+
+struct Counter {
+    mu: sync.Mutex
+    value: int
+}
+
+fn (c: *Counter) increment() {
+    c.mu.lock()
+    defer c.mu.unlock()
+    c.value += 1
+}
+
+fn (c: *Counter) get() -> int {
+    c.mu.lock()
+    defer c.mu.unlock()
+    return c.value
+}
+\end{lstlisting}
+
+\begin{warning}
+Prefer channels over mutexes. Mutexes are provided for interoperability and performance-critical sections, but channel-based designs are generally safer and more idiomatic.
+\end{warning}
+
+\section{Concurrency Grammar}
+
+\begin{lstlisting}[language=EBNF]
+spawn_expr = "spawn" ( block | function_call ) ;
+
+channel_type = "chan" "<" type ">"
+             | "chan<-" type         (* send-only *)
+             | "<-chan<" type ">"    (* receive-only *) ;
+
+channel_create = "chan" "<" type ">" "(" [ expression ] ")" ;
+
+send_stmt = expression "<-" expression ;
+
+receive_expr = "<-" expression ;
+
+select_stmt = "select" "{" { select_case } [ default_case ] "}" ;
+
+select_case = pattern "=" receive_expr "=>" ( expression | block )
+            | send_stmt "=>" ( expression | block ) ;
+
+default_case = "default" "=>" ( expression | block ) ;
+\end{lstlisting}

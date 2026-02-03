@@ -1,0 +1,529 @@
+\chapter{Standard Library}
+\label{ch:stdlib}
+
+The \haira{} standard library provides essential functionality for common programming tasks. All modules must be explicitly imported.
+
+\section{Core Modules}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Module} & \textbf{Description} \\
+\midrule
+\code{io} & Input/output operations \\
+\code{string} & String manipulation \\
+\code{array} & Array operations \\
+\code{map} & Map/dictionary operations \\
+\code{math} & Mathematical functions \\
+\code{conv} & Type conversions \\
+\bottomrule
+\end{tabular}
+\caption{Core modules}
+\end{table}
+
+\section{io Module}
+
+Basic input/output operations.
+
+\begin{lstlisting}
+import "io"
+
+// Output
+io.print("Hello")           // No newline
+io.println("Hello")         // With newline
+io.printf("Value: %d\n", 42)  // Formatted
+
+// Input
+line = io.readln()          // Read line from stdin
+
+// Errors
+io.eprintln("Error!")       // Print to stderr
+\end{lstlisting}
+
+\subsection{io Functions}
+
+\begin{lstlisting}
+fn print(s: string)
+fn println(s: string)
+fn printf(format: string, args: ...any)
+fn readln() -> string
+fn eprintln(s: string)
+fn eprintf(format: string, args: ...any)
+\end{lstlisting}
+
+\section{string Module}
+
+String manipulation functions.
+
+\begin{lstlisting}
+import "string"
+
+s = "  Hello, World!  "
+
+// Basic operations
+string.len(s)                    // 18
+string.is_empty("")              // true
+
+// Trimming
+string.trim(s)                   // "Hello, World!"
+string.trim_left(s)              // "Hello, World!  "
+string.trim_right(s)             // "  Hello, World!"
+
+// Case
+string.to_upper(s)               // "  HELLO, WORLD!  "
+string.to_lower(s)               // "  hello, world!  "
+
+// Search
+string.contains(s, "World")      // true
+string.starts_with(s, "  H")     // true
+string.ends_with(s, "!  ")       // true
+string.index_of(s, "o")          // 4
+string.last_index_of(s, "o")     // 8
+
+// Split/Join
+string.split("a,b,c", ",")       // ["a", "b", "c"]
+string.join(["a", "b"], "-")     // "a-b"
+
+// Substring
+string.substring(s, 2, 7)        // "Hello"
+string.char_at(s, 2)             // "H"
+
+// Replace
+string.replace(s, "World", "Haira")  // "  Hello, Haira!  "
+string.replace_all(s, " ", "_")      // "__Hello,_World!__"
+
+// Repeat
+string.repeat("ab", 3)           // "ababab"
+\end{lstlisting}
+
+\subsection{string Functions}
+
+\begin{lstlisting}
+fn len(s: string) -> int
+fn is_empty(s: string) -> bool
+fn trim(s: string) -> string
+fn trim_left(s: string) -> string
+fn trim_right(s: string) -> string
+fn to_upper(s: string) -> string
+fn to_lower(s: string) -> string
+fn contains(s: string, sub: string) -> bool
+fn starts_with(s: string, prefix: string) -> bool
+fn ends_with(s: string, suffix: string) -> bool
+fn index_of(s: string, sub: string) -> int
+fn last_index_of(s: string, sub: string) -> int
+fn split(s: string, sep: string) -> []string
+fn join(parts: []string, sep: string) -> string
+fn substring(s: string, start: int, end: int) -> string
+fn char_at(s: string, index: int) -> string
+fn replace(s: string, old: string, new: string) -> string
+fn replace_all(s: string, old: string, new: string) -> string
+fn repeat(s: string, n: int) -> string
+\end{lstlisting}
+
+\section{array Module}
+
+Array operations.
+
+\begin{lstlisting}
+import "array"
+
+arr = [1, 2, 3, 4, 5]
+
+// Basic
+array.len(arr)                   // 5
+array.is_empty([])               // true
+
+// Access
+array.first(arr)                 // 1 (or nil if empty)
+array.last(arr)                  // 5 (or nil if empty)
+array.get(arr, 2)                // 3 (or nil if out of bounds)
+
+// Modification (returns new array)
+array.push(arr, 6)               // [1, 2, 3, 4, 5, 6]
+array.pop(arr)                   // ([1, 2, 3, 4], 5)
+array.insert(arr, 0, 0)          // [0, 1, 2, 3, 4, 5]
+array.remove(arr, 2)             // [1, 2, 4, 5]
+
+// Slicing
+array.slice(arr, 1, 4)           // [2, 3, 4]
+array.take(arr, 3)               // [1, 2, 3]
+array.drop(arr, 2)               // [3, 4, 5]
+
+// Search
+array.contains(arr, 3)           // true
+array.index_of(arr, 3)           // 2
+array.find(arr, fn(x) { x > 3 }) // 4
+
+// Transform
+array.map(arr, fn(x) { x * 2 })  // [2, 4, 6, 8, 10]
+array.filter(arr, fn(x) { x > 2 })  // [3, 4, 5]
+array.reduce(arr, 0, fn(acc, x) { acc + x })  // 15
+
+// Sort
+array.sort(arr)                  // [1, 2, 3, 4, 5]
+array.sort_by(arr, fn(a, b) { b - a })  // [5, 4, 3, 2, 1]
+
+// Other
+array.reverse(arr)               // [5, 4, 3, 2, 1]
+array.concat(arr, [6, 7])        // [1, 2, 3, 4, 5, 6, 7]
+array.flatten([[1, 2], [3, 4]])  // [1, 2, 3, 4]
+array.unique([1, 2, 2, 3])       // [1, 2, 3]
+\end{lstlisting}
+
+\section{map Module}
+
+Map/dictionary operations.
+
+\begin{lstlisting}
+import "map"
+
+m = ["a": 1, "b": 2, "c": 3]
+
+// Basic
+map.len(m)                       // 3
+map.is_empty(m)                  // false
+
+// Access
+map.get(m, "a")                  // 1 (or nil if not found)
+map.has(m, "a")                  // true
+
+// Modification (returns new map)
+map.set(m, "d", 4)               // ["a": 1, "b": 2, "c": 3, "d": 4]
+map.remove(m, "b")               // ["a": 1, "c": 3]
+
+// Iteration helpers
+map.keys(m)                      // ["a", "b", "c"]
+map.values(m)                    // [1, 2, 3]
+map.entries(m)                   // [("a", 1), ("b", 2), ("c", 3)]
+
+// Transform
+map.map_values(m, fn(v) { v * 2 })  // ["a": 2, "b": 4, "c": 6]
+map.filter(m, fn(k, v) { v > 1 })   // ["b": 2, "c": 3]
+
+// Merge
+map.merge(m, ["d": 4])           // ["a": 1, "b": 2, "c": 3, "d": 4]
+\end{lstlisting}
+
+\section{math Module}
+
+Mathematical functions.
+
+\begin{lstlisting}
+import "math"
+
+// Constants
+math.PI                          // 3.14159265358979
+math.E                           // 2.71828182845905
+
+// Basic
+math.abs(-5)                     // 5
+math.min(3, 7)                   // 3
+math.max(3, 7)                   // 7
+math.clamp(5, 0, 10)             // 5
+math.clamp(-5, 0, 10)            // 0
+
+// Rounding
+math.floor(3.7)                  // 3.0
+math.ceil(3.2)                   // 4.0
+math.round(3.5)                  // 4.0
+math.trunc(3.7)                  // 3.0
+
+// Power/Root
+math.pow(2.0, 10.0)              // 1024.0
+math.sqrt(16.0)                  // 4.0
+math.cbrt(27.0)                  // 3.0
+
+// Exponential/Logarithm
+math.exp(1.0)                    // 2.718...
+math.log(math.E)                 // 1.0
+math.log10(100.0)                // 2.0
+math.log2(8.0)                   // 3.0
+
+// Trigonometry
+math.sin(0.0)                    // 0.0
+math.cos(0.0)                    // 1.0
+math.tan(0.0)                    // 0.0
+math.asin(0.0)                   // 0.0
+math.acos(1.0)                   // 0.0
+math.atan(0.0)                   // 0.0
+math.atan2(1.0, 1.0)             // 0.785... (PI/4)
+
+// Random
+math.random()                    // Random float 0.0..1.0
+math.random_int(1, 100)          // Random int 1..100
+\end{lstlisting}
+
+\section{conv Module}
+
+Type conversion utilities.
+
+\begin{lstlisting}
+import "conv"
+
+// To string
+conv.int_to_string(42)           // "42"
+conv.float_to_string(3.14)       // "3.14"
+conv.bool_to_string(true)        // "true"
+
+// From string
+conv.string_to_int("42")         // (42, nil)
+conv.string_to_int("abc")        // (0, Error)
+conv.string_to_float("3.14")     // (3.14, nil)
+conv.string_to_bool("true")      // (true, nil)
+
+// Number conversions
+conv.int_to_float(42)            // 42.0
+conv.float_to_int(3.7)           // 3 (truncates)
+
+// Base conversions
+conv.int_to_hex(255)             // "ff"
+conv.int_to_binary(10)           // "1010"
+conv.int_to_octal(8)             // "10"
+conv.hex_to_int("ff")            // (255, nil)
+\end{lstlisting}
+
+\section{Extended Modules}
+
+\subsection{fs Module}
+
+File system operations.
+
+\begin{lstlisting}
+import "fs"
+
+// Read/Write
+content, err = fs.read_file("file.txt")
+err = fs.write_file("file.txt", "content")
+err = fs.append_file("file.txt", "more")
+
+// File operations
+exists = fs.exists("file.txt")
+err = fs.remove("file.txt")
+err = fs.rename("old.txt", "new.txt")
+err = fs.copy("src.txt", "dst.txt")
+
+// Directory operations
+err = fs.mkdir("dir")
+err = fs.mkdir_all("path/to/dir")
+entries, err = fs.read_dir("dir")
+err = fs.remove_all("dir")
+
+// File info
+info, err = fs.stat("file.txt")
+info.size                        // Size in bytes
+info.is_dir                      // Is directory?
+info.modified                    // Modification time
+\end{lstlisting}
+
+\subsection{os Module}
+
+Operating system interface.
+
+\begin{lstlisting}
+import "os"
+
+// Environment
+os.getenv("HOME")                // Get env variable
+os.setenv("KEY", "value")        // Set env variable
+os.environ()                     // All env variables
+
+// Process
+os.args                          // Command line arguments
+os.exit(0)                       // Exit with code
+os.getpid()                      // Process ID
+
+// Execution
+output, err = os.exec("ls", ["-la"])
+\end{lstlisting}
+
+\subsection{time Module}
+
+Time and duration.
+
+\begin{lstlisting}
+import "time"
+
+// Current time
+now = time.now()
+now.year                         // 2024
+now.month                        // 1-12
+now.day                          // 1-31
+now.hour                         // 0-23
+now.minute                       // 0-59
+now.second                       // 0-59
+
+// Formatting
+time.format(now, "2006-01-02")   // "2024-03-15"
+
+// Parsing
+t, err = time.parse("2024-03-15", "2006-01-02")
+
+// Duration
+time.sleep(1000)                 // Sleep 1 second (ms)
+duration = time.since(start)     // Time since start
+
+// Timers
+timer = time.after(5000)         // Channel that fires after 5s
+ticker = time.tick(1000)         // Channel that fires every 1s
+\end{lstlisting}
+
+\subsection{json Module}
+
+JSON encoding/decoding.
+
+\begin{lstlisting}
+import "json"
+
+struct User {
+    name: string
+    age: int
+}
+
+// Encoding
+user = User{name: "Alice", age: 30}
+data, err = json.encode(user)    // '{"name":"Alice","age":30}'
+
+// Decoding
+user, err = json.decode<User>(data)
+
+// Pretty printing
+data, err = json.encode_pretty(user)
+
+// Raw JSON
+value, err = json.parse('{"key": "value"}')
+value["key"]                     // "value"
+\end{lstlisting}
+
+\subsection{http Module}
+
+HTTP client and server.
+
+\begin{lstlisting}
+import "http"
+
+// GET request
+response, err = http.get("https://api.example.com/users")
+response.status                  // 200
+response.body                    // Response body
+
+// POST request
+response, err = http.post(
+    "https://api.example.com/users",
+    ["Content-Type": "application/json"],
+    '{"name": "Alice"}'
+)
+
+// Server
+server = http.Server{port: 8080}
+
+server.handle("/", fn(req: http.Request) -> http.Response {
+    return http.Response{
+        status: 200,
+        body: "Hello, World!"
+    }
+})
+
+server.listen()
+\end{lstlisting}
+
+\subsection{regex Module}
+
+Regular expressions.
+
+\begin{lstlisting}
+import "regex"
+
+// Compile pattern
+pattern, err = regex.compile(r"\d+")
+
+// Match
+regex.is_match(pattern, "abc123")  // true
+
+// Find
+match = regex.find(pattern, "abc123def")  // "123"
+matches = regex.find_all(pattern, "a1b2c3")  // ["1", "2", "3"]
+
+// Replace
+regex.replace(pattern, "a1b2", "X")     // "aXb2"
+regex.replace_all(pattern, "a1b2", "X") // "aXbX"
+
+// Capture groups
+pattern, _ = regex.compile(r"(\w+)@(\w+)")
+captures = regex.captures(pattern, "alice@example")
+// captures[0] = "alice@example"
+// captures[1] = "alice"
+// captures[2] = "example"
+\end{lstlisting}
+
+\subsection{crypto Module}
+
+Cryptographic functions.
+
+\begin{lstlisting}
+import "crypto"
+
+// Hashing
+crypto.md5("hello")              // Hash as hex string
+crypto.sha256("hello")
+crypto.sha512("hello")
+
+// HMAC
+crypto.hmac_sha256("message", "key")
+
+// Random
+crypto.random_bytes(32)          // 32 random bytes
+
+// Encoding
+crypto.base64_encode(bytes)
+crypto.base64_decode(string)
+crypto.hex_encode(bytes)
+crypto.hex_decode(string)
+\end{lstlisting}
+
+\subsection{net Module}
+
+Low-level networking.
+
+\begin{lstlisting}
+import "net"
+
+// TCP client
+conn, err = net.dial("tcp", "example.com:80")
+conn.write("GET / HTTP/1.1\r\n\r\n")
+data, err = conn.read(1024)
+conn.close()
+
+// TCP server
+listener, err = net.listen("tcp", ":8080")
+while true {
+    conn, err = listener.accept()
+    spawn handle_connection(conn)
+}
+\end{lstlisting}
+
+\section{Testing Module}
+
+\begin{lstlisting}
+import "testing"
+
+fn test_addition(t: testing.T) {
+    result = add(2, 3)
+    t.assert_eq(result, 5)
+}
+
+fn test_division(t: testing.T) {
+    result, err = divide(10, 2)
+    t.assert_nil(err)
+    t.assert_eq(result, 5)
+
+    _, err = divide(10, 0)
+    t.assert_not_nil(err)
+}
+\end{lstlisting}
+
+Run tests with:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ haira test
+\end{lstlisting}

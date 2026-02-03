@@ -1,0 +1,539 @@
+\chapter{Types}
+\label{ch:types}
+
+\haira{} is a statically-typed language with structural typing and type inference for local variables. All types are known at compile time.
+
+\section{Type System Overview}
+
+\begin{itemize}
+    \item \textbf{Static typing} -- All types resolved at compile time
+    \item \textbf{Structural typing} -- Type compatibility based on structure, not name
+    \item \textbf{Type inference} -- Local variables infer types from initializers
+    \item \textbf{Explicit annotations} -- Required for function signatures
+    \item \textbf{No null} -- Option types (\type{T?}) replace null pointers
+\end{itemize}
+
+\section{Primitive Types}
+
+\subsection{Integer Types}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Type} & \textbf{Size} & \textbf{Range} \\
+\midrule
+\type{int} & 64 bits & $-2^{63}$ to $2^{63}-1$ \\
+\type{i8} & 8 bits & $-128$ to $127$ \\
+\type{i16} & 16 bits & $-32768$ to $32767$ \\
+\type{i32} & 32 bits & $-2^{31}$ to $2^{31}-1$ \\
+\type{i64} & 64 bits & $-2^{63}$ to $2^{63}-1$ \\
+\type{u8} & 8 bits & $0$ to $255$ \\
+\type{u16} & 16 bits & $0$ to $65535$ \\
+\type{u32} & 32 bits & $0$ to $2^{32}-1$ \\
+\type{u64} & 64 bits & $0$ to $2^{64}-1$ \\
+\bottomrule
+\end{tabular}
+\caption{Integer types}
+\end{table}
+
+\begin{lstlisting}
+count: int = 42
+byte: u8 = 255
+offset: i32 = -100
+\end{lstlisting}
+
+\begin{note}
+The default \type{int} is an alias for \type{i64}. Integer literals without explicit type default to \type{int}.
+\end{note}
+
+\subsection{Floating-Point Types}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Type} & \textbf{Size} & \textbf{Precision} \\
+\midrule
+\type{float} & 64 bits & IEEE 754 double \\
+\type{f32} & 32 bits & IEEE 754 single \\
+\type{f64} & 64 bits & IEEE 754 double \\
+\bottomrule
+\end{tabular}
+\caption{Floating-point types}
+\end{table}
+
+\begin{lstlisting}
+pi: float = 3.14159
+temperature: f32 = 98.6
+\end{lstlisting}
+
+\subsection{Boolean Type}
+
+\begin{lstlisting}
+is_valid: bool = true
+is_empty: bool = false
+\end{lstlisting}
+
+Boolean values are used in conditionals and logical expressions. Only \code{true} and \code{false} are valid boolean values---there is no implicit conversion from other types.
+
+\subsection{String Type}
+
+Strings are immutable sequences of UTF-8 encoded bytes:
+
+\begin{lstlisting}
+name: string = "Haira"
+greeting: string = "Hello, " + name
+\end{lstlisting}
+
+String operations:
+\begin{lstlisting}
+import "string"
+
+s = "Hello, World!"
+length = string.len(s)        // 13
+upper = string.to_upper(s)    // "HELLO, WORLD!"
+parts = string.split(s, ", ") // ["Hello", "World!"]
+\end{lstlisting}
+
+\section{Composite Types}
+
+\subsection{Arrays}
+
+Arrays are ordered, homogeneous, dynamically-sized collections:
+
+\begin{lstlisting}
+// Array literal
+numbers: []int = [1, 2, 3, 4, 5]
+
+// Empty array
+empty: []string = []
+
+// Array operations
+import "array"
+
+first = numbers[0]            // 1
+length = array.len(numbers)   // 5
+numbers = array.push(numbers, 6)
+\end{lstlisting}
+
+\begin{lstlisting}[language=EBNF]
+array_type = "[" "]" type ;
+\end{lstlisting}
+
+\subsection{Maps}
+
+Maps are unordered key-value collections:
+
+\begin{lstlisting}
+// Map literal
+scores: [string:int] = [
+    "alice": 100,
+    "bob": 95,
+    "charlie": 87
+]
+
+// Empty map
+empty: [string:User] = [:]
+
+// Map operations
+alice_score = scores["alice"]    // 100
+scores["david"] = 92             // Insert
+\end{lstlisting}
+
+\begin{lstlisting}[language=EBNF]
+map_type = "[" type ":" type "]" ;
+\end{lstlisting}
+
+\begin{note}
+Map keys must be comparable types: primitives, strings, or structs containing only comparable fields.
+\end{note}
+
+\subsection{Tuples}
+
+Tuples are fixed-size, heterogeneous collections:
+
+\begin{lstlisting}
+// Tuple type
+point: (int, int) = (10, 20)
+
+// Accessing elements
+x = point.0  // 10
+y = point.1  // 20
+
+// Multiple return values use tuples
+fn divide(a: int, b: int) -> (int, int) {
+    return a / b, a % b
+}
+
+quotient, remainder = divide(17, 5)
+\end{lstlisting}
+
+\begin{lstlisting}[language=EBNF]
+tuple_type = "(" type { "," type } ")" ;
+\end{lstlisting}
+
+\section{Option Types}
+
+Option types represent values that may or may not exist, replacing null pointers:
+
+\begin{lstlisting}
+// Optional value
+maybe_name: string? = nil
+maybe_age: int? = 25
+
+// Checking for nil
+if maybe_name != nil {
+    io.println(maybe_name)
+}
+
+// Default value with 'or'
+name = maybe_name or "Unknown"
+\end{lstlisting}
+
+\begin{lstlisting}[language=EBNF]
+option_type = type "?" ;
+\end{lstlisting}
+
+\subsection{Unwrapping Options}
+
+\begin{lstlisting}
+value: int? = get_value()
+
+// Safe unwrap with default
+result = value or 0
+
+// Conditional unwrap
+if value != nil {
+    // value is automatically unwrapped here
+    io.println(value)
+}
+
+// Match on option
+match value {
+    nil => io.println("No value")
+    v => io.println("Got: " + to_string(v))
+}
+\end{lstlisting}
+
+\section{Struct Types}
+
+Structs are named product types with named fields:
+
+\begin{lstlisting}
+struct User {
+    id: int
+    name: string
+    email: string
+    active: bool
+}
+
+// Creating a struct
+user = User{
+    id: 1,
+    name: "Alice",
+    email: "alice@example.com",
+    active: true
+}
+
+// Accessing fields
+io.println(user.name)
+
+// Updating fields (structs are mutable by default)
+user.active = false
+\end{lstlisting}
+
+\subsection{Struct Methods}
+
+Methods can be defined on structs:
+
+\begin{lstlisting}
+struct Rectangle {
+    width: float
+    height: float
+}
+
+fn (r: Rectangle) area() -> float {
+    return r.width * r.height
+}
+
+fn (r: Rectangle) perimeter() -> float {
+    return 2 * (r.width + r.height)
+}
+
+// Usage
+rect = Rectangle{width: 10.0, height: 5.0}
+io.println(rect.area())       // 50.0
+io.println(rect.perimeter())  // 30.0
+\end{lstlisting}
+
+\subsection{Nested Structs}
+
+\begin{lstlisting}
+struct Address {
+    street: string
+    city: string
+    country: string
+}
+
+struct Person {
+    name: string
+    address: Address
+}
+
+person = Person{
+    name: "Bob",
+    address: Address{
+        street: "123 Main St",
+        city: "New York",
+        country: "USA"
+    }
+}
+
+io.println(person.address.city)  // "New York"
+\end{lstlisting}
+
+\section{Enum Types}
+
+Enums define a type with a fixed set of named values:
+
+\begin{lstlisting}
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+enum Status {
+    Pending,
+    Active,
+    Completed,
+    Failed
+}
+
+// Usage
+color: Color = Color.Red
+status: Status = Status.Active
+
+match color {
+    Color.Red => io.println("Stop")
+    Color.Green => io.println("Go")
+    Color.Blue => io.println("Info")
+}
+\end{lstlisting}
+
+\subsection{Enums with Associated Data}
+
+Enums can carry associated data (tagged unions):
+
+\begin{lstlisting}
+enum Result<T> {
+    Ok(T),
+    Err(Error)
+}
+
+enum Message {
+    Text(string),
+    Number(int),
+    Pair(int, int)
+}
+
+// Usage
+msg: Message = Message.Text("Hello")
+
+match msg {
+    Message.Text(s) => io.println("Text: " + s)
+    Message.Number(n) => io.println("Number: " + to_string(n))
+    Message.Pair(a, b) => io.println("Pair: " + to_string(a) + ", " + to_string(b))
+}
+\end{lstlisting}
+
+\section{Type Aliases}
+
+Type aliases create alternative names for existing types:
+
+\begin{lstlisting}
+type UserId = int
+type UserMap = [string:User]
+type Handler = fn(Request) -> Response
+
+// Usage
+id: UserId = 42
+users: UserMap = [:]
+\end{lstlisting}
+
+\section{Function Types}
+
+Functions are first-class values with types:
+
+\begin{lstlisting}
+// Function type syntax
+type Comparator = fn(int, int) -> bool
+type Transformer = fn(string) -> string
+type Callback = fn()
+
+// Higher-order functions
+fn apply(f: fn(int) -> int, x: int) -> int {
+    return f(x)
+}
+
+fn double(n: int) -> int {
+    return n * 2
+}
+
+result = apply(double, 21)  // 42
+\end{lstlisting}
+
+\section{Generic Types}
+
+Generic types parameterize over other types:
+
+\begin{lstlisting}
+// Generic struct
+struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+// Usage
+pair: Pair<int, string> = Pair{first: 1, second: "one"}
+
+// Generic function
+fn swap<T, U>(p: Pair<T, U>) -> Pair<U, T> {
+    return Pair{first: p.second, second: p.first}
+}
+
+swapped = swap(pair)  // Pair<string, int>
+\end{lstlisting}
+
+\subsection{Type Constraints}
+
+Generics can be constrained to types implementing certain behaviors:
+
+\begin{lstlisting}
+// Constraint definition
+constraint Comparable {
+    fn compare(other: Self) -> int
+}
+
+// Constrained generic
+fn max<T: Comparable>(a: T, b: T) -> T {
+    if a.compare(b) > 0 {
+        return a
+    }
+    return b
+}
+
+// Multiple constraints
+fn process<T: Comparable + Printable>(value: T) {
+    io.println(value.to_string())
+}
+\end{lstlisting}
+
+\section{The Error Type}
+
+The built-in \type{Error} type represents errors:
+
+\begin{lstlisting}
+struct Error {
+    message: string
+    code: int?
+    source: Error?
+}
+
+// Creating errors
+err = Error{message: "file not found"}
+err_with_code = Error{message: "permission denied", code: 403}
+
+// Error chaining
+wrapped = Error{
+    message: "failed to read config",
+    source: err
+}
+\end{lstlisting}
+
+\section{Type Inference}
+
+\haira{} infers types for local variables from their initializers:
+
+\begin{lstlisting}
+// Types inferred
+x = 42              // int
+pi = 3.14           // float
+name = "Haira"      // string
+active = true       // bool
+numbers = [1, 2, 3] // []int
+
+// Explicit annotation when needed
+count: i32 = 100    // Specific integer type
+\end{lstlisting}
+
+\begin{warning}
+Type annotations are \textbf{required} for:
+\begin{itemize}
+    \item Function parameters
+    \item Function return types
+    \item Struct fields
+    \item Uninitialized variables
+\end{itemize}
+\end{warning}
+
+\section{Structural Typing}
+
+Types are compatible based on structure, not name:
+
+\begin{lstlisting}
+struct Point2D {
+    x: float
+    y: float
+}
+
+struct Vector2D {
+    x: float
+    y: float
+}
+
+fn magnitude(p: {x: float, y: float}) -> float {
+    return math.sqrt(p.x * p.x + p.y * p.y)
+}
+
+// Both work because they have the same structure
+point = Point2D{x: 3.0, y: 4.0}
+vector = Vector2D{x: 3.0, y: 4.0}
+
+io.println(magnitude(point))   // 5.0
+io.println(magnitude(vector))  // 5.0
+\end{lstlisting}
+
+\section{Type Grammar}
+
+\begin{lstlisting}[language=EBNF]
+type = primitive_type
+     | array_type
+     | map_type
+     | tuple_type
+     | option_type
+     | function_type
+     | generic_type
+     | struct_type
+     | identifier ;
+
+primitive_type = "int" | "i8" | "i16" | "i32" | "i64"
+               | "u8" | "u16" | "u32" | "u64"
+               | "float" | "f32" | "f64"
+               | "bool" | "string" ;
+
+array_type = "[" "]" type ;
+
+map_type = "[" type ":" type "]" ;
+
+tuple_type = "(" type { "," type } ")" ;
+
+option_type = type "?" ;
+
+function_type = "fn" "(" [ type_list ] ")" [ "->" type ] ;
+
+generic_type = identifier "<" type_list ">" ;
+
+type_list = type { "," type } ;
+\end{lstlisting}

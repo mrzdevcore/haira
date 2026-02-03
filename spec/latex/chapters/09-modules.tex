@@ -1,0 +1,342 @@
+\chapter{Modules and Imports}
+\label{ch:modules}
+
+\haira{} uses explicit imports for all dependencies. Every external symbol must be imported before use.
+
+\section{Module System Overview}
+
+\begin{itemize}
+    \item \textbf{Explicit imports} -- All dependencies declared at file top
+    \item \textbf{No implicit globals} -- Everything must be imported
+    \item \textbf{Simple resolution} -- Standard library, project-local, external
+    \item \textbf{Namespaced access} -- \code{module.function()} syntax
+\end{itemize}
+
+\section{Import Syntax}
+
+\subsection{Basic Import}
+
+\begin{lstlisting}
+import "io"
+import "json"
+import "http"
+
+fn main() {
+    io.println("Hello")
+}
+\end{lstlisting}
+
+\subsection{Aliased Import}
+
+\begin{lstlisting}
+import fmt from "io"
+import db from "haira/postgres"
+
+fn main() {
+    fmt.println("Hello")
+    db.connect("localhost:5432")
+}
+\end{lstlisting}
+
+\subsection{Selective Import}
+
+Import specific symbols:
+
+\begin{lstlisting}
+import { println, readln } from "io"
+import { User, Post } from "models"
+
+fn main() {
+    println("Enter name:")
+    name = readln()
+    println("Hello, " + name)
+}
+\end{lstlisting}
+
+\subsection{Glob Import}
+
+Import all exports (use sparingly):
+
+\begin{lstlisting}
+import * from "math"
+
+fn main() {
+    result = sqrt(pow(3.0, 2.0) + pow(4.0, 2.0))
+    io.println(result)  // 5.0
+}
+\end{lstlisting}
+
+\begin{warning}
+Glob imports can cause naming conflicts and make code harder to read. Prefer explicit imports.
+\end{warning}
+
+\section{Module Resolution}
+
+Imports are resolved in this order:
+
+\begin{enumerate}
+    \item \textbf{Standard library} -- Built-in modules (\code{"io"}, \code{"json"}, etc.)
+    \item \textbf{Project-local} -- Relative to project root (\code{"models/user"})
+    \item \textbf{External packages} -- From package registry (\code{"github.com/..."})
+\end{enumerate}
+
+\subsection{Standard Library}
+
+\begin{lstlisting}
+import "io"           // Standard I/O
+import "string"       // String manipulation
+import "math"         // Mathematical functions
+import "json"         // JSON encoding/decoding
+import "http"         // HTTP client/server
+import "fs"           // File system
+import "os"           // Operating system
+import "time"         // Time and duration
+import "crypto"       // Cryptography
+import "regex"        // Regular expressions
+\end{lstlisting}
+
+\subsection{Project-Local Imports}
+
+\begin{lstlisting}
+// Project structure:
+// myapp/
+//   main.haira
+//   models/
+//     user.haira
+//     post.haira
+//   utils/
+//     helpers.haira
+
+// In main.haira:
+import "models/user"
+import "models/post"
+import "utils/helpers"
+
+// In models/post.haira:
+import "models/user"    // Absolute from project root
+\end{lstlisting}
+
+\subsection{External Packages}
+
+\begin{lstlisting}
+import "github.com/haira-libs/aws"
+import "github.com/haira-libs/postgres"
+import pg from "github.com/haira-libs/postgres"
+\end{lstlisting}
+
+External packages are declared in \code{haira.toml}:
+
+\begin{lstlisting}[language={}]
+[dependencies]
+aws = "github.com/haira-libs/aws@1.0.0"
+postgres = "github.com/haira-libs/postgres@2.1.0"
+\end{lstlisting}
+
+\section{Module Definitions}
+
+\subsection{File as Module}
+
+Each \code{.haira} file is a module. The file name determines the module name:
+
+\begin{lstlisting}
+// File: utils/helpers.haira
+// Module: utils/helpers
+
+fn format_name(first: string, last: string) -> string {
+    return first + " " + last
+}
+
+fn validate_email(email: string) -> bool {
+    return string.contains(email, "@")
+}
+\end{lstlisting}
+
+\subsection{Exporting}
+
+By default, all top-level declarations are exported. Use underscore prefix for private:
+
+\begin{lstlisting}
+// Public (exported)
+fn public_function() { }
+struct PublicType { }
+
+// Private (not exported)
+fn _private_function() { }
+struct _PrivateType { }
+
+// Private helper
+_cache = [:]
+\end{lstlisting}
+
+\subsection{Package Initialization}
+
+Optional \code{init()} function runs when module is first imported:
+
+\begin{lstlisting}
+// database.haira
+
+_pool: ConnectionPool?
+
+fn init() {
+    _pool = create_pool()
+    io.println("Database module initialized")
+}
+
+fn get_connection() -> (Connection, Error?) {
+    if _pool == nil {
+        return Connection{}, Error{message: "not initialized"}
+    }
+    return _pool.get(), nil
+}
+\end{lstlisting}
+
+\begin{note}
+\code{init()} functions are called in dependency order. Circular dependencies are a compile-time error.
+\end{note}
+
+\section{Package Structure}
+
+\subsection{Single-File Package}
+
+\begin{lstlisting}[language={}]
+myapp/
+  main.haira
+  haira.toml
+\end{lstlisting}
+
+\subsection{Multi-File Package}
+
+\begin{lstlisting}[language={}]
+myapp/
+  main.haira
+  models/
+    user.haira
+    post.haira
+    mod.haira      # Package entry point (optional)
+  services/
+    auth.haira
+    api.haira
+  utils/
+    helpers.haira
+  haira.toml
+\end{lstlisting}
+
+\subsection{The mod.haira File}
+
+Re-exports from a directory:
+
+\begin{lstlisting}
+// models/mod.haira
+import { User } from "models/user"
+import { Post } from "models/post"
+
+// Re-export
+export { User, Post }
+\end{lstlisting}
+
+Now consumers can import from the directory:
+
+\begin{lstlisting}
+import { User, Post } from "models"
+\end{lstlisting}
+
+\section{Import Order}
+
+Imports should be organized in groups:
+
+\begin{lstlisting}
+// 1. Standard library
+import "io"
+import "json"
+import "http"
+
+// 2. External packages
+import "github.com/haira-libs/aws"
+
+// 3. Project-local
+import "models/user"
+import "services/auth"
+\end{lstlisting}
+
+\section{Circular Dependencies}
+
+Circular imports are not allowed:
+
+\begin{lstlisting}
+// a.haira
+import "b"  // Error if b imports a
+
+// b.haira
+import "a"  // Creates circular dependency
+\end{lstlisting}
+
+Solution: Extract shared code to a third module:
+
+\begin{lstlisting}
+// shared.haira
+struct Common { }
+
+// a.haira
+import "shared"
+
+// b.haira
+import "shared"
+\end{lstlisting}
+
+\section{Conditional Imports}
+
+Import based on build configuration:
+
+\begin{lstlisting}
+#[cfg(os = "windows")]
+import "windows/api"
+
+#[cfg(os = "linux")]
+import "linux/api"
+
+#[cfg(os = "macos")]
+import "macos/api"
+\end{lstlisting}
+
+\section{The haira.toml File}
+
+Project configuration:
+
+\begin{lstlisting}[language={}]
+[package]
+name = "myapp"
+version = "1.0.0"
+authors = ["Your Name <you@example.com>"]
+
+[dependencies]
+aws = "github.com/haira-libs/aws@1.0.0"
+postgres = "github.com/haira-libs/postgres@2.1.0"
+
+[dev-dependencies]
+testing = "github.com/haira-libs/testing@1.0.0"
+
+[build]
+target = "native"
+optimization = "release"
+
+[ai]
+backend = "llama.cpp"
+model_path = "~/.haira/models/codellama-7b.gguf"
+\end{lstlisting}
+
+\section{Module Grammar}
+
+\begin{lstlisting}[language=EBNF]
+import_statement = "import" import_spec ;
+
+import_spec = string_literal                          (* basic *)
+            | identifier "from" string_literal        (* aliased *)
+            | "{" identifier_list "}" "from" string_literal  (* selective *)
+            | "*" "from" string_literal ;             (* glob *)
+
+export_statement = "export" "{" identifier_list "}" ;
+
+identifier_list = identifier { "," identifier } ;
+
+module = { import_statement } { export_statement } { top_level } ;
+\end{lstlisting}

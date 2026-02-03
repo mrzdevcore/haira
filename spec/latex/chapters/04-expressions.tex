@@ -1,0 +1,411 @@
+\chapter{Expressions}
+\label{ch:expressions}
+
+Expressions produce values. Every expression in \haira{} has a type determined at compile time.
+
+\section{Primary Expressions}
+
+\subsection{Literals}
+
+\begin{lstlisting}
+42              // int literal
+3.14            // float literal
+"hello"         // string literal
+true            // bool literal
+nil             // nil literal
+\end{lstlisting}
+
+\subsection{Identifiers}
+
+\begin{lstlisting}
+x               // Variable reference
+user.name       // Field access
+array[0]        // Index access
+\end{lstlisting}
+
+\subsection{Parenthesized Expressions}
+
+\begin{lstlisting}
+(1 + 2) * 3     // Grouping for precedence
+\end{lstlisting}
+
+\section{Arithmetic Expressions}
+
+\begin{lstlisting}
+a + b           // Addition
+a - b           // Subtraction
+a * b           // Multiplication
+a / b           // Division
+a % b           // Modulo (remainder)
+-a              // Unary negation
+\end{lstlisting}
+
+\subsection{Integer Division}
+
+Integer division truncates toward zero:
+
+\begin{lstlisting}
+7 / 3           // 2
+-7 / 3          // -2
+7 / -3          // -2
+\end{lstlisting}
+
+\subsection{Modulo}
+
+The modulo operator returns the remainder:
+
+\begin{lstlisting}
+7 % 3           // 1
+-7 % 3          // -1
+7 % -3          // 1
+\end{lstlisting}
+
+\section{Comparison Expressions}
+
+\begin{lstlisting}
+a == b          // Equal
+a != b          // Not equal
+a < b           // Less than
+a > b           // Greater than
+a <= b          // Less or equal
+a >= b          // Greater or equal
+\end{lstlisting}
+
+All comparison expressions produce \type{bool} values.
+
+\subsection{Equality}
+
+Equality (\code{==}) compares by value for primitives and by structural equality for composite types:
+
+\begin{lstlisting}
+1 == 1                      // true
+"hello" == "hello"          // true
+[1, 2] == [1, 2]           // true
+User{id: 1} == User{id: 1}  // true (structural)
+\end{lstlisting}
+
+\section{Logical Expressions}
+
+\begin{lstlisting}
+a and b         // Logical AND (also &&)
+a or b          // Logical OR (also ||)
+not a           // Logical NOT (also !)
+\end{lstlisting}
+
+\subsection{Short-Circuit Evaluation}
+
+Logical operators use short-circuit evaluation:
+
+\begin{lstlisting}
+// 'b' is not evaluated if 'a' is false
+a and b
+
+// 'b' is not evaluated if 'a' is true
+a or b
+\end{lstlisting}
+
+\section{String Expressions}
+
+\subsection{Concatenation}
+
+\begin{lstlisting}
+"Hello, " + "World!"        // "Hello, World!"
+\end{lstlisting}
+
+\subsection{String Interpolation}
+
+\begin{lstlisting}
+name = "Alice"
+age = 30
+"Hello, ${name}! You are ${age} years old."
+\end{lstlisting}
+
+Expressions inside \code{\$\{...\}} are evaluated and converted to strings.
+
+\section{Array and Map Expressions}
+
+\subsection{Array Literals}
+
+\begin{lstlisting}
+[]                          // Empty array (type from context)
+[1, 2, 3]                   // []int
+["a", "b", "c"]             // []string
+\end{lstlisting}
+
+\subsection{Map Literals}
+
+\begin{lstlisting}
+[:]                         // Empty map (type from context)
+["a": 1, "b": 2]            // [string:int]
+[1: "one", 2: "two"]        // [int:string]
+\end{lstlisting}
+
+\subsection{Index Access}
+
+\begin{lstlisting}
+array[0]                    // First element
+array[array.len - 1]        // Last element
+map["key"]                  // Map lookup (returns T?)
+\end{lstlisting}
+
+\begin{note}
+Array indexing with an out-of-bounds index causes a runtime panic. Map indexing returns an option type.
+\end{note}
+
+\section{Field Access}
+
+\begin{lstlisting}
+user.name                   // Struct field
+point.x                     // Struct field
+tuple.0                     // Tuple element
+\end{lstlisting}
+
+\section{Function Calls}
+
+\begin{lstlisting}
+func()                      // No arguments
+func(a, b, c)               // With arguments
+obj.method()                // Method call
+obj.method(a, b)            // Method with arguments
+\end{lstlisting}
+
+\subsection{Chained Calls}
+
+\begin{lstlisting}
+text.trim().to_upper().split(" ")
+\end{lstlisting}
+
+\section{Pipe Expressions}
+
+The pipe operator passes the left operand as the first argument to the right function:
+
+\begin{lstlisting}
+// These are equivalent:
+result = f(g(h(x)))
+result = x | h | g | f
+\end{lstlisting}
+
+\subsection{Pipe with Arguments}
+
+When the right side has arguments, the left value becomes the first argument:
+
+\begin{lstlisting}
+// These are equivalent:
+result = string.split(text, ",")
+result = text | string.split(",")
+\end{lstlisting}
+
+\subsection{Complex Pipelines}
+
+\begin{lstlisting}
+import "io"
+import "string"
+import "array"
+
+fn main() {
+    data = "  apple, banana, cherry  "
+
+    result = data
+        | string.trim
+        | string.split(", ")
+        | array.map(string.to_upper)
+        | array.filter(fn(s) { string.len(s) > 5 })
+        | string.join(" | ")
+
+    io.println(result)  // "BANANA | CHERRY"
+}
+\end{lstlisting}
+
+\section{Range Expressions}
+
+\begin{lstlisting}
+0..10           // 0 to 9 (exclusive end)
+0..=10          // 0 to 10 (inclusive end)
+\end{lstlisting}
+
+Ranges are used primarily in \keyword{for} loops:
+
+\begin{lstlisting}
+for i in 0..5 {
+    io.println(i)  // 0, 1, 2, 3, 4
+}
+
+for i in 0..=5 {
+    io.println(i)  // 0, 1, 2, 3, 4, 5
+}
+\end{lstlisting}
+
+\section{Conditional Expressions}
+
+\subsection{If Expression}
+
+\keyword{if} can be used as an expression:
+
+\begin{lstlisting}
+max = if a > b { a } else { b }
+
+status = if score >= 90 {
+    "A"
+} else if score >= 80 {
+    "B"
+} else {
+    "C"
+}
+\end{lstlisting}
+
+\begin{warning}
+When used as an expression, all branches must have the same type and \keyword{else} is required.
+\end{warning}
+
+\subsection{Match Expression}
+
+\keyword{match} expressions provide pattern matching:
+
+\begin{lstlisting}
+result = match value {
+    0 => "zero"
+    1 => "one"
+    n if n < 0 => "negative"
+    _ => "other"
+}
+\end{lstlisting}
+
+See Chapter~\ref{ch:statements} for complete pattern matching semantics.
+
+\section{Block Expressions}
+
+Blocks are expressions that evaluate to their last expression:
+
+\begin{lstlisting}
+result = {
+    x = compute_x()
+    y = compute_y()
+    x + y  // This is the value of the block
+}
+\end{lstlisting}
+
+\section{Struct Instantiation}
+
+\begin{lstlisting}
+user = User{
+    id: 1,
+    name: "Alice",
+    email: "alice@example.com"
+}
+
+// With shorthand (field name matches variable)
+name = "Bob"
+email = "bob@example.com"
+user = User{id: 2, name, email}
+\end{lstlisting}
+
+\section{Closure Expressions}
+
+Anonymous functions (closures):
+
+\begin{lstlisting}
+// Full syntax
+add = fn(a: int, b: int) -> int {
+    return a + b
+}
+
+// Short syntax for single expression
+double = fn(x: int) -> int { x * 2 }
+
+// Type inference for closures
+numbers = [1, 2, 3]
+doubled = array.map(numbers, fn(n) { n * 2 })
+\end{lstlisting}
+
+\section{Option Expressions}
+
+\subsection{Nil Coalescing}
+
+The \keyword{or} operator provides a default for optional values:
+
+\begin{lstlisting}
+name = maybe_name or "Unknown"
+value = get_value() or default_value
+\end{lstlisting}
+
+\subsection{Optional Chaining}
+
+\begin{lstlisting}
+// Returns nil if any part is nil
+street = user?.address?.street
+\end{lstlisting}
+
+\section{Type Assertions}
+
+\begin{lstlisting}
+// Assert that value is a specific type
+x = value as int
+
+// Safe assertion (returns option)
+x = value as? int
+\end{lstlisting}
+
+\section{Operator Precedence}
+
+From highest to lowest:
+
+\begin{enumerate}
+    \item Postfix: \code{()} \code{[]} \code{.} \code{?.}
+    \item Unary: \code{!} \code{-} \code{not}
+    \item Multiplicative: \code{*} \code{/} \code{\%}
+    \item Additive: \code{+} \code{-}
+    \item Range: \code{..} \code{..=}
+    \item Pipe: \code{|}
+    \item Comparison: \code{<} \code{>} \code{<=} \code{>=}
+    \item Equality: \code{==} \code{!=}
+    \item Logical AND: \code{and} \code{\&\&}
+    \item Logical OR: \code{or} \code{||}
+    \item Assignment: \code{=} \code{+=} \code{-=} \code{*=} \code{/=}
+\end{enumerate}
+
+\section{Expression Grammar}
+
+\begin{lstlisting}[language=EBNF]
+expression = assignment ;
+
+assignment = or_expr [ ("=" | "+=" | "-=" | "*=" | "/=") assignment ] ;
+
+or_expr = and_expr { ("or" | "||") and_expr } ;
+
+and_expr = equality { ("and" | "&&") equality } ;
+
+equality = comparison { ("==" | "!=") comparison } ;
+
+comparison = pipe { ("<" | ">" | "<=" | ">=") pipe } ;
+
+pipe = range { "|" range } ;
+
+range = additive [ (".." | "..=") additive ] ;
+
+additive = multiplicative { ("+" | "-") multiplicative } ;
+
+multiplicative = unary { ("*" | "/" | "%") unary } ;
+
+unary = ("!" | "-" | "not") unary | postfix ;
+
+postfix = primary { call | index | field } ;
+
+call = "(" [ arguments ] ")" ;
+
+index = "[" expression "]" ;
+
+field = "." identifier ;
+
+primary = identifier
+        | literal
+        | "(" expression ")"
+        | array_literal
+        | map_literal
+        | struct_literal
+        | closure
+        | if_expr
+        | match_expr
+        | block ;
+
+arguments = expression { "," expression } ;
+\end{lstlisting}

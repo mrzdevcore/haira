@@ -1,132 +1,76 @@
 # Haira Programming Language
 
-**Express intention, not mechanics.**
+**Write clear code. Use AI when you need it.**
 
-Haira is a programming language where you write what you want, and the compiler (powered by a fine-tuned AI model) figures out how to do it.
+Haira is a programming language for the AI era - explicit imports, explicit AI usage, and local-first AI that runs on your machine.
 
 ## Quick Example
 
 ```haira
-// Define what you want - AI generates the implementation
-ai get_answer() -> int {
-    Return the answer to life, universe, and everything.
+import "http"
+import "json"
+
+User { name, email, active }
+
+// Regular function - you write the logic
+get_active_users(users: [User]) -> [User] {
+    users | filter(u => u.active) | sort_by(u => u.name)
 }
 
-ai add(a: int, b: int) -> int {
-    Return the sum of a and b.
+// AI function - AI generates the implementation
+ai summarize_users(users: [User]) -> Summary {
+    Count total users, active users, and list unique email domains.
 }
 
-ai is_positive(x: int) -> bool {
-    Return true if x is greater than zero.
+server = http.Server { port = 8080 }
+
+server.route("GET", "/users") {
+    users = load_users()
+    active = get_active_users(users)
+    json.encode(active)
 }
 
-// Use them like normal functions
-answer = get_answer()   // Returns 42
-sum = add(10, 32)       // Returns 42
-check = is_positive(5)  // Returns true
+server.route("GET", "/summary") {
+    users = load_users()
+    summary = summarize_users(users)
+    json.encode(summary)
+}
 
-print(answer)
-print(sum)
-print(check)
+server.start()
 ```
 
-**The `ai` block lets you describe your intent in plain English** - the compiler interprets it and generates working code that compiles to a native binary.
+## Key Features
+
+- **Explicit imports** - Go-style dependency declarations
+- **Explicit AI blocks** - AI assistance when you request it
+- **Local-first AI** - llama.cpp, Ollama, or cloud backends
+- **No null** - Option types prevent null pointer errors
+- **Type inference** - Types exist but you rarely write them
+- **Fast binaries** - Compiles to native code via Cranelift
+- **Reproducible** - AI outputs are cached and locked
 
 ## How It Works
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │  Your Code   │ --> │    Haira     │ --> │   Native     │
-│  (Intent)    │     │   Compiler   │     │   Binary     │
+│              │     │   Compiler   │     │   Binary     │
 └──────────────┘     └──────┬───────┘     └──────────────┘
                            │
                     ┌──────┴───────┐
-                    │  Fine-tuned  │
-                    │   AI Model   │
-                    │  (Interprets │
-                    │    Intent)   │
+                    │  Local AI    │
+                    │  (llama.cpp  │
+                    │  or Ollama)  │
                     └──────────────┘
 ```
 
-1. You write high-level, intent-based code
-2. The compiler identifies undefined functions
-3. A fine-tuned AI model interprets your intent from function names and context
+1. You write explicit, clear code with `import` and `ai` keywords
+2. The compiler resolves imports and processes AI blocks
+3. Local AI (llama.cpp/Ollama) generates implementations for AI blocks
 4. Generated code is cached for reproducibility
 5. Everything compiles to a fast native binary
 
-## Key Features
-
-- **No imports** - The compiler finds everything automatically
-- **No null** - Option types prevent null pointer errors
-- **No boilerplate** - AI generates CRUD, transformations, I/O
-- **Type inference** - Types exist but you rarely write them
-- **Fast binaries** - Compiles to native code via Cranelift
-- **Reproducible** - AI outputs are cached and locked
-- **Local-first** - Run AI models locally with Ollama, no API keys required
-
-## Project Structure
-
-```
-haira/
-├── spec/                    # Language specification
-│   ├── 01-overview.md
-│   ├── 02-lexical-structure.md
-│   ├── 03-types.md
-│   ├── 04-expressions.md
-│   ├── 05-statements.md
-│   ├── 06-functions.md
-│   ├── 07-error-handling.md
-│   ├── 08-concurrency.md
-│   ├── 09-modules.md
-│   ├── 10-standard-library.md
-│   ├── 11-auto-generation.md
-│   ├── 12-grammar.md
-│   ├── 13-compiler-architecture.md
-│   ├── 14-implementation-plan.md
-│   └── 15-ai-integration.md
-├── examples/                # Example programs
-│   ├── hello.haira
-│   ├── web-api.haira
-│   ├── cli-tool.haira
-│   ├── data-processing.haira
-│   └── concurrency.haira
-├── crates/                  # Compiler implementation (Rust)
-│   ├── haira-lexer/        # Tokenization
-│   ├── haira-parser/       # AST generation
-│   ├── haira-ast/          # AST definitions
-│   ├── haira-resolver/     # Name resolution
-│   ├── haira-ai/           # AI intent engine
-│   ├── haira-cir/          # Canonical IR
-│   ├── haira-types/        # Type system
-│   ├── haira-hir/          # High-level IR
-│   ├── haira-mir/          # Mid-level IR
-│   ├── haira-codegen/      # Cranelift code generation
-│   ├── haira-driver/       # Compiler driver
-│   └── haira-cli/          # CLI interface
-└── Cargo.toml              # Rust workspace
-```
-
-## Philosophy
-
-1. **Express intention, not mechanics**
-2. **Natural-thinking, not natural language**
-3. **Fast prototyping with production-grade output**
-4. **Reproducibility as a core feature**
-5. **Native-speed binaries from high-level logic**
-6. **Compiler absorbs complexity, developer writes clarity**
-
-## Status
-
-🚧 **Early Development** - Core compiler working, AI integration functional.
-
-### What's Working
-
-- **Lexer & Parser**: Full tokenization and AST generation
-- **Type System**: Structs, functions, primitives, arrays, options
-- **Control Flow**: if/else, for loops, while loops, match expressions
-- **Functions**: Definition, calls, closures, methods
-- **Native Codegen**: Compiles to native binaries via Cranelift
-- **AI Intent Blocks**: Explicit AI-powered function generation
+**No cloud dependency** - AI runs on your machine by default.
 
 ## Quick Start
 
@@ -135,68 +79,112 @@ haira/
 cargo build
 
 # Run a simple program
-./target/debug/haira run examples/hello.haira
+./target/debug/haira run examples/basics/hello.haira
 
 # Build to native binary
-./target/debug/haira build examples/hello.haira -o hello
+./target/debug/haira build examples/basics/hello.haira -o hello
 ./hello
 ```
 
-## AI Intent Blocks
+## AI Blocks
 
-Haira supports explicit AI-powered function generation using the `ai` block syntax:
+Use the `ai` keyword when you want AI to generate an implementation:
 
 ```haira
-// AI generates the implementation based on your intent
-ai get_answer() -> int {
-    Return the answer to life, universe, and everything.
+// AI generates the implementation based on your description
+ai calculate_engagement(user: User) -> EngagementScore {
+    Analyze user's activity over the last 30 days.
+    Consider login frequency, feature usage, and interactions.
+    Return a score from 0-100 with breakdown by category.
 }
 
-ai add(a: int, b: int) -> int {
-    Return the sum of a and b.
-}
-
-ai factorial(n: int) -> int {
-    Return the factorial of n.
-}
-
-// Use them like normal functions
-answer = get_answer()  // Returns 42
-sum = add(10, 32)      // Returns 42
-f = factorial(5)       // Returns 120
+// Use it like a normal function
+score = calculate_engagement(current_user)
+print(score.total)
 ```
 
 ### Using with Ollama (Recommended)
 
-Run AI interpretation locally with Ollama - no API keys required:
-
 ```bash
 # Install Ollama (https://ollama.ai)
-# Then pull a coding model
 ollama pull deepseek-coder-v2:16b
 
 # Build with local AI
-./target/debug/haira build examples/ai_minimal.haira --ollama
+./target/debug/haira build examples/ai/ai_demo.haira --ollama
 
 # Use a different model
-./target/debug/haira build examples/ai_minimal.haira --ollama --ollama-model codellama:7b
+./target/debug/haira build examples/ai/ai_demo.haira --ollama --ollama-model codellama:7b
 ```
 
-Recommended models for code generation:
-- `deepseek-coder-v2:16b` (default) - Best quality for complex logic
-- `deepseek-coder:6.7b` - Good balance of speed and quality
-- `codellama:7b` - Fast alternative
-- `qwen2.5-coder:7b` - Strong reasoning capabilities
+### Recommended Models
+
+| Model | Size | Use Case |
+|-------|------|----------|
+| `deepseek-coder-v2:16b` | 9GB | Best quality (default) |
+| `deepseek-coder:6.7b` | 4GB | Good balance |
+| `codellama:7b` | 4GB | Fast alternative |
+
+## Examples
+
+```bash
+# Basic examples (no AI required)
+./target/debug/haira run examples/basics/hello.haira
+./target/debug/haira run examples/functions/pipe.haira
+./target/debug/haira run examples/functions/fibonacci.haira
+
+# AI examples (requires Ollama)
+./target/debug/haira build --ollama examples/ai/ai_demo.haira -o ai_demo
+./ai_demo
+```
+
+## Project Structure
+
+```
+haira/
+├── spec/                    # Language specification (15 chapters)
+├── examples/                # Example programs
+│   ├── basics/
+│   ├── functions/
+│   ├── control-flow/
+│   ├── data-types/
+│   ├── advanced/
+│   └── ai/
+├── crates/                  # Compiler implementation (Rust)
+│   ├── haira-lexer/
+│   ├── haira-parser/
+│   ├── haira-ai/
+│   ├── haira-codegen/
+│   └── ...
+└── Cargo.toml
+```
+
+## Philosophy
+
+| Approach | Haira | Magic Languages |
+|----------|-------|-----------------|
+| Dependencies | Explicit imports | Auto-resolved |
+| AI usage | Explicit `ai` blocks | Implicit generation |
+| AI backend | Local-first (your machine) | Cloud-dependent |
+| Code generation | Visible, cached | Hidden, unpredictable |
+
+## Status
+
+**Early Development** - Core compiler working, AI integration functional.
+
+### Working Features
+
+- Lexer & Parser
+- Type System (structs, functions, arrays, options)
+- Control Flow (if/else, for, while, match)
+- Functions (closures, methods, pipe operator)
+- Native Codegen (Cranelift)
+- AI Intent Blocks (with Ollama)
 
 ## Requirements
 
 - Rust (for building the compiler)
-- Ollama running locally (for AI features)
+- Ollama (for AI features) - optional for non-AI code
 
 ## License
 
 Apache-2.0
-
----
-
-*Haira: Because your code should say what you mean.*

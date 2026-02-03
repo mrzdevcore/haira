@@ -1,0 +1,444 @@
+\chapter{Lexical Structure}
+\label{ch:lexical}
+
+This chapter defines the lexical grammar of \haira{}: the rules for converting source text into tokens.
+
+\section{Source Encoding}
+
+\haira{} source files are encoded in UTF-8. The file extension is \code{.haira}.
+
+\begin{lstlisting}[language=bash,numbers=none]
+hello.haira
+utils/string_helpers.haira
+\end{lstlisting}
+
+\section{Line Structure}
+
+\haira{} is a line-oriented language. Statements are terminated by newlines, not semicolons.
+
+\begin{lstlisting}
+x = 1
+y = 2
+z = x + y
+\end{lstlisting}
+
+\subsection{Line Continuation}
+
+Lines can be continued with a trailing backslash or when the line ends with an operator or open bracket:
+
+\begin{lstlisting}
+// Explicit continuation
+long_result = very_long_function_name(arg1, arg2) \
+    + another_function(arg3)
+
+// Implicit continuation (ends with operator)
+total = first_value +
+    second_value +
+    third_value
+
+// Implicit continuation (open bracket)
+users = [
+    "alice",
+    "bob",
+    "charlie"
+]
+\end{lstlisting}
+
+\section{Comments}
+
+\subsection{Single-Line Comments}
+
+\begin{lstlisting}
+// This is a single-line comment
+x = 42  // Inline comment
+\end{lstlisting}
+
+\subsection{Multi-Line Comments}
+
+\begin{lstlisting}
+/*
+    This is a multi-line comment.
+    It can span multiple lines.
+*/
+\end{lstlisting}
+
+Multi-line comments can be nested:
+
+\begin{lstlisting}
+/*
+    Outer comment
+    /* Nested comment */
+    Still in outer comment
+*/
+\end{lstlisting}
+
+\subsection{Documentation Comments}
+
+\begin{lstlisting}
+/// This is a documentation comment for the following item.
+/// It can span multiple lines.
+fn calculate_area(width: float, height: float) -> float {
+    return width * height
+}
+\end{lstlisting}
+
+\section{Tokens}
+
+The lexer produces the following token types:
+
+\begin{enumerate}
+    \item Keywords
+    \item Identifiers
+    \item Literals (numbers, strings, booleans)
+    \item Operators
+    \item Delimiters
+\end{enumerate}
+
+\section{Keywords}
+
+The following identifiers are reserved as keywords:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lllll}
+\toprule
+\code{ai} & \code{and} & \code{as} & \code{break} & \code{catch} \\
+\code{chan} & \code{continue} & \code{defer} & \code{else} & \code{enum} \\
+\code{false} & \code{fn} & \code{for} & \code{from} & \code{if} \\
+\code{import} & \code{in} & \code{match} & \code{nil} & \code{not} \\
+\code{or} & \code{return} & \code{select} & \code{spawn} & \code{struct} \\
+\code{true} & \code{try} & \code{type} & \code{while} & \\
+\bottomrule
+\end{tabular}
+\caption{Reserved keywords}
+\end{table}
+
+\begin{note}
+The keywords \keyword{ai}, \keyword{catch}, \keyword{defer}, \keyword{select}, \keyword{spawn}, and \keyword{try} are reserved for future language features. Using them will produce a clear error message.
+\end{note}
+
+\section{Identifiers}
+
+Identifiers name variables, functions, types, and modules.
+
+\begin{lstlisting}[language=EBNF]
+identifier     = letter { letter | digit | "_" } ;
+letter         = "a".."z" | "A".."Z" | "_" ;
+digit          = "0".."9" ;
+\end{lstlisting}
+
+\textbf{Valid identifiers:}
+\begin{lstlisting}[numbers=none]
+x
+name
+userName
+user_name
+_private
+Point3D
+MAX_SIZE
+\end{lstlisting}
+
+\textbf{Invalid identifiers:}
+\begin{lstlisting}[numbers=none]
+3d_point    // Cannot start with digit
+my-name     // Hyphens not allowed
+class       // Reserved keyword (if added)
+\end{lstlisting}
+
+\subsection{Naming Conventions}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Entity} & \textbf{Convention} \\
+\midrule
+Variables & \code{snake\_case} \\
+Functions & \code{snake\_case} \\
+Types/Structs & \code{PascalCase} \\
+Constants & \code{SCREAMING\_SNAKE\_CASE} \\
+Modules & \code{snake\_case} \\
+\bottomrule
+\end{tabular}
+\caption{Naming conventions}
+\end{table}
+
+\section{Literals}
+
+\subsection{Integer Literals}
+
+\begin{lstlisting}[language=EBNF]
+integer_literal = decimal_literal
+                | hex_literal
+                | octal_literal
+                | binary_literal ;
+
+decimal_literal = digit { digit | "_" } ;
+hex_literal     = "0" ("x"|"X") hex_digit { hex_digit | "_" } ;
+octal_literal   = "0" ("o"|"O") octal_digit { octal_digit | "_" } ;
+binary_literal  = "0" ("b"|"B") binary_digit { binary_digit | "_" } ;
+
+hex_digit       = digit | "a".."f" | "A".."F" ;
+octal_digit     = "0".."7" ;
+binary_digit    = "0" | "1" ;
+\end{lstlisting}
+
+\textbf{Examples:}
+\begin{lstlisting}
+decimal = 42
+with_underscores = 1_000_000
+hex = 0xFF
+octal = 0o755
+binary = 0b1010_1100
+\end{lstlisting}
+
+\begin{note}
+All integer literals are of type \type{int} (64-bit signed).
+\end{note}
+
+\subsection{Floating-Point Literals}
+
+\begin{lstlisting}[language=EBNF]
+float_literal = decimal_literal "." decimal_literal [ exponent ]
+              | decimal_literal exponent ;
+
+exponent = ("e"|"E") ["+"|"-"] decimal_literal ;
+\end{lstlisting}
+
+\textbf{Examples:}
+\begin{lstlisting}
+pi = 3.14159
+scientific = 6.022e23
+negative_exp = 1.6e-19
+\end{lstlisting}
+
+\subsection{Boolean Literals}
+
+\begin{lstlisting}
+is_valid = true
+is_empty = false
+\end{lstlisting}
+
+\subsection{String Literals}
+
+\begin{lstlisting}[language=EBNF]
+string_literal = '"' { string_char } '"' ;
+string_char    = any_char - ('"' | '\' | newline)
+               | escape_sequence ;
+\end{lstlisting}
+
+\textbf{Escape sequences:}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Sequence} & \textbf{Meaning} \\
+\midrule
+\code{\textbackslash n} & Newline (LF) \\
+\code{\textbackslash r} & Carriage return (CR) \\
+\code{\textbackslash t} & Horizontal tab \\
+\code{\textbackslash\textbackslash} & Backslash \\
+\code{\textbackslash"} & Double quote \\
+\code{\textbackslash 0} & Null character \\
+\code{\textbackslash xNN} & Hex byte (00-FF) \\
+\code{\textbackslash u\{NNNN\}} & Unicode code point \\
+\bottomrule
+\end{tabular}
+\caption{String escape sequences}
+\end{table}
+
+\textbf{Examples:}
+\begin{lstlisting}
+simple = "Hello, World!"
+with_escapes = "Line 1\nLine 2"
+unicode = "Hello \u{1F44B}"  // Wave emoji
+\end{lstlisting}
+
+\subsection{String Interpolation}
+
+Strings can contain interpolated expressions using \code{\$\{...\}}:
+
+\begin{lstlisting}
+name = "Alice"
+age = 30
+greeting = "Hello, ${name}! You are ${age} years old."
+\end{lstlisting}
+
+\begin{implementation}
+String interpolation is desugared to concatenation during parsing:
+\begin{lstlisting}
+greeting = "Hello, " + name + "! You are " + to_string(age) + " years old."
+\end{lstlisting}
+\end{implementation}
+
+\subsection{Raw Strings}
+
+Raw strings preserve backslashes literally:
+
+\begin{lstlisting}
+regex_pattern = r"^\d{3}-\d{4}$"
+windows_path = r"C:\Users\Alice\Documents"
+\end{lstlisting}
+
+\subsection{Multi-Line Strings}
+
+\begin{lstlisting}
+query = """
+    SELECT *
+    FROM users
+    WHERE active = true
+"""
+\end{lstlisting}
+
+The leading whitespace common to all lines is stripped.
+
+\subsection{Nil Literal}
+
+\begin{lstlisting}
+empty: User? = nil
+\end{lstlisting}
+
+\section{Operators}
+
+\subsection{Arithmetic Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{+} & Addition \\
+\code{-} & Subtraction (or unary negation) \\
+\code{*} & Multiplication \\
+\code{/} & Division \\
+\code{\%} & Modulo (remainder) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Comparison Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{==} & Equal \\
+\code{!=} & Not equal \\
+\code{<} & Less than \\
+\code{>} & Greater than \\
+\code{<=} & Less than or equal \\
+\code{>=} & Greater than or equal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Logical Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{and}, \code{\&\&} & Logical AND \\
+\code{or}, \code{||} & Logical OR \\
+\code{not}, \code{!} & Logical NOT \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Assignment Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{=} & Assignment \\
+\code{+=} & Add and assign \\
+\code{-=} & Subtract and assign \\
+\code{*=} & Multiply and assign \\
+\code{/=} & Divide and assign \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Other Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{|} & Pipe (function composition) \\
+\code{..} & Range (exclusive end) \\
+\code{..=} & Range (inclusive end) \\
+\code{<-} & Channel send \\
+\code{->} & Function return type \\
+\code{=>} & Match arm \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Delimiters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Delimiter} & \textbf{Usage} \\
+\midrule
+\code{(} \code{)} & Grouping, function calls, tuples \\
+\code{[} \code{]} & Array literals, indexing \\
+\code{\{} \code{\}} & Blocks, struct literals, maps \\
+\code{,} & Separator \\
+\code{:} & Type annotations, map entries \\
+\code{.} & Member access \\
+\code{?} & Optional type marker \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Whitespace}
+
+Whitespace (spaces, tabs) is used to separate tokens but is otherwise insignificant, except for indentation in multi-line strings.
+
+\begin{lstlisting}
+x=1+2         // Valid
+x = 1 + 2     // Also valid, preferred for readability
+\end{lstlisting}
+
+\section{Lexical Grammar Summary}
+
+\begin{lstlisting}[language=EBNF]
+token = keyword
+      | identifier
+      | integer_literal
+      | float_literal
+      | string_literal
+      | operator
+      | delimiter ;
+
+keyword = "ai" | "and" | "as" | "break" | "catch" | "chan"
+        | "continue" | "defer" | "else" | "enum" | "false"
+        | "fn" | "for" | "from" | "if" | "import" | "in"
+        | "match" | "nil" | "not" | "or" | "return" | "select"
+        | "spawn" | "struct" | "true" | "try" | "type" | "while" ;
+
+identifier = letter { letter | digit | "_" } ;
+
+operator = "+" | "-" | "*" | "/" | "%"
+         | "==" | "!=" | "<" | ">" | "<=" | ">="
+         | "and" | "or" | "not" | "&&" | "||" | "!"
+         | "=" | "+=" | "-=" | "*=" | "/="
+         | "|" | ".." | "..=" | "<-" | "->" | "=>" ;
+
+delimiter = "(" | ")" | "[" | "]" | "{" | "}"
+          | "," | ":" | "." | "?" ;
+\end{lstlisting}

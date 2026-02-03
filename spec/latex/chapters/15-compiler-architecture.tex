@@ -1,0 +1,635 @@
+\chapter{Compiler Architecture}
+\label{ch:compiler}
+
+This chapter describes the architecture and implementation of the \haira{} compiler.
+
+\section{Overview}
+
+The \haira{} compiler (\code{hairac}) transforms source code into native executables. It is written in Rust and uses Cranelift for code generation.
+
+\begin{lstlisting}[language={},numbers=none]
+Source (.haira)
+       |
+       v
+   +--------+
+   | Lexer  |  --> Tokens
+   +--------+
+       |
+       v
+   +--------+
+   | Parser |  --> AST
+   +--------+
+       |
+       v
+   +----------+
+   | Resolver |  --> Resolved AST (imports, symbols)
+   +----------+
+       |
+       v
+   +-------------+
+   | Type Checker|  --> Typed AST
+   +-------------+
+       |
+       v
+   +----------+
+   | AI Phase |  --> AI blocks expanded (optional)
+   +----------+
+       |
+       v
+   +----------+
+   | Lowering |  --> HIR (High-level IR)
+   +----------+
+       |
+       v
+   +----------+
+   | Codegen  |  --> Cranelift IR --> Native binary
+   +----------+
+\end{lstlisting}
+
+\section{Lexer}
+
+The lexer (scanner) converts source text into a stream of tokens.
+
+\subsection{Token Types}
+
+\begin{lstlisting}[language={}]
+enum TokenKind {
+    // Literals
+    IntLit(i64),
+    FloatLit(f64),
+    StringLit(String),
+    BoolLit(bool),
+
+    // Identifiers and keywords
+    Ident(String),
+    Keyword(Keyword),
+
+    // Operators
+    Plus, Minus, Star, Slash, Percent,
+    Eq, EqEq, NotEq, Lt, Gt, LtEq, GtEq,
+    And, Or, Not, AndAnd, OrOr, Bang,
+    PlusEq, MinusEq, StarEq, SlashEq,
+    Pipe, DotDot, DotDotEq, Arrow, FatArrow,
+    LeftArrow, Question,
+
+    // Delimiters
+    LParen, RParen, LBracket, RBracket, LBrace, RBrace,
+    Comma, Colon, Dot, Semicolon,
+
+    // Special
+    Newline, Eof, Error(String),
+}
+\end{lstlisting}
+
+\subsection{Lexer Implementation}
+
+\begin{lstlisting}[language={}]
+struct Lexer<'a> {
+    source: &'a str,
+    chars: Peekable<CharIndices<'a>>,
+    line: usize,
+    column: usize,
+}
+
+impl<'a> Lexer<'a> {
+    fn next_token(&mut self) -> Token {
+        self.skip_whitespace();
+
+        match self.peek_char() {
+            None => Token::new(TokenKind::Eof, self.span()),
+            Some(c) => match c {
+                '0'..='9' => self.scan_number(),
+                '"' => self.scan_string(),
+                'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier(),
+                '+' => self.scan_operator(TokenKind::Plus, TokenKind::PlusEq),
+                // ... other cases
+            }
+        }
+    }
+}
+\end{lstlisting}
+
+\section{Parser}
+
+The parser constructs an Abstract Syntax Tree (AST) from the token stream.
+
+\subsection{AST Nodes}
+
+\begin{lstlisting}[language={}]
+enum Expr {
+    Literal(Literal),
+    Ident(Ident),
+    Binary(Box<Expr>, BinOp, Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    FieldAccess(Box<Expr>, Ident),
+    Index(Box<Expr>, Box<Expr>),
+    If(Box<Expr>, Block, Option<Block>),
+    Match(Box<Expr>, Vec<MatchArm>),
+    Closure(Vec<Param>, Option<Type>, Block),
+    Array(Vec<Expr>),
+    Map(Vec<(Expr, Expr)>),
+    Struct(Ident, Vec<(Ident, Expr)>),
+    Range(Box<Expr>, Box<Expr>, bool),
+    Pipe(Box<Expr>, Box<Expr>),
+}
+
+enum Stmt {
+    VarDecl(Vec<Ident>, Option<Type>, Vec<Expr>),
+    Assignment(Vec<LValue>, AssignOp, Vec<Expr>),
+    Expr(Expr),
+    If(Expr, Block, Option<Block>),
+    For(Option<Ident>, Ident, Expr, Block),
+    While(Expr, Block),
+    Match(Expr, Vec<MatchArm>),
+    Return(Option<Vec<Expr>>),
+    Break(Option<Ident>),
+    Continue(Option<Ident>),
+    Defer(Box<Stmt>),
+    Spawn(SpawnTarget),
+    Block(Block),
+}
+\end{lstlisting}
+
+\subsection{Recursive Descent}
+
+The parser uses recursive descent with Pratt parsing for expressions:
+
+\begin{lstlisting}[language={}]
+impl Parser<'_> {
+    fn parse_expression(&mut self) -> Result<Expr, ParseError> {
+        self.parse_expr_bp(0)
+    }
+
+    fn parse_expr_bp(&mut self, min_bp: u8) -> Result<Expr, ParseError> {
+        let mut lhs = self.parse_prefix()?;
+
+        loop {
+            let op = match self.peek() {
+                Some(Token { kind: TokenKind::Plus, .. }) => BinOp::Add,
+                // ... other operators
+                _ => break,
+            };
+
+            let (l_bp, r_bp) = op.binding_power();
+            if l_bp < min_bp {
+                break;
+            }
+
+            self.advance();
+            let rhs = self.parse_expr_bp(r_bp)?;
+            lhs = Expr::Binary(Box::new(lhs), op, Box::new(rhs));
+        }
+
+        Ok(lhs)
+    }
+}
+\end{lstlisting}
+
+\section{Resolver}
+
+The resolver performs:
+\begin{itemize}
+    \item Import resolution
+    \item Symbol binding (variables, functions, types)
+    \item Scope analysis
+    \item Forward declaration handling
+\end{itemize}
+
+\subsection{Symbol Table}
+
+\begin{lstlisting}[language={}]
+struct SymbolTable {
+    scopes: Vec<Scope>,
+    current: usize,
+}
+
+struct Scope {
+    symbols: HashMap<String, Symbol>,
+    parent: Option<usize>,
+}
+
+enum Symbol {
+    Variable { ty: TypeId, mutable: bool },
+    Function { sig: FunctionSig },
+    Type { def: TypeDef },
+    Module { exports: HashMap<String, Symbol> },
+}
+\end{lstlisting}
+
+\subsection{Import Resolution}
+
+\begin{lstlisting}[language={}]
+fn resolve_import(&mut self, import: &Import) -> Result<(), ResolveError> {
+    let module = match &import.path {
+        // Standard library
+        path if is_stdlib(path) => self.load_stdlib(path)?,
+
+        // Project-local
+        path if is_local(path) => self.load_local(path)?,
+
+        // External package
+        path => self.load_external(path)?,
+    };
+
+    match &import.kind {
+        ImportKind::Simple => {
+            self.bind_module(import.alias_or_name(), module)?;
+        }
+        ImportKind::Selective(names) => {
+            for name in names {
+                let symbol = module.export(name)?;
+                self.bind_symbol(name, symbol)?;
+            }
+        }
+        ImportKind::Glob => {
+            for (name, symbol) in module.exports() {
+                self.bind_symbol(name, symbol)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+\end{lstlisting}
+
+\section{Type Checker}
+
+The type checker verifies type correctness and performs type inference.
+
+\subsection{Type Representation}
+
+\begin{lstlisting}[language={}]
+enum Type {
+    // Primitives
+    Int, I8, I16, I32, I64,
+    UInt, U8, U16, U32, U64,
+    Float, F32, F64,
+    Bool,
+    String,
+
+    // Composites
+    Array(Box<Type>),
+    Map(Box<Type>, Box<Type>),
+    Tuple(Vec<Type>),
+    Option(Box<Type>),
+
+    // Named
+    Struct(StructId),
+    Enum(EnumId),
+
+    // Functions
+    Function(Vec<Type>, Box<Type>),
+
+    // Generics
+    TypeVar(TypeVarId),
+    Generic(GenericId, Vec<Type>),
+
+    // Special
+    Never,
+    Error,
+}
+\end{lstlisting}
+
+\subsection{Type Inference}
+
+\begin{lstlisting}[language={}]
+fn infer_expr(&mut self, expr: &Expr) -> Result<Type, TypeError> {
+    match expr {
+        Expr::Literal(lit) => Ok(self.literal_type(lit)),
+
+        Expr::Ident(name) => {
+            self.lookup_type(name)
+        }
+
+        Expr::Binary(lhs, op, rhs) => {
+            let lhs_ty = self.infer_expr(lhs)?;
+            let rhs_ty = self.infer_expr(rhs)?;
+            self.binary_result_type(op, &lhs_ty, &rhs_ty)
+        }
+
+        Expr::Call(func, args) => {
+            let func_ty = self.infer_expr(func)?;
+            match func_ty {
+                Type::Function(params, ret) => {
+                    self.check_args(&params, args)?;
+                    Ok(*ret)
+                }
+                _ => Err(TypeError::NotCallable(func_ty)),
+            }
+        }
+
+        // ... other cases
+    }
+}
+\end{lstlisting}
+
+\subsection{Unification}
+
+\begin{lstlisting}[language={}]
+fn unify(&mut self, a: &Type, b: &Type) -> Result<Type, TypeError> {
+    match (a, b) {
+        // Identical types
+        (a, b) if a == b => Ok(a.clone()),
+
+        // Type variable
+        (Type::TypeVar(id), t) | (t, Type::TypeVar(id)) => {
+            self.bind_type_var(*id, t.clone());
+            Ok(t.clone())
+        }
+
+        // Option types
+        (Type::Option(a), Type::Option(b)) => {
+            Ok(Type::Option(Box::new(self.unify(a, b)?)))
+        }
+
+        // Arrays
+        (Type::Array(a), Type::Array(b)) => {
+            Ok(Type::Array(Box::new(self.unify(a, b)?)))
+        }
+
+        // Mismatch
+        _ => Err(TypeError::Mismatch(a.clone(), b.clone())),
+    }
+}
+\end{lstlisting}
+
+\section{AI Phase}
+
+The AI phase expands \keyword{ai} blocks into regular functions.
+
+\subsection{AI Block Processing}
+
+\begin{lstlisting}[language={}]
+fn process_ai_block(&mut self, ai: &AiBlock) -> Result<FnDecl, AiError> {
+    // 1. Generate cache key
+    let key = self.cache_key(ai);
+
+    // 2. Check cache
+    if let Some(cached) = self.cache.get(&key) {
+        return self.parse_cir(cached);
+    }
+
+    // 3. Prepare context
+    let context = AiContext {
+        signature: self.format_signature(ai),
+        types: self.collect_types(ai),
+        intent: ai.intent.clone(),
+    };
+
+    // 4. Invoke backend
+    let cir = self.backend.generate(&context)?;
+
+    // 5. Validate CIR
+    self.validate_cir(&cir, ai)?;
+
+    // 6. Cache result
+    self.cache.set(&key, &cir);
+
+    // 7. Convert to AST
+    self.cir_to_ast(&cir)
+}
+\end{lstlisting}
+
+\subsection{Backend Interface}
+
+\begin{lstlisting}[language={}]
+trait AiBackend {
+    fn generate(&self, context: &AiContext) -> Result<Cir, AiError>;
+    fn name(&self) -> &str;
+    fn is_available(&self) -> bool;
+}
+
+struct LlamaCppBackend {
+    model_path: PathBuf,
+    context_size: usize,
+    // ...
+}
+
+struct OllamaBackend {
+    host: String,
+    model: String,
+    // ...
+}
+
+struct AnthropicBackend {
+    api_key: String,
+    model: String,
+    // ...
+}
+\end{lstlisting}
+
+\section{Lowering}
+
+Lowering transforms the typed AST into HIR (High-level IR).
+
+\subsection{HIR Structure}
+
+\begin{lstlisting}[language={}]
+struct HirModule {
+    functions: Vec<HirFunction>,
+    types: Vec<HirType>,
+    constants: Vec<HirConst>,
+}
+
+struct HirFunction {
+    name: Symbol,
+    params: Vec<HirParam>,
+    return_type: HirType,
+    body: Vec<HirStmt>,
+    locals: Vec<HirLocal>,
+}
+
+enum HirStmt {
+    Assign(LocalId, HirExpr),
+    Store(HirPlace, HirExpr),
+    Call(Option<LocalId>, FnId, Vec<HirExpr>),
+    If(HirExpr, BlockId, Option<BlockId>),
+    Loop(BlockId),
+    Break(Option<LoopId>),
+    Continue(Option<LoopId>),
+    Return(Option<HirExpr>),
+}
+\end{lstlisting}
+
+\subsection{Desugaring}
+
+\begin{lstlisting}[language={}]
+// Pipe operator
+// a | f | g  -->  g(f(a))
+fn desugar_pipe(&mut self, pipe: &Pipe) -> HirExpr {
+    self.build_call(
+        pipe.rhs,
+        vec![self.desugar_expr(&pipe.lhs)]
+    )
+}
+
+// String interpolation
+// "Hello, ${name}!"  -->  "Hello, " + to_string(name) + "!"
+fn desugar_interpolation(&mut self, s: &InterpolatedString) -> HirExpr {
+    let parts: Vec<HirExpr> = s.parts.iter().map(|part| {
+        match part {
+            Part::Literal(s) => HirExpr::StringLit(s.clone()),
+            Part::Expr(e) => self.build_to_string(self.lower_expr(e)),
+        }
+    }).collect();
+
+    self.build_string_concat(parts)
+}
+
+// For loop
+// for x in items { ... }  -->  iterator pattern
+fn desugar_for(&mut self, f: &ForLoop) -> Vec<HirStmt> {
+    let iter = self.build_iter_call(&f.iterable);
+    let loop_var = self.fresh_local();
+
+    vec![
+        HirStmt::Assign(loop_var, iter),
+        HirStmt::Loop(self.build_block(vec![
+            HirStmt::Assign(f.var, self.build_next_call(loop_var)),
+            HirStmt::If(
+                self.build_is_some(f.var),
+                self.lower_block(&f.body),
+                Some(self.build_break_block()),
+            ),
+        ])),
+    ]
+}
+\end{lstlisting}
+
+\section{Code Generation}
+
+Code generation uses Cranelift to produce native code.
+
+\subsection{Cranelift Integration}
+
+\begin{lstlisting}[language={}]
+fn codegen_function(&mut self, func: &HirFunction) -> Result<(), CodegenError> {
+    let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
+
+    // Create entry block
+    let entry = builder.create_block();
+    builder.append_block_params_for_function_params(entry);
+    builder.switch_to_block(entry);
+
+    // Generate parameters
+    for (i, param) in func.params.iter().enumerate() {
+        let val = builder.block_params(entry)[i];
+        self.locals.insert(param.id, val);
+    }
+
+    // Generate body
+    for stmt in &func.body {
+        self.codegen_stmt(&mut builder, stmt)?;
+    }
+
+    builder.seal_all_blocks();
+    builder.finalize();
+
+    Ok(())
+}
+
+fn codegen_expr(&mut self, builder: &mut FunctionBuilder, expr: &HirExpr) -> Value {
+    match expr {
+        HirExpr::IntLit(n) => builder.ins().iconst(types::I64, *n),
+
+        HirExpr::Binary(lhs, op, rhs) => {
+            let l = self.codegen_expr(builder, lhs);
+            let r = self.codegen_expr(builder, rhs);
+            match op {
+                BinOp::Add => builder.ins().iadd(l, r),
+                BinOp::Sub => builder.ins().isub(l, r),
+                BinOp::Mul => builder.ins().imul(l, r),
+                BinOp::Div => builder.ins().sdiv(l, r),
+                // ...
+            }
+        }
+
+        HirExpr::Call(func, args) => {
+            let args: Vec<Value> = args.iter()
+                .map(|a| self.codegen_expr(builder, a))
+                .collect();
+            let call = builder.ins().call(func.ir_ref, &args);
+            builder.inst_results(call)[0]
+        }
+
+        // ...
+    }
+}
+\end{lstlisting}
+
+\section{Project Structure}
+
+\begin{lstlisting}[language={},numbers=none]
+haira/
+  Cargo.toml
+  src/
+    main.rs               # CLI entry point
+    lib.rs                # Library entry point
+
+  crates/
+    haira-lexer/          # Lexical analysis
+    haira-parser/         # Parsing
+    haira-ast/            # AST definitions
+    haira-resolver/       # Name resolution
+    haira-types/          # Type system
+    haira-typeck/         # Type checking
+    haira-ai/             # AI integration
+    haira-cir/            # CIR handling
+    haira-hir/            # High-level IR
+    haira-codegen/        # Code generation
+    haira-driver/         # Compilation driver
+    haira-stdlib/         # Standard library
+\end{lstlisting}
+
+\section{Build Process}
+
+\begin{lstlisting}[language=bash,numbers=none]
+# Full build
+haira build main.haira
+
+# Debug build
+haira build main.haira --debug
+
+# Release build
+haira build main.haira --release
+
+# Check without codegen
+haira check main.haira
+
+# Run directly
+haira run main.haira
+
+# REPL
+haira repl
+\end{lstlisting}
+
+\section{Error Messages}
+
+\begin{lstlisting}[language={},numbers=none]
+error[E0001]: type mismatch
+  --> src/main.haira:15:12
+   |
+15 |     return "hello"
+   |            ^^^^^^^ expected `int`, found `string`
+   |
+   = note: expected type `int`
+              found type `string`
+
+error[E0015]: undefined variable
+  --> src/main.haira:20:5
+   |
+20 |     println(undefined_var)
+   |             ^^^^^^^^^^^^^ not found in this scope
+   |
+   = help: did you mean `undefined_value`?
+
+error[E0042]: missing return statement
+  --> src/main.haira:25:1
+   |
+25 | fn calculate(x: int) -> int {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^ this function must return a value
+   |
+26 |     x * 2
+   |     ----- help: consider adding a `return`: `return x * 2`
+\end{lstlisting}

@@ -1,0 +1,503 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\gdef \LT@i {\LT@entry 
+    {1}{53.34549pt}\LT@entry 
+    {1}{62.0294pt}\LT@entry 
+    {2}{183.30576pt}}
+\@writefile{toc}{\contentsline {chapter}{Preface}{13}{chapter*.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {part}{I\hspace  {1em}Core Language}{15}{part.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {1}Overview}{17}{chapter.1}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:overview}{{1}{17}{Overview}{chapter.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {1.1}Hello, World}{17}{section.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.2}Language Characteristics}{17}{section.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.1}Explicit Imports}{17}{subsection.1.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.2}Go-Style Error Handling}{17}{subsection.1.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.3}Explicit AI Blocks}{18}{subsection.1.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2.4}Local-First AI}{18}{subsection.1.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.3}Type System}{19}{section.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.4}Control Flow}{19}{section.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.5}Functions}{20}{section.1.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.6}Concurrency}{20}{section.1.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.7}Pipe Operator}{20}{section.1.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.8}A Complete Example}{21}{section.1.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1.9}Implementation Status}{22}{section.1.9}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1.1}{\ignorespaces Implementation roadmap by chapter}}{22}{table.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {2}Lexical Structure}{23}{chapter.2}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:lexical}{{2}{23}{Lexical Structure}{chapter.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.1}Source Encoding}{23}{section.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.2}Line Structure}{23}{section.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2.1}Line Continuation}{23}{subsection.2.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.3}Comments}{24}{section.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.1}Single-Line Comments}{24}{subsection.2.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.2}Multi-Line Comments}{24}{subsection.2.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.3}Documentation Comments}{24}{subsection.2.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.4}Tokens}{24}{section.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.5}Keywords}{24}{section.2.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2.1}{\ignorespaces Reserved keywords}}{25}{table.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.6}Identifiers}{25}{section.2.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.1}Naming Conventions}{25}{subsection.2.6.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2.2}{\ignorespaces Naming conventions}}{25}{table.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.7}Literals}{26}{section.2.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.1}Integer Literals}{26}{subsection.2.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.2}Floating-Point Literals}{26}{subsection.2.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.3}Boolean Literals}{26}{subsection.2.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.4}String Literals}{27}{subsection.2.7.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2.3}{\ignorespaces String escape sequences}}{27}{table.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.5}String Interpolation}{27}{subsection.2.7.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.6}Raw Strings}{27}{subsection.2.7.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.7}Multi-Line Strings}{28}{subsection.2.7.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7.8}Nil Literal}{28}{subsection.2.7.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.8}Operators}{28}{section.2.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.8.1}Arithmetic Operators}{28}{subsection.2.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.8.2}Comparison Operators}{28}{subsection.2.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.8.3}Logical Operators}{28}{subsection.2.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.8.4}Assignment Operators}{29}{subsection.2.8.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.8.5}Other Operators}{29}{subsection.2.8.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.9}Delimiters}{29}{section.2.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.10}Whitespace}{29}{section.2.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.11}Lexical Grammar Summary}{29}{section.2.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {3}Types}{31}{chapter.3}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:types}{{3}{31}{Types}{chapter.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.1}Type System Overview}{31}{section.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.2}Primitive Types}{31}{section.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.1}Integer Types}{31}{subsection.3.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Integer types}}{31}{table.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.2}Floating-Point Types}{32}{subsection.3.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3.2}{\ignorespaces Floating-point types}}{32}{table.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.3}Boolean Type}{32}{subsection.3.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.4}String Type}{32}{subsection.3.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.3}Composite Types}{32}{section.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.1}Arrays}{32}{subsection.3.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.2}Maps}{33}{subsection.3.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.3}Tuples}{33}{subsection.3.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.4}Option Types}{34}{section.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.1}Unwrapping Options}{34}{subsection.3.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.5}Struct Types}{34}{section.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5.1}Struct Methods}{35}{subsection.3.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5.2}Nested Structs}{35}{subsection.3.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.6}Enum Types}{36}{section.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.6.1}Enums with Associated Data}{36}{subsection.3.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.7}Type Aliases}{37}{section.3.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.8}Function Types}{37}{section.3.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.9}Generic Types}{37}{section.3.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.9.1}Type Constraints}{38}{subsection.3.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.10}The Error Type}{38}{section.3.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.11}Type Inference}{38}{section.3.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.12}Structural Typing}{39}{section.3.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3.13}Type Grammar}{39}{section.3.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {4}Expressions}{41}{chapter.4}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:expressions}{{4}{41}{Expressions}{chapter.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.1}Primary Expressions}{41}{section.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.1}Literals}{41}{subsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.2}Identifiers}{41}{subsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1.3}Parenthesized Expressions}{41}{subsection.4.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.2}Arithmetic Expressions}{41}{section.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.1}Integer Division}{42}{subsection.4.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.2}Modulo}{42}{subsection.4.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.3}Comparison Expressions}{42}{section.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.1}Equality}{42}{subsection.4.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.4}Logical Expressions}{42}{section.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.1}Short-Circuit Evaluation}{42}{subsection.4.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.5}String Expressions}{43}{section.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5.1}Concatenation}{43}{subsection.4.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5.2}String Interpolation}{43}{subsection.4.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.6}Array and Map Expressions}{43}{section.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6.1}Array Literals}{43}{subsection.4.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6.2}Map Literals}{43}{subsection.4.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6.3}Index Access}{43}{subsection.4.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.7}Field Access}{44}{section.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.8}Function Calls}{44}{section.4.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.8.1}Chained Calls}{44}{subsection.4.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.9}Pipe Expressions}{44}{section.4.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.9.1}Pipe with Arguments}{44}{subsection.4.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.9.2}Complex Pipelines}{44}{subsection.4.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.10}Range Expressions}{45}{section.4.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.11}Conditional Expressions}{45}{section.4.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.11.1}If Expression}{45}{subsection.4.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.11.2}Match Expression}{45}{subsection.4.11.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.12}Block Expressions}{46}{section.4.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.13}Struct Instantiation}{46}{section.4.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.14}Closure Expressions}{46}{section.4.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.15}Option Expressions}{46}{section.4.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.15.1}Nil Coalescing}{46}{subsection.4.15.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.15.2}Optional Chaining}{47}{subsection.4.15.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.16}Type Assertions}{47}{section.4.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.17}Operator Precedence}{47}{section.4.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.18}Expression Grammar}{47}{section.4.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Statements}{49}{chapter.5}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:statements}{{5}{49}{Statements}{chapter.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Variable Declarations}{49}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}With Inference}{49}{subsection.5.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}With Explicit Type}{49}{subsection.5.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.3}Multiple Declarations}{49}{subsection.5.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.4}Uninitialized Variables}{49}{subsection.5.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.2}Assignment Statements}{49}{section.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.1}Multiple Assignment}{50}{subsection.5.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.2}Field Assignment}{50}{subsection.5.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}Index Assignment}{50}{subsection.5.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Expression Statements}{50}{section.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}If Statements}{50}{section.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4.1}Condition Binding}{51}{subsection.5.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}For Statements}{51}{section.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.1}Range-Based For}{51}{subsection.5.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.2}Collection Iteration}{51}{subsection.5.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.3}String Iteration}{51}{subsection.5.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.6}While Statements}{52}{section.5.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.7}Match Statements}{52}{section.5.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.1}Basic Matching}{52}{subsection.5.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.2}Multiple Patterns}{52}{subsection.5.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.3}Range Patterns}{52}{subsection.5.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.4}Guard Clauses}{53}{subsection.5.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.5}Destructuring Patterns}{53}{subsection.5.7.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.6}Match Exhaustiveness}{53}{subsection.5.7.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.8}Block Statements}{54}{section.5.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.9}Return Statements}{54}{section.5.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.9.1}Implicit Return}{54}{subsection.5.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.10}Break Statements}{54}{section.5.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.10.1}Labeled Break}{55}{subsection.5.10.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.11}Continue Statements}{55}{section.5.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.1}Labeled Continue}{55}{subsection.5.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.12}Import Statements}{55}{section.5.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.13}Defer Statements}{56}{section.5.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.1}Multiple Defers}{56}{subsection.5.13.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.14}Statement Grammar}{56}{section.5.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Functions}{59}{chapter.6}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:functions}{{6}{59}{Functions}{chapter.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Function Declarations}{59}{section.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.1}Basic Examples}{59}{subsection.6.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.2}No Return Type}{59}{subsection.6.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Parameters}{60}{section.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}Required Parameters}{60}{subsection.6.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Default Parameters}{60}{subsection.6.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}Named Arguments}{60}{subsection.6.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}Variadic Parameters}{60}{subsection.6.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.3}Return Values}{61}{section.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.1}Single Return}{61}{subsection.6.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.2}Multiple Returns}{61}{subsection.6.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.3}Implicit Return}{61}{subsection.6.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.4}Early Return}{61}{subsection.6.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.4}Function Types}{61}{section.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.5}Closures}{62}{section.6.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5.1}Closure Syntax}{62}{subsection.6.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5.2}Capture Semantics}{62}{subsection.6.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.6}Methods}{63}{section.6.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.1}Method Receiver}{64}{subsection.6.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.7}Generic Functions}{64}{section.6.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7.1}Type Constraints}{64}{subsection.6.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.8}Higher-Order Functions}{65}{section.6.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.9}Recursion}{65}{section.6.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.9.1}Tail Call Optimization}{65}{subsection.6.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.10}Function Overloading}{66}{section.6.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.11}The main Function}{66}{section.6.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.12}Function Grammar}{66}{section.6.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}Error Handling}{67}{chapter.7}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:errors}{{7}{67}{Error Handling}{chapter.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}Philosophy}{67}{section.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}The Error Type}{67}{section.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2.1}Creating Errors}{67}{subsection.7.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}Error Return Pattern}{68}{section.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.4}Handling Errors}{68}{section.7.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4.1}Basic Error Checking}{68}{subsection.7.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4.2}Propagating Errors}{68}{subsection.7.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4.3}Wrapping Errors}{68}{subsection.7.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.5}Error Checking Patterns}{69}{section.7.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.1}Guard Pattern}{69}{subsection.7.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.2}Defer for Cleanup}{69}{subsection.7.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.6}Error Utilities}{70}{section.7.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.6.1}Checking Error Types}{70}{subsection.7.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.6.2}Error Chain Traversal}{70}{subsection.7.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.7}Option Types and Errors}{71}{section.7.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.7.1}Converting Between Options and Errors}{71}{subsection.7.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.8}Panic and Recovery}{71}{section.7.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.8.1}When to Use Panic}{72}{subsection.7.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.8.2}When to Use Errors}{72}{subsection.7.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.9}Best Practices}{72}{section.7.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.9.1}Return Errors, Don't Log and Continue}{72}{subsection.7.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.9.2}Add Context When Wrapping}{73}{subsection.7.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.9.3}Handle Errors at the Right Level}{73}{subsection.7.9.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.10}Error Handling Grammar}{73}{section.7.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {part}{II\hspace  {1em}Advanced Features}{75}{part.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {8}Concurrency}{77}{chapter.8}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:concurrency}{{8}{77}{Concurrency}{chapter.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.1}Concurrency Model}{77}{section.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.2}Spawn}{77}{section.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2.1}Spawning Functions}{77}{subsection.8.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2.2}Spawn Returns Handle}{78}{subsection.8.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.3}Channels}{78}{section.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.1}Sending and Receiving}{78}{subsection.8.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.2}Basic Channel Example}{78}{subsection.8.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.3}Buffered Channels}{79}{subsection.8.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.4}Closing Channels}{79}{subsection.8.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.5}Checking Channel State}{79}{subsection.8.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.4}Select}{80}{section.8.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.1}Select with Default}{80}{subsection.8.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.2}Select with Timeout}{80}{subsection.8.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.3}Select in Loop}{81}{subsection.8.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.5}Common Patterns}{81}{section.8.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.1}Worker Pool}{81}{subsection.8.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.2}Fan-Out, Fan-In}{82}{subsection.8.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.3}Pipeline}{82}{subsection.8.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.4}Semaphore}{83}{subsection.8.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.6}Channel Types}{84}{section.8.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.6.1}Directional Channels}{84}{subsection.8.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.7}Synchronization}{85}{section.8.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.7.1}WaitGroup}{85}{subsection.8.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.7.2}Mutex}{85}{subsection.8.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8.8}Concurrency Grammar}{86}{section.8.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {9}Modules and Imports}{87}{chapter.9}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:modules}{{9}{87}{Modules and Imports}{chapter.9}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {9.1}Module System Overview}{87}{section.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.2}Import Syntax}{87}{section.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2.1}Basic Import}{87}{subsection.9.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2.2}Aliased Import}{87}{subsection.9.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2.3}Selective Import}{88}{subsection.9.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2.4}Glob Import}{88}{subsection.9.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.3}Module Resolution}{88}{section.9.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3.1}Standard Library}{88}{subsection.9.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3.2}Project-Local Imports}{89}{subsection.9.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3.3}External Packages}{89}{subsection.9.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.4}Module Definitions}{89}{section.9.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.4.1}File as Module}{89}{subsection.9.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.4.2}Exporting}{89}{subsection.9.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.4.3}Package Initialization}{90}{subsection.9.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.5}Package Structure}{90}{section.9.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.5.1}Single-File Package}{90}{subsection.9.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.5.2}Multi-File Package}{90}{subsection.9.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.5.3}The mod.haira File}{91}{subsection.9.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.6}Import Order}{91}{section.9.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.7}Circular Dependencies}{91}{section.9.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.8}Conditional Imports}{92}{section.9.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.9}The haira.toml File}{92}{section.9.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9.10}Module Grammar}{92}{section.9.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {10}Standard Library}{95}{chapter.10}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:stdlib}{{10}{95}{Standard Library}{chapter.10}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {10.1}Core Modules}{95}{section.10.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10.1}{\ignorespaces Core modules}}{95}{table.10.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.2}io Module}{95}{section.10.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.2.1}io Functions}{95}{subsection.10.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.3}string Module}{96}{section.10.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.3.1}string Functions}{96}{subsection.10.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.4}array Module}{97}{section.10.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.5}map Module}{98}{section.10.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.6}math Module}{98}{section.10.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.7}conv Module}{99}{section.10.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.8}Extended Modules}{100}{section.10.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.1}fs Module}{100}{subsection.10.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.2}os Module}{100}{subsection.10.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.3}time Module}{101}{subsection.10.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.4}json Module}{101}{subsection.10.8.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.5}http Module}{102}{subsection.10.8.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.6}regex Module}{102}{subsection.10.8.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.7}crypto Module}{103}{subsection.10.8.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.8.8}net Module}{103}{subsection.10.8.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10.9}Testing Module}{103}{section.10.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {11}Advanced Features}{105}{chapter.11}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:advanced}{{11}{105}{Advanced Features}{chapter.11}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {11.1}Generics}{105}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1.1}Generic Functions}{105}{subsection.11.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1.2}Generic Types}{105}{subsection.11.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1.3}Type Constraints}{106}{subsection.11.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1.4}Where Clauses}{106}{subsection.11.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.2}Constraints (Traits)}{107}{section.11.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.2.1}Defining Constraints}{107}{subsection.11.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.2.2}Implementing Constraints}{107}{subsection.11.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.2.3}Built-in Constraints}{108}{subsection.11.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.3}Union Types}{108}{section.11.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.3.1}Simple Unions}{108}{subsection.11.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.3.2}Tagged Unions (Enums with Data)}{109}{subsection.11.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.4}Pattern Matching}{109}{section.11.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.4.1}Destructuring}{109}{subsection.11.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.4.2}Pattern Guards}{110}{subsection.11.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.4.3}Or Patterns}{110}{subsection.11.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.4.4}Binding Patterns}{110}{subsection.11.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.5}Operator Overloading}{110}{section.11.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.6}Compile-Time Evaluation}{111}{section.11.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.7}Attributes}{111}{section.11.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.8}Macros}{112}{section.11.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.9}Unsafe Code}{113}{section.11.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.10}Foreign Function Interface (FFI)}{113}{section.11.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.11}Reflection}{114}{section.11.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11.12}Advanced Features Grammar}{114}{section.11.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {part}{III\hspace  {1em}AI Integration}{115}{part.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {12}AI Integration}{117}{chapter.12}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:ai}{{12}{117}{AI Integration}{chapter.12}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {12.1}Philosophy}{117}{section.12.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.2}AI Block Syntax}{117}{section.12.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.2.1}Basic Example}{117}{subsection.12.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.2.2}Complex Example}{118}{subsection.12.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.3}AI Backend Configuration}{118}{section.12.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.3.1}Backend Priority}{119}{subsection.12.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.3.2}CLI Overrides}{119}{subsection.12.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.4}Compile-Time Processing}{120}{section.12.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.4.1}Generation Flow}{120}{subsection.12.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.4.2}Context Awareness}{120}{subsection.12.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.5}CIR: Canonical Intermediate Representation}{120}{section.12.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.5.1}CIR Structure}{121}{subsection.12.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.5.2}Why CIR?}{121}{subsection.12.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.6}Caching and Reproducibility}{121}{section.12.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.6.1}Cache Key Generation}{121}{subsection.12.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.6.2}Cache Location}{121}{subsection.12.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.6.3}Cache Commands}{122}{subsection.12.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.7}Best Practices}{122}{section.12.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.7.1}When to Use AI Blocks}{122}{subsection.12.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.7.2}Writing Good Intent Descriptions}{122}{subsection.12.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.7.3}Testing AI-Generated Code}{123}{subsection.12.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.8}Error Handling}{123}{section.12.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.8.1}Compilation Errors}{123}{subsection.12.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.8.2}Fallback Behavior}{124}{subsection.12.8.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12.9}AI Block Grammar}{124}{section.12.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {13}CIR Specification}{125}{chapter.13}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:cir}{{13}{125}{CIR Specification}{chapter.13}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {13.1}Overview}{125}{section.13.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.2}Document Structure}{125}{section.13.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.2.1}Version Field}{125}{subsection.13.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.2.2}Body Field}{125}{subsection.13.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.3}Statements}{125}{section.13.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.1}Variable Declaration}{125}{subsection.13.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.2}Assignment}{126}{subsection.13.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.3}Return}{126}{subsection.13.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.4}If Statement}{126}{subsection.13.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.5}For Loop}{126}{subsection.13.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.6}While Loop}{126}{subsection.13.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.7}Match Statement}{127}{subsection.13.3.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.8}Expression Statement}{127}{subsection.13.3.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.9}Break}{127}{subsection.13.3.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.3.10}Continue}{127}{subsection.13.3.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.4}Expressions}{128}{section.13.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.1}Literals}{128}{subsection.13.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.2}Identifier}{128}{subsection.13.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.3}Binary Operation}{128}{subsection.13.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.4}Unary Operation}{129}{subsection.13.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.5}Function Call}{129}{subsection.13.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.6}Method Call}{129}{subsection.13.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.7}Field Access}{129}{subsection.13.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.8}Index Access}{130}{subsection.13.4.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.9}Array Literal}{130}{subsection.13.4.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.10}Map Literal}{130}{subsection.13.4.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.11}Struct Literal}{130}{subsection.13.4.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.12}If Expression}{130}{subsection.13.4.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.13}Match Expression}{131}{subsection.13.4.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.14}Range}{131}{subsection.13.4.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.4.15}Closure}{131}{subsection.13.4.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.5}Patterns}{131}{section.13.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.1}Literal Pattern}{131}{subsection.13.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.2}Identifier Pattern}{132}{subsection.13.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.3}Wildcard Pattern}{132}{subsection.13.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.4}Struct Pattern}{132}{subsection.13.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.5}Tuple Pattern}{132}{subsection.13.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.6}Or Pattern}{132}{subsection.13.5.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {13.5.7}Range Pattern}{133}{subsection.13.5.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.6}L-Values}{133}{section.13.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.7}Complete Example}{133}{section.13.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.8}Validation Rules}{135}{section.13.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.9}JSON Schema}{135}{section.13.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13.10}Error Codes}{135}{section.13.10}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {13.1}{\ignorespaces CIR validation error codes}}{135}{table.13.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {part}{IV\hspace  {1em}Implementation}{137}{part.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {14}Complete Grammar}{139}{chapter.14}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:grammar}{{14}{139}{Complete Grammar}{chapter.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {14.1}Notation}{139}{section.14.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14.1}{\ignorespaces EBNF notation}}{139}{table.14.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {14.2}Lexical Grammar}{139}{section.14.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.1}Characters}{139}{subsection.14.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.2}Whitespace and Comments}{139}{subsection.14.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.3}Identifiers}{140}{subsection.14.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.4}Keywords}{140}{subsection.14.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.5}Literals}{140}{subsection.14.2.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.6}Operators}{140}{subsection.14.2.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.2.7}Delimiters}{141}{subsection.14.2.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {14.3}Syntactic Grammar}{141}{section.14.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.1}Program Structure}{141}{subsection.14.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.2}Imports}{141}{subsection.14.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.3}Declarations}{141}{subsection.14.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.4}Types}{142}{subsection.14.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.5}Statements}{143}{subsection.14.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.6}Expressions}{144}{subsection.14.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.3.7}Patterns}{146}{subsection.14.3.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {14.4}Grammar Summary}{147}{section.14.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.4.1}Entry Points}{147}{subsection.14.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.4.2}Precedence (High to Low)}{147}{subsection.14.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {14.4.3}Associativity}{147}{subsection.14.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {15}Compiler Architecture}{149}{chapter.15}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{ch:compiler}{{15}{149}{Compiler Architecture}{chapter.15}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {15.1}Overview}{149}{section.15.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.2}Lexer}{150}{section.15.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.2.1}Token Types}{150}{subsection.15.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.2.2}Lexer Implementation}{150}{subsection.15.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.3}Parser}{151}{section.15.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.3.1}AST Nodes}{151}{subsection.15.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.3.2}Recursive Descent}{151}{subsection.15.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.4}Resolver}{152}{section.15.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.4.1}Symbol Table}{152}{subsection.15.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.4.2}Import Resolution}{153}{subsection.15.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.5}Type Checker}{153}{section.15.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.5.1}Type Representation}{153}{subsection.15.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.5.2}Type Inference}{154}{subsection.15.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.5.3}Unification}{155}{subsection.15.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.6}AI Phase}{155}{section.15.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.6.1}AI Block Processing}{155}{subsection.15.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.6.2}Backend Interface}{156}{subsection.15.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.7}Lowering}{156}{section.15.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.7.1}HIR Structure}{156}{subsection.15.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.7.2}Desugaring}{157}{subsection.15.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.8}Code Generation}{158}{section.15.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {15.8.1}Cranelift Integration}{158}{subsection.15.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.9}Project Structure}{159}{section.15.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.10}Build Process}{159}{section.15.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {15.11}Error Messages}{160}{section.15.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {A}Reserved Keywords}{161}{appendix.A}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{app:keywords}{{A}{161}{Reserved Keywords}{appendix.A}{}}
+\gdef \LT@ii {\LT@entry 
+    {1}{74.06557pt}\LT@entry 
+    {2}{89.13687pt}\LT@entry 
+    {1}{83.05647pt}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {B}Operator Precedence}{163}{appendix.B}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{app:precedence}{{B}{163}{Operator Precedence}{appendix.B}{}}
+\gdef \LT@iii {\LT@entry 
+    {1}{53.86176pt}\LT@entry 
+    {2}{141.1496pt}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {C}Standard Library Reference}{165}{appendix.C}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{app:stdlib}{{C}{165}{Standard Library Reference}{appendix.C}{}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {D}CIR Schema}{167}{appendix.D}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{app:cir}{{D}{167}{CIR Schema}{appendix.D}{}}
+\gdef \@abspage@last{167}

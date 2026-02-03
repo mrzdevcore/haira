@@ -1,34 +1,60 @@
-// Test async { } block syntax
+// Async Block Demo
 // Async blocks run all statements concurrently and wait for all to complete
 
-print("=== Async Block Test ===")
-print("")
-n = 4
-// Test 1: Sequential sleeps (for comparison)
-print("Test 1: Sequential sleeps (should take ~300ms)")
-sleep(150)
-sleep(100)
-sleep(50)
-print("Sequential done")
-print("{n}")
-n = n + 1
-// Test 2: Async sleeps (should take ~150ms)
-print("Test 2: Async sleeps (should take ~150ms): {n}")
-async {
+// Simulated service calls
+fetch_users() {
+    sleep(200)
+    print("  [User Service] User data loaded")
+}
+
+fetch_products() {
     sleep(150)
+    print("  [Product Service] Product catalog ready")
+}
+
+fetch_analytics() {
     sleep(100)
+    print("  [Analytics Service] Metrics collected")
+}
+
+// Simulated tasks
+resize_image() {
     sleep(50)
+    print("  Task 1: Image resized")
 }
-print("Async done")
+
+generate_thumbnail() {
+    sleep(80)
+    print("  Task 2: Thumbnail generated")
+}
+
+update_cache() {
+    sleep(60)
+    print("  Task 3: Cache updated")
+}
+
+// Main program
+print("=== Haira Async Demo ===")
 print("")
 
-// Test 3: Demonstrate interleaving with prints
-print("Test 3: Concurrent prints (order may vary)")
+print("Fetching data from multiple sources...")
+print("")
+
 async {
-    print("  A")
-    print("  B")
-    print("  C")
+    fetch_products()
+    fetch_users()
+    fetch_analytics()
 }
+
+print("All services responded!")
 print("")
 
-print("=== All tests completed ===")
+print("Processing tasks in parallel...")
+async {
+    resize_image()
+    generate_thumbnail()
+    update_cache()
+}
+
+print("")
+print("=== Demo Complete ===")

@@ -1,0 +1,28 @@
+# Haira Intent Format v1
+
+intent add_numbers @4a3755296864a3be
+  param a: int
+  param b: int
+  returns int
+  body
+    add a b -> _sum
+    return _sum
+
+intent get_answer @85b8652e76745433
+  returns int
+  body
+    literal 42 -> _lit: int
+    return _lit
+
+intent is_positive @efa996d0efc847fc
+  param x: int
+  returns bool
+  body
+    if -> _if
+      gt x 0 -> _cond
+    then
+      literal true -> _true: bool
+    else
+      literal false -> _false: bool
+    end
+    return _if

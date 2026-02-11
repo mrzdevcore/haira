@@ -277,16 +277,20 @@ Operators are listed from highest to lowest precedence:
 \midrule
 \endhead
 1 (highest) & \code{()} \code{[]} \code{.} & Left \\
-2 & \code{!} \code{-} (unary) \code{not} & Right \\
+2 & \code{!} \code{-} \code{\~{}} (unary) \code{not} & Right \\
 3 & \code{*} \code{/} \code{\%} & Left \\
 4 & \code{+} \code{-} & Left \\
-5 & \code{..} \code{..=} & None \\
-6 & \code{|} (pipe) & Left \\
-7 & \code{<} \code{>} \code{<=} \code{>=} & Left \\
-8 & \code{==} \code{!=} & Left \\
-9 & \code{and} \code{\&\&} & Left \\
-10 & \code{or} \code{||} & Left \\
-11 (lowest) & \code{=} \code{+=} \code{-=} \code{*=} \code{/=} & Right \\
+5 & \code{<<} \code{>>} \code{>>>} & Left \\
+6 & \code{\&} (bitwise AND) & Left \\
+7 & \code{\^{}} (bitwise XOR) & Left \\
+8 & \code{|} (bitwise OR) & Left \\
+9 & \code{..} \code{..=} & None \\
+10 & \code{|>} (pipe) & Left \\
+11 & \code{<} \code{>} \code{<=} \code{>=} & Left \\
+12 & \code{==} \code{!=} & Left \\
+13 & \code{and} \code{\&\&} & Left \\
+14 & \code{or} \code{||} & Left \\
+15 (lowest) & \code{=} \code{+=} \code{-=} \code{*=} \code{/=} \code{\&=} \code{|=} \code{\^{}=} \code{<<=} \code{>>=} \code{>>>=} & Right \\
 \bottomrule
 \end{longtable}
 

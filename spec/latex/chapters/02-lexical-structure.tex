@@ -368,6 +368,45 @@ empty: User? = nil
 \end{tabular}
 \end{table}
 
+\subsection{Bitwise Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{\&} & Bitwise AND \\
+\code{|} & Bitwise OR \\
+\code{\^{}} & Bitwise XOR \\
+\code{\~{}} & Bitwise NOT (complement) \\
+\code{<<} & Left shift \\
+\code{>>} & Right shift (arithmetic for signed, logical for unsigned) \\
+\code{>>>} & Logical right shift (always fills with zeros) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+\subsection{Bitwise Assignment Operators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Description} \\
+\midrule
+\code{\&=} & Bitwise AND and assign \\
+\code{|=} & Bitwise OR and assign \\
+\code{\^{}=} & Bitwise XOR and assign \\
+\code{<<=} & Left shift and assign \\
+\code{>>=} & Right shift and assign \\
+\code{>>>=} & Logical right shift and assign \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Other Operators}
 
 \begin{table}[h]
@@ -376,7 +415,7 @@ empty: User? = nil
 \toprule
 \textbf{Operator} & \textbf{Description} \\
 \midrule
-\code{|} & Pipe (function composition) \\
+\code{|>} & Pipe (function composition) \\
 \code{..} & Range (exclusive end) \\
 \code{..=} & Range (inclusive end) \\
 \code{<-} & Channel send \\
@@ -436,8 +475,10 @@ identifier = letter { letter | digit | "_" } ;
 operator = "+" | "-" | "*" | "/" | "%"
          | "==" | "!=" | "<" | ">" | "<=" | ">="
          | "and" | "or" | "not" | "&&" | "||" | "!"
+         | "&" | "|" | "^" | "~" | "<<" | ">>" | ">>>"
          | "=" | "+=" | "-=" | "*=" | "/="
-         | "|" | ".." | "..=" | "<-" | "->" | "=>" ;
+         | "&=" | "|=" | "^=" | "<<=" | ">>=" | ">>>="
+         | "|>" | ".." | "..=" | "<-" | "->" | "=>" ;
 
 delimiter = "(" | ")" | "[" | "]" | "{" | "}"
           | "," | ":" | "." | "?" ;

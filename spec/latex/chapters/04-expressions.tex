@@ -104,6 +104,155 @@ a and b
 a or b
 \end{lstlisting}
 
+\section{Bitwise Expressions}
+
+Bitwise operators perform bit-level operations on integer types. All bitwise operators work on any integer type (\type{int}, \type{i8}--\type{i64}, \type{u8}--\type{u64}).
+
+\begin{lstlisting}
+a & b           // Bitwise AND
+a | b           // Bitwise OR
+a ^ b           // Bitwise XOR
+~a              // Bitwise NOT (one's complement)
+a << n          // Left shift by n bits
+a >> n          // Right shift by n bits
+a >>> n         // Logical right shift by n bits
+\end{lstlisting}
+
+
+
+\subsection{Bitwise AND}
+
+Sets each bit to 1 only if both corresponding bits are 1:
+
+\begin{lstlisting}
+0b1100 & 0b1010         // 0b1000 (8)
+flags & MASK            // Extract bits using mask
+value & 0xFF            // Keep only lowest 8 bits
+\end{lstlisting}
+
+\subsection{Bitwise OR}
+
+Sets each bit to 1 if at least one corresponding bit is 1:
+
+\begin{lstlisting}
+0b1100 | 0b1010         // 0b1110 (14)
+flags | FLAG_ENABLED    // Set a flag bit
+\end{lstlisting}
+
+\subsection{Bitwise XOR}
+
+Sets each bit to 1 if exactly one corresponding bit is 1:
+
+\begin{lstlisting}
+0b1100 ^ 0b1010         // 0b0110 (6)
+value ^ mask            // Toggle bits
+a ^ b ^ b               // Returns a (XOR is self-inverse)
+\end{lstlisting}
+
+\subsection{Bitwise NOT}
+
+Inverts all bits (one's complement):
+
+\begin{lstlisting}
+~0b00001111             // 0b11110000 (for 8-bit)
+~0u8                    // 255 (all bits set)
+~0                      // -1 (for signed int)
+\end{lstlisting}
+
+\begin{warning}
+The result of \code{\~{}} depends on the bit width of the operand type. For \type{u8}, \code{\~{}0} is 255; for \type{int}, \code{\~{}0} is $-1$.
+\end{warning}
+
+\subsection{Left Shift}
+
+Shifts bits to the left, filling vacated positions with zeros:
+
+\begin{lstlisting}
+1 << 4                  // 16 (0b10000)
+value << n              // Equivalent to value * 2^n
+0b0001 << 3             // 0b1000 (8)
+\end{lstlisting}
+
+\begin{warning}
+Shifting by a negative amount or by more than the bit width of the type is undefined behavior.
+\end{warning}
+
+\subsection{Right Shift}
+
+The behavior of \code{>>} depends on the signedness of the operand:
+
+\begin{itemize}
+    \item \textbf{Unsigned types}: Logical shift (fills with zeros)
+    \item \textbf{Signed types}: Arithmetic shift (fills with sign bit)
+\end{itemize}
+
+\begin{lstlisting}
+// Unsigned: logical shift (fills with 0)
+x: u8 = 0b11110000
+x >> 2                  // 0b00111100 (60)
+
+// Signed: arithmetic shift (fills with sign bit)
+y: i8 = -16             // 0b11110000 in two's complement
+y >> 2                  // -4 (0b11111100, sign preserved)
+\end{lstlisting}
+
+\subsection{Logical Right Shift}
+
+The \code{>>>} operator always performs a logical right shift, filling with zeros regardless of signedness:
+
+\begin{lstlisting}
+x: i8 = -16             // 0b11110000
+x >>> 2                 // 60 (0b00111100, zeros filled)
+
+// Useful for treating signed integers as bit patterns
+hash: int = -1
+hash >>> 1              // Large positive number
+\end{lstlisting}
+
+\subsection{Common Bit Manipulation Patterns}
+
+\begin{lstlisting}
+// Check if bit n is set
+is_set = (value >> n) & 1 == 1
+
+// Set bit n
+value = value | (1 << n)
+
+// Clear bit n
+value = value & ~(1 << n)
+
+// Toggle bit n
+value = value ^ (1 << n)
+
+// Check if power of two (positive integers)
+is_power_of_two = value > 0 and (value & (value - 1)) == 0
+
+// Extract n bits starting at position p
+bits = (value >> p) & ((1 << n) - 1)
+
+// Count trailing zeros (manual approach)
+fn count_trailing_zeros(x: u32) -> int {
+    if x == 0 { return 32 }
+    count = 0
+    while (x & 1) == 0 {
+        count += 1
+        x = x >> 1
+    }
+    return count
+}
+\end{lstlisting}
+
+\subsection{Compound Bitwise Assignment}
+
+\begin{lstlisting}
+flags &= MASK           // flags = flags & MASK
+flags |= FLAG           // flags = flags | FLAG
+flags ^= TOGGLE         // flags = flags ^ TOGGLE
+value <<= 2             // value = value << 2
+value >>= 1             // value = value >> 1
+value >>>= 1            // value = value >>> 1
+\end{lstlisting}
+
 \section{String Expressions}
 
 \subsection{Concatenation}
@@ -177,12 +326,12 @@ text.trim().to_upper().split(" ")
 
 \section{Pipe Expressions}
 
-The pipe operator passes the left operand as the first argument to the right function:
+The pipe operator \code{|>} passes the left operand as the first argument to the right function:
 
 \begin{lstlisting}
 // These are equivalent:
 result = f(g(h(x)))
-result = x | h | g | f
+result = x |> h |> g |> f
 \end{lstlisting}
 
 \subsection{Pipe with Arguments}
@@ -192,7 +341,7 @@ When the right side has arguments, the left value becomes the first argument:
 \begin{lstlisting}
 // These are equivalent:
 result = string.split(text, ",")
-result = text | string.split(",")
+result = text |> string.split(",")
 \end{lstlisting}
 
 \subsection{Complex Pipelines}
@@ -206,13 +355,13 @@ fn main() {
     data = "  apple, banana, cherry  "
 
     result = data
-        | string.trim
-        | string.split(", ")
-        | array.map(string.to_upper)
-        | array.filter(fn(s) { string.len(s) > 5 })
-        | string.join(" | ")
+        |> string.trim
+        |> string.split(", ")
+        |> array.map(string.to_upper)
+        |> array.filter(fn(s) { string.len(s) > 5 })
+        |> string.join(" - ")
 
-    io.println(result)  // "BANANA | CHERRY"
+    io.println(result)  // "BANANA - CHERRY"
 }
 \end{lstlisting}
 
@@ -351,16 +500,20 @@ From highest to lowest:
 
 \begin{enumerate}
     \item Postfix: \code{()} \code{[]} \code{.} \code{?.}
-    \item Unary: \code{!} \code{-} \code{not}
+    \item Unary: \code{!} \code{-} \code{\~{}} \code{not}
     \item Multiplicative: \code{*} \code{/} \code{\%}
     \item Additive: \code{+} \code{-}
+    \item Shift: \code{<<} \code{>>} \code{>>>}
+    \item Bitwise AND: \code{\&}
+    \item Bitwise XOR: \code{\^{}}
+    \item Bitwise OR: \code{|}
     \item Range: \code{..} \code{..=}
-    \item Pipe: \code{|}
+    \item Pipe: \code{|>}
     \item Comparison: \code{<} \code{>} \code{<=} \code{>=}
     \item Equality: \code{==} \code{!=}
     \item Logical AND: \code{and} \code{\&\&}
     \item Logical OR: \code{or} \code{||}
-    \item Assignment: \code{=} \code{+=} \code{-=} \code{*=} \code{/=}
+    \item Assignment: \code{=} \code{+=} \code{-=} \code{*=} \code{/=} \code{\&=} \code{|=} \code{\^{}=} \code{<<=} \code{>>=} \code{>>>=}
 \end{enumerate}
 
 \section{Expression Grammar}
@@ -368,7 +521,8 @@ From highest to lowest:
 \begin{lstlisting}[language=EBNF]
 expression = assignment ;
 
-assignment = or_expr [ ("=" | "+=" | "-=" | "*=" | "/=") assignment ] ;
+assignment = or_expr [ ("=" | "+=" | "-=" | "*=" | "/="
+           | "&=" | "|=" | "^=" | "<<=" | ">>=" | ">>>=") assignment ] ;
 
 or_expr = and_expr { ("or" | "||") and_expr } ;
 
@@ -378,15 +532,23 @@ equality = comparison { ("==" | "!=") comparison } ;
 
 comparison = pipe { ("<" | ">" | "<=" | ">=") pipe } ;
 
-pipe = range { "|" range } ;
+pipe = range { "|>" range } ;
 
-range = additive [ (".." | "..=") additive ] ;
+range = bitwise_or [ (".." | "..=") bitwise_or ] ;
+
+bitwise_or = bitwise_xor { "|" bitwise_xor } ;
+
+bitwise_xor = bitwise_and { "^" bitwise_and } ;
+
+bitwise_and = shift { "&" shift } ;
+
+shift = additive { ("<<" | ">>" | ">>>") additive } ;
 
 additive = multiplicative { ("+" | "-") multiplicative } ;
 
 multiplicative = unary { ("*" | "/" | "%") unary } ;
 
-unary = ("!" | "-" | "not") unary | postfix ;
+unary = ("!" | "-" | "~" | "not") unary | postfix ;
 
 postfix = primary { call | index | field } ;
 

@@ -51,7 +51,7 @@
 
 % Code listing style
 \lstdefinelanguage{Haira}{
-    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, from, as, nil, true, false, in, and, or, not, spawn, chan, select, ai, try, catch, defer},
+    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, agent, provider, tool, workflow},
     keywordstyle=\color{keyword}\bfseries,
     ndkeywords={int, float, bool, string, Error},
     ndkeywordstyle=\color{hairaBlue},
@@ -176,27 +176,27 @@ This specification is licensed under CC BY 4.0.\\[2em]
 \chapter*{Preface}
 \addcontentsline{toc}{chapter}{Preface}
 
-\haira{} is a modern, compiled programming language designed for the AI era. It combines the simplicity of Go, the safety of Rust, and the expressiveness of modern functional languages, while introducing first-class AI integration for code generation.
+\haira{} is a statically-typed, compiled programming language for building AI agents and workflows. It combines the simplicity of Go, the safety of Rust, and the expressiveness of modern functional languages, while making agents, tools, and workflows first-class language constructs---not library imports.
 
 \section*{Design Philosophy}
 
 \begin{enumerate}
-    \item \textbf{Explicit is better than implicit} -- All dependencies, AI invocations, and behaviors are clearly stated in code.
-    \item \textbf{Local-first AI} -- AI code generation happens at compile time using local models (llama.cpp, Ollama) with optional cloud fallback.
+    \item \textbf{Agents and workflows are primitives} -- \keyword{provider}, \keyword{tool}, \keyword{agent}, and \keyword{workflow} are language keywords, not framework abstractions.
+    \item \textbf{Type-safe orchestration} -- Agent inputs, outputs, and tool schemas are verified at compile time.
     \item \textbf{Go-style simplicity} -- Familiar error handling, explicit imports, and straightforward syntax.
-    \item \textbf{Zero-cost abstractions} -- High-level constructs compile to efficient native code.
-    \item \textbf{Compile-time guarantees} -- No runtime AI dependencies; binaries are standalone.
+    \item \textbf{Zero boilerplate} -- No framework setup, no dependency injection, no configuration files.
+    \item \textbf{Native performance} -- Compiles to standalone native binaries via Cranelift.
 \end{enumerate}
 
 \section*{Target Domains}
 
-\haira{} is designed for:
+\haira{} replaces the entire agentic stack:
 \begin{itemize}
-    \item Systems programming
-    \item Command-line tools
-    \item AI-assisted application development
-    \item Web services and APIs
-    \item Data processing pipelines
+    \item \textbf{Python + LangChain/LangGraph} -- for code-first agent builders
+    \item \textbf{n8n / Make / Zapier} -- for workflow automation
+    \item \textbf{CrewAI / AutoGen} -- for multi-agent systems
+    \item \textbf{Custom chatbot backends} -- REST and WebSocket with streaming
+    \item \textbf{General-purpose programming} -- CLI tools, web services, data pipelines
 \end{itemize}
 
 \section*{Implementation Roadmap}
@@ -211,10 +211,12 @@ This specification is organized so that each chapter can be implemented incremen
 v0.1 & 1--3 & Lexer, parser, basic types \\
 v0.2 & 4--5 & Expressions, statements \\
 v0.3 & 6--7 & Functions, error handling \\
-v0.4 & 8 & Concurrency primitives \\
+v0.4 & 8 & Concurrency primitives (spawn, chan, select) \\
 v0.5 & 9--10 & Modules, standard library \\
-v0.6 & 11--12 & Advanced features, full grammar \\
-v1.0 & 13--15 & AI integration, compiler completion \\
+v0.6 & 11--12 & Providers, tools \\
+v0.7 & 13--14 & Agents, workflows \\
+v0.8 & 15 & Chatbot patterns, streaming \\
+v1.0 & 16--17 & Complete grammar, compiler completion \\
 \bottomrule
 \end{longtable}
 
@@ -229,25 +231,27 @@ v1.0 & 13--15 & AI integration, compiler completion \\
 \input{chapters/06-functions}
 \input{chapters/07-error-handling}
 
-% Part II: Advanced Features
-\part{Advanced Features}
+% Part II: Concurrency and Modules
+\part{Concurrency and Modules}
 
 \input{chapters/08-concurrency}
 \input{chapters/09-modules}
 \input{chapters/10-standard-library}
-\input{chapters/11-advanced-features}
 
-% Part III: AI Integration
-\part{AI Integration}
+% Part III: Agentic Orchestration
+\part{Agentic Orchestration}
 
-\input{chapters/12-ai-integration}
-\input{chapters/13-cir-specification}
+\input{chapters/11-providers}
+\input{chapters/12-tools}
+\input{chapters/13-agents}
+\input{chapters/14-workflows}
+\input{chapters/15-chatbot-patterns}
 
 % Part IV: Implementation
 \part{Implementation}
 
-\input{chapters/14-grammar}
-\input{chapters/15-compiler-architecture}
+\input{chapters/16-grammar}
+\input{chapters/17-compiler-architecture}
 
 % Appendices
 \appendix
@@ -258,12 +262,14 @@ v1.0 & 13--15 & AI integration, compiler completion \\
 The following identifiers are reserved as keywords and cannot be used as identifiers:
 
 \begin{lstlisting}[numbers=none]
-ai        and       as        break     catch
-chan      continue  defer     else      enum
-false     fn        for       from      if
-import    in        match     nil       not
-or        return    select    spawn     struct
-true      try       type      while
+agent     and       as        break     catch
+chan      const     continue  defer     else
+enum      false     fn        for       from
+if        impl      import    in        match
+nil       not       or        provider  return
+select    spawn     struct    tool      true
+try       type      unsafe    where     while
+workflow
 \end{lstlisting}
 
 \chapter{Operator Precedence}
@@ -317,28 +323,17 @@ Quick reference for standard library modules. See Chapter~\ref{ch:stdlib} for fu
 \code{crypto} & Cryptographic functions \\
 \code{regex} & Regular expressions \\
 \code{net} & Network primitives \\
+\midrule
+\multicolumn{2}{l}{\textbf{Tool Packs} (importable tools for agents)} \\
+\midrule
+\code{tools/http} & HTTP tools (get, post, put, delete) \\
+\code{tools/slack} & Slack integration (send, read) \\
+\code{tools/github} & GitHub API (create\_issue, list\_prs) \\
+\code{tools/postgres} & PostgreSQL (query, insert) \\
+\code{tools/email} & Email sending \\
+\code{tools/fs} & File system tools for agents \\
 \bottomrule
 \end{longtable}
-
-\chapter{CIR Schema}
-\label{app:cir}
-
-Complete JSON schema for the Canonical Intermediate Representation (CIR). See Chapter~\ref{ch:cir} for semantics.
-
-\begin{lstlisting}[language={}]
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CIR",
-  "type": "object",
-  "required": ["version", "body"],
-  "properties": {
-    "version": { "const": "1.0" },
-    "body": { "$ref": "#/$defs/statement_list" }
-  }
-}
-\end{lstlisting}
-
-(Full schema in Chapter~\ref{ch:cir})
 
 % Index (uncomment when index entries are added)
 % \backmatter

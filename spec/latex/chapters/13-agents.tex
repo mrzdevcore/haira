@@ -1,0 +1,337 @@
+\chapter{Agents}
+\label{ch:agents}
+
+Agents are LLM-powered entities. They have a model, a system prompt, optional tools, and optional memory. Agents are the primary way to interact with language models in \haira{}.
+
+\section{Agent Declaration}
+
+\begin{lstlisting}
+agent AgentName {
+    model: provider_name
+    system: "System prompt describing the agent's behavior."
+    tools: [tool1, tool2]
+    temperature: 0.5
+    memory: conversation(max_turns: 50)
+}
+\end{lstlisting}
+
+\section{Agent Fields}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{Required} & \textbf{Description} \\
+\midrule
+\code{model} & identifier & Yes & Provider to use \\
+\code{system} & \type{string} & Yes & System prompt \\
+\code{tools} & \type{[tool]} & No & List of tools the agent can call \\
+\code{temperature} & \type{float} & No & Sampling temperature (0.0--2.0) \\
+\code{max\_tokens} & \type{int} & No & Max tokens per response \\
+\code{max\_steps} & \type{int} & No & Max tool-calling iterations \\
+\code{memory} & memory type & No & Memory configuration (default: \code{none}) \\
+\bottomrule
+\end{tabular}
+\caption{Agent fields}
+\end{table}
+
+\subsection{Multiline System Prompts}
+
+For longer system prompts, use triple-quoted strings:
+
+\begin{lstlisting}
+agent SupportBot {
+    model: anthropic
+    system: """
+        You are a customer support agent for Acme Corp.
+        Use the knowledge base to answer questions.
+        Look up orders when customers ask about purchases.
+        Create tickets for issues you cannot resolve.
+        Always be polite and helpful.
+    """
+    tools: [search_kb, lookup_order, create_ticket]
+    temperature: 0.3
+}
+\end{lstlisting}
+
+\section{Agent Methods}
+
+Agents have three methods for interacting with the LLM:
+
+\subsection{.ask() --- Text In, Text Out}
+
+The simplest interaction. Send a text prompt, get a text response:
+
+\begin{lstlisting}
+answer, err = Researcher.ask("What is quantum computing?")
+if err != nil {
+    io.println("Error: " + err.message)
+    return
+}
+io.println(answer)
+\end{lstlisting}
+
+\textbf{Signature:} \code{.ask(prompt: string, session: string?) -> (string, Error?)}
+
+\subsection{.run() --- Structured In, Structured Out}
+
+For typed interactions. Send a struct, get a typed response. The output type is inferred from the left-side type annotation:
+
+\begin{lstlisting}
+struct ResearchRequest {
+    topic: string
+    depth: string = "detailed"
+}
+
+struct ResearchResult {
+    summary: string
+    sources: [string]
+    confidence: float
+}
+
+research: ResearchResult, err = Researcher.run(ResearchRequest{
+    topic: "quantum computing"
+})
+\end{lstlisting}
+
+The compiler generates JSON schemas for both the input and output types. The agent is instructed to return structured data matching the output schema.
+
+\textbf{Signature:} \code{.run(input: T, session: string?) -> (U, Error?)}
+
+Where \code{U} is inferred from the left-side type annotation.
+
+\subsection{.stream() --- Text In, Streaming Out}
+
+For real-time token-by-token responses. Returns an iterable stream:
+
+\begin{lstlisting}
+for chunk in Assistant.stream("Tell me a story") {
+    io.print(chunk)
+}
+io.println()  // newline after stream completes
+\end{lstlisting}
+
+\textbf{Signature:} \code{.stream(prompt: string, session: string?) -> stream<string>}
+
+The \code{stream<string>} type is iterable with \keyword{for}. Each iteration yields the next token (or chunk) as the LLM generates it.
+
+\section{Memory}
+
+By default, agents are stateless --- each call is independent. Adding memory enables agents to remember conversation history across calls.
+
+\subsection{No Memory (Default)}
+
+\begin{lstlisting}
+agent Classifier {
+    model: local
+    system: "Classify inputs into categories."
+}
+
+// Each call is independent
+cat1 = Classifier.ask("This is a bug report")     // "technical"
+cat2 = Classifier.ask("What did I just send you?") // has no context
+\end{lstlisting}
+
+\subsection{Conversation Memory}
+
+Keeps the last N turns of chat history:
+
+\begin{lstlisting}
+agent Assistant {
+    model: anthropic
+    system: "You are a helpful assistant."
+    memory: conversation(max_turns: 50)
+}
+\end{lstlisting}
+
+\subsection{Summary Memory}
+
+Summarizes older messages to stay within a token budget. Useful for long-running conversations:
+
+\begin{lstlisting}
+agent ProjectHelper {
+    model: anthropic
+    system: "You help with long-running software projects."
+    memory: summary(max_tokens: 2000)
+}
+\end{lstlisting}
+
+\subsection{Memory Types}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Type} & \textbf{Parameter} & \textbf{Behavior} \\
+\midrule
+\code{none} & --- & Stateless (default) \\
+\code{conversation(max\_turns: N)} & N: int & Keeps last N message pairs \\
+\code{summary(max\_tokens: N)} & N: int & Summarizes to fit within N tokens \\
+\bottomrule
+\end{tabular}
+\caption{Built-in memory types}
+\end{table}
+
+\section{Sessions}
+
+When an agent has memory, calls are scoped to a \textbf{session}. A session groups related interactions --- for example, one user's conversation.
+
+\begin{lstlisting}
+// With session --- memory persists within same session
+answer1, _ = Assistant.ask("My name is Alice", session: "user-123")
+answer2, _ = Assistant.ask("What is my name?", session: "user-123")
+// answer2 = "Your name is Alice"
+
+// Different session --- separate memory
+answer3, _ = Assistant.ask("What is my name?", session: "user-456")
+// answer3 = "I don't know your name yet"
+\end{lstlisting}
+
+The \code{session:} parameter is a named argument available on all agent methods:
+
+\begin{lstlisting}
+// .ask() with session
+reply, err = Agent.ask("Hello", session: session_id)
+
+// .run() with session
+result: T, err = Agent.run(input, session: session_id)
+
+// .stream() with session
+for chunk in Agent.stream("Hello", session: session_id) {
+    io.print(chunk)
+}
+\end{lstlisting}
+
+Without a \code{session:} parameter, each call starts a fresh conversation --- even if the agent has memory configured.
+
+\section{Tool-Calling Loop}
+
+When an agent has tools, the runtime executes a loop:
+
+\begin{enumerate}
+    \item Send the prompt (and conversation history) to the LLM
+    \item If the LLM requests a tool call, execute the tool
+    \item Send the tool result back to the LLM
+    \item Repeat until the LLM produces a final response (or \code{max\_steps} is reached)
+\end{enumerate}
+
+This is transparent to the caller:
+
+\begin{lstlisting}
+// The agent may call search() multiple times internally
+// before producing a final answer
+answer, err = Researcher.ask("Find recent papers on quantum error correction")
+\end{lstlisting}
+
+The \code{max\_steps} field limits how many tool-calling iterations are allowed:
+
+\begin{lstlisting}
+agent Researcher {
+    model: anthropic
+    system: "You are a thorough researcher."
+    tools: [search, read_url]
+    max_steps: 10      // at most 10 tool calls per request
+    temperature: 0.2
+}
+\end{lstlisting}
+
+\section{Error Handling}
+
+Agent calls can fail. Always check for errors:
+
+\begin{lstlisting}
+answer, err = Researcher.ask("Complex query here")
+if err != nil {
+    io.println("Agent error: " + err.message)
+    // Handle: retry, fallback, or report
+}
+\end{lstlisting}
+
+Common error cases:
+\begin{itemize}
+    \item LLM provider unreachable or returns an error
+    \item Max steps exceeded (tool-calling loop did not converge)
+    \item Structured output did not match expected schema
+    \item Timeout exceeded
+\end{itemize}
+
+\section{Examples}
+
+\subsection{Stateless Classifier}
+
+\begin{lstlisting}
+agent Classifier {
+    model: local
+    system: "Classify the input as: positive, negative, or neutral. Reply with just the label."
+    temperature: 0.0
+}
+
+fn main() {
+    label, _ = Classifier.ask("I love this product!")
+    io.println(label)  // "positive"
+}
+\end{lstlisting}
+
+\subsection{Research Agent with Tools}
+
+\begin{lstlisting}
+agent Researcher {
+    model: anthropic
+    system: "You are a thorough researcher. Always cite your sources."
+    tools: [search, read_url]
+    temperature: 0.2
+    max_steps: 15
+}
+
+fn main() {
+    answer, err = Researcher.ask("What are the latest advances in fusion energy?")
+    if err != nil {
+        io.println("Error: " + err.message)
+        return
+    }
+    io.println(answer)
+}
+\end{lstlisting}
+
+\subsection{Conversational Assistant}
+
+\begin{lstlisting}
+agent Tutor {
+    model: anthropic
+    system: "You are a patient math tutor. Explain concepts step by step."
+    memory: conversation(max_turns: 30)
+    temperature: 0.5
+}
+
+fn main() {
+    session = "student-001"
+
+    reply1, _ = Tutor.ask("What is a derivative?", session: session)
+    io.println(reply1)
+
+    reply2, _ = Tutor.ask("Can you give me an example?", session: session)
+    io.println(reply2)
+
+    reply3, _ = Tutor.ask("Now explain the chain rule", session: session)
+    io.println(reply3)
+    // Tutor remembers the full conversation context
+}
+\end{lstlisting}
+
+\section{Agent Grammar}
+
+\begin{lstlisting}[language=EBNF]
+agent_decl    = "agent" identifier "{" { agent_field } "}" ;
+
+agent_field   = identifier ":" agent_value ;
+
+agent_value   = expression
+              | string_lit
+              | triple_string
+              | "[" ident_list "]"
+              | memory_value ;
+
+memory_value  = "conversation" "(" [ arguments ] ")"
+              | "summary" "(" [ arguments ] ")"
+              | "none" ;
+\end{lstlisting}

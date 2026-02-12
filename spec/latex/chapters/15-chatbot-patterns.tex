@@ -1,0 +1,261 @@
+\chapter{Chatbot Patterns}
+\label{ch:chatbot}
+
+One of the most common use cases for \haira{} is building chatbot backends. This chapter shows patterns from simple to advanced.
+
+\section{Simple REST Chatbot}
+
+A chatbot accessible via HTTP POST:
+
+\begin{lstlisting}
+import "io"
+
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
+}
+
+agent Assistant {
+    model: anthropic
+    system: "You are a helpful assistant."
+    memory: conversation(max_turns: 50)
+    temperature: 0.7
+}
+
+@webhook("/chat")
+workflow Chat(message: string, session_id: string) -> { reply: string } {
+    reply, err = Assistant.ask(message, session: session_id)
+    if err != nil {
+        return { reply: "Sorry, something went wrong." }
+    }
+    return { reply: reply }
+}
+
+fn main() {
+    server = haira.serve([Chat])
+    io.println("Chat server on :8080")
+    server.listen(8080)
+}
+\end{lstlisting}
+
+Usage:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ curl -X POST http://localhost:8080/chat \
+    -d '{"message": "Hello!", "session_id": "user-123"}'
+
+{"reply": "Hi there! How can I help you today?"}
+
+$ curl -X POST http://localhost:8080/chat \
+    -d '{"message": "What did I just say?", "session_id": "user-123"}'
+
+{"reply": "You said \"Hello!\""}
+\end{lstlisting}
+
+The agent remembers the conversation because both calls share the same \code{session\_id}.
+
+\section{Streaming WebSocket Chatbot}
+
+For real-time token-by-token responses over WebSocket:
+
+\begin{lstlisting}
+@websocket("/chat")
+workflow StreamingChat(message: string, session_id: string) -> stream<string> {
+    return Assistant.stream(message, session: session_id)
+}
+
+fn main() {
+    server = haira.serve([StreamingChat])
+    server.listen(8080)
+}
+\end{lstlisting}
+
+The \code{stream<string>} return type tells \haira{} to stream each token over the WebSocket as it arrives. No buffering --- the client sees tokens in real time.
+
+\section{Dual-Mode Chatbot}
+
+Expose the same agent over both REST (for simple integrations) and WebSocket (for real-time UIs):
+
+\begin{lstlisting}
+agent Assistant {
+    model: anthropic
+    system: "You are a helpful assistant."
+    memory: conversation(max_turns: 50)
+}
+
+@webhook("/chat")
+workflow ChatREST(message: string, session_id: string) -> { reply: string } {
+    reply, err = Assistant.ask(message, session: session_id)
+    return { reply: reply or "Error occurred." }
+}
+
+@websocket("/chat/stream")
+workflow ChatStream(message: string, session_id: string) -> stream<string> {
+    return Assistant.stream(message, session: session_id)
+}
+
+fn main() {
+    server = haira.serve([ChatREST, ChatStream])
+    server.listen(8080)
+}
+\end{lstlisting}
+
+Both endpoints share the same agent and session memory.
+
+\section{RAG Chatbot}
+
+A chatbot that searches a knowledge base before answering:
+
+\begin{lstlisting}
+import "tools/postgres"
+import "tools/http"
+
+tool search_kb(query: string) -> [KBArticle] {
+    """Search the knowledge base for relevant articles"""
+
+    results, err = pg.query(
+        "SELECT * FROM articles WHERE content @@ to_tsquery($1) LIMIT 5",
+        [query]
+    )
+    if err != nil { return [], err }
+    return results
+}
+
+tool lookup_order(order_id: string) -> Order {
+    """Look up a customer order by ID"""
+
+    order, err = pg.query_one(
+        "SELECT * FROM orders WHERE id = $1",
+        [order_id]
+    )
+    if err != nil { return Order{}, err }
+    return order
+}
+
+tool create_ticket(subject: string, body: string, priority: string = "normal") -> Ticket {
+    """Create a support ticket"""
+
+    resp, err = http.post("https://helpdesk.api/tickets", {
+        subject: subject, body: body, priority: priority
+    })
+    if err != nil { return Ticket{}, err }
+    return json.decode(resp.body, Ticket)
+}
+
+agent SupportBot {
+    model: anthropic
+    system: """
+        You are a customer support agent for Acme Corp.
+        Use the knowledge base to answer questions.
+        Look up orders when customers ask about purchases.
+        Create tickets for issues you cannot resolve directly.
+        Always be polite and helpful.
+    """
+    tools: [search_kb, lookup_order, create_ticket]
+    memory: conversation(max_turns: 100)
+    temperature: 0.3
+}
+
+@websocket("/support")
+workflow CustomerSupport(message: string, session_id: string) -> stream<string> {
+    return SupportBot.stream(message, session: session_id)
+}
+\end{lstlisting}
+
+The agent automatically decides when to search the knowledge base, look up an order, or create a ticket based on the user's message.
+
+\section{Multi-Agent Routing}
+
+Route user messages to specialized agents based on intent:
+
+\begin{lstlisting}
+agent Router {
+    model: anthropic
+    system: """
+        Classify the user message into one category: billing, technical, general.
+        Reply with just the category name, nothing else.
+    """
+    temperature: 0.0
+}
+
+agent BillingAgent {
+    model: anthropic
+    system: "You handle billing questions. You can look up invoices and process refunds."
+    tools: [lookup_invoice, process_refund]
+    memory: conversation(max_turns: 30)
+}
+
+agent TechAgent {
+    model: anthropic
+    system: "You handle technical support. You can search docs and check system status."
+    tools: [search_docs, check_status]
+    memory: conversation(max_turns: 30)
+}
+
+agent GeneralAgent {
+    model: anthropic
+    system: "You handle general inquiries."
+    memory: conversation(max_turns: 30)
+}
+
+@websocket("/chat")
+workflow SmartChat(message: string, session_id: string) -> stream<string> {
+    category, _ = Router.ask(message)
+
+    match category {
+        "billing"   => return BillingAgent.stream(message, session: session_id)
+        "technical" => return TechAgent.stream(message, session: session_id)
+        _           => return GeneralAgent.stream(message, session: session_id)
+    }
+}
+\end{lstlisting}
+
+\section{Chatbot with Structured Actions}
+
+Sometimes you want the chatbot to return structured data alongside text:
+
+\begin{lstlisting}
+struct ChatResponse {
+    reply: string
+    actions: [Action]
+}
+
+struct Action {
+    type: string      // "navigate", "show_modal", "refresh"
+    target: string
+}
+
+agent UIAssistant {
+    model: anthropic
+    system: """
+        You are a UI assistant. When answering, also suggest UI actions.
+        For example, if the user asks about their order, suggest navigating
+        to the orders page.
+    """
+    tools: [search_kb, lookup_order]
+    memory: conversation(max_turns: 50)
+}
+
+@webhook("/assistant")
+workflow UIChat(message: string, session_id: string) -> ChatResponse {
+    response: ChatResponse, err = UIAssistant.run(
+        { message: message },
+        session: session_id
+    )
+    if err != nil {
+        return ChatResponse{ reply: "Sorry, an error occurred.", actions: [] }
+    }
+    return response
+}
+\end{lstlisting}
+
+\section{Best Practices}
+
+\begin{enumerate}
+    \item \textbf{Always use sessions for conversation} --- without a session, memory agents start fresh every call
+    \item \textbf{Set appropriate max\_turns} --- too high wastes tokens, too low loses context
+    \item \textbf{Use streaming for interactive UIs} --- REST is fine for backend-to-backend, but users expect real-time responses
+    \item \textbf{Give tools clear descriptions} --- the agent decides when to use tools based on descriptions
+    \item \textbf{Use a Router agent for complex bots} --- instead of one agent doing everything, route to specialists
+    \item \textbf{Handle errors gracefully} --- always provide a fallback response when agents fail
+\end{enumerate}

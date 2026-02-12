@@ -1,0 +1,190 @@
+\chapter{Tools}
+\label{ch:tools}
+
+Tools are typed functions with LLM-visible descriptions. The compiler auto-generates JSON schemas from the type signature, enabling agents to call tools with structured arguments.
+
+\section{Tool Declaration}
+
+\begin{lstlisting}
+tool tool_name(param: Type, param: Type = default) -> ReturnType {
+    """Description visible to the LLM"""
+
+    // implementation
+}
+\end{lstlisting}
+
+A tool is like \keyword{fn} with two additions:
+\begin{enumerate}
+    \item The \keyword{tool} keyword instead of \keyword{fn}
+    \item A mandatory triple-quoted description as the first element of the body
+\end{enumerate}
+
+\section{Basic Examples}
+
+\subsection{HTTP Tool}
+
+\begin{lstlisting}
+import "tools/http"
+import "json"
+
+struct SearchResult {
+    url: string
+    title: string
+    snippet: string
+}
+
+tool search(query: string, max_results: int = 5) -> [SearchResult] {
+    """
+    Search the web for information.
+    Returns up to max_results results.
+    Supports boolean operators in query.
+    """
+
+    resp, err = http.get("https://api.search.com?q={query}&n={max_results}")
+    if err != nil { return [], err }
+    return json.decode(resp.body, [SearchResult])
+}
+\end{lstlisting}
+
+\subsection{Database Tool}
+
+\begin{lstlisting}
+import "tools/postgres"
+
+tool get_user(user_id: string) -> User {
+    """Look up a user by their ID"""
+
+    user, err = pg.query_one("SELECT * FROM users WHERE id = $1", [user_id])
+    if err != nil { return User{}, err }
+    return user
+}
+\end{lstlisting}
+
+\subsection{External Service Tool}
+
+\begin{lstlisting}
+import "tools/http"
+
+tool send_slack(channel: string, message: string) -> bool {
+    """Send a message to a Slack channel"""
+
+    resp, err = http.post("https://slack.com/api/chat.postMessage", {
+        channel: channel,
+        text: message
+    })
+    return err == nil
+}
+\end{lstlisting}
+
+\subsection{Agent-Delegating Tool}
+
+Tools can call agents internally:
+
+\begin{lstlisting}
+tool summarize(text: string) -> string {
+    """Summarize text into key points"""
+
+    result, _ = Writer.ask("Summarize concisely: {text}")
+    return result
+}
+\end{lstlisting}
+
+\section{Triple-Quote Description}
+
+The description is mandatory and must be the first element of the tool body. It is a triple-quoted string (\code{"""..."""}) that can span multiple lines:
+
+\begin{lstlisting}
+tool analyze(data: [DataPoint]) -> Analysis {
+    """
+    Analyze a dataset and produce a statistical summary.
+
+    Includes:
+    - Mean, median, and standard deviation
+    - Outlier detection
+    - Trend analysis over time
+
+    Use this tool when the user asks about patterns or statistics.
+    """
+
+    // implementation
+}
+\end{lstlisting}
+
+\begin{note}
+The compiler will emit an error if a tool is missing its description. This is enforced because the description is sent to the LLM as part of the tool-calling protocol.
+\end{note}
+
+\section{Auto-Generated JSON Schema}
+
+The compiler generates a JSON schema from the tool's type signature. For example:
+
+\begin{lstlisting}
+tool search(query: string, max_results: int = 5) -> [SearchResult] {
+    """Search the web for information"""
+    // ...
+}
+\end{lstlisting}
+
+Generates (conceptually):
+
+\begin{lstlisting}[language={}]
+{
+  "name": "search",
+  "description": "Search the web for information",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string" },
+      "max_results": { "type": "integer", "default": 5 }
+    },
+    "required": ["query"]
+  }
+}
+\end{lstlisting}
+
+This happens at compile time. No hand-written JSON schemas are needed.
+
+\section{Tool Packs (Standard Library)}
+
+\haira{} ships with built-in tool packs for common integrations:
+
+\begin{lstlisting}
+import "tools/http"       // http.get, http.post, http.put, http.delete
+import "tools/slack"      // slack.send, slack.read_channel
+import "tools/github"     // github.create_issue, github.list_prs, github.get_diff
+import "tools/postgres"   // pg.query, pg.query_one, pg.insert, pg.update
+import "tools/email"      // email.send
+import "tools/fs"         // fs.read, fs.write, fs.list
+\end{lstlisting}
+
+Tool packs provide pre-built \keyword{tool} declarations. They can be used directly in agent \code{tools} lists or called from within other tools and workflows.
+
+\section{Error Handling in Tools}
+
+Tools follow \haira{}'s standard error handling pattern:
+
+\begin{lstlisting}
+tool fetch_page(url: string) -> string {
+    """Fetch the content of a web page"""
+
+    resp, err = http.get(url)
+    if err != nil {
+        return "", err
+    }
+    if resp.status != 200 {
+        return "", Error{message: "HTTP {resp.status}"}
+    }
+    return resp.body
+}
+\end{lstlisting}
+
+When a tool returns an error, the agent receives the error message and can decide how to proceed (retry, try a different tool, or report the error to the user).
+
+\section{Tool Grammar}
+
+\begin{lstlisting}[language=EBNF]
+tool_decl     = "tool" identifier "(" [ params ] ")" [ "->" type ]
+                "{" triple_string { statement } "}" ;
+
+triple_string = '"""' { any_char } '"""' ;
+\end{lstlisting}

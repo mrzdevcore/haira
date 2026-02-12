@@ -1,15 +1,33 @@
 \chapter{Overview}
 \label{ch:overview}
 
-\haira{} is a statically-typed, compiled programming language that brings AI-assisted code generation into the compilation pipeline. It compiles to native binaries via Cranelift, with no runtime dependencies.
+\haira{} is a statically-typed, compiled programming language for building AI agents and workflows. It combines the simplicity of Go, the safety of Rust, and purpose-built primitives for agentic orchestration --- agents, tools, workflows, and providers are first-class language constructs, not library imports.
 
-\section{Hello, World}
+\haira{} compiles to native binaries via Cranelift, with no runtime dependencies beyond the standard library.
+
+\section{Hello, Agent}
 
 \begin{lstlisting}
 import "io"
 
+provider local {
+    backend: "ollama"
+    host: "localhost:11434"
+    model: "llama3:8b"
+}
+
+agent Greeter {
+    model: local
+    system: "You are a friendly greeter. Keep it short."
+}
+
 fn main() {
-    io.println("Hello, World!")
+    reply, err = Greeter.ask("Say hello to the world!")
+    if err != nil {
+        io.println("Error: " + err.message)
+        return
+    }
+    io.println(reply)
 }
 \end{lstlisting}
 
@@ -18,10 +36,41 @@ To compile and run:
 \begin{lstlisting}[language=bash,numbers=none]
 $ haira build hello.haira
 $ ./hello
-Hello, World!
+Hello, world! Great to meet you!
 \end{lstlisting}
 
+\section{What Haira Replaces}
+
+\haira{} is designed to replace the fragmented toolchain currently used to build agentic systems:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Current Stack} & \textbf{Haira Equivalent} \\
+\midrule
+Python + LangChain/LangGraph & \keyword{agent} + \keyword{tool} + \keyword{workflow} \\
+n8n / Make / Zapier & \keyword{workflow} with \code{@webhook}, \code{@cron} triggers \\
+CrewAI / AutoGen & Multi-agent \keyword{workflow} composition \\
+FastAPI / Flask & \code{haira.serve()} with typed endpoints \\
+\code{.env} files + API configs & \keyword{provider} blocks \\
+\bottomrule
+\end{tabular}
+\caption{Haira replaces the fragmented agentic stack}
+\end{table}
+
 \section{Language Characteristics}
+
+\subsection{Four Agentic Primitives}
+
+\haira{} adds four keywords to a general-purpose language:
+
+\begin{itemize}
+    \item \keyword{provider} --- Configure LLM backends (Anthropic, OpenAI, Ollama, local models)
+    \item \keyword{tool} --- Typed functions with LLM-visible descriptions; the compiler auto-generates JSON schemas
+    \item \keyword{agent} --- LLM-powered entities with a model, system prompt, tools, and optional memory
+    \item \keyword{workflow} --- Composable pipelines with triggers, typed I/O, and native concurrency
+\end{itemize}
 
 \subsection{Explicit Imports}
 
@@ -30,7 +79,8 @@ All dependencies are explicitly declared at the top of each file:
 \begin{lstlisting}
 import "io"
 import "json"
-import db from "haira/postgres"
+import "tools/http"
+import "tools/postgres"
 \end{lstlisting}
 
 \subsection{Go-Style Error Handling}
@@ -51,54 +101,78 @@ fn main() {
 }
 \end{lstlisting}
 
-\subsection{Explicit AI Blocks}
+\subsection{Agents and Tools}
 
-AI-generated code is explicit, using the \keyword{ai} keyword:
+Agents are declared with a model, system prompt, and tools. Tools are typed functions with descriptions:
 
 \begin{lstlisting}
 import "io"
+import "tools/http"
 
-struct User {
-    name: string
-    email: string
-    posts: []Post
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
 }
 
-ai summarize_user(user: User) -> string {
-    Generate a brief, human-readable summary of this user
-    including their name and post count.
+tool search(query: string) -> [Result] {
+    """Search the web for information"""
+
+    resp, err = http.get("https://api.search.com?q={query}")
+    if err != nil { return [], err }
+    return json.decode(resp.body, [Result])
+}
+
+agent Researcher {
+    model: anthropic
+    system: "You are a thorough researcher. Always cite sources."
+    tools: [search]
+    temperature: 0.2
 }
 
 fn main() {
-    user = User{
-        name: "Alice",
-        email: "alice@example.com",
-        posts: []
+    answer, err = Researcher.ask("What is quantum computing?")
+    if err != nil {
+        io.println("Error: " + err.message)
+        return
     }
-    io.println(summarize_user(user))
+    io.println(answer)
 }
 \end{lstlisting}
 
-\begin{note}
-AI blocks are processed at \textbf{compile time}. The generated code is cached and included in the binary. There are no AI dependencies at runtime.
-\end{note}
+\subsection{Workflows with Triggers}
 
-\subsection{Local-First AI}
+Workflows are functions with triggers. They can be exposed as webhooks, scheduled with cron, or triggered by events:
 
-AI code generation uses local models by default:
+\begin{lstlisting}
+@webhook("/summarize")
+workflow Summarizer(url: string) -> Summary {
+    content = fetch_page(url)
+    summary = Researcher.ask("Summarize this: {content}")
+    return Summary{ text: summary, word_count: summary.len() }
+}
 
-\begin{enumerate}
-    \item \textbf{llama.cpp} -- Primary backend, runs local GGUF models
-    \item \textbf{Ollama} -- Secondary, connects to local Ollama server
-    \item \textbf{Cloud APIs} -- Optional fallback (Anthropic, OpenAI)
-\end{enumerate}
+fn main() {
+    server = haira.serve([Summarizer])
+    io.println("Running on :8080")
+    server.listen(8080)
+}
+\end{lstlisting}
 
-Configuration in \code{haira.toml}:
+\subsection{Streaming and Conversations}
 
-\begin{lstlisting}[language={}]
-[ai]
-backend = "llama.cpp"
-model_path = "~/.haira/models/codellama-7b.gguf"
+Agents support streaming responses and session-based memory for chatbot use cases:
+
+\begin{lstlisting}
+agent Assistant {
+    model: anthropic
+    system: "You are a helpful assistant."
+    memory: conversation(max_turns: 50)
+}
+
+@websocket("/chat")
+workflow Chat(message: string, session_id: string) -> stream<string> {
+    return Assistant.stream(message, session: session_id)
+}
 \end{lstlisting}
 
 \section{Type System}
@@ -132,7 +206,6 @@ scores: [string:int] = ["alice": 100, "bob": 95]
 import "io"
 
 fn main() {
-    // If-else
     x = 10
     if x > 5 {
         io.println("Large")
@@ -140,24 +213,14 @@ fn main() {
         io.println("Small")
     }
 
-    // For loop with range
     for i in 0..5 {
         io.println(i)
     }
 
-    // While loop
-    n = 0
-    while n < 3 {
-        io.println(n)
-        n = n + 1
-    }
-
-    // Match expression
     status = 200
     match status {
         200 => io.println("OK")
         404 => io.println("Not Found")
-        500 => io.println("Server Error")
         _ => io.println("Unknown")
     }
 }
@@ -172,19 +235,11 @@ fn add(a: int, b: int) -> int {
     return a + b
 }
 
-// Multiple return values
 fn divide(a: int, b: int) -> (int, Error?) {
     if b == 0 {
         return 0, Error{message: "division by zero"}
     }
     return a / b, nil
-}
-
-// Closures
-fn make_adder(n: int) -> fn(int) -> int {
-    return fn(x: int) -> int {
-        return x + n
-    }
 }
 \end{lstlisting}
 
@@ -196,7 +251,7 @@ fn make_adder(n: int) -> fn(int) -> int {
 import "io"
 
 fn main() {
-    ch = chan<int>(10)  // Buffered channel
+    ch = chan<int>(10)
 
     spawn {
         for i in 0..5 {
@@ -208,6 +263,20 @@ fn main() {
     for value in ch {
         io.println(value)
     }
+}
+\end{lstlisting}
+
+Inside workflows, \keyword{spawn} blocks run steps in parallel:
+
+\begin{lstlisting}
+@manual
+workflow ParallelReview(article: Article) -> [Review] {
+    reviews = spawn {
+        Reviewer.run(ReviewRequest{ article: article, focus: "accuracy" })
+        Reviewer.run(ReviewRequest{ article: article, focus: "clarity" })
+        Reviewer.run(ReviewRequest{ article: article, focus: "style" })
+    }
+    return reviews
 }
 \end{lstlisting}
 
@@ -233,50 +302,72 @@ fn main() {
 
 \section{A Complete Example}
 
+A multi-agent workflow that researches a topic, writes an article, and reviews it:
+
 \begin{lstlisting}
 import "io"
-import "http"
-import "json"
 
-struct User {
-    id: int
-    name: string
-    email: string
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
 }
 
-ai validate_email(email: string) -> (bool, string?) {
-    Validate the email format and return whether it's valid.
-    If invalid, return an error message explaining why.
+struct Article { title: string, body: string, sources: [string] }
+struct Review { aspect: string, score: float, notes: string }
+
+tool search(query: string) -> [string] {
+    """Search the web and return relevant URLs"""
+
+    resp, err = http.get("https://api.search.com?q={query}")
+    if err != nil { return [], err }
+    return json.decode(resp.body, [string])
 }
 
-fn create_user(name: string, email: string) -> (User, Error?) {
-    valid, reason = validate_email(email)
-    if not valid {
-        return User{}, Error{message: reason or "Invalid email"}
+agent Researcher {
+    model: anthropic
+    system: "You are a thorough researcher."
+    tools: [search]
+    temperature: 0.2
+}
+
+agent Writer {
+    model: anthropic
+    system: "You are a clear technical writer."
+    temperature: 0.7
+}
+
+agent Reviewer {
+    model: anthropic
+    system: "You are a critical but constructive editor."
+    temperature: 0.1
+}
+
+@manual
+workflow WriteArticle(topic: string) -> Article {
+    research = Researcher.ask("Research this topic thoroughly: {topic}")
+
+    draft: Article, err = Writer.run(
+        { research: research, topic: topic }
+    ) -> Article
+    if err != nil { return Article{}, err }
+
+    reviews = spawn {
+        Reviewer.ask("Review for accuracy: {draft.body}")
+        Reviewer.ask("Review for clarity: {draft.body}")
     }
 
-    user = User{
-        id: generate_id(),
-        name: name,
-        email: email
-    }
-
-    return user, nil
+    io.println("Reviews complete: {reviews.len()}")
+    return draft
 }
 
 fn main() {
-    user, err = create_user("Alice", "alice@example.com")
+    article, err = WriteArticle("The future of agentic programming")
     if err != nil {
         io.println("Failed: " + err.message)
         return
     }
-
-    io.println("Created user: " + user.name)
-}
-
-fn generate_id() -> int {
-    // Simple ID generation
-    return 1
+    io.println(article.title)
+    io.println(article.body)
 }
 \end{lstlisting}
 
@@ -292,17 +383,14 @@ This specification documents the complete \haira{} language. Implementation proc
 \midrule
 Lexer \& Parser & 2--3 & v0.1 \\
 Expressions \& Statements & 4--5 & v0.2 \\
-Functions & 6 & v0.3 \\
-Error Handling & 7 & v0.3 \\
+Functions \& Error Handling & 6--7 & v0.3 \\
 Concurrency & 8 & v0.4 \\
 Modules \& Stdlib & 9--10 & v0.5 \\
-Advanced Features & 11 & v0.6 \\
-AI Integration & 12--13 & v1.0 \\
+Providers \& Tools & 11--12 & v0.6 \\
+Agents & 13 & v0.7 \\
+Workflows \& Chatbot Patterns & 14--15 & v0.8 \\
+Full Grammar \& Compiler & 16--17 & v1.0 \\
 \bottomrule
 \end{tabular}
 \caption{Implementation roadmap by chapter}
 \end{table}
-
-\begin{implementation}
-Features not yet implemented will produce clear error messages indicating the target release version.
-\end{implementation}

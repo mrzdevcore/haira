@@ -1,0 +1,123 @@
+\chapter{Providers}
+\label{ch:providers}
+
+Providers configure LLM backends. They are declared at the top level and referenced by agents.
+
+\section{Provider Declaration}
+
+\begin{lstlisting}
+provider provider_name {
+    field: value
+    field: value
+}
+\end{lstlisting}
+
+\subsection{Cloud Providers}
+
+\begin{lstlisting}
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
+}
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
+}
+\end{lstlisting}
+
+\subsection{Local Providers}
+
+\begin{lstlisting}
+provider local {
+    backend: "ollama"
+    host: "localhost:11434"
+    model: "llama3:8b"
+}
+\end{lstlisting}
+
+\section{Provider Fields}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{Required} & \textbf{Description} \\
+\midrule
+\code{model} & \type{string} & Yes & Default model identifier \\
+\code{api\_key} & \type{string} & No & API authentication key \\
+\code{backend} & \type{string} & No & Backend type (\code{"ollama"}, \code{"llama.cpp"}) \\
+\code{host} & \type{string} & No & Backend host address \\
+\code{temperature} & \type{float} & No & Default temperature (0.0--2.0) \\
+\code{max\_tokens} & \type{int} & No & Default max tokens per response \\
+\bottomrule
+\end{tabular}
+\caption{Provider fields}
+\end{table}
+
+\section{Environment Variables}
+
+The \code{env()} function reads environment variables at runtime:
+
+\begin{lstlisting}
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: env("ANTHROPIC_MODEL") or "claude-sonnet-4-20250514"
+}
+\end{lstlisting}
+
+\begin{warning}
+Never hardcode API keys in source files. Always use \code{env()} to read them from the environment.
+\end{warning}
+
+\section{Referencing Providers}
+
+Providers are referenced by name in agent declarations:
+
+\begin{lstlisting}
+agent Writer {
+    model: anthropic         // uses anthropic provider's default model
+    system: "You are a writer."
+}
+
+agent FastHelper {
+    model: local             // uses local Ollama provider
+    system: "You are a fast helper."
+}
+\end{lstlisting}
+
+\section{Multiple Providers}
+
+A program can declare multiple providers. Agents choose which to use:
+
+\begin{lstlisting}
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
+}
+
+provider local {
+    backend: "ollama"
+    host: "localhost:11434"
+    model: "llama3:8b"
+}
+
+// Use expensive cloud model for important tasks
+agent Analyst {
+    model: anthropic
+    system: "You analyze data carefully."
+}
+
+// Use cheap local model for simple tasks
+agent Classifier {
+    model: local
+    system: "Classify the input into categories."
+}
+\end{lstlisting}
+
+\section{Provider Grammar}
+
+\begin{lstlisting}[language=EBNF]
+provider_decl  = "provider" identifier "{" { provider_field } "}" ;
+provider_field = identifier ":" expression ;
+\end{lstlisting}

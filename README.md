@@ -1,189 +1,239 @@
 # Haira Programming Language
 
-**Write clear code. Use AI when you need it.**
+**Build agents and workflows, not boilerplate.**
 
-Haira is a programming language for the AI era - explicit imports, explicit AI usage, and local-first AI that runs on your machine.
+Haira is a statically-typed, compiled programming language where workflows, agents, and tools are first-class citizens — not library imports. It replaces the entire agentic stack: Python + LangChain, n8n/Make/Zapier, CrewAI/AutoGen — all in one language with native binaries.
 
 ## Quick Example
 
 ```haira
-import "http"
-import "json"
+import "io"
 
-User { name, email, active }
-
-// Regular function - you write the logic
-get_active_users(users: [User]) -> [User] {
-    users | filter(u => u.active) | sort_by(u => u.name)
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
 }
 
-// AI function - AI generates the implementation
-ai summarize_users(users: [User]) -> Summary {
-    Count total users, active users, and list unique email domains.
+tool search(query: string) -> [Result] {
+    """Search the web for information"""
+    resp, err = http.get("https://api.search.com?q={query}")
+    if err != nil { return [], err }
+    return json.decode(resp.body, [Result])
 }
 
-server = http.Server { port = 8080 }
-
-server.route("GET", "/users") {
-    users = load_users()
-    active = get_active_users(users)
-    json.encode(active)
+agent Researcher {
+    model: anthropic
+    system: "You are a thorough researcher. Always cite sources."
+    tools: [search]
+    temperature: 0.2
 }
 
-server.route("GET", "/summary") {
-    users = load_users()
-    summary = summarize_users(users)
-    json.encode(summary)
+@webhook("/research")
+workflow Research(topic: string) -> ResearchResult {
+    result: ResearchResult, err = Researcher.run(ResearchRequest{ topic: topic })
+    if err != nil { return ResearchResult{}, err }
+    return result
 }
 
-server.start()
+fn main() {
+    server = haira.serve([Research])
+    io.println("Running on :8080")
+    server.listen(8080)
+}
 ```
+
+## Why Haira?
+
+| What you replace | With Haira |
+|------------------|------------|
+| Python + LangChain/LangGraph | `agent` + `tool` keywords |
+| n8n / Make / Zapier | `workflow` with `@webhook`, `@cron`, `@event` triggers |
+| CrewAI / AutoGen | Multi-agent composition with `spawn` blocks |
+| Custom chatbot backend | `@websocket` + agent `memory` + `stream<T>` |
+| YAML/JSON config files | `provider` keyword — type-checked config in code |
 
 ## Key Features
 
-- **Explicit imports** - Go-style dependency declarations
-- **Explicit AI blocks** - AI assistance when you request it
-- **Local-first AI** - llama.cpp, Ollama, or cloud backends
-- **No null** - Option types prevent null pointer errors
-- **Type inference** - Types exist but you rarely write them
-- **Fast binaries** - Compiles to native code via Cranelift
-- **Reproducible** - AI outputs are cached and locked
+- **4 new keywords** — `provider`, `tool`, `agent`, `workflow` — that's it
+- **Type-safe orchestration** — agent inputs, outputs, and tool schemas verified at compile time
+- **Native binaries** — compiles to standalone executables via Cranelift
+- **Streaming** — `stream<T>` type for token-by-token agent output
+- **Built-in triggers** — `@webhook`, `@websocket`, `@cron`, `@event`, `@manual`
+- **Agent memory** — `conversation(max_turns: N)` and `summary(max_tokens: N)`
+- **Parallel execution** — `spawn { }` blocks for concurrent agent calls
+- **No null** — option types (`T?`) prevent null pointer errors
+- **Go-style simplicity** — familiar syntax, explicit error handling
 
-## How It Works
+## The Four Primitives
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Your Code   │ --> │    Haira     │ --> │   Native     │
-│              │     │   Compiler   │     │   Binary     │
-└──────────────┘     └──────┬───────┘     └──────────────┘
-                           │
-                    ┌──────┴───────┐
-                    │  Local AI    │
-                    │  (llama.cpp  │
-                    │  or Ollama)  │
-                    └──────────────┘
-```
-
-1. You write explicit, clear code with `import` and `ai` keywords
-2. The compiler resolves imports and processes AI blocks
-3. Local AI (llama.cpp/Ollama) generates implementations for AI blocks
-4. Generated code is cached for reproducibility
-5. Everything compiles to a fast native binary
-
-**No cloud dependency** - AI runs on your machine by default.
-
-## Quick Start
-
-```bash
-# Build the compiler
-cargo build
-
-# Run a simple program
-./target/debug/haira run examples/basics/hello.haira
-
-# Build to native binary
-./target/debug/haira build examples/basics/hello.haira -o hello
-./hello
-```
-
-## AI Blocks
-
-Use the `ai` keyword when you want AI to generate an implementation:
+### Provider — LLM backend configuration
 
 ```haira
-// AI generates the implementation based on your description
-ai calculate_engagement(user: User) -> EngagementScore {
-    Analyze user's activity over the last 30 days.
-    Consider login frequency, feature usage, and interactions.
-    Return a score from 0-100 with breakdown by category.
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
+}
+```
+
+### Tool — typed function with LLM-visible description
+
+```haira
+tool search_kb(query: string) -> [Article] {
+    """Search the knowledge base for relevant articles"""
+    results, err = pg.query("SELECT * FROM articles WHERE content @@ to_tsquery($1)", [query])
+    if err != nil { return [], err }
+    return results
+}
+```
+
+### Agent — LLM entity with model, prompt, and tools
+
+```haira
+agent SupportBot {
+    model: anthropic
+    system: "You are a helpful customer support agent."
+    tools: [search_kb, lookup_order, create_ticket]
+    memory: conversation(max_turns: 100)
+    temperature: 0.3
+}
+```
+
+Three ways to use an agent:
+
+```haira
+// Text in, text out
+answer, err = SupportBot.ask("How do I reset my password?")
+
+// Structured in, structured out
+result: TicketResult, err = SupportBot.run(TicketRequest{ issue: "billing" })
+
+// Streaming (token by token)
+for chunk in SupportBot.stream("Explain our pricing") {
+    io.print(chunk)
+}
+```
+
+### Workflow — function with a trigger
+
+```haira
+@webhook("/support")
+workflow CustomerSupport(message: string, session_id: string) -> { reply: string } {
+    reply, err = SupportBot.ask(message, session: session_id)
+    return { reply: reply or "Something went wrong." }
+}
+```
+
+## Streaming Chatbot (7 lines)
+
+```haira
+agent Assistant {
+    model: anthropic
+    system: "You are a helpful assistant."
+    memory: conversation(max_turns: 50)
 }
 
-// Use it like a normal function
-score = calculate_engagement(current_user)
-print(score.total)
+@websocket("/chat")
+workflow Chat(message: string, session_id: string) -> stream<string> {
+    return Assistant.stream(message, session: session_id)
+}
 ```
 
-### Using with Ollama (Recommended)
+## Multi-Agent Workflow
 
-```bash
-# Install Ollama (https://ollama.ai)
-ollama pull deepseek-coder-v2:16b
+```haira
+@manual
+workflow ArticlePipeline(topic: string) -> ArticleResult {
+    // Step 1: Research
+    research: ResearchResult, err = Researcher.run(ResearchRequest{ topic: topic })
+    if err != nil { return ArticleResult{}, err }
 
-# Build with local AI
-./target/debug/haira build examples/ai/ai_demo.haira --ollama
+    // Step 2: Write draft
+    draft: Article, err = Writer.run(WriteRequest{
+        content: research.summary,
+        sources: research.sources
+    })
+    if err != nil { return ArticleResult{}, err }
 
-# Use a different model
-./target/debug/haira build examples/ai/ai_demo.haira --ollama --ollama-model codellama:7b
+    // Step 3: Parallel reviews
+    reviews = spawn {
+        Reviewer.run(ReviewRequest{ article: draft, focus: "accuracy" })
+        Reviewer.run(ReviewRequest{ article: draft, focus: "clarity" })
+        Reviewer.run(ReviewRequest{ article: draft, focus: "engagement" })
+    }
+
+    return ArticleResult{ article: draft, reviews: reviews }
+}
 ```
 
-### Recommended Models
-
-| Model | Size | Use Case |
-|-------|------|----------|
-| `deepseek-coder-v2:16b` | 9GB | Best quality (default) |
-| `deepseek-coder:6.7b` | 4GB | Good balance |
-| `codellama:7b` | 4GB | Fast alternative |
-
-## Examples
+## Running
 
 ```bash
-# Basic examples (no AI required)
-./target/debug/haira run examples/basics/hello.haira
-./target/debug/haira run examples/functions/pipe.haira
-./target/debug/haira run examples/functions/fibonacci.haira
+# Compile and run
+haira run main.haira
 
-# AI examples (requires Ollama)
-./target/debug/haira build --ollama examples/ai/ai_demo.haira -o ai_demo
-./ai_demo
+# Start server (for webhook/websocket/cron workflows)
+haira serve main.haira --port 8080
+
+# Build native binary
+haira build main.haira -o myapp
+
+# Type-check only
+haira check main.haira
+
+# CLI invocation of a @manual workflow
+haira run ArticlePipeline --input '{"topic": "AI agents"}'
 ```
 
 ## Project Structure
 
 ```
 haira/
-├── spec/                    # Language specification (15 chapters)
+├── spec/                    # Language specification (17 chapters)
 ├── examples/                # Example programs
 │   ├── basics/
 │   ├── functions/
 │   ├── control-flow/
 │   ├── data-types/
 │   ├── advanced/
-│   └── ai/
+│   └── agentic/
 ├── crates/                  # Compiler implementation (Rust)
-│   ├── haira-lexer/
-│   ├── haira-parser/
-│   ├── haira-ai/
-│   ├── haira-codegen/
-│   └── ...
+│   ├── haira-lexer/         # Lexical analysis
+│   ├── haira-parser/        # Parsing
+│   ├── haira-ast/           # AST definitions
+│   ├── haira-resolver/      # Name resolution
+│   ├── haira-types/         # Type system
+│   ├── haira-hir/           # High-level IR
+│   ├── haira-codegen/       # Code generation (Cranelift)
+│   ├── haira-runtime/       # Runtime (agents, workflows, providers)
+│   ├── haira-driver/        # Compilation driver
+│   ├── haira-cli/           # CLI
+│   └── haira-lsp/           # Language server
 └── Cargo.toml
 ```
 
-## Philosophy
-
-| Approach | Haira | Magic Languages |
-|----------|-------|-----------------|
-| Dependencies | Explicit imports | Auto-resolved |
-| AI usage | Explicit `ai` blocks | Implicit generation |
-| AI backend | Local-first (your machine) | Cloud-dependent |
-| Code generation | Visible, cached | Hidden, unpredictable |
-
 ## Status
 
-**Early Development** - Core compiler working, AI integration functional.
+**Early Development** — Language specification complete. Compiler core working (lexer, parser, type system, codegen). Agentic runtime in progress.
 
-### Working Features
+### Working
 
 - Lexer & Parser
-- Type System (structs, functions, arrays, options)
-- Control Flow (if/else, for, while, match)
+- Type system (structs, enums, generics, options)
+- Control flow (if/else, for, while, match)
 - Functions (closures, methods, pipe operator)
-- Native Codegen (Cranelift)
-- AI Intent Blocks (with Ollama)
+- Concurrency (spawn, chan, select)
+- Native codegen (Cranelift)
+
+### In Progress
+
+- Provider, tool, agent, workflow parsing
+- Agentic runtime (LLM API calls, tool execution, memory)
+- Workflow triggers (webhook, websocket, cron, event)
+- Stream type implementation
 
 ## Requirements
 
 - Rust (for building the compiler)
-- Ollama (for AI features) - optional for non-AI code
 
 ## License
 

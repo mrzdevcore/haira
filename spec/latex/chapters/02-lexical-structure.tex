@@ -102,19 +102,25 @@ The following identifiers are reserved as keywords:
 \centering
 \begin{tabular}{lllll}
 \toprule
-\code{ai} & \code{and} & \code{as} & \code{break} & \code{catch} \\
-\code{chan} & \code{continue} & \code{defer} & \code{else} & \code{enum} \\
-\code{false} & \code{fn} & \code{for} & \code{from} & \code{if} \\
-\code{import} & \code{in} & \code{match} & \code{nil} & \code{not} \\
-\code{or} & \code{return} & \code{select} & \code{spawn} & \code{struct} \\
-\code{true} & \code{try} & \code{type} & \code{while} & \\
+\multicolumn{5}{l}{\textit{General-purpose keywords}} \\
+\midrule
+\code{and} & \code{as} & \code{break} & \code{catch} & \code{chan} \\
+\code{continue} & \code{defer} & \code{else} & \code{enum} & \code{false} \\
+\code{fn} & \code{for} & \code{from} & \code{if} & \code{import} \\
+\code{in} & \code{match} & \code{nil} & \code{not} & \code{or} \\
+\code{return} & \code{select} & \code{spawn} & \code{struct} & \code{true} \\
+\code{try} & \code{type} & \code{while} & & \\
+\midrule
+\multicolumn{5}{l}{\textit{Agentic keywords}} \\
+\midrule
+\code{agent} & \code{provider} & \code{tool} & \code{workflow} & \\
 \bottomrule
 \end{tabular}
 \caption{Reserved keywords}
 \end{table}
 
 \begin{note}
-The keywords \keyword{ai}, \keyword{catch}, \keyword{defer}, \keyword{select}, \keyword{spawn}, and \keyword{try} are reserved for future language features. Using them will produce a clear error message.
+The four agentic keywords (\keyword{agent}, \keyword{provider}, \keyword{tool}, \keyword{workflow}) are first-class language constructs for building AI-powered systems. See Chapters~\ref{ch:providers}--\ref{ch:workflows}.
 \end{note}
 
 \section{Identifiers}
@@ -281,7 +287,9 @@ regex_pattern = r"^\d{3}-\d{4}$"
 windows_path = r"C:\Users\Alice\Documents"
 \end{lstlisting}
 
-\subsection{Multi-Line Strings}
+\subsection{Triple-Quoted Strings}
+
+Triple-quoted strings use \code{"""..."""} for multi-line content:
 
 \begin{lstlisting}
 query = """
@@ -292,6 +300,27 @@ query = """
 \end{lstlisting}
 
 The leading whitespace common to all lines is stripped.
+
+Triple-quoted strings are also used for:
+\begin{itemize}
+    \item Tool descriptions (mandatory, see Chapter~\ref{ch:tools})
+    \item Agent system prompts (optional, for long prompts, see Chapter~\ref{ch:agents})
+\end{itemize}
+
+\begin{lstlisting}
+tool search(query: string) -> [Result] {
+    """Search the web for information"""
+    // ...
+}
+
+agent Assistant {
+    model: anthropic
+    system: """
+        You are a helpful assistant.
+        Always be polite and concise.
+    """
+}
+\end{lstlisting}
 
 \subsection{Nil Literal}
 
@@ -421,6 +450,7 @@ empty: User? = nil
 \code{<-} & Channel send \\
 \code{->} & Function return type \\
 \code{=>} & Match arm \\
+\code{@} & Decorator (workflow triggers) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -464,11 +494,12 @@ token = keyword
       | operator
       | delimiter ;
 
-keyword = "ai" | "and" | "as" | "break" | "catch" | "chan"
+keyword = "agent" | "and" | "as" | "break" | "catch" | "chan"
         | "continue" | "defer" | "else" | "enum" | "false"
         | "fn" | "for" | "from" | "if" | "import" | "in"
-        | "match" | "nil" | "not" | "or" | "return" | "select"
-        | "spawn" | "struct" | "true" | "try" | "type" | "while" ;
+        | "match" | "nil" | "not" | "or" | "provider" | "return"
+        | "select" | "spawn" | "struct" | "tool" | "true" | "try"
+        | "type" | "while" | "workflow" ;
 
 identifier = letter { letter | digit | "_" } ;
 
@@ -478,7 +509,8 @@ operator = "+" | "-" | "*" | "/" | "%"
          | "&" | "|" | "^" | "~" | "<<" | ">>" | ">>>"
          | "=" | "+=" | "-=" | "*=" | "/="
          | "&=" | "|=" | "^=" | "<<=" | ">>=" | ">>>="
-         | "|>" | ".." | "..=" | "<-" | "->" | "=>" ;
+         | "|>" | ".." | "..=" | "<-" | "->" | "=>"
+         | "@" ;
 
 delimiter = "(" | ")" | "[" | "]" | "{" | "}"
           | "," | ":" | "." | "?" ;

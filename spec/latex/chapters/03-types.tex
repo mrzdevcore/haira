@@ -430,6 +430,72 @@ fn process<T: Comparable + Printable>(value: T) {
 }
 \end{lstlisting}
 
+\section{Stream Types}
+
+The \type{stream<T>} type represents a lazy, asynchronous sequence of values produced over time. Streams are the primary mechanism for handling token-by-token output from agents and for streaming responses over WebSocket connections.
+
+\begin{lstlisting}
+// Stream of string tokens from an agent
+for chunk in Assistant.stream("Tell me a story") {
+    io.print(chunk)
+}
+\end{lstlisting}
+
+\subsection{Stream Type Syntax}
+
+\begin{lstlisting}[language=EBNF]
+stream_type = "stream" "<" type ">" ;
+\end{lstlisting}
+
+A stream is parameterized by the element type it yields:
+
+\begin{lstlisting}
+// Common stream types
+stream<string>    // Stream of text tokens (agent output)
+stream<byte>      // Stream of raw bytes
+stream<Event>     // Stream of typed events
+\end{lstlisting}
+
+\subsection{Consuming Streams}
+
+Streams are consumed with \keyword{for} loops. Each iteration yields the next value as it becomes available:
+
+\begin{lstlisting}
+// Iterate over a stream
+tokens: stream<string> = Researcher.stream("Explain quantum computing")
+
+for token in tokens {
+    io.print(token)  // Print each token as it arrives
+}
+\end{lstlisting}
+
+\subsection{Streams as Return Types}
+
+Functions and workflows can return streams, enabling streaming pipelines:
+
+\begin{lstlisting}
+// Workflow returning a stream (e.g., for WebSocket)
+@websocket("/chat")
+workflow StreamingChat(message: string, session_id: string) -> stream<string> {
+    return Assistant.stream(message, session: session_id)
+}
+\end{lstlisting}
+
+When a workflow returns \type{stream<T>}, the runtime streams each element to the client as it is produced---no buffering.
+
+\subsection{Stream Properties}
+
+\begin{itemize}
+    \item \textbf{Lazy} -- Values are produced on demand, not computed upfront
+    \item \textbf{Single-use} -- A stream can only be iterated once
+    \item \textbf{Asynchronous} -- The \keyword{for} loop suspends until the next value is available
+    \item \textbf{Finite} -- Streams eventually terminate (the loop exits when the source is exhausted)
+\end{itemize}
+
+\begin{note}
+Streams are distinct from channels (\type{chan<T>}). A channel is a bidirectional communication primitive between concurrent tasks. A stream is a unidirectional, read-only sequence---typically produced by an agent or an external data source.
+\end{note}
+
 \section{The Error Type}
 
 The built-in \type{Error} type represents errors:
@@ -515,6 +581,7 @@ type = primitive_type
      | option_type
      | function_type
      | generic_type
+     | stream_type
      | struct_type
      | identifier ;
 
@@ -534,6 +601,8 @@ option_type = type "?" ;
 function_type = "fn" "(" [ type_list ] ")" [ "->" type ] ;
 
 generic_type = identifier "<" type_list ">" ;
+
+stream_type = "stream" "<" type ">" ;
 
 type_list = type { "," type } ;
 \end{lstlisting}

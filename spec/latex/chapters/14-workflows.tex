@@ -1,0 +1,322 @@
+\chapter{Workflows}
+\label{ch:workflows}
+
+Workflows are the central abstraction in \haira{}. A workflow is a composable function with a trigger, typed parameters, and a typed return value. Workflows replace both n8n-style visual automations and LangGraph-style agent graphs.
+
+\section{Workflow Declaration}
+
+A workflow is a function preceded by a trigger decorator:
+
+\begin{lstlisting}
+@trigger_type("config")
+workflow WorkflowName(param: Type, param: Type) -> ReturnType {
+    // body
+}
+\end{lstlisting}
+
+Workflows without a trigger decorator can be called as sub-workflows but cannot be triggered externally.
+
+\section{Triggers}
+
+Triggers define how a workflow is invoked. They use the \code{@} decorator syntax.
+
+\subsection{@webhook --- HTTP Endpoint}
+
+\begin{lstlisting}
+@webhook("/summarize")
+workflow Summarizer(url: string) -> Summary {
+    content = fetch_page(url)
+    summary = Researcher.ask("Summarize: {content}")
+    return Summary{ text: summary, word_count: summary.len() }
+}
+\end{lstlisting}
+
+The workflow parameters become the JSON request body. The return type becomes the JSON response body.
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ curl -X POST http://localhost:8080/summarize \
+    -d '{"url": "https://example.com/article"}'
+
+{"text": "...", "word_count": 150}
+\end{lstlisting}
+
+Options:
+
+\begin{lstlisting}
+@webhook("/path")                  // POST (default)
+@webhook("/path", method: "GET")   // GET
+@webhook("/path", method: "PUT")   // PUT
+\end{lstlisting}
+
+\subsection{@websocket --- Bidirectional Streaming}
+
+\begin{lstlisting}
+@websocket("/chat")
+workflow Chat(message: string, session_id: string) -> stream<string> {
+    return Assistant.stream(message, session: session_id)
+}
+\end{lstlisting}
+
+WebSocket workflows receive messages and can return \code{stream<string>} for real-time streaming responses.
+
+\subsection{@cron --- Scheduled Execution}
+
+\begin{lstlisting}
+@cron("0 9 * * *")  // every day at 9 AM
+workflow DailyReport() -> Report {
+    data = fetch_metrics()
+    report: Report, _ = Analyst.run(AnalyzeRequest{ data: data })
+    send_email("team@company.com", "Daily Report", report.summary)
+    return report
+}
+\end{lstlisting}
+
+Cron expressions follow standard cron syntax (minute, hour, day-of-month, month, day-of-week).
+
+\subsection{@event --- Event-Driven}
+
+\begin{lstlisting}
+@event("order.created")
+workflow ProcessOrder(order: Order) -> OrderResult {
+    validated = validate_order(order)
+    if validated.has_errors {
+        return OrderResult{ status: "rejected" }
+    }
+    charge_payment(order)
+    return OrderResult{ status: "confirmed" }
+}
+\end{lstlisting}
+
+Events are published using \code{haira.emit()}:
+
+\begin{lstlisting}
+haira.emit("order.created", Order{ id: "123", total: 99.99 })
+\end{lstlisting}
+
+\subsection{@manual --- CLI Only}
+
+\begin{lstlisting}
+@manual
+workflow Migrate(version: string) -> { status: string } {
+    // only invoked from CLI or main()
+    run_migrations(version)
+    return { status: "done" }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ haira run Migrate --input '{"version": "v2"}'
+\end{lstlisting}
+
+\subsection{No Trigger (Sub-Workflow)}
+
+Workflows without a trigger can only be called from other workflows or from \code{main()}:
+
+\begin{lstlisting}
+workflow EnrichLead(email: string) -> EnrichedLead {
+    company = lookup_company(email)
+    social = lookup_social(email)
+    return EnrichedLead{ email: email, company: company, social: social }
+}
+\end{lstlisting}
+
+\section{Sequential Steps}
+
+The workflow body is sequential by default. Each line can use the results of previous lines:
+
+\begin{lstlisting}
+@manual
+workflow ArticlePipeline(topic: string) -> Article {
+    // Step 1: Research
+    research: ResearchResult, err = Researcher.run(ResearchRequest{ topic: topic })
+    if err != nil { return Article{}, err }
+
+    // Step 2: Write draft
+    draft: Article, err = Writer.run(WriteRequest{
+        content: research.summary,
+        sources: research.sources
+    })
+    if err != nil { return Article{}, err }
+
+    return draft
+}
+\end{lstlisting}
+
+\section{Parallel Execution}
+
+Use \keyword{spawn} blocks to run steps in parallel:
+
+\begin{lstlisting}
+@manual
+workflow ReviewArticle(article: Article) -> [Review] {
+    reviews = spawn {
+        Reviewer.run(ReviewRequest{ article: article, focus: "accuracy" })
+        Reviewer.run(ReviewRequest{ article: article, focus: "clarity" })
+        Reviewer.run(ReviewRequest{ article: article, focus: "engagement" })
+    }
+    return reviews
+}
+\end{lstlisting}
+
+A \keyword{spawn} block runs all statements concurrently and returns a list of results when all complete. This is equivalent to \code{Promise.all()} in JavaScript.
+
+\section{Branching}
+
+Standard \keyword{if}/\keyword{else} and \keyword{match} work inside workflows:
+
+\begin{lstlisting}
+@event("order.created")
+workflow ProcessOrder(order: Order) -> OrderResult {
+    validated = validate_order(order)
+
+    if validated.has_errors {
+        send_slack("#alerts", "Order {order.id} failed")
+        return OrderResult{ status: "rejected" }
+    }
+
+    stock = check_stock(validated.items)
+
+    if stock.available {
+        charge_payment(order)
+        send_email(order.customer_email, "Order confirmed!")
+        return OrderResult{ status: "confirmed" }
+    } else {
+        send_email(order.customer_email, "Items out of stock")
+        return OrderResult{ status: "backordered" }
+    }
+}
+\end{lstlisting}
+
+\section{Loops}
+
+\begin{lstlisting}
+@manual
+workflow ProcessBatch(urls: [string]) -> [string] {
+    results = for url in urls {
+        content = fetch_page(url)
+        Researcher.ask("Summarize: {content}")
+    }
+    return results
+}
+\end{lstlisting}
+
+Loops inside workflows are sequential by default. For parallel iteration, use \keyword{spawn}:
+
+\begin{lstlisting}
+@manual
+workflow ProcessBatchParallel(urls: [string]) -> [string] {
+    results = spawn {
+        for url in urls {
+            fetch_page(url) | Researcher.ask("Summarize: {_}")
+        }
+    }
+    return results
+}
+\end{lstlisting}
+
+\section{Sub-Workflows}
+
+Workflows can call other workflows like functions:
+
+\begin{lstlisting}
+workflow ScoreLead(company: Company, social: SocialProfile) -> ScoreResult {
+    score: ScoreResult, err = Analyst.run(ScoreRequest{
+        company: company,
+        social: social
+    })
+    return score
+}
+
+workflow EnrichLead(email: string) -> EnrichedLead {
+    company = lookup_company(email)
+    social = lookup_social(email)
+    score = ScoreLead(company, social)
+    return EnrichedLead{ email: email, company: company, score: score.value }
+}
+
+@webhook("/new-lead")
+workflow SalesAutomation(email: string) -> { result: string } {
+    lead = EnrichLead(email)
+
+    if lead.score > 0.8 {
+        send_slack("#sales", "Hot lead: {email}")
+    }
+
+    return { result: "processed" }
+}
+\end{lstlisting}
+
+Sub-workflows compose naturally. The compiler validates type compatibility at each call site.
+
+\section{Error Handling}
+
+Workflows use standard \haira{} error handling:
+
+\begin{lstlisting}
+@manual
+workflow SafeProcess(data: string) -> { result: string } {
+    result, err = risky_operation(data)
+    if err != nil {
+        send_slack("#errors", "Failed: {err.message}")
+        result = fallback_operation(data)
+    }
+    return { result: result }
+}
+\end{lstlisting}
+
+\section{Running Workflows}
+
+\subsection{From main()}
+
+\begin{lstlisting}
+fn main() {
+    result, err = ArticlePipeline("AI agents")
+    if err != nil {
+        io.println("Failed: " + err.message)
+        return
+    }
+    io.println(result.title)
+}
+\end{lstlisting}
+
+\subsection{Server Mode}
+
+Start a server that listens for all triggered workflows:
+
+\begin{lstlisting}
+fn main() {
+    server = haira.serve([
+        Summarizer,         // POST /summarize
+        Chat,               // WebSocket /chat
+        ProcessOrder,       // on order.created events
+        DailyReport,        // cron 0 9 * * *
+    ])
+
+    io.println("Haira server running on :8080")
+    server.listen(8080)
+}
+\end{lstlisting}
+
+\subsection{CLI}
+
+\begin{lstlisting}[language=bash,numbers=none]
+# Run a workflow directly
+$ haira run ArticlePipeline --input '{"topic": "AI agents"}'
+
+# Start server mode
+$ haira serve main.haira --port 8080
+
+# Run with environment
+$ ANTHROPIC_API_KEY=sk-... haira serve main.haira
+\end{lstlisting}
+
+\section{Workflow Grammar}
+
+\begin{lstlisting}[language=EBNF]
+workflow_decl = { decorator } "workflow" identifier
+                "(" [ params ] ")" [ "->" type ] block ;
+
+decorator     = "@" identifier [ "(" [ arguments ] ")" ] ;
+
+spawn_block   = "spawn" "{" { statement } "}" ;
+\end{lstlisting}

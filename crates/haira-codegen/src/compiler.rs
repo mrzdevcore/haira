@@ -1365,10 +1365,6 @@ impl Compiler {
                 self.collect_spawn_blocks_from_expr(&range.start);
                 self.collect_spawn_blocks_from_expr(&range.end);
             }
-            ExprKind::Ai(_ai_block) => {
-                // AI blocks are handled separately during pre-interpretation.
-                // No nested spawn/async blocks to collect from the intent text.
-            }
             _ => {}
         }
     }
@@ -3064,30 +3060,6 @@ impl<'a> FunctionCompiler<'a> {
                 let shifted = builder.ins().ishl(val, one);
                 let tagged = builder.ins().bor(shifted, one);
                 Ok(tagged)
-            }
-            ExprKind::Ai(ai_block) => {
-                // AI blocks require pre-interpretation before compilation.
-                // The AI engine must interpret the intent and generate CIR,
-                // which is then compiled to native code.
-                //
-                // For now, we return an error indicating that AI blocks need
-                // to be pre-processed. In a full implementation:
-                // 1. A pre-compilation pass would interpret all AI blocks
-                // 2. The generated CIR would be stored alongside the AST
-                // 3. This code would compile the pre-generated CIR
-                //
-                // See `haira-ai` crate's `AIEngine::interpret_intent()` for
-                // the AI interpretation logic.
-                let name = ai_block
-                    .name
-                    .as_ref()
-                    .map(|n| n.node.as_str())
-                    .unwrap_or("<anonymous>");
-                Err(CodegenError::Unsupported(format!(
-                    "AI block '{}' requires pre-interpretation. \
-                     Run `haira build --interpret-ai` to generate code from AI intents.",
-                    name
-                )))
             }
             _ => Err(CodegenError::Unsupported(format!(
                 "Expression type not yet supported: {:?}",

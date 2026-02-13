@@ -8,25 +8,19 @@ pub(crate) fn run() -> miette::Result<()> {
     println!();
 
     println!("Components:");
-    println!("  haira-lexer    - Tokenization");
-    println!("  haira-parser   - AST generation");
-    println!("  haira-ast      - Abstract Syntax Tree definitions");
-    println!("  haira-cir      - Canonical Intermediate Representation");
-    println!("  haira-ai       - AI-powered intent interpretation");
-    println!();
-
-    println!("AI Integration:");
-    println!("  Local AI: llama.cpp (recommended)");
-    println!("  Ollama:   Optional fallback");
-    println!("  Note: Use --local-ai or --ollama flags during build");
+    println!("  haira-lexer      - Tokenization");
+    println!("  haira-parser     - AST generation");
+    println!("  haira-ast        - Abstract Syntax Tree definitions");
+    println!("  haira-codegen-go - Go transpilation backend");
     println!();
 
     println!("Features:");
-    println!("  - Intent-driven development");
-    println!("  - Automatic function generation");
+    println!("  - Provider, tool, agent, workflow primitives");
+    println!("  - Agent orchestration (handoffs, parallel, routing)");
+    println!("  - Go transpilation with native binary output");
     println!("  - Full type inference");
-    println!("  - Pattern-based auto-implementation");
-    println!("  - AI-assisted code synthesis");
+    println!("  - Pattern matching");
+    println!("  - String interpolation");
     println!();
 
     println!("Documentation: https://haira-lang.org");

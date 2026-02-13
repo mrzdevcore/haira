@@ -4,21 +4,16 @@
 //! 1. Lexing
 //! 2. Parsing
 //! 3. Name resolution
-//! 4. AI interpretation (for unresolved functions)
-//! 5. Type checking
-//! 6. HIR lowering
-//! 7. MIR lowering
-//! 8. Code generation
+//! 4. Type checking
+//! 5. HIR lowering
+//! 6. Code generation
 
-use haira_ai::{AIConfig, AIEngine};
 use haira_codegen::CodegenOptions;
 use std::path::Path;
 
 /// Compiler configuration.
 #[derive(Default)]
 pub struct CompilerConfig {
-    /// AI configuration.
-    pub ai: AIConfig,
     /// Code generation options.
     pub codegen: CodegenOptions,
     /// Enable verbose output.
@@ -71,7 +66,7 @@ pub async fn compile_source(
     config: CompilerConfig,
 ) -> miette::Result<CompilationResult> {
     let mut errors = Vec::new();
-    let mut warnings = Vec::new();
+    let warnings = Vec::new();
 
     // Phase 1: Lexing + Parsing
     if config.verbose {
@@ -111,31 +106,7 @@ pub async fn compile_source(
         });
     }
 
-    // Phase 3: AI interpretation for unresolved calls
-    if !resolved.unresolved_calls.is_empty() {
-        if config.verbose {
-            tracing::info!(
-                "Interpreting {} unresolved function(s)...",
-                resolved.unresolved_calls.len()
-            );
-        }
-
-        let _engine = AIEngine::new(config.ai);
-
-        // TODO: Interpret unresolved calls and generate implementations
-        for call in &resolved.unresolved_calls {
-            warnings.push(CompilationWarning {
-                message: format!(
-                    "Unresolved function '{}' - AI interpretation pending",
-                    call.name
-                ),
-                file: source_path.map(|p| p.display().to_string()),
-                span: Some(call.span.clone()),
-            });
-        }
-    }
-
-    // Phase 4-8: Type checking, lowering, codegen (TODO)
+    // Phase 3-6: Type checking, HIR lowering, codegen (TODO)
     if config.verbose {
         tracing::info!("Compilation pipeline incomplete - remaining phases pending");
     }

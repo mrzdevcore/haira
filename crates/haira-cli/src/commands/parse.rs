@@ -90,20 +90,6 @@ fn print_item(item: &haira_ast::Item, source: &str, indent: usize) {
         haira_ast::ItemKind::TypeAlias(alias) => {
             println!("{}TypeAlias: {}", prefix, alias.name.node);
         }
-        haira_ast::ItemKind::AiFunctionDef(ai_block) => {
-            let name = ai_block
-                .name
-                .as_ref()
-                .map(|n| n.node.as_str())
-                .unwrap_or("<anonymous>");
-            println!(
-                "{}AiFunctionDef: {} ({} params)",
-                prefix,
-                name,
-                ai_block.params.len()
-            );
-            println!("{}  intent: {}", prefix, ai_block.intent);
-        }
         haira_ast::ItemKind::ImportDecl(import) => {
             println!("{}ImportDecl: \"{}\"", prefix, import.path);
         }

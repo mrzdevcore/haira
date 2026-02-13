@@ -5,18 +5,14 @@ members = [
     "crates/haira-parser",
     "crates/haira-ast",
     "crates/haira-resolver",
-    "crates/haira-ai",        # AI intent engine (Local AI / Ollama)
-    "crates/haira-local-ai",  # Local AI backend using llama.cpp
-    "crates/haira-cir",       # Canonical IR definitions
     "crates/haira-types",
     "crates/haira-hir",
-    "crates/haira-mir",
     "crates/haira-codegen",
-    "crates/haira-codegen-go", # Go transpiler backend
+    "crates/haira-codegen-go",
     "crates/haira-driver",
     "crates/haira-cli",
-    "crates/haira-lsp",       # Language Server Protocol implementation
-    "crates/haira-runtime",   # Standard library / runtime
+    "crates/haira-lsp",
+    "crates/haira-runtime",
 ]
 
 [workspace.package]
@@ -44,25 +40,16 @@ la-arena = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# HTTP/Async for AI integration
-reqwest = { version = "0.11", features = ["json"] }
-tokio = { version = "1.35", features = ["full"] }
-async-trait = "0.1"
-
 # Internal crates
 haira-lexer = { path = "crates/haira-lexer" }
 haira-parser = { path = "crates/haira-parser" }
 haira-ast = { path = "crates/haira-ast" }
 haira-resolver = { path = "crates/haira-resolver" }
-haira-ai = { path = "crates/haira-ai" }
-haira-cir = { path = "crates/haira-cir" }
 haira-types = { path = "crates/haira-types" }
 haira-hir = { path = "crates/haira-hir" }
-haira-mir = { path = "crates/haira-mir" }
 haira-codegen = { path = "crates/haira-codegen" }
 haira-codegen-go = { path = "crates/haira-codegen-go" }
 haira-driver = { path = "crates/haira-driver" }
-haira-local-ai = { path = "crates/haira-local-ai" }
 haira-runtime = { path = "crates/haira-runtime" }
 
 [profile.release]
@@ -71,6 +58,5 @@ codegen-units = 1
 panic = "abort"
 
 [profile.dev]
-# Faster compile times for development
 opt-level = 0
 debug = true

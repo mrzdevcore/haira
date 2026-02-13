@@ -175,14 +175,13 @@ pub fn emit_tool(em: &mut GoEmitter, tool: &ToolDecl) {
         }
     }
 
-    // Emit local aliases for params so tool body can use bare names
-    for param in &tool.params {
-        let go_name = snake_to_pascal(&param.name.node);
-        em.line(&format!("{} := params.{}", param.name.node, go_name));
-    }
-
     // Body or stub
     if let Some(body) = &tool.body {
+        // Emit local aliases for params so tool body can use bare names
+        for param in &tool.params {
+            let go_name = snake_to_pascal(&param.name.node);
+            em.line(&format!("{} := params.{}", param.name.node, go_name));
+        }
         crate::statements::emit_tool_body(em, body);
     } else {
         em.line(&format!(

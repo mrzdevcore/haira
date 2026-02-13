@@ -141,7 +141,6 @@ pub fn expr_to_go(expr: &Expr) -> String {
         ExprKind::Async(_) => "nil /* async */".to_string(),
         ExprKind::Spawn(_) => "nil /* spawn */".to_string(),
         ExprKind::Select(_) => "nil /* select */".to_string(),
-        ExprKind::Ai(_) => "nil /* ai */".to_string(),
     }
 }
 

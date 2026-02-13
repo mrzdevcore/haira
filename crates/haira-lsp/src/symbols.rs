@@ -111,25 +111,6 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     container_name: None,
                 });
             }
-            ItemKind::AiFunctionDef(ai_block) => {
-                // Only add named AI functions
-                if let Some(name) = &ai_block.name {
-                    let range =
-                        span_to_range(source, name.span.start as usize, name.span.end as usize);
-                    #[allow(deprecated)]
-                    symbols.push(SymbolInformation {
-                        name: name.node.to_string(),
-                        kind: SymbolKind::FUNCTION,
-                        tags: None,
-                        deprecated: None,
-                        location: Location {
-                            uri: Url::parse("file:///").unwrap(),
-                            range,
-                        },
-                        container_name: None,
-                    });
-                }
-            }
             ItemKind::ImportDecl(_) => {}
             ItemKind::ProviderDecl(provider) => {
                 let range = span_to_range(

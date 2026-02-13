@@ -1,6 +1,6 @@
 import "io"
 
-fn main() {
+fn main()   {
     name = "Haira"
     version = 1
     is_compiled = true

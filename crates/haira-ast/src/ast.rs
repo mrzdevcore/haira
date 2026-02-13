@@ -27,8 +27,6 @@ pub enum ItemKind {
     MethodDef(MethodDef),
     /// Type alias: `UserId = int`
     TypeAlias(TypeAlias),
-    /// AI-generated function: `ai summarize(user: User) -> Summary { ... }`
-    AiFunctionDef(AiBlock),
     /// Import declaration: `import "http"`
     ImportDecl(ImportDecl),
     /// Provider declaration: `provider azure_openai { ... }`
@@ -442,8 +440,6 @@ pub enum ExprKind {
     Select(SelectExpr),
     /// Parenthesized expression
     Paren(Box<Expr>),
-    /// AI intent block: `ai func_name(params) -> Type { intent }` or anonymous `ai(params) { intent }`
-    Ai(AiBlock),
 }
 
 /// A literal value.
@@ -701,36 +697,6 @@ pub struct SelectArm {
     /// Body
     pub body: MatchArmBody,
     /// Span
-    pub span: Span,
-}
-
-/// An AI intent block for explicit AI-generated functions.
-///
-/// Syntax:
-/// ```haira
-/// // Named function
-/// ai summarize_activity(user: User) -> ActivitySummary {
-///     Summarize the user activity over the last 30 days.
-///     Group by activity type and find most common.
-/// }
-///
-/// // Anonymous/inline
-/// result = ai(data: Data) -> Summary {
-///     Analyze and summarize this data
-/// }(my_data)
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct AiBlock {
-    /// Optional function name (None for anonymous)
-    pub name: Option<Spanned<SmolStr>>,
-    /// Parameters
-    pub params: Vec<Param>,
-    /// Optional return type annotation
-    pub return_ty: Option<Spanned<Type>>,
-    /// Natural language intent description (the block body)
-    pub intent: SmolStr,
-    /// Span of the entire block
     pub span: Span,
 }
 

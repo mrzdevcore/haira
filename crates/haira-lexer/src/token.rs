@@ -75,8 +75,7 @@ pub enum TokenKind {
     From,
     #[token("default")]
     Default,
-    #[token("ai")]
-    Ai,
+
     #[token("provider")]
     Provider,
     #[token("tool")]
@@ -242,7 +241,6 @@ impl TokenKind {
                 | TokenKind::Continue
                 | TokenKind::From
                 | TokenKind::Default
-                | TokenKind::Ai
                 | TokenKind::Provider
                 | TokenKind::Tool
                 | TokenKind::Agent

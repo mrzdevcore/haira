@@ -5,14 +5,7 @@ use haira_parser::parse;
 use std::fs;
 use std::path::Path;
 
-pub(crate) fn run(
-    file: &Path,
-    output: Option<&Path>,
-    _use_ollama: bool,
-    _ollama_model: &str,
-    _use_local_ai: bool,
-    _mock_ai: bool,
-) -> miette::Result<()> {
+pub(crate) fn run(file: &Path, output: Option<&Path>) -> miette::Result<()> {
     let source =
         fs::read_to_string(file).map_err(|e| miette::miette!("Failed to read file: {}", e))?;
 

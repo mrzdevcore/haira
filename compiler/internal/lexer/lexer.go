@@ -178,7 +178,7 @@ func (l *Lexer) scanString(start int) {
 			}
 			continue
 		}
-		if ch == '{' {
+		if ch == '$' && l.pos+1 < len(l.source) && l.source[l.pos+1] == '{' {
 			hasInterpolation = true
 		}
 		buf.WriteByte(ch)

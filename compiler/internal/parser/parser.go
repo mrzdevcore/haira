@@ -2550,15 +2550,15 @@ func (p *Parser) parseInterpolatedStringParts(raw string) []ast.StringPart {
 			continue
 		}
 
-		if ch == '{' {
+		if ch == '$' && i+1 < len(raw) && raw[i+1] == '{' {
 			// Flush literal.
 			if literal.Len() > 0 {
 				parts = append(parts, ast.LiteralPart{Value: literal.String()})
 				literal.Reset()
 			}
 
-			// Extract expression text between { }.
-			i++ // skip {
+			// Extract expression text between ${ and }.
+			i += 2 // skip ${
 			depth := 1
 			exprStart := i
 			for i < len(raw) && depth > 0 {

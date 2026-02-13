@@ -5,7 +5,7 @@ fn increment(n: int) -> int {
 }
 
 fn display_count(n: int) {
-    io.println("Count: {n}")
+    io.println("Count: ${n}")
 }
 
 fn main() {

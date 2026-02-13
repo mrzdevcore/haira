@@ -9,7 +9,7 @@ fn add_one(n: int) -> int {
 }
 
 fn to_label(n: int) -> string {
-    return "Result: {n}"
+    return "Result: ${n}"
 }
 
 fn main() {

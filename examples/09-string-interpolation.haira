@@ -1,7 +1,7 @@
 import "io"
 
 fn greet(name: string, age: int) -> string {
-    return "Hello, {name}! You are {age} years old."
+    return "Hello, ${name}! You are ${age} years old."
 }
 
 fn main() {
@@ -10,5 +10,5 @@ fn main() {
 
     lang = "Haira"
     version = 1
-    io.println("Welcome to {lang} v{version}!")
+    io.println("Welcome to ${lang} v${version}!")
 }

@@ -61,7 +61,7 @@ func GenerateMainGo(file *ast.SourceFile) string {
 	}
 
 	var mainFn *ast.FunctionDef
-	var agentNames []string
+	var agents []ast.AgentDecl
 
 	// Pass 1: providers
 	for _, item := range file.Items {
@@ -80,7 +80,7 @@ func GenerateMainGo(file *ast.SourceFile) string {
 	// Pass 3: agents
 	for _, item := range file.Items {
 		if a, ok := item.Node.(ast.AgentDecl); ok {
-			agentNames = append(agentNames, a.Name.Node)
+			agents = append(agents, a)
 			EmitAgent(em, a)
 		}
 	}
@@ -131,7 +131,7 @@ func GenerateMainGo(file *ast.SourceFile) string {
 
 	// Finally: main function
 	if mainFn != nil {
-		emitMainFunction(em, *mainFn, agentNames)
+		emitMainFunction(em, *mainFn, agents)
 	}
 
 	return em.String()
@@ -275,17 +275,62 @@ func emitFunction(em *GoEmitter, fn ast.FunctionDef) {
 	em.Blank()
 }
 
-func emitMainFunction(em *GoEmitter, fn ast.FunctionDef, agentNames []string) {
+func emitMainFunction(em *GoEmitter, fn ast.FunctionDef, agents []ast.AgentDecl) {
 	em.ResetVars()
 	em.OpenBlock("func main()")
-	for _, name := range agentNames {
+	sorted := topoSortAgents(agents)
+	for _, name := range sorted {
 		em.Line(fmt.Sprintf("initAgent%s()", name))
 	}
-	if len(agentNames) > 0 {
+	if len(sorted) > 0 {
 		em.Blank()
 	}
 	EmitBlockBody(em, fn.Body)
 	em.CloseBlock()
+}
+
+// topoSortAgents returns agent names ordered so that handoff targets come first.
+func topoSortAgents(agents []ast.AgentDecl) []string {
+	// Build dependency map: agent -> agents it hands off to
+	deps := map[string][]string{}
+	nameSet := map[string]bool{}
+	for _, a := range agents {
+		name := a.Name.Node
+		nameSet[name] = true
+		for _, field := range a.Fields {
+			if field.Key.Node == "handoffs" {
+				if list, ok := field.Value.Node.(ast.ListExpr); ok {
+					for _, item := range list.Elems {
+						if ident, ok := item.Node.(ast.IdentExpr); ok {
+							deps[name] = append(deps[name], ident.Name)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Topological sort via DFS
+	visited := map[string]bool{}
+	var result []string
+	var visit func(string)
+	visit = func(name string) {
+		if visited[name] {
+			return
+		}
+		visited[name] = true
+		for _, dep := range deps[name] {
+			if nameSet[dep] {
+				visit(dep)
+			}
+		}
+		result = append(result, name)
+	}
+	// Visit in declaration order for stable output
+	for _, a := range agents {
+		visit(a.Name.Node)
+	}
+	return result
 }
 
 // Import detection helpers

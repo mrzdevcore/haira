@@ -128,6 +128,26 @@ func CheckFile(file string) error {
 	return nil
 }
 
+// EmitFile parses a file and prints the generated Go code.
+func EmitFile(file string) error {
+	source, err := os.ReadFile(file)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	ast, errs := parser.Parse(string(source))
+	if len(errs) > 0 {
+		for _, e := range errs {
+			line, col := offsetToLineCol(string(source), e.Span.Start)
+			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s\n", file, line, col, e.Message)
+		}
+		return fmt.Errorf("%d parse error(s)", len(errs))
+	}
+
+	fmt.Print(codegen.ShowGeneratedGo(ast))
+	return nil
+}
+
 // LexFile tokenizes a file and prints the tokens.
 func LexFile(file string) error {
 	source, err := os.ReadFile(file)

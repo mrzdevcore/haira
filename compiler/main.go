@@ -32,6 +32,8 @@ func main() {
 		err = cmdCheck(rest)
 	case "lex":
 		err = cmdLex(rest)
+	case "emit":
+		err = cmdEmit(rest)
 	case "version", "--version", "-v":
 		fmt.Printf("haira %s\n", version)
 	case "help", "--help", "-h":
@@ -96,6 +98,13 @@ func cmdLex(args []string) error {
 	return driver.LexFile(args[0])
 }
 
+func cmdEmit(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haira emit <file>")
+	}
+	return driver.EmitFile(args[0])
+}
+
 func printUsage() {
 	fmt.Print(`Haira — An agentic orchestration programming language
 
@@ -107,6 +116,7 @@ Commands:
   parse <file>               Show the AST
   check <file> [files...]    Parse and report errors
   lex <file>                 Show tokens
+  emit <file>                Show generated Go code
   version                    Show version
   help                       Show this help
 

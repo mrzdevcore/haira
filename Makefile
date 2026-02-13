@@ -1,104 +1,76 @@
-.PHONY: build release test clean check fmt lint doc install run
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples help
+
+COMPILER_DIR = compiler
+BINARY = $(COMPILER_DIR)/haira
 
 # Default target
 all: build
 
-# Build debug version
+# Build the compiler
 build:
-	cargo build
+	cd $(COMPILER_DIR) && go build -o haira .
 
-# Build release version
-release:
-	cargo build --release
-
-# Run tests
+# Run Go tests
 test:
-	cargo test
+	cd $(COMPILER_DIR) && go test ./...
 
 # Clean build artifacts
 clean:
-	cargo clean
-	@# Remove compiled Haira output directory
+	rm -f $(BINARY)
 	rm -rf .output
-	@# Remove object files
-	rm -f *.o
 	@echo "Cleaned all build artifacts"
-
-# Check code without building
-check:
-	cargo check
 
 # Format code
 fmt:
-	cargo fmt
+	cd $(COMPILER_DIR) && go fmt ./...
 
-# Check formatting
-fmt-check:
-	cargo fmt --check
+# Vet code
+vet:
+	cd $(COMPILER_DIR) && go vet ./...
 
-# Run clippy linter
-lint:
-	cargo clippy -- -D warnings
+# Install haira binary to $GOPATH/bin
+install: build
+	cp $(BINARY) $(shell go env GOPATH)/bin/haira
+	@echo "Installed haira to $$(go env GOPATH)/bin/haira"
 
-# Generate documentation
-doc:
-	cargo doc --no-deps --open
-
-# Install haira binary (via cargo)
-install:
-	cargo install --path crates/haira-cli
-
-# Install haira binary to ~/.local/bin (no cargo needed after build)
-install-local: release
+# Install haira binary to ~/.local/bin
+install-local: build
 	@mkdir -p ~/.local/bin
-	@cp ./target/release/haira ~/.local/bin/
+	@cp $(BINARY) ~/.local/bin/haira
 	@echo "Installed haira to ~/.local/bin/haira"
 	@echo ""
 	@echo "Make sure ~/.local/bin is in your PATH:"
 	@echo '  export PATH="$$PATH:$$HOME/.local/bin"'
 
 # Install haira system-wide (requires sudo)
-install-system: release
-	@sudo cp ./target/release/haira /usr/local/bin/
+install-system: build
+	@sudo cp $(BINARY) /usr/local/bin/haira
 	@echo "Installed haira to /usr/local/bin/haira"
 
 # Uninstall haira binary
 uninstall:
-	cargo uninstall haira || rm -f ~/.local/bin/haira || sudo rm -f /usr/local/bin/haira
+	rm -f $(shell go env GOPATH)/bin/haira ~/.local/bin/haira
+	@sudo rm -f /usr/local/bin/haira 2>/dev/null || true
 
-# Run haira with arguments (use: make run ARGS="parse examples/hello.haira")
-run:
-	cargo run -- $(ARGS)
-
-# Quick development cycle: format, check, test
-dev: fmt check test
-
-# CI pipeline: format check, lint, test
-ci: fmt-check lint test
+# Run haira with arguments (use: make run ARGS="build examples/01-hello.haira")
+run: build
+	./$(BINARY) $(ARGS)
 
 # Parse an example file
-parse-hello:
-	cargo run -- parse examples/hello.haira
+parse:
+	./$(BINARY) parse $(FILE)
 
 # Lex an example file
-lex-hello:
-	cargo run -- lex examples/hello.haira
+lex:
+	./$(BINARY) lex $(FILE)
 
-# Show haira info
-info:
-	cargo run -- info
-
-# Test AI interpretation
-interpret:
-	cargo run -- interpret get_active_users
-
-# Build all examples (non-AI)
+# Build all examples
 build-examples: build
 	@echo "Building all examples..."
 	@failed=0; \
-	for f in $$(find examples -name "*.haira" ! -path "examples/ai/*" ! -path "examples/testing/*"); do \
-		echo "Building $$f..."; \
-		./target/debug/haira build "$$f" 2>&1 || { echo "FAILED: $$f"; failed=$$((failed + 1)); }; \
+	for f in examples/*.haira; do \
+		echo "  Building $$f..."; \
+		./$(BINARY) build "$$f" 2>&1 || { echo "  FAILED: $$f"; failed=$$((failed + 1)); }; \
 	done; \
 	echo ""; \
 	if [ $$failed -gt 0 ]; then \
@@ -108,81 +80,49 @@ build-examples: build
 		echo "All examples built successfully!"; \
 	fi
 
-# Build AI examples (requires --ollama flag)
-build-ai-examples: build
-	@echo "Building AI examples with Ollama..."
+# Run all non-agentic examples (07, 14, 15 need API keys)
+run-examples: build
+	@echo "Running non-agentic examples..."
 	@failed=0; \
-	for f in examples/ai/*.haira; do \
-		echo "Building $$f..."; \
-		./target/debug/haira build --ollama "$$f" 2>&1 || { echo "FAILED: $$f"; failed=$$((failed + 1)); }; \
-	done; \
-	echo ""; \
-	if [ $$failed -gt 0 ]; then \
-		echo "$$failed AI example(s) failed to build"; \
-		exit 1; \
-	else \
-		echo "All AI examples built successfully!"; \
-	fi
-
-# Run test examples
-test-examples: build
-	@echo "Running test examples..."
-	@failed=0; \
-	for f in examples/testing/*.haira; do \
-		echo "Testing $$f..."; \
-		./target/debug/haira build "$$f" 2>&1 || { echo "FAILED: $$f"; failed=$$((failed + 1)); }; \
-	done; \
-	echo ""; \
-	if [ $$failed -gt 0 ]; then \
-		echo "$$failed test(s) failed"; \
-		exit 1; \
-	else \
-		echo "All tests passed!"; \
-	fi
-
-# Build and run all non-AI examples
-run-examples: build-examples
-	@echo "Running all built examples..."
-	@for f in $$(find examples -name "*.haira" ! -path "examples/ai/*" ! -path "examples/testing/*"); do \
+	for f in examples/*.haira; do \
 		name=$$(basename "$$f" .haira); \
-		if [ -f ".output/$$name" ]; then \
-			echo "Running $$name..."; \
-			".output/$$name" 2>&1 || true; \
-			echo ""; \
-		fi; \
-	done
+		case "$$name" in \
+			07-*|14-*|15-*) echo "  Skipping $$f (needs API keys)"; continue ;; \
+		esac; \
+		echo "  Running $$f..."; \
+		./$(BINARY) run "$$f" 2>&1 || { echo "  FAILED: $$f"; failed=$$((failed + 1)); }; \
+		echo ""; \
+	done; \
+	if [ $$failed -gt 0 ]; then \
+		echo "$$failed example(s) failed to run"; \
+		exit 1; \
+	else \
+		echo "All examples ran successfully!"; \
+	fi
 
-# Build all examples (including AI with Ollama)
-build-all-examples: build-examples build-ai-examples test-examples
-	@echo "All examples built!"
+# Quick development cycle: format, vet, test
+dev: fmt vet test
+
+# CI pipeline: vet, test, build all examples
+ci: vet test build-examples
 
 # Help
 help:
 	@echo "Haira Makefile targets:"
-	@echo "  build        - Build debug version"
-	@echo "  release      - Build release version"
-	@echo "  test         - Run tests"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  check        - Check code without building"
-	@echo "  fmt          - Format code"
-	@echo "  fmt-check    - Check formatting"
-	@echo "  lint         - Run clippy linter"
-	@echo "  doc          - Generate and open documentation"
-	@echo "  install        - Install haira binary (via cargo)"
-	@echo "  install-local  - Install to ~/.local/bin"
-	@echo "  install-system - Install to /usr/local/bin (sudo)"
-	@echo "  uninstall      - Uninstall haira binary"
-	@echo "  run          - Run haira (use ARGS=\"...\")"
-	@echo "  dev          - Format, check, test"
-	@echo "  ci           - CI pipeline"
-	@echo "  parse-hello  - Parse examples/hello.haira"
-	@echo "  lex-hello    - Lex examples/hello.haira"
-	@echo "  info         - Show haira info"
-	@echo "  interpret    - Test AI interpretation"
 	@echo ""
-	@echo "Examples:"
-	@echo "  build-examples     - Build all non-AI examples"
-	@echo "  build-ai-examples  - Build AI examples (requires Ollama)"
-	@echo "  test-examples      - Run test examples"
-	@echo "  run-examples       - Build and run all non-AI examples"
-	@echo "  build-all-examples - Build all examples (including AI)"
+	@echo "  build            Build the compiler"
+	@echo "  test             Run Go tests"
+	@echo "  clean            Clean build artifacts"
+	@echo "  fmt              Format code"
+	@echo "  vet              Vet code"
+	@echo "  install          Install to GOPATH/bin"
+	@echo "  install-local    Install to ~/.local/bin"
+	@echo "  install-system   Install to /usr/local/bin (sudo)"
+	@echo "  uninstall        Remove installed binary"
+	@echo "  run              Run haira (use ARGS=\"...\")"
+	@echo "  parse            Parse a file (use FILE=\"...\")"
+	@echo "  lex              Lex a file (use FILE=\"...\")"
+	@echo "  build-examples   Build all examples"
+	@echo "  run-examples     Run non-agentic examples"
+	@echo "  dev              Format, vet, test"
+	@echo "  ci               Vet, test, build examples"

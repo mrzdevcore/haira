@@ -1,0 +1,36 @@
+import "io"
+import "http"
+
+provider azure_openai {
+    api_key: env("AZURE_OPENAI_API_KEY")
+    endpoint: env("AZURE_OPENAI_ENDPOINT")
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+    api_version: env("AZURE_OPENAI_API_VERSION")
+}
+
+agent Writer {
+    model: azure_openai
+    system: "You are a creative writer. Write short, engaging responses."
+    memory: conversation(max_turns: 10)
+    temperature: 0.9
+}
+
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> { reply: string } {
+    reply, err = Writer.ask(message, session: session_id)
+    if err != nil { return { reply: "Something went wrong." } }
+    return { reply: reply }
+}
+
+@webhook("/api/stream")
+workflow Stream(message: string, session_id: string) -> stream {
+    return Writer.stream(message, session: session_id)
+}
+
+fn main() {
+    server = http.Server([Chat, Stream])
+    io.println("Streaming demo running on :8080")
+    io.println("  POST /api/chat    — JSON response")
+    io.println("  POST /api/stream  — SSE streaming (Accept: text/event-stream)")
+    server.listen(8080)
+}

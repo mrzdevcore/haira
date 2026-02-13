@@ -170,33 +170,136 @@ func EmitTool(em *GoEmitter, tool ast.ToolDecl) {
 func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 	handlerName := goFuncName("workflow", workflow.Name.Node)
 	defName := goVarName("workflowDef", workflow.Name.Node)
+	isStream := isStreamWorkflow(workflow)
 
-	// Handler function
-	em.ResetVars()
-	em.OpenBlock(fmt.Sprintf("func %s(params map[string]any) (any, error)", handlerName))
-	for _, param := range workflow.Params {
-		goType := "string"
-		if param.Ty != nil {
-			goType = HairaTypeToGo(param.Ty.Node)
+	if isStream {
+		// Stream handler: returns (<-chan haira.StreamChunk, error)
+		em.ResetVars()
+		em.OpenBlock(fmt.Sprintf("func %s(params map[string]any) (<-chan haira.StreamChunk, error)", handlerName))
+		for _, param := range workflow.Params {
+			goType := "string"
+			if param.Ty != nil {
+				goType = HairaTypeToGo(param.Ty.Node)
+			}
+			em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
 		}
-		em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
-	}
-	for _, param := range workflow.Params {
-		em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
-	}
-	emitWorkflowBody(em, workflow.Body)
-	em.CloseBlock()
-	em.Blank()
+		for _, param := range workflow.Params {
+			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
+		}
+		emitStreamWorkflowBody(em, workflow.Body)
+		em.CloseBlock()
+		em.Blank()
 
-	// WorkflowDef var
-	method, path := extractTriggerInfo(workflow.Trigger)
-	em.OpenBlock(fmt.Sprintf("var %s = &haira.WorkflowDef", defName))
-	em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
-	em.Line(fmt.Sprintf("Method: %q,", method))
-	em.Line(fmt.Sprintf("Path: %q,", path))
-	em.Line(fmt.Sprintf("Handler: %s,", handlerName))
-	em.CloseBlock()
-	em.Blank()
+		// Also emit a regular handler as fallback (non-streaming clients)
+		fallbackName := handlerName + "Fallback"
+		em.ResetVars()
+		em.OpenBlock(fmt.Sprintf("func %s(params map[string]any) (any, error)", fallbackName))
+		for _, param := range workflow.Params {
+			goType := "string"
+			if param.Ty != nil {
+				goType = HairaTypeToGo(param.Ty.Node)
+			}
+			em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
+		}
+		for _, param := range workflow.Params {
+			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
+		}
+		emitStreamFallbackBody(em, workflow.Body)
+		em.CloseBlock()
+		em.Blank()
+
+		// WorkflowDef var with both handlers
+		method, path := extractTriggerInfo(workflow.Trigger)
+		em.OpenBlock(fmt.Sprintf("var %s = &haira.WorkflowDef", defName))
+		em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
+		em.Line(fmt.Sprintf("Method: %q,", method))
+		em.Line(fmt.Sprintf("Path: %q,", path))
+		em.Line(fmt.Sprintf("Handler: %s,", fallbackName))
+		em.Line(fmt.Sprintf("StreamHandler: %s,", handlerName))
+		em.CloseBlock()
+		em.Blank()
+	} else {
+		// Regular handler
+		em.ResetVars()
+		em.OpenBlock(fmt.Sprintf("func %s(params map[string]any) (any, error)", handlerName))
+		for _, param := range workflow.Params {
+			goType := "string"
+			if param.Ty != nil {
+				goType = HairaTypeToGo(param.Ty.Node)
+			}
+			em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
+		}
+		for _, param := range workflow.Params {
+			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
+		}
+		emitWorkflowBody(em, workflow.Body)
+		em.CloseBlock()
+		em.Blank()
+
+		// WorkflowDef var
+		method, path := extractTriggerInfo(workflow.Trigger)
+		em.OpenBlock(fmt.Sprintf("var %s = &haira.WorkflowDef", defName))
+		em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
+		em.Line(fmt.Sprintf("Method: %q,", method))
+		em.Line(fmt.Sprintf("Path: %q,", path))
+		em.Line(fmt.Sprintf("Handler: %s,", handlerName))
+		em.CloseBlock()
+		em.Blank()
+	}
+}
+
+func isStreamWorkflow(w ast.WorkflowDecl) bool {
+	if w.ReturnTy != nil {
+		if named, ok := w.ReturnTy.Node.(ast.NamedType); ok && named.Name == "stream" {
+			return true
+		}
+	}
+	return false
+}
+
+func emitStreamWorkflowBody(em *GoEmitter, block ast.Block) {
+	// For stream workflows, return statements become channel returns
+	for _, stmt := range block.Statements {
+		switch s := stmt.Node.(type) {
+		case ast.ReturnStmt:
+			if len(s.Values) > 0 {
+				em.Line(fmt.Sprintf("return %s, nil", ExprToGo(s.Values[0])))
+			} else {
+				em.Line("return nil, nil")
+			}
+		default:
+			EmitStatement(em, stmt)
+		}
+	}
+}
+
+func emitStreamFallbackBody(em *GoEmitter, block ast.Block) {
+	// Fallback: call .Ask instead of .Stream for non-SSE clients
+	for _, stmt := range block.Statements {
+		switch s := stmt.Node.(type) {
+		case ast.ReturnStmt:
+			if len(s.Values) > 0 {
+				// Rewrite agent.stream() → agent.ask() for the fallback
+				expr := s.Values[0]
+				if mc, ok := expr.Node.(ast.MethodCallExpr); ok && mc.Method.Node == "stream" {
+					// Replace .stream with .ask
+					mc.Method = ast.Spanned[string]{Node: "ask"}
+					rewritten := ast.Expr{Node: mc, Span: expr.Span}
+					em.Line(fmt.Sprintf("reply, err := %s", ExprToGo(rewritten)))
+					em.OpenBlock("if err != nil")
+					em.Line(`return map[string]any{"error": err.Error()}, nil`)
+					em.CloseBlock()
+					em.Line(`return map[string]any{"reply": reply}, nil`)
+					continue
+				}
+				em.Line(fmt.Sprintf("return %s, nil", ExprToGo(expr)))
+			} else {
+				em.Line("return nil, nil")
+			}
+		default:
+			EmitStatement(em, stmt)
+		}
+	}
 }
 
 func emitWorkflowBody(em *GoEmitter, block ast.Block) {

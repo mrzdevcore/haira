@@ -1,7 +1,5 @@
-# Rust build artifacts
-/target/
-**/*.rs.bk
-Cargo.lock
+# Go build artifacts
+compiler/haira
 
 # IDE
 .idea/

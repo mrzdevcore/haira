@@ -1,8 +1,8 @@
-# Haira Programming Language
+# Haira
 
-**Build agents and workflows, not boilerplate.**
+**The programming language for AI agents.**
 
-Haira is a statically-typed, compiled programming language where workflows, agents, and tools are first-class citizens — not library imports. It replaces the entire agentic stack: Python + LangChain, n8n/Make/Zapier, CrewAI/AutoGen — all in one language with native binaries.
+Haira is a compiled language designed from the ground up for building agentic applications. Providers, tools, agents, and workflows are part of the language itself — not frameworks bolted on top. Write your agent logic, compile it to a native binary, and ship it.
 
 ## Quick Example
 
@@ -10,35 +10,38 @@ Haira is a statically-typed, compiled programming language where workflows, agen
 import "io"
 import "http"
 
-provider anthropic {
-    api_key: env("ANTHROPIC_API_KEY")
-    model: "claude-sonnet-4-20250514"
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
 }
 
-tool search(query: string) -> [Result] {
-    """Search the web for information"""
-    resp, err = http.get("https://api.search.com?q={query}")
-    if err != nil { return [], err }
-    return json.decode(resp.body, [Result])
+tool get_weather(city: string) -> string {
+    """Get the current weather for a given city"""
+    resp, err = http.get("https://wttr.in/${city}?format=j1")
+    if err != nil { return "Failed to fetch weather data." }
+    data = resp.json()
+    current = data["current_condition"][0]
+    return "${city}: ${current["temp_C"]}C"
 }
 
-agent Researcher {
-    model: anthropic
-    system: "You are a thorough researcher. Always cite sources."
-    tools: [search]
-    temperature: 0.2
+agent Assistant {
+    model: openai
+    system: "You are a helpful assistant. Be concise."
+    tools: [get_weather]
+    memory: conversation(max_turns: 10)
+    temperature: 0.7
 }
 
-@webhook("/research")
-workflow Research(topic: string) -> ResearchResult {
-    result: ResearchResult, err = Researcher.run(ResearchRequest{ topic: topic })
-    if err != nil { return ResearchResult{}, err }
-    return result
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> { reply: string } {
+    reply, err = Assistant.ask(message, session: session_id)
+    if err != nil { return { reply: "Something went wrong." } }
+    return { reply: reply }
 }
 
 fn main() {
-    server = http.Server([Research])
-    io.println("Running on :8080")
+    server = http.Server([Chat])
+    io.println("Server running on :8080")
     server.listen(8080)
 }
 ```
@@ -48,21 +51,20 @@ fn main() {
 | What you replace | With Haira |
 |------------------|------------|
 | Python + LangChain/LangGraph | `agent` + `tool` keywords |
-| n8n / Make / Zapier | `workflow` with `@webhook`, `@cron`, `@event` triggers |
-| CrewAI / AutoGen | Multi-agent composition with `spawn` blocks |
-| Custom chatbot backend | `@websocket` + agent `memory` + `stream<T>` |
-| YAML/JSON config files | `provider` keyword — type-checked config in code |
+| n8n / Make / Zapier | `workflow` with `@webhook` triggers |
+| CrewAI / AutoGen | Multi-agent with `handoffs` and `spawn` |
+| Custom chatbot backend | Agent `memory` + `-> stream` workflows |
+| YAML/JSON config files | `provider` keyword — config in code |
 
 ## Key Features
 
 - **4 new keywords** — `provider`, `tool`, `agent`, `workflow` — that's it
-- **Type-safe orchestration** — agent inputs, outputs, and tool schemas verified at compile time
-- **Native binaries** — compiles to standalone executables via Cranelift
-- **Streaming** — `stream<T>` type for token-by-token agent output
-- **Built-in triggers** — `@webhook`, `@websocket`, `@cron`, `@event`, `@manual`
+- **Compiles to native binaries** — via Go codegen, single executable output
+- **Streaming** — `-> stream` workflows served as SSE
+- **Agent handoffs** — agents delegate to other agents automatically
+- **Built-in triggers** — `@webhook` to expose workflows as HTTP endpoints
 - **Agent memory** — `conversation(max_turns: N)` and `summary(max_tokens: N)`
 - **Parallel execution** — `spawn { }` blocks for concurrent agent calls
-- **No null** — option types (`T?`) prevent null pointer errors
 - **Go-style simplicity** — familiar syntax, explicit error handling
 
 ## The Four Primitives
@@ -70,20 +72,20 @@ fn main() {
 ### Provider — LLM backend configuration
 
 ```haira
-provider anthropic {
-    api_key: env("ANTHROPIC_API_KEY")
-    model: "claude-sonnet-4-20250514"
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
 }
 ```
 
-### Tool — typed function with LLM-visible description
+### Tool — function with LLM-visible description
 
 ```haira
-tool search_kb(query: string) -> [Article] {
+tool search_kb(query: string) -> string {
     """Search the knowledge base for relevant articles"""
-    results, err = pg.query("SELECT * FROM articles WHERE content @@ to_tsquery($1)", [query])
-    if err != nil { return [], err }
-    return results
+    resp, err = http.get("https://api.example.com/search?q=${query}")
+    if err != nil { return "Search failed." }
+    return resp.body
 }
 ```
 
@@ -91,150 +93,187 @@ tool search_kb(query: string) -> [Article] {
 
 ```haira
 agent SupportBot {
-    model: anthropic
+    model: openai
     system: "You are a helpful customer support agent."
-    tools: [search_kb, lookup_order, create_ticket]
-    memory: conversation(max_turns: 100)
+    tools: [search_kb]
+    memory: conversation(max_turns: 20)
     temperature: 0.3
 }
 ```
 
-Three ways to use an agent:
+Three ways to call an agent:
 
 ```haira
 // Text in, text out
-answer, err = SupportBot.ask("How do I reset my password?")
+reply, err = SupportBot.ask("How do I reset my password?")
 
-// Structured in, structured out
-result: TicketResult, err = SupportBot.run(TicketRequest{ issue: "billing" })
+// Full result with metadata
+result, err = SupportBot.run("Help with billing")
 
-// Streaming (token by token)
-for chunk in SupportBot.stream("Explain our pricing") {
-    io.print(chunk)
-}
+// Streaming (token by token, served as SSE)
+return SupportBot.stream(message, session: session_id)
 ```
 
 ### Workflow — function with a trigger
 
 ```haira
-@webhook("/support")
-workflow CustomerSupport(message: string, session_id: string) -> { reply: string } {
+@webhook("/api/support")
+workflow Support(message: string, session_id: string) -> { reply: string } {
     reply, err = SupportBot.ask(message, session: session_id)
-    return { reply: reply or "Something went wrong." }
+    if err != nil { return { reply: "Something went wrong." } }
+    return { reply: reply }
 }
 ```
 
-## Streaming Chatbot (7 lines)
+## Agent Handoffs
+
+Agents can delegate to specialized agents automatically:
 
 ```haira
-agent Assistant {
-    model: anthropic
-    system: "You are a helpful assistant."
-    memory: conversation(max_turns: 50)
+agent FrontDesk {
+    model: openai
+    system: "Greet users. Hand off billing questions to BillingAgent."
+    handoffs: [BillingAgent, TechAgent]
+    memory: conversation(max_turns: 10)
 }
 
-@websocket("/chat")
-workflow Chat(message: string, session_id: string) -> stream<string> {
+agent BillingAgent {
+    model: openai
+    system: "You handle billing and payment questions."
+}
+
+agent TechAgent {
+    model: openai
+    system: "You handle technical support questions."
+}
+```
+
+## Streaming
+
+```haira
+@webhook("/api/stream")
+workflow Stream(message: string, session_id: string) -> stream {
     return Assistant.stream(message, session: session_id)
 }
 ```
 
-## Multi-Agent Workflow
+Clients requesting `Accept: text/event-stream` get SSE chunks. Others get a JSON response.
+
+## Multi-Agent with Parallel Execution
 
 ```haira
-@manual
-workflow ArticlePipeline(topic: string) -> ArticleResult {
-    // Step 1: Research
-    research: ResearchResult, err = Researcher.run(ResearchRequest{ topic: topic })
-    if err != nil { return ArticleResult{}, err }
-
-    // Step 2: Write draft
-    draft: Article, err = Writer.run(WriteRequest{
-        content: research.summary,
-        sources: research.sources
-    })
-    if err != nil { return ArticleResult{}, err }
-
-    // Step 3: Parallel reviews
-    reviews = spawn {
-        Reviewer.run(ReviewRequest{ article: draft, focus: "accuracy" })
-        Reviewer.run(ReviewRequest{ article: draft, focus: "clarity" })
-        Reviewer.run(ReviewRequest{ article: draft, focus: "engagement" })
+@webhook("/api/analyze")
+workflow Analyze(topic: string) -> { results: [string] } {
+    results = spawn {
+        Researcher.ask("Find facts about ${topic}")
+        Critic.ask("Find counterarguments about ${topic}")
+        Summarizer.ask("Write a summary about ${topic}")
     }
-
-    return ArticleResult{ article: draft, reviews: reviews }
+    return { results: results }
 }
 ```
 
-## Running
+## Getting Started
+
+### Requirements
+
+- Go 1.22+
+
+### Build
+
+```bash
+make build
+```
+
+### Run
 
 ```bash
 # Compile and run
-haira run main.haira
+./compiler/haira run examples/01-hello.haira
 
-# Start server (for webhook/websocket/cron workflows)
-haira serve main.haira --port 8080
+# Build a native binary
+./compiler/haira build examples/07-agentic.haira -o myapp
 
-# Build native binary
-haira build main.haira -o myapp
+# Show generated Go code
+./compiler/haira emit examples/07-agentic.haira
+
+# Parse and show AST
+./compiler/haira parse examples/01-hello.haira
 
 # Type-check only
-haira check main.haira
+./compiler/haira check examples/01-hello.haira
+```
 
-# CLI invocation of a @manual workflow
-haira run ArticlePipeline --input '{"topic": "AI agents"}'
+### Install
+
+```bash
+make install-local    # installs to ~/.local/bin/haira
 ```
 
 ## Project Structure
 
 ```
 haira/
-├── spec/                    # Language specification (17 chapters)
-├── examples/                # Example programs
-│   ├── basics/
-│   ├── functions/
-│   ├── control-flow/
-│   ├── data-types/
-│   ├── advanced/
-│   └── agentic/
-├── crates/                  # Compiler implementation (Rust)
-│   ├── haira-lexer/         # Lexical analysis
-│   ├── haira-parser/        # Parsing
-│   ├── haira-ast/           # AST definitions
-│   ├── haira-resolver/      # Name resolution
-│   ├── haira-types/         # Type system
-│   ├── haira-hir/           # High-level IR
-│   ├── haira-codegen/       # Code generation (Cranelift)
-│   ├── haira-runtime/       # Runtime (agents, workflows, providers)
-│   ├── haira-driver/        # Compilation driver
-│   ├── haira-cli/           # CLI
-│   └── haira-lsp/           # Language server
-└── Cargo.toml
+├── compiler/                # Compiler (Go)
+│   ├── main.go              # CLI entry point
+│   └── internal/
+│       ├── token/            # Token types
+│       ├── lexer/            # Hand-written scanner
+│       ├── ast/              # AST node types
+│       ├── parser/           # Recursive descent + Pratt parsing
+│       ├── codegen/          # Go code generation
+│       └── driver/           # Pipeline orchestrator
+├── go-runtime/              # Runtime library (Go)
+│   └── haira/
+│       ├── agent.go          # Agent execution, streaming, handoffs
+│       ├── provider.go       # LLM provider config
+│       ├── tool.go           # Tool registry
+│       ├── workflow.go       # Workflow definitions
+│       ├── server.go         # HTTP server with SSE support
+│       ├── memory.go         # Session memory
+│       ├── http.go           # HTTP client helpers
+│       └── io.go             # Print helpers
+├── examples/                # 19 example programs
+│   ├── 01-hello.haira       # Hello world
+│   ├── 07-agentic.haira     # Agent with tools
+│   ├── 14-multi-agent.haira  # Multiple agents
+│   ├── 15-handoffs.haira    # Agent handoffs
+│   ├── 19-streaming.haira   # SSE streaming
+│   └── ...
+├── spec/                    # Language specification (17 chapters, LaTeX)
+└── Makefile
 ```
 
-## Status
+## Examples
 
-**Early Development** — Language specification complete. Compiler core working (lexer, parser, type system, codegen). Agentic runtime in progress.
+All 19 examples compile and run:
 
-### Working
+```bash
+make build-examples    # compile all
+make run-examples      # run non-agentic examples
+```
 
-- Lexer & Parser
-- Type system (structs, enums, generics, options)
-- Control flow (if/else, for, while, match)
-- Functions (closures, methods, pipe operator)
-- Concurrency (spawn, chan, select)
-- Native codegen (Cranelift)
-
-### In Progress
-
-- Provider, tool, agent, workflow parsing
-- Agentic runtime (LLM API calls, tool execution, memory)
-- Workflow triggers (webhook, websocket, cron, event)
-- Stream type implementation
-
-## Requirements
-
-- Rust (for building the compiler)
+| Example | Description |
+|---------|-------------|
+| 01-hello | Hello world |
+| 02-variables | Variable declarations |
+| 03-functions | Functions, closures |
+| 04-control-flow | If/else, for, while |
+| 05-match | Pattern matching |
+| 06-lists | List operations |
+| 07-agentic | Agent with tools and webhook |
+| 08-structs | Struct types |
+| 09-string-interpolation | `${expr}` interpolation |
+| 10-maps | Map operations |
+| 11-pipes | Pipe operator |
+| 12-methods | Methods on types |
+| 13-error-handling | Try/catch, error propagation |
+| 14-multi-agent | Multiple agents and providers |
+| 15-handoffs | Agent-to-agent handoffs |
+| 16-enums | Enum types |
+| 17-compound-assign | `+=`, `-=`, etc. |
+| 18-defer | Defer statements |
+| 19-streaming | SSE streaming workflow |
 
 ## License
 

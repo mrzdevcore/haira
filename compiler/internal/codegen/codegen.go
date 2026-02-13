@@ -1,0 +1,531 @@
+package codegen
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/haira-lang/haira/internal/ast"
+)
+
+// GenerateMainGo generates the contents of main.go from the AST.
+func GenerateMainGo(file *ast.SourceFile) string {
+	em := NewEmitter()
+
+	em.Line("package main")
+	em.Blank()
+
+	// Collect what we need to import
+	needsFmt := needsFmtImport(file)
+	needsJSON := needsJSONImport(file)
+	needsHaira := needsHairaImport(file)
+	needsSync := needsSyncImport(file)
+
+	var imports []string
+	if needsFmt {
+		imports = append(imports, `"fmt"`)
+	}
+	if needsJSON {
+		imports = append(imports, `"encoding/json"`)
+	}
+	if needsSync {
+		imports = append(imports, `"sync"`)
+	}
+	if needsHaira {
+		imports = append(imports, `"haira-go-runtime/haira"`)
+	}
+
+	if len(imports) > 0 {
+		if len(imports) == 1 {
+			em.Line(fmt.Sprintf("import %s", imports[0]))
+		} else {
+			em.Line("import (")
+			em.Indent()
+			for _, imp := range imports {
+				em.Line(imp)
+			}
+			em.Dedent()
+			em.Line(")")
+		}
+		em.Blank()
+	}
+
+	// Suppress unused import warnings
+	if needsFmt {
+		em.Line("var _ = fmt.Sprintf")
+	}
+	if needsSync {
+		em.Line("var _ sync.WaitGroup")
+	}
+	if needsFmt || needsSync {
+		em.Blank()
+	}
+
+	var mainFn *ast.FunctionDef
+	var agentNames []string
+
+	// Pass 1: providers
+	for _, item := range file.Items {
+		if p, ok := item.Node.(ast.ProviderDecl); ok {
+			EmitProvider(em, p)
+		}
+	}
+
+	// Pass 2: tools
+	for _, item := range file.Items {
+		if t, ok := item.Node.(ast.ToolDecl); ok {
+			EmitTool(em, t)
+		}
+	}
+
+	// Pass 3: agents
+	for _, item := range file.Items {
+		if a, ok := item.Node.(ast.AgentDecl); ok {
+			agentNames = append(agentNames, a.Name.Node)
+			EmitAgent(em, a)
+		}
+	}
+
+	// Pass 4: workflows
+	for _, item := range file.Items {
+		if w, ok := item.Node.(ast.WorkflowDecl); ok {
+			EmitWorkflow(em, w)
+		}
+	}
+
+	// Pass 5: top-level statements (variable declarations)
+	for _, item := range file.Items {
+		if is, ok := item.Node.(ast.ItemStatement); ok {
+			if assign, ok := is.Stmt.Node.(ast.AssignStmt); ok {
+				emitTopLevelVar(em, assign)
+			}
+		}
+	}
+
+	// Pass 6: type defs and enums
+	for _, item := range file.Items {
+		if td, ok := item.Node.(ast.TypeDef); ok {
+			emitTypeDef(em, td)
+		}
+		if ed, ok := item.Node.(ast.EnumDef); ok {
+			emitEnumDef(em, ed)
+		}
+	}
+
+	// Pass 7: method definitions
+	for _, item := range file.Items {
+		if md, ok := item.Node.(ast.MethodDef); ok {
+			emitMethod(em, md)
+		}
+	}
+
+	// Pass 8: non-main functions
+	for _, item := range file.Items {
+		if f, ok := item.Node.(ast.FunctionDef); ok {
+			if f.Name.Node == "main" {
+				mainFn = &f
+			} else {
+				emitFunction(em, f)
+			}
+		}
+	}
+
+	// Finally: main function
+	if mainFn != nil {
+		emitMainFunction(em, *mainFn, agentNames)
+	}
+
+	return em.String()
+}
+
+func emitTopLevelVar(em *GoEmitter, assign ast.AssignStmt) {
+	value := ExprToGo(assign.Value)
+	if len(assign.Targets) == 1 {
+		name := assignTargetName(assign.Targets[0].Path)
+		em.Line(fmt.Sprintf("var %s = %s", name, value))
+	} else {
+		names := make([]string, len(assign.Targets))
+		for i, t := range assign.Targets {
+			names[i] = assignTargetName(t.Path)
+		}
+		em.Line(fmt.Sprintf("var %s = %s", strings.Join(names, ", "), value))
+	}
+}
+
+func assignTargetName(path ast.AssignPath) string {
+	switch p := path.(type) {
+	case ast.IdentPath:
+		return p.Name.Node
+	case ast.FieldPath:
+		return assignTargetName(p.Object) + "." + p.Field.Node
+	case ast.IndexPath:
+		return fmt.Sprintf("%s[%s]", assignTargetName(p.Object), ExprToGo(p.Index))
+	}
+	return "?"
+}
+
+func emitTypeDef(em *GoEmitter, td ast.TypeDef) {
+	em.OpenBlock(fmt.Sprintf("type %s struct", td.Name.Node))
+	for _, field := range td.Fields {
+		goType := "any"
+		if field.Ty != nil {
+			goType = HairaTypeToGo(field.Ty.Node)
+		}
+		fieldName := Capitalize(field.Name.Node)
+		em.Line(fmt.Sprintf("%s %s", fieldName, goType))
+	}
+	em.CloseBlock()
+	em.Blank()
+}
+
+func emitEnumDef(em *GoEmitter, ed ast.EnumDef) {
+	name := ed.Name.Node
+	hasData := false
+	for _, v := range ed.Variants {
+		if len(v.Fields) > 0 {
+			hasData = true
+			break
+		}
+	}
+
+	if hasData {
+		// Data-carrying enum → Go interface + variant structs
+		em.OpenBlock(fmt.Sprintf("type %s interface", name))
+		em.Line(fmt.Sprintf("is%s()", name))
+		em.CloseBlock()
+		em.Blank()
+
+		for _, variant := range ed.Variants {
+			vname := variant.Name.Node
+			if len(variant.Fields) == 0 {
+				em.OpenBlock(fmt.Sprintf("type %s%s struct", name, vname))
+				em.CloseBlock()
+			} else {
+				em.OpenBlock(fmt.Sprintf("type %s%s struct", name, vname))
+				for _, field := range variant.Fields {
+					goType := "any"
+					if field.Ty != nil {
+						goType = HairaTypeToGo(field.Ty.Node)
+					}
+					em.Line(fmt.Sprintf("%s %s", Capitalize(field.Name.Node), goType))
+				}
+				em.CloseBlock()
+			}
+			em.Line(fmt.Sprintf("func (%s%s) is%s() {}", name, vname, name))
+			em.Blank()
+		}
+	} else {
+		// Simple enum → const + iota
+		em.Line(fmt.Sprintf("type %s int", name))
+		em.Blank()
+		em.Line("const (")
+		em.Indent()
+		for i, variant := range ed.Variants {
+			if i == 0 {
+				em.Line(fmt.Sprintf("%s%s %s = iota", name, variant.Name.Node, name))
+			} else {
+				em.Line(fmt.Sprintf("%s%s", name, variant.Name.Node))
+			}
+		}
+		em.Dedent()
+		em.Line(")")
+		em.Blank()
+	}
+}
+
+func emitMethod(em *GoEmitter, method ast.MethodDef) {
+	em.ResetVars()
+	typeName := method.TypeName.Node
+	methodName := SnakeToPascal(method.Name.Node)
+	params := make([]string, len(method.Params))
+	for i, p := range method.Params {
+		ty := "any"
+		if p.Ty != nil {
+			ty = HairaTypeToGo(p.Ty.Node)
+		}
+		params[i] = p.Name.Node + " " + ty
+	}
+	ret := ""
+	if method.ReturnTy != nil {
+		ret = " " + HairaTypeToGo(method.ReturnTy.Node)
+	}
+	em.OpenBlock(fmt.Sprintf("func (self *%s) %s(%s)%s", typeName, methodName, strings.Join(params, ", "), ret))
+	EmitBlockBody(em, method.Body)
+	em.CloseBlock()
+	em.Blank()
+}
+
+func emitFunction(em *GoEmitter, fn ast.FunctionDef) {
+	em.ResetVars()
+	name := SnakeToPascal(fn.Name.Node)
+	params := make([]string, len(fn.Params))
+	for i, p := range fn.Params {
+		ty := "any"
+		if p.Ty != nil {
+			ty = HairaTypeToGo(p.Ty.Node)
+		}
+		params[i] = p.Name.Node + " " + ty
+	}
+	ret := ""
+	if fn.ReturnTy != nil {
+		ret = " " + HairaTypeToGo(fn.ReturnTy.Node)
+	}
+	em.OpenBlock(fmt.Sprintf("func %s(%s)%s", name, strings.Join(params, ", "), ret))
+	EmitBlockBody(em, fn.Body)
+	em.CloseBlock()
+	em.Blank()
+}
+
+func emitMainFunction(em *GoEmitter, fn ast.FunctionDef, agentNames []string) {
+	em.ResetVars()
+	em.OpenBlock("func main()")
+	for _, name := range agentNames {
+		em.Line(fmt.Sprintf("initAgent%s()", name))
+	}
+	if len(agentNames) > 0 {
+		em.Blank()
+	}
+	EmitBlockBody(em, fn.Body)
+	em.CloseBlock()
+}
+
+// Import detection helpers
+
+func needsFmtImport(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		switch it := item.Node.(type) {
+		case ast.ToolDecl:
+			if it.Body == nil {
+				return true
+			}
+			if it.Body != nil && (blockHasInterpolatedString(*it.Body) || blockHasTry(*it.Body)) {
+				return true
+			}
+		case ast.FunctionDef:
+			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
+				return true
+			}
+		case ast.WorkflowDecl:
+			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func needsJSONImport(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if _, ok := item.Node.(ast.ToolDecl); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func needsHairaImport(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		switch item.Node.(type) {
+		case ast.ImportDecl, ast.ProviderDecl, ast.ToolDecl, ast.AgentDecl, ast.WorkflowDecl:
+			return true
+		}
+	}
+	// Also need haira if any statement uses stdlib functions
+	return hasStdlibCalls(file)
+}
+
+func needsSyncImport(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		switch it := item.Node.(type) {
+		case ast.FunctionDef:
+			if blockHasSpawn(it.Body) {
+				return true
+			}
+		case ast.WorkflowDecl:
+			if blockHasSpawn(it.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasTry(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if _, ok := stmt.Node.(ast.TryStmt); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func blockHasSpawn(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		switch s := stmt.Node.(type) {
+		case ast.ExprStmt:
+			if _, ok := s.Value.Node.(ast.SpawnExpr); ok {
+				return true
+			}
+		case ast.AssignStmt:
+			if _, ok := s.Value.Node.(ast.SpawnExpr); ok {
+				return true
+			}
+		case ast.IfStmt:
+			if blockHasSpawn(s.ThenBranch) {
+				return true
+			}
+		case ast.ForStmt:
+			if blockHasSpawn(s.Body) {
+				return true
+			}
+		case ast.WhileStmt:
+			if blockHasSpawn(s.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasInterpolatedString(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if stmtHasInterpolatedString(stmt) {
+			return true
+		}
+	}
+	return false
+}
+
+func stmtHasInterpolatedString(stmt ast.Statement) bool {
+	switch s := stmt.Node.(type) {
+	case ast.ReturnStmt:
+		for _, v := range s.Values {
+			if exprHasInterpolatedString(v) {
+				return true
+			}
+		}
+	case ast.ExprStmt:
+		return exprHasInterpolatedString(s.Value)
+	case ast.AssignStmt:
+		return exprHasInterpolatedString(s.Value)
+	case ast.IfStmt:
+		return blockHasInterpolatedString(s.ThenBranch)
+	case ast.ForStmt:
+		return blockHasInterpolatedString(s.Body)
+	case ast.WhileStmt:
+		return blockHasInterpolatedString(s.Body)
+	}
+	return false
+}
+
+func exprHasInterpolatedString(expr ast.Expr) bool {
+	switch e := expr.Node.(type) {
+	case ast.LiteralExpr:
+		if _, ok := e.Lit.(ast.InterpolatedStringLit); ok {
+			return true
+		}
+	case ast.CallExpr:
+		for _, a := range e.Args {
+			if exprHasInterpolatedString(a.Value) {
+				return true
+			}
+		}
+		return exprHasInterpolatedString(e.Callee)
+	case ast.BinaryExpr:
+		return exprHasInterpolatedString(e.Left) || exprHasInterpolatedString(e.Right)
+	case ast.UnaryExpr:
+		return exprHasInterpolatedString(e.Operand)
+	case ast.ParenExpr:
+		return exprHasInterpolatedString(e.Inner)
+	case ast.MethodCallExpr:
+		for _, a := range e.Args {
+			if exprHasInterpolatedString(a.Value) {
+				return true
+			}
+		}
+		return exprHasInterpolatedString(e.Receiver)
+	case ast.PipeExpr:
+		return exprHasInterpolatedString(e.Left) || exprHasInterpolatedString(e.Right)
+	}
+	return false
+}
+
+func hasStdlibCalls(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		switch it := item.Node.(type) {
+		case ast.FunctionDef:
+			if blockHasStdlibCalls(it.Body) {
+				return true
+			}
+		case ast.ItemStatement:
+			if stmtHasStdlibCalls(it.Stmt) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasStdlibCalls(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if stmtHasStdlibCalls(stmt) {
+			return true
+		}
+	}
+	return false
+}
+
+func stmtHasStdlibCalls(stmt ast.Statement) bool {
+	switch s := stmt.Node.(type) {
+	case ast.ExprStmt:
+		return exprHasStdlibCall(s.Value)
+	case ast.AssignStmt:
+		return exprHasStdlibCall(s.Value)
+	case ast.ReturnStmt:
+		for _, v := range s.Values {
+			if exprHasStdlibCall(v) {
+				return true
+			}
+		}
+	case ast.IfStmt:
+		return blockHasStdlibCalls(s.ThenBranch)
+	case ast.ForStmt:
+		return exprHasStdlibCall(s.Iterator) || blockHasStdlibCalls(s.Body)
+	}
+	return false
+}
+
+func exprHasStdlibCall(expr ast.Expr) bool {
+	switch e := expr.Node.(type) {
+	case ast.CallExpr:
+		if _, ok := ResolveStdlibCall(e); ok {
+			return true
+		}
+	case ast.MethodCallExpr:
+		if _, ok := ResolveStdlibMethodCall(e); ok {
+			return true
+		}
+	case ast.PipeExpr:
+		return exprHasStdlibCall(e.Left) || exprHasStdlibCall(e.Right)
+	case ast.BinaryExpr:
+		return exprHasStdlibCall(e.Left) || exprHasStdlibCall(e.Right)
+	}
+	return false
+}
+
+// Capitalize capitalizes the first letter.
+func Capitalize(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// SnakeToPascal converts snake_case to PascalCase.
+func SnakeToPascal(name string) string {
+	parts := strings.Split(name, "_")
+	result := make([]string, len(parts))
+	for i, p := range parts {
+		result[i] = Capitalize(p)
+	}
+	return strings.Join(result, "")
+}

@@ -1,0 +1,9 @@
+// Example 18: Defer
+import "io"
+
+fn main() {
+    io.println("start")
+    defer io.println("deferred: runs last")
+    io.println("middle")
+    io.println("end")
+}

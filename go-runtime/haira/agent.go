@@ -86,6 +86,70 @@ func (a *Agent) Run(message string, sessionID string) (*AgentResult, error) {
 	return a.run(message, sessionID, true)
 }
 
+// StreamChunk represents a piece of a streaming response.
+type StreamChunk struct {
+	Delta string // incremental text
+	Done  bool   // true when stream is complete
+}
+
+// Stream sends a message and returns a channel that yields StreamChunks.
+// The channel is closed when the response is complete.
+func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
+	ch := make(chan StreamChunk, 64)
+	go func() {
+		defer close(ch)
+		ctx := context.Background()
+
+		var messages []openai.ChatCompletionMessage
+		if a.config.System != "" {
+			messages = append(messages, openai.ChatCompletionMessage{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: a.config.System,
+			})
+		}
+		for _, msg := range a.store.GetHistory(sessionID) {
+			messages = append(messages, historyToOpenAI(msg))
+		}
+		messages = append(messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: message,
+		})
+		a.store.AddMessage(sessionID, Message{Role: "user", Content: message})
+
+		req := openai.ChatCompletionRequest{
+			Model:       a.config.Provider.Model,
+			Messages:    messages,
+			Temperature: float32(a.config.Temperature),
+			Stream:      true,
+		}
+
+		stream, err := a.client.CreateChatCompletionStream(ctx, req)
+		if err != nil {
+			ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
+			return
+		}
+		defer stream.Close()
+
+		var fullReply string
+		for {
+			resp, err := stream.Recv()
+			if err != nil {
+				break
+			}
+			if len(resp.Choices) > 0 {
+				delta := resp.Choices[0].Delta.Content
+				if delta != "" {
+					fullReply += delta
+					ch <- StreamChunk{Delta: delta, Done: false}
+				}
+			}
+		}
+		a.store.AddMessage(sessionID, Message{Role: "assistant", Content: fullReply})
+		ch <- StreamChunk{Delta: "", Done: true}
+	}()
+	return ch
+}
+
 // run is the internal implementation shared by Ask and Run.
 func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*AgentResult, error) {
 	ctx := context.Background()

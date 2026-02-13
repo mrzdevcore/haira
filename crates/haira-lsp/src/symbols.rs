@@ -188,6 +188,25 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     container_name: None,
                 });
             }
+            ItemKind::EnumDef(enum_def) => {
+                let range = span_to_range(
+                    source,
+                    enum_def.name.span.start as usize,
+                    enum_def.name.span.end as usize,
+                );
+                #[allow(deprecated)]
+                symbols.push(SymbolInformation {
+                    name: enum_def.name.node.to_string(),
+                    kind: SymbolKind::ENUM,
+                    tags: None,
+                    deprecated: None,
+                    location: Location {
+                        uri: Url::parse("file:///").unwrap(),
+                        range,
+                    },
+                    container_name: None,
+                });
+            }
             ItemKind::Statement(stmt) => {
                 // Check for top-level assignments (global variables)
                 if let StatementKind::Assignment(assign) = &stmt.node {

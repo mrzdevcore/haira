@@ -16,6 +16,9 @@ pub fn emit_statement(em: &mut GoEmitter, stmt: &Statement) {
         StatementKind::Expr(expr) => {
             em.line(&expr_to_go(expr));
         }
+        StatementKind::Defer(expr) => {
+            em.line(&format!("defer {}", expr_to_go(expr)));
+        }
         StatementKind::Break => em.line("break"),
         StatementKind::Continue => em.line("continue"),
         StatementKind::Match(match_expr) => emit_match(em, match_expr),
@@ -247,12 +250,20 @@ fn pattern_to_go(pattern: &Pattern) -> String {
 }
 
 fn emit_try(em: &mut GoEmitter, try_stmt: &TryStatement) {
-    // Go doesn't have try/catch — emit as a comment + inline for now
-    em.line("// try {");
-    emit_block_body(em, &try_stmt.body);
-    em.line(&format!("// }} catch {} {{", try_stmt.error_name.node));
+    // try/catch → Go defer/recover pattern wrapped in an IIFE
+    let err_name = &try_stmt.error_name.node;
+    em.open_block("func()");
+    em.open_block("defer func()");
+    em.open_block(&format!("if r := recover(); r != nil"));
+    em.line(&format!("{} := fmt.Sprintf(\"%v\", r)", err_name));
+    em.line(&format!("_ = {}", err_name));
     emit_block_body(em, &try_stmt.catch_body);
-    em.line("// }");
+    em.close_block();
+    em.close_block(); // defer func()
+    em.line("()");
+    emit_block_body(em, &try_stmt.body);
+    em.close_block(); // func()
+    em.line("()");
 }
 
 /// Emit the body of a block (just the statements, no braces).

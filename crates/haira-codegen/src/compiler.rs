@@ -2195,6 +2195,10 @@ impl<'a> FunctionCompiler<'a> {
 
                 Ok(None)
             }
+            StatementKind::Defer(_) => {
+                // Defer is not supported in the Cranelift backend
+                Ok(None)
+            }
         }
     }
 

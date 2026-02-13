@@ -31,6 +31,7 @@ fn generate_main_go(ast: &SourceFile) -> String {
     let needs_fmt = needs_fmt_import(ast);
     let needs_json = needs_json_import(ast);
     let needs_haira = needs_haira_import(ast);
+    let needs_sync = needs_sync_import(ast);
 
     // Emit imports
     let mut imports = Vec::new();
@@ -39,6 +40,9 @@ fn generate_main_go(ast: &SourceFile) -> String {
     }
     if needs_json {
         imports.push("\"encoding/json\"");
+    }
+    if needs_sync {
+        imports.push("\"sync\"");
     }
     if needs_haira {
         imports.push("\"haira-go-runtime/haira\"");
@@ -102,14 +106,24 @@ fn generate_main_go(ast: &SourceFile) -> String {
         }
     }
 
-    // Sixth pass: type defs
+    // Sixth pass: type defs and enums
     for item in &ast.items {
         if let ItemKind::TypeDef(type_def) = &item.node {
             emit_type_def(&mut em, type_def);
         }
+        if let ItemKind::EnumDef(enum_def) = &item.node {
+            emit_enum_def(&mut em, enum_def);
+        }
     }
 
-    // Seventh pass: non-main functions
+    // Seventh pass: method definitions
+    for item in &ast.items {
+        if let ItemKind::MethodDef(method) = &item.node {
+            emit_method(&mut em, method);
+        }
+    }
+
+    // Eighth pass: non-main functions
     for item in &ast.items {
         if let ItemKind::FunctionDef(func) = &item.node {
             if func.name.node.as_str() == "main" {
@@ -180,6 +194,89 @@ fn emit_type_def(em: &mut GoEmitter, type_def: &TypeDef) {
     em.blank();
 }
 
+fn emit_enum_def(em: &mut GoEmitter, enum_def: &EnumDef) {
+    let name = &enum_def.name.node;
+    let has_data = enum_def.variants.iter().any(|v| !v.fields.is_empty());
+
+    if has_data {
+        // Data-carrying enum → Go interface + variant structs
+        em.open_block(&format!("type {} interface", name));
+        em.line(&format!("is{}()", name));
+        em.close_block();
+        em.blank();
+
+        for variant in &enum_def.variants {
+            let vname = &variant.name.node;
+            if variant.fields.is_empty() {
+                // Unit variant → empty struct
+                em.open_block(&format!("type {}{} struct", name, vname));
+                em.close_block();
+            } else {
+                em.open_block(&format!("type {}{} struct", name, vname));
+                for field in &variant.fields {
+                    let go_type = field
+                        .ty
+                        .as_ref()
+                        .map(|t| haira_type_to_go(&t.node))
+                        .unwrap_or_else(|| "any".to_string());
+                    em.line(&format!("{} {}", capitalize(&field.name.node), go_type));
+                }
+                em.close_block();
+            }
+            em.line(&format!("func ({}{}) is{}() {{}}", name, vname, name));
+            em.blank();
+        }
+    } else {
+        // Simple enum → const + iota
+        em.line(&format!("type {} int", name));
+        em.blank();
+        em.line("const (");
+        em.indent();
+        for (i, variant) in enum_def.variants.iter().enumerate() {
+            if i == 0 {
+                em.line(&format!("{}{} {} = iota", name, variant.name.node, name));
+            } else {
+                em.line(&format!("{}{}", name, variant.name.node));
+            }
+        }
+        em.dedent();
+        em.line(")");
+        em.blank();
+    }
+}
+
+fn emit_method(em: &mut GoEmitter, method: &MethodDef) {
+    em.reset_vars();
+    let type_name = &method.type_name.node;
+    let method_name = snake_to_pascal(&method.name.node);
+    let params = method
+        .params
+        .iter()
+        .map(|p| {
+            let ty =
+                p.ty.as_ref()
+                    .map(|t| haira_type_to_go(&t.node))
+                    .unwrap_or_else(|| "any".to_string());
+            format!("{} {}", p.name.node, ty)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let ret = method
+        .return_ty
+        .as_ref()
+        .map(|t| format!(" {}", haira_type_to_go(&t.node)))
+        .unwrap_or_default();
+
+    em.open_block(&format!(
+        "func (self *{}) {}({}){}",
+        type_name, method_name, params, ret
+    ));
+    emit_block_body(em, &method.body);
+    em.close_block();
+    em.blank();
+}
+
 fn emit_function(em: &mut GoEmitter, func: &FunctionDef) {
     em.reset_vars();
     let name = snake_to_pascal(&func.name.node);
@@ -224,20 +321,31 @@ fn emit_main_function(em: &mut GoEmitter, func: &FunctionDef, agent_names: &[Str
     em.close_block();
 }
 
-/// Check if we need to import "fmt" (for interpolated strings or stub tools).
+/// Check if we need to import "fmt" (for interpolated strings, stub tools, or try/catch).
 fn needs_fmt_import(ast: &SourceFile) -> bool {
     ast.items.iter().any(|item| match &item.node {
         // Stub tools (no body) need fmt for fmt.Errorf; tools with body need it for interpolation
         ItemKind::ToolDecl(tool) => {
             tool.body.is_none()
-                || tool
-                    .body
-                    .as_ref()
-                    .map_or(false, |b| block_has_interpolated_string(b))
+                || tool.body.as_ref().map_or(false, |b| {
+                    block_has_interpolated_string(b) || block_has_try(b)
+                })
         }
-        ItemKind::FunctionDef(func) => block_has_interpolated_string(&func.body),
+        ItemKind::FunctionDef(func) => {
+            block_has_interpolated_string(&func.body) || block_has_try(&func.body)
+        }
+        ItemKind::WorkflowDecl(wf) => {
+            block_has_interpolated_string(&wf.body) || block_has_try(&wf.body)
+        }
         _ => false,
     })
+}
+
+fn block_has_try(block: &Block) -> bool {
+    block
+        .statements
+        .iter()
+        .any(|stmt| matches!(&stmt.node, StatementKind::Try(_)))
 }
 
 fn block_has_interpolated_string(block: &Block) -> bool {
@@ -298,6 +406,33 @@ fn expr_has_interpolated_string(expr: &Expr) -> bool {
         }
         _ => false,
     }
+}
+
+/// Check if we need "sync" (for spawn blocks).
+fn needs_sync_import(ast: &SourceFile) -> bool {
+    ast.items.iter().any(|item| match &item.node {
+        ItemKind::FunctionDef(func) => block_has_spawn(&func.body),
+        ItemKind::WorkflowDecl(wf) => block_has_spawn(&wf.body),
+        _ => false,
+    })
+}
+
+fn block_has_spawn(block: &Block) -> bool {
+    block.statements.iter().any(|stmt| match &stmt.node {
+        StatementKind::Expr(e) => expr_has_spawn(e),
+        StatementKind::Assignment(a) => expr_has_spawn(&a.value),
+        StatementKind::If(if_stmt) => {
+            block_has_spawn(&if_stmt.then_branch)
+                || matches!(&if_stmt.else_branch, Some(ElseBranch::Block(b)) if block_has_spawn(b))
+        }
+        StatementKind::For(f) => block_has_spawn(&f.body),
+        StatementKind::While(w) => block_has_spawn(&w.body),
+        _ => false,
+    })
+}
+
+fn expr_has_spawn(expr: &Expr) -> bool {
+    matches!(&expr.node, ExprKind::Spawn(_))
 }
 
 /// Check if we need "encoding/json" (for tools/agents).

@@ -99,6 +99,12 @@ pub fn expr_to_go(expr: &Expr) -> String {
             format!("{}.{}({})", receiver, method, args)
         }
         ExprKind::Field(f) => {
+            // Enum variant access: Direction.North → DirectionNorth
+            if let ExprKind::Identifier(name) = &f.object.node {
+                if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    return format!("{}{}", name, f.field.node);
+                }
+            }
             let obj = expr_to_go(&f.object);
             format!("{}.{}", obj, f.field.node)
         }
@@ -145,16 +151,183 @@ pub fn expr_to_go(expr: &Expr) -> String {
         ExprKind::None => "nil".to_string(),
         ExprKind::Some(inner) => expr_to_go(inner),
         // Stubs for constructs handled in later phases
-        ExprKind::Lambda(_) => "nil /* lambda */".to_string(),
-        ExprKind::Match(_) => "nil /* match */".to_string(),
-        ExprKind::If(_) => "nil /* if-expr */".to_string(),
+        ExprKind::Lambda(lambda) => {
+            let params = lambda
+                .params
+                .iter()
+                .map(|p| {
+                    let ty =
+                        p.ty.as_ref()
+                            .map(|t| crate::types::haira_type_to_go(&t.node))
+                            .unwrap_or_else(|| "any".to_string());
+                    format!("{} {}", p.name.node, ty)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            match &lambda.body {
+                LambdaBody::Expr(body_expr) => {
+                    let body = expr_to_go(body_expr);
+                    format!("func({}) any {{ return {} }}", params, body)
+                }
+                LambdaBody::Block(block) => {
+                    let mut em = crate::emitter::GoEmitter::new();
+                    crate::statements::emit_block_body(&mut em, block);
+                    let body = em.finish();
+                    format!("func({}) any {{\n{}}}", params, body)
+                }
+            }
+        }
+        ExprKind::Match(match_expr) => {
+            // Match as expression → IIFE with switch
+            let subject = expr_to_go(&match_expr.subject);
+            let mut em = crate::emitter::GoEmitter::new();
+            em.line("func() any {");
+            em.line(&format!("\tswitch {} {{", subject));
+            for arm in &match_expr.arms {
+                if matches!(arm.pattern.node, Pattern::Wildcard) {
+                    em.line("\tdefault:");
+                } else {
+                    em.line(&format!(
+                        "\tcase {}:",
+                        pattern_to_go_expr(&arm.pattern.node)
+                    ));
+                }
+                match &arm.body {
+                    MatchArmBody::Expr(e) => em.line(&format!("\t\treturn {}", expr_to_go(e))),
+                    MatchArmBody::Block(block) => {
+                        // Last statement in block is the return value
+                        for (i, stmt) in block.statements.iter().enumerate() {
+                            if i == block.statements.len() - 1 {
+                                if let StatementKind::Expr(e) = &stmt.node {
+                                    em.line(&format!("\t\treturn {}", expr_to_go(e)));
+                                } else {
+                                    let mut inner = crate::emitter::GoEmitter::new();
+                                    crate::statements::emit_statement(&mut inner, stmt);
+                                    em.line(&format!("\t\t{}", inner.finish().trim()));
+                                }
+                            } else {
+                                let mut inner = crate::emitter::GoEmitter::new();
+                                crate::statements::emit_statement(&mut inner, stmt);
+                                em.line(&format!("\t\t{}", inner.finish().trim()));
+                            }
+                        }
+                    }
+                }
+            }
+            em.line("\t}");
+            em.line("\treturn nil");
+            em.line("}()");
+            em.finish().trim().to_string()
+        }
+        ExprKind::If(if_stmt) => {
+            // If-as-expression: use an IIFE to return a value
+            let cond = expr_to_go(&if_stmt.condition);
+            let then_val = if_stmt
+                .then_branch
+                .statements
+                .last()
+                .map(|s| match &s.node {
+                    StatementKind::Expr(e) => expr_to_go(e),
+                    StatementKind::Return(r) if !r.values.is_empty() => expr_to_go(&r.values[0]),
+                    _ => "nil".to_string(),
+                })
+                .unwrap_or_else(|| "nil".to_string());
+            let else_val = match &if_stmt.else_branch {
+                Some(ElseBranch::Block(block)) => block
+                    .statements
+                    .last()
+                    .map(|s| match &s.node {
+                        StatementKind::Expr(e) => expr_to_go(e),
+                        StatementKind::Return(r) if !r.values.is_empty() => {
+                            expr_to_go(&r.values[0])
+                        }
+                        _ => "nil".to_string(),
+                    })
+                    .unwrap_or_else(|| "nil".to_string()),
+                Some(ElseBranch::ElseIf(elif)) => {
+                    // Recursive: wrap in ExprKind::If
+                    let inner = Expr {
+                        node: ExprKind::If(Box::new(elif.node.clone())),
+                        span: elif.span,
+                    };
+                    expr_to_go(&inner)
+                }
+                None => "nil".to_string(),
+            };
+            format!(
+                "func() any {{ if {} {{ return {} }} else {{ return {} }} }}()",
+                cond, then_val, else_val
+            )
+        }
         ExprKind::Block(_) => "nil /* block-expr */".to_string(),
-        ExprKind::Instance(_) => "nil /* instance */".to_string(),
+        ExprKind::Instance(inst) => {
+            let type_name = &inst.type_name.node;
+            let fields = inst
+                .fields
+                .iter()
+                .map(|f| {
+                    let val = expr_to_go(&f.value);
+                    if let Some(name) = &f.name {
+                        format!("{}: {}", capitalize(&name.node), val)
+                    } else {
+                        val
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}{{{}}}", type_name, fields)
+        }
         ExprKind::Range(_) => "nil /* range */".to_string(),
         ExprKind::Propagate(inner) => expr_to_go(inner),
         ExprKind::Async(_) => "nil /* async */".to_string(),
-        ExprKind::Spawn(_) => "nil /* spawn */".to_string(),
-        ExprKind::Select(_) => "nil /* select */".to_string(),
+        ExprKind::Spawn(block) => {
+            // spawn { expr1, expr2 } → collect results from goroutines
+            // Each statement in the block runs concurrently; results collected into []any
+            let mut em = crate::emitter::GoEmitter::new();
+            let count = block.statements.len();
+            em.line(&format!("func() []any {{"));
+            em.line(&format!("\tresults := make([]any, {})", count));
+            em.line("\tvar wg sync.WaitGroup");
+            em.line(&format!("\twg.Add({})", count));
+            for (i, stmt) in block.statements.iter().enumerate() {
+                let expr_str = match &stmt.node {
+                    StatementKind::Expr(e) => expr_to_go(e),
+                    StatementKind::Assignment(a) => expr_to_go(&a.value),
+                    _ => "nil".to_string(),
+                };
+                em.line(&format!("\tgo func() {{"));
+                em.line(&format!("\t\tdefer wg.Done()"));
+                em.line(&format!("\t\tresults[{}] = {}", i, expr_str));
+                em.line("\t}()");
+            }
+            em.line("\twg.Wait()");
+            em.line("\treturn results");
+            em.line("}()");
+            em.finish().trim().to_string()
+        }
+        ExprKind::Select(sel) => {
+            // select { x from ch => body } → Go select { case x := <-ch: body }
+            let mut em = crate::emitter::GoEmitter::new();
+            em.open_block("select");
+            for arm in &sel.arms {
+                let ch = expr_to_go(&arm.channel);
+                em.line(&format!("case {} := <-{}:", arm.binding.node, ch));
+                em.indent();
+                match &arm.body {
+                    MatchArmBody::Expr(e) => em.line(&expr_to_go(e)),
+                    MatchArmBody::Block(b) => crate::statements::emit_block_body(&mut em, b),
+                }
+                em.dedent();
+            }
+            if let Some(default) = &sel.default {
+                em.line("default:");
+                em.indent();
+                crate::statements::emit_block_body(&mut em, default);
+                em.dedent();
+            }
+            em.close_block();
+            em.finish().trim().to_string()
+        }
     }
 }
 
@@ -258,6 +431,21 @@ fn involves_string(expr: &Expr) -> bool {
         ExprKind::Literal(Literal::String(_)) => true,
         ExprKind::Literal(Literal::InterpolatedString(_)) => true,
         _ => false,
+    }
+}
+
+fn pattern_to_go_expr(pattern: &Pattern) -> String {
+    match pattern {
+        Pattern::Wildcard => "default".to_string(),
+        Pattern::Literal(lit) => match lit {
+            Literal::Int(n) => n.to_string(),
+            Literal::Float(f) => f.to_string(),
+            Literal::String(s) => format!("\"{}\"", s),
+            Literal::Bool(b) => b.to_string(),
+            Literal::InterpolatedString(_) => "/* interp */".to_string(),
+        },
+        Pattern::Identifier(name) => name.to_string(),
+        Pattern::Constructor { name, .. } => name.to_string(),
     }
 }
 

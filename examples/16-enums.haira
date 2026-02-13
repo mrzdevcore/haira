@@ -1,0 +1,28 @@
+// Example 16: Enums
+import "io"
+
+enum Direction {
+    North,
+    South,
+    East,
+    West
+}
+
+fn describe(dir) -> string {
+    match dir {
+        Direction.North => return "Going north"
+        Direction.South => return "Going south"
+        Direction.East => return "Going east"
+        Direction.West => return "Going west"
+        _ => return "Unknown"
+    }
+    return "Unknown"
+}
+
+fn main() {
+    dir = Direction.North
+    io.println(describe(dir))
+
+    dir = Direction.West
+    io.println(describe(dir))
+}

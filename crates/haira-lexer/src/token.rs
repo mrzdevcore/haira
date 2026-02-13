@@ -86,6 +86,10 @@ pub enum TokenKind {
     Workflow,
     #[token("fn")]
     Fn,
+    #[token("enum")]
+    Enum,
+    #[token("defer")]
+    Defer,
     #[token("import")]
     Import,
 
@@ -118,6 +122,16 @@ pub enum TokenKind {
 
     #[token("=")]
     Eq,
+    #[token("+=")]
+    PlusEq,
+    #[token("-=")]
+    MinusEq,
+    #[token("*=")]
+    StarEq,
+    #[token("/=")]
+    SlashEq,
+    #[token("%=")]
+    PercentEq,
     #[token("|")]
     Pipe,
     #[token("?")]
@@ -246,6 +260,8 @@ impl TokenKind {
                 | TokenKind::Agent
                 | TokenKind::Workflow
                 | TokenKind::Fn
+                | TokenKind::Enum
+                | TokenKind::Defer
                 | TokenKind::Import
         )
     }

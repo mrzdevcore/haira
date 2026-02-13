@@ -25,6 +25,8 @@ pub enum ItemKind {
     FunctionDef(FunctionDef),
     /// Method definition: `User.greet() { ... }`
     MethodDef(MethodDef),
+    /// Enum definition: `enum Color { Red, Green, Blue }`
+    EnumDef(EnumDef),
     /// Type alias: `UserId = int`
     TypeAlias(TypeAlias),
     /// Import declaration: `import "http"`
@@ -68,6 +70,28 @@ pub struct Field {
     /// Optional default value
     pub default: Option<Expr>,
     /// Span of the entire field
+    pub span: Span,
+}
+
+/// An enum definition: `enum Color { Red, Green, Blue }`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct EnumDef {
+    /// Enum name
+    pub name: Spanned<SmolStr>,
+    /// Variants
+    pub variants: Vec<EnumVariant>,
+}
+
+/// An enum variant: `Red` or `Some(value: int)`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct EnumVariant {
+    /// Variant name
+    pub name: Spanned<SmolStr>,
+    /// Optional associated fields
+    pub fields: Vec<Param>,
+    /// Span of the entire variant
     pub span: Span,
 }
 
@@ -264,6 +288,8 @@ pub enum StatementKind {
     Return(ReturnStatement),
     /// Try-catch: `try { ... } catch e { ... }`
     Try(TryStatement),
+    /// Defer statement: `defer expr`
+    Defer(Expr),
     /// Break statement
     Break,
     /// Continue statement

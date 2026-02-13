@@ -87,6 +87,17 @@ fn print_item(item: &haira_ast::Item, source: &str, indent: usize) {
                 def.params.len()
             );
         }
+        haira_ast::ItemKind::EnumDef(def) => {
+            println!(
+                "{}EnumDef: {} ({} variants)",
+                prefix,
+                def.name.node,
+                def.variants.len()
+            );
+            for variant in &def.variants {
+                println!("{}  - {}", prefix, variant.name.node);
+            }
+        }
         haira_ast::ItemKind::TypeAlias(alias) => {
             println!("{}TypeAlias: {}", prefix, alias.name.node);
         }
@@ -194,6 +205,9 @@ fn print_statement_kind(stmt: &haira_ast::StatementKind, source: &str, indent: u
         }
         haira_ast::StatementKind::Continue => {
             println!("{}Continue", prefix);
+        }
+        haira_ast::StatementKind::Defer(_) => {
+            println!("{}Defer statement", prefix);
         }
         haira_ast::StatementKind::Expr(expr) => {
             print_expr_kind(&expr.node, source, indent);

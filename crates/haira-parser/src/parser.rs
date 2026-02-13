@@ -363,6 +363,12 @@ impl<'source> Parser<'source> {
                 let func = self.parse_fn_decl(is_public)?;
                 Some(Spanned::new(ItemKind::FunctionDef(func), self.span(start)))
             }
+            // Enum declaration: `enum Color { Red, Green, Blue }`
+            TokenKind::Enum => {
+                self.advance();
+                let enum_def = self.parse_enum_decl()?;
+                Some(Spanned::new(ItemKind::EnumDef(enum_def), self.span(start)))
+            }
             // Keywords that start statements
             TokenKind::If
             | TokenKind::For
@@ -370,6 +376,7 @@ impl<'source> Parser<'source> {
             | TokenKind::Return
             | TokenKind::Match
             | TokenKind::Try
+            | TokenKind::Defer
             | TokenKind::Break
             | TokenKind::Continue
             | TokenKind::Spawn
@@ -442,6 +449,44 @@ impl<'source> Parser<'source> {
             default,
             span: self.span(start),
         })
+    }
+
+    // ========================================================================
+    // Enum definitions
+    // ========================================================================
+
+    fn parse_enum_decl(&mut self) -> Option<EnumDef> {
+        let name = self.parse_identifier()?;
+        self.consume(TokenKind::LBrace, "{");
+        self.skip_newlines();
+
+        let mut variants = Vec::new();
+
+        while !self.check(&TokenKind::RBrace) && !self.at_end() {
+            let vstart = self.current.span.start;
+            let vname = self.parse_identifier()?;
+
+            // Optional associated data: `Some(value: int)`
+            let fields = if self.check(&TokenKind::LParen) {
+                self.parse_params()?
+            } else {
+                Vec::new()
+            };
+
+            variants.push(EnumVariant {
+                name: vname,
+                fields,
+                span: self.span(vstart),
+            });
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+            self.skip_newlines();
+        }
+
+        self.consume(TokenKind::RBrace, "}");
+        Some(EnumDef { name, variants })
     }
 
     // ========================================================================
@@ -705,6 +750,11 @@ impl<'source> Parser<'source> {
                 self.advance();
                 StatementKind::Try(self.parse_try_statement()?)
             }
+            TokenKind::Defer => {
+                self.advance();
+                let expr = self.parse_expr()?;
+                StatementKind::Defer(expr)
+            }
             TokenKind::Break => {
                 self.advance();
                 StatementKind::Break
@@ -729,6 +779,38 @@ impl<'source> Parser<'source> {
 
     fn parse_statement_rest(&mut self, first_expr: Expr) -> Option<Statement> {
         let start = first_expr.span.start as usize;
+
+        // Check for compound assignment: +=, -=, *=, /=, %=
+        let compound_op = match &self.current.kind {
+            TokenKind::PlusEq => Some(BinaryOp::Add),
+            TokenKind::MinusEq => Some(BinaryOp::Sub),
+            TokenKind::StarEq => Some(BinaryOp::Mul),
+            TokenKind::SlashEq => Some(BinaryOp::Div),
+            TokenKind::PercentEq => Some(BinaryOp::Mod),
+            _ => None,
+        };
+        if let Some(op) = compound_op {
+            let op_span = self.current.span.clone();
+            self.advance();
+            let rhs = self.parse_expr()?;
+            let target = self.expr_to_assign_target(first_expr.clone())?;
+            // Desugar: x += y → x = x + y
+            let value = Spanned::new(
+                ExprKind::Binary(BinaryExpr {
+                    left: Box::new(first_expr),
+                    op: Spanned::new(op, Span::new(op_span.start as u32, op_span.end as u32)),
+                    right: Box::new(rhs),
+                }),
+                self.span(start),
+            );
+            return Some(Spanned::new(
+                StatementKind::Assignment(Assignment {
+                    targets: vec![target],
+                    value,
+                }),
+                self.span(start),
+            ));
+        }
 
         // Check for assignment
         if self.check(&TokenKind::Eq) {
@@ -1716,8 +1798,16 @@ impl<'source> Parser<'source> {
                 let name = name.clone();
                 self.advance();
 
+                // Check for dotted pattern: `Direction.North` → identifier "Direction.North"
+                if self.check(&TokenKind::Dot) {
+                    self.advance();
+                    let field = self.parse_identifier()?;
+                    // Combine as "TypeVariant" for Go codegen (e.g., DirectionNorth)
+                    let combined = SmolStr::from(format!("{}{}", name, field.node));
+                    Pattern::Identifier(combined)
+                }
                 // Check for constructor pattern: `Some { value }`
-                if self.check(&TokenKind::LBrace) {
+                else if self.check(&TokenKind::LBrace) {
                     self.advance();
                     let mut fields = Vec::new();
 

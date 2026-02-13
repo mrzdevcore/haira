@@ -1,0 +1,18 @@
+// Example 17: Compound assignment operators
+import "io"
+
+fn main() {
+    x = 10
+    x += 5
+    io.println(x)
+
+    x -= 3
+    io.println(x)
+
+    x *= 2
+    io.println(x)
+
+    name = "hello"
+    name += " world"
+    io.println(name)
+}

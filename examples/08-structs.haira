@@ -1,19 +1,17 @@
+// Example 08: Structs and methods
 import "io"
 
 User {
-    name: string
+    name: string,
     age: int
 }
 
-fn describe_user(name: string, age: int) -> string {
-    if age >= 18 {
-        return name + " is an adult"
-    } else {
-        return name + " is a minor"
-    }
+User.greet() -> string {
+    return "Hello, I'm " + self.Name
 }
 
 fn main() {
-    io.println(describe_user("Alice", 30))
-    io.println(describe_user("Bob", 15))
+    user = User{ name = "Alice", age = 30 }
+    io.println(user.Name)
+    io.println(user.Greet())
 }

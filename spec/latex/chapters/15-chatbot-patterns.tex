@@ -211,6 +211,53 @@ workflow SmartChat(message: string, session_id: string) -> stream<string> {
 }
 \end{lstlisting}
 
+\section{Agent Handoffs}
+
+For complex support bots, use handoffs instead of explicit routing. The front desk agent decides when to delegate, and the runtime handles the transfer automatically:
+
+\begin{lstlisting}
+agent FrontDesk {
+    model: anthropic
+    system: """
+        You are a front desk agent. Greet users and help with general questions.
+        If they have a billing question, hand off to BillingAgent.
+        If they have a technical issue, hand off to TechAgent.
+    """
+    handoffs: [BillingAgent, TechAgent]
+    memory: conversation(max_turns: 10)
+}
+
+agent BillingAgent {
+    model: anthropic
+    system: "You handle billing questions. You can look up invoices and process refunds."
+    tools: [lookup_invoice, process_refund]
+    memory: conversation(max_turns: 30)
+}
+
+agent TechAgent {
+    model: anthropic
+    system: "You handle technical support. You can search docs and check system status."
+    tools: [search_docs, check_status]
+    memory: conversation(max_turns: 30)
+}
+
+@webhook("/chat")
+workflow SmartSupport(message: string, session_id: string) -> { reply: string } {
+    // FrontDesk automatically hands off when appropriate
+    reply, err = FrontDesk.ask(message, session: session_id)
+    if err != nil { return { reply: "Sorry, something went wrong." } }
+    return { reply: reply }
+}
+
+fn main() {
+    server = http.Server([SmartSupport])
+    io.println("Support server on :8080")
+    server.listen(8080)
+}
+\end{lstlisting}
+
+Compare this to the explicit routing in the previous section. With handoffs, the workflow code stays simple --- the agent decides when to delegate, not the workflow. This is ideal for conversational bots where the routing logic is nuanced and best handled by the LLM itself.
+
 \section{Chatbot with Structured Actions}
 
 Sometimes you want the chatbot to return structured data alongside text:

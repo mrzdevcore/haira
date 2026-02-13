@@ -30,6 +30,7 @@ agent AgentName {
 \code{max\_tokens} & \type{int} & No & Max tokens per response \\
 \code{max\_steps} & \type{int} & No & Max tool-calling iterations \\
 \code{memory} & memory type & No & Memory configuration (default: \code{none}) \\
+\code{handoffs} & \type{[agent]} & No & Agents this agent can delegate to \\
 \bottomrule
 \end{tabular}
 \caption{Agent fields}
@@ -203,6 +204,112 @@ for chunk in Agent.stream("Hello", session: session_id) {
 \end{lstlisting}
 
 Without a \code{session:} parameter, each call starts a fresh conversation --- even if the agent has memory configured.
+
+\section{Handoffs}
+
+Agents can transfer a conversation to another agent. This is useful when a generalist agent detects that a specialist should take over.
+
+\subsection{Declaring Handoffs}
+
+Use the \code{handoffs} field to list agents that this agent can delegate to:
+
+\begin{lstlisting}
+agent FrontDesk {
+    model: anthropic
+    system: """
+        You are a front desk agent. Greet users and help them.
+        If they have a billing question, hand off to BillingAgent.
+        If they have a technical issue, hand off to TechAgent.
+    """
+    handoffs: [BillingAgent, TechAgent]
+    memory: conversation(max_turns: 10)
+}
+
+agent BillingAgent {
+    model: anthropic
+    system: "You handle billing questions. You can look up invoices and process refunds."
+    tools: [lookup_invoice, process_refund]
+    memory: conversation(max_turns: 30)
+}
+
+agent TechAgent {
+    model: anthropic
+    system: "You handle technical support. You can search docs and check system status."
+    tools: [search_docs, check_status]
+    memory: conversation(max_turns: 30)
+}
+\end{lstlisting}
+
+\subsection{How Handoffs Work}
+
+When an agent has \code{handoffs}, the runtime injects synthetic tools for each target agent (e.g., \code{transfer\_to\_BillingAgent}). The LLM decides when to call these tools based on the system prompt and conversation context.
+
+The handoff process:
+
+\begin{enumerate}
+    \item The LLM calls a handoff tool (e.g., \code{transfer\_to\_BillingAgent})
+    \item The runtime transfers the conversation history to the target agent's session
+    \item The target agent processes the original message with full context
+    \item The target agent's response is returned to the caller
+\end{enumerate}
+
+\subsection{.ask() --- Automatic Handoffs}
+
+When using \code{.ask()}, handoffs are automatic. The caller sees a seamless response regardless of which agent ultimately handled it:
+
+\begin{lstlisting}
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> { reply: string } {
+    // FrontDesk may hand off to BillingAgent or TechAgent internally
+    // The caller just gets the final reply
+    reply, err = FrontDesk.ask(message, session: session_id)
+    if err != nil { return { reply: "Something went wrong." } }
+    return { reply: reply }
+}
+\end{lstlisting}
+
+\subsection{.run() --- Manual Handoff Control}
+
+When using \code{.run()}, the workflow receives an \code{AgentResult} that includes handoff information, allowing manual inspection or override:
+
+\begin{lstlisting}
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> { reply: string } {
+    result: AgentResult, err = FrontDesk.run(message, session: session_id)
+    if err != nil { return { reply: "Something went wrong." } }
+
+    if result.handed_off_to != nil {
+        io.println("Handed off to: " + result.handed_off_to)
+    }
+
+    return { reply: result.reply }
+}
+\end{lstlisting}
+
+\subsection{Handoff Chains}
+
+Target agents can themselves have handoffs, creating delegation chains. The runtime follows the chain until an agent produces a final response (up to a configurable depth limit):
+
+\begin{lstlisting}
+agent L1Support {
+    model: anthropic
+    system: "You handle basic support. Escalate complex issues to L2."
+    handoffs: [L2Support]
+}
+
+agent L2Support {
+    model: anthropic
+    system: "You handle complex technical issues. Escalate critical outages to L3."
+    tools: [search_docs, check_status]
+    handoffs: [L3Support]
+}
+
+agent L3Support {
+    model: anthropic
+    system: "You handle critical outages. You have full system access."
+    tools: [search_docs, check_status, restart_service, page_oncall]
+}
+\end{lstlisting}
 
 \section{Tool-Calling Loop}
 

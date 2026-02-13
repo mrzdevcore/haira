@@ -259,9 +259,10 @@ fn expr_has_interpolated_string(expr: &Expr) -> bool {
 
 /// Check if we need "encoding/json" (for tools/agents).
 fn needs_json_import(ast: &SourceFile) -> bool {
+    // Only tools use encoding/json directly (json.RawMessage, json.Unmarshal)
     ast.items
         .iter()
-        .any(|item| matches!(&item.node, ItemKind::ToolDecl(_) | ItemKind::AgentDecl(_)))
+        .any(|item| matches!(&item.node, ItemKind::ToolDecl(_)))
 }
 
 /// Check if we need the haira runtime import.

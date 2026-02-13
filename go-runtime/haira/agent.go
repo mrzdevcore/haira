@@ -15,8 +15,15 @@ type AgentConfig struct {
 	Provider    *Provider
 	System      string
 	Tools       *ToolRegistry
+	Handoffs    []*Agent
 	Temperature float64
 	Memory      MemoryConfig
+}
+
+// AgentResult holds the full result of an agent call, including handoff info.
+type AgentResult struct {
+	Reply       string
+	HandedOffTo string // name of agent that handled the request, empty if no handoff
 }
 
 // Agent is an LLM-powered agent that can use tools.
@@ -25,6 +32,8 @@ type Agent struct {
 	client *openai.Client
 	store  *SessionStore
 }
+
+const handoffToolPrefix = "transfer_to_"
 
 // NewAgent creates a new agent from configuration.
 func NewAgent(config AgentConfig) *Agent {
@@ -61,7 +70,24 @@ func NewAgent(config AgentConfig) *Agent {
 
 // Ask sends a message to the agent and returns the response.
 // Implements the full tool-calling loop: send → tool calls → execute → repeat.
+// If the agent has handoffs, handoff tool calls are followed automatically.
 func (a *Agent) Ask(message string, sessionID string) (string, error) {
+	result, err := a.run(message, sessionID, true)
+	if err != nil {
+		return "", err
+	}
+	return result.Reply, nil
+}
+
+// Run sends a message to the agent and returns the full AgentResult,
+// including handoff information. Handoffs are followed automatically.
+// Use this when you need to inspect which agent handled the request.
+func (a *Agent) Run(message string, sessionID string) (*AgentResult, error) {
+	return a.run(message, sessionID, true)
+}
+
+// run is the internal implementation shared by Ask and Run.
+func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*AgentResult, error) {
 	ctx := context.Background()
 
 	// Build messages: system + history + new user message
@@ -86,7 +112,7 @@ func (a *Agent) Ask(message string, sessionID string) (string, error) {
 	})
 	a.store.AddMessage(sessionID, Message{Role: "user", Content: message})
 
-	// Build OpenAI tool definitions
+	// Build OpenAI tool definitions (includes handoff tools)
 	tools := a.buildTools()
 
 	// Tool-calling loop (max 10 iterations)
@@ -103,11 +129,11 @@ func (a *Agent) Ask(message string, sessionID string) (string, error) {
 		resp, err := a.client.CreateChatCompletion(ctx, req)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[haira] LLM API error: %v\n", err)
-			return "", fmt.Errorf("LLM API error: %w", err)
+			return nil, fmt.Errorf("LLM API error: %w", err)
 		}
 
 		if len(resp.Choices) == 0 {
-			return "", fmt.Errorf("LLM returned no choices")
+			return nil, fmt.Errorf("LLM returned no choices")
 		}
 
 		choice := resp.Choices[0]
@@ -116,20 +142,46 @@ func (a *Agent) Ask(message string, sessionID string) (string, error) {
 		if len(choice.Message.ToolCalls) == 0 {
 			reply := choice.Message.Content
 			a.store.AddMessage(sessionID, Message{Role: "assistant", Content: reply})
-			return reply, nil
+			return &AgentResult{Reply: reply}, nil
+		}
+
+		// Check for handoff tool calls
+		if followHandoffs {
+			for _, tc := range choice.Message.ToolCalls {
+				if target := a.findHandoffTarget(tc.Function.Name); target != nil {
+					fmt.Fprintf(os.Stderr, "[haira] Handoff: %s → %s\n", a.config.Name, target.config.Name)
+					// Delegate to target agent with the same session
+					result, err := target.run(message, sessionID, true)
+					if err != nil {
+						return nil, fmt.Errorf("handoff to %s failed: %w", target.config.Name, err)
+					}
+					result.HandedOffTo = target.config.Name
+					return result, nil
+				}
+			}
 		}
 
 		// Append assistant message with tool calls
 		messages = append(messages, choice.Message)
 
-		// Execute each tool call
+		// Execute each tool call (non-handoff tools)
 		for _, tc := range choice.Message.ToolCalls {
 			toolResult := a.executeTool(tc)
 			messages = append(messages, toolResult)
 		}
 	}
 
-	return "", fmt.Errorf("tool-calling loop exceeded maximum iterations")
+	return nil, fmt.Errorf("tool-calling loop exceeded maximum iterations")
+}
+
+// findHandoffTarget checks if a tool call name matches a handoff target.
+func (a *Agent) findHandoffTarget(toolName string) *Agent {
+	for _, target := range a.config.Handoffs {
+		if toolName == handoffToolPrefix+target.config.Name {
+			return target
+		}
+	}
+	return nil
 }
 
 func (a *Agent) executeTool(tc openai.ToolCall) openai.ChatCompletionMessage {
@@ -159,23 +211,40 @@ func (a *Agent) executeTool(tc openai.ToolCall) openai.ChatCompletionMessage {
 }
 
 func (a *Agent) buildTools() []openai.Tool {
-	if a.config.Tools == nil {
-		return nil
-	}
 	var tools []openai.Tool
-	for _, td := range a.config.Tools.All() {
-		var params map[string]any
-		json.Unmarshal(td.Parameters, &params)
 
+	// Add registered tools
+	if a.config.Tools != nil {
+		for _, td := range a.config.Tools.All() {
+			var params map[string]any
+			json.Unmarshal(td.Parameters, &params)
+
+			tools = append(tools, openai.Tool{
+				Type: openai.ToolTypeFunction,
+				Function: &openai.FunctionDefinition{
+					Name:        td.Name,
+					Description: td.Description,
+					Parameters:  params,
+				},
+			})
+		}
+	}
+
+	// Add synthetic handoff tools
+	for _, target := range a.config.Handoffs {
 		tools = append(tools, openai.Tool{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
-				Name:        td.Name,
-				Description: td.Description,
-				Parameters:  params,
+				Name:        handoffToolPrefix + target.config.Name,
+				Description: fmt.Sprintf("Transfer the conversation to %s.", target.config.Name),
+				Parameters: map[string]any{
+					"type":       "object",
+					"properties": map[string]any{},
+				},
 			},
 		})
 	}
+
 	return tools
 }
 

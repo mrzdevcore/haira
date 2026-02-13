@@ -39,6 +39,7 @@ workflow Chat(message: string, session_id: string) -> { reply: string } {
     return { reply: reply }
 }
 
+
 fn main() {
     server = http.Server([Chat])
     io.println("Server running on :9001")

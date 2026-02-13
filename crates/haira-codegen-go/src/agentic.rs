@@ -29,10 +29,13 @@ pub fn emit_agent(em: &mut GoEmitter, agent: &AgentDecl) {
     let init_name = format!("initAgent{}", agent.name.node);
     em.open_block(&format!("func {}()", init_name));
 
-    // Extract fields
+    // Extract fields — pre-config setup
+    let mut has_tools = false;
+    let mut has_handoffs = false;
     for (key, value) in &agent.fields {
         match key.node.as_str() {
             "tools" => {
+                has_tools = true;
                 em.line("toolReg := haira.NewToolRegistry()");
                 // Expect a list of identifiers
                 if let ExprKind::List(items) = &value.node {
@@ -44,9 +47,29 @@ pub fn emit_agent(em: &mut GoEmitter, agent: &AgentDecl) {
                     }
                 }
             }
+            "handoffs" => {
+                has_handoffs = true;
+                if let ExprKind::List(items) = &value.node {
+                    let refs: Vec<String> = items
+                        .iter()
+                        .filter_map(|item| {
+                            if let ExprKind::Identifier(name) = &item.node {
+                                Some(format!("agent{}", snake_to_pascal(name)))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    em.line(&format!(
+                        "handoffTargets := []*haira.Agent{{{}}}",
+                        refs.join(", ")
+                    ));
+                }
+            }
             _ => {}
         }
     }
+    let _ = (has_tools, has_handoffs); // suppress unused warnings
     em.blank();
 
     em.open_block(&format!("{} = haira.NewAgent(haira.AgentConfig", var_name));
@@ -65,6 +88,9 @@ pub fn emit_agent(em: &mut GoEmitter, agent: &AgentDecl) {
             }
             "tools" => {
                 em.line("Tools: toolReg,");
+            }
+            "handoffs" => {
+                em.line("Handoffs: handoffTargets,");
             }
             "temperature" => {
                 let go_val = expr_to_go(value);

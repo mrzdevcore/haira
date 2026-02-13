@@ -310,6 +310,178 @@ $ haira serve main.haira --port 8080
 $ ANTHROPIC_API_KEY=sk-... haira serve main.haira
 \end{lstlisting}
 
+\section{Orchestration Patterns}
+
+\haira{} workflows compose naturally into common orchestration patterns using existing language primitives. No special keywords or frameworks are needed.
+
+\subsection{Sequential Chain}
+
+Pipe the output of one agent into the next:
+
+\begin{lstlisting}
+workflow Analyze(text: string) -> { result: string } {
+    summary, err = Summarizer.ask(text)
+    sentiment, err = SentimentAnalyzer.ask(summary)
+    report, err = ReportWriter.ask(sentiment)
+    return { result: report }
+}
+\end{lstlisting}
+
+\subsection{Parallel Fan-Out}
+
+Run multiple agents concurrently and collect results:
+
+\begin{lstlisting}
+workflow Research(topic: string) -> { synthesis: string } {
+    results = spawn {
+        WebSearcher.ask(topic)
+        PaperAnalyzer.ask(topic)
+        NewsScanner.ask(topic)
+    }
+    synthesis, err = Synthesizer.ask(results)
+    return { synthesis: synthesis }
+}
+\end{lstlisting}
+
+\subsection{Router / Dispatcher}
+
+One agent classifies intent, then \keyword{match} routes to a specialist:
+
+\begin{lstlisting}
+workflow Support(message: string, session_id: string) -> { reply: string } {
+    intent, err = Router.ask(message)
+    reply, err = match intent {
+        "billing"   => BillingAgent.ask(message, session: session_id)
+        "technical" => TechAgent.ask(message, session: session_id)
+        _           => GeneralAgent.ask(message, session: session_id)
+    }
+    return { reply: reply }
+}
+\end{lstlisting}
+
+\subsection{Handoff}
+
+Agents delegate to other agents automatically via the \code{handoffs} field. See Chapter~\ref{ch:agents}, Handoffs section.
+
+\subsection{Iterative Refinement}
+
+An agent produces output, a critic evaluates it, and the loop repeats until approved:
+
+\begin{lstlisting}
+workflow Refine(draft: string) -> { result: string } {
+    current = draft
+    for i in 0..3 {
+        critique, err = Critic.ask(current)
+        if critique == "approved" { break }
+        current, err = Writer.ask("Improve based on: ${critique}\n\n${current}")
+    }
+    return { result: current }
+}
+\end{lstlisting}
+
+\subsection{Supervisor}
+
+A planner creates a task list, workers execute each step, and a supervisor evaluates results:
+
+\begin{lstlisting}
+workflow ComplexTask(goal: string) -> { result: string } {
+    plan, err = Planner.ask(goal)
+
+    for step in plan.steps {
+        worker = match step.type {
+            "code"     => Coder
+            "research" => Researcher
+            "review"   => Reviewer
+        }
+        result, err = worker.ask(step.instruction)
+
+        evaluation, err = Supervisor.ask("Evaluate: ${result}")
+        if evaluation == "retry" {
+            result, err = worker.ask("Try again: ${step.instruction}")
+        }
+    }
+
+    return { result: result }
+}
+\end{lstlisting}
+
+\subsection{Voting / Consensus}
+
+Multiple agents answer the same question, then an aggregator picks the best:
+
+\begin{lstlisting}
+workflow Decide(question: string) -> { answer: string } {
+    votes = spawn {
+        ExpertA.ask(question)
+        ExpertB.ask(question)
+        ExpertC.ask(question)
+    }
+    consensus, err = Aggregator.ask(votes)
+    return { answer: consensus }
+}
+\end{lstlisting}
+
+\subsection{Human-in-the-Loop}
+
+For workflows that require human approval, split into two workflows connected by shared state. The first workflow does the AI work and sends a notification. The second workflow handles the human's response:
+
+\begin{lstlisting}
+tool send_email(to: string, subject: string, body: string) -> string {
+    """Send an email notification."""
+    resp, err = http.post("https://api.sendgrid.com/v3/mail/send", {
+        to: to, subject: subject, body: body
+    })
+    return resp.body
+}
+
+@webhook("/api/publish")
+workflow SubmitForReview(content: string) -> { review_id: string } {
+    edited, err = Editor.ask(content)
+    review_id = save_review(edited)
+
+    send_email(
+        to: "admin@company.com",
+        subject: "Review needed",
+        body: "Approve: https://app.com/api/review?id=${review_id}&action=approve"
+    )
+
+    return { review_id: review_id }
+}
+
+@webhook("/api/review")
+workflow HandleReview(id: string, action: string) -> { status: string } {
+    if action == "approve" {
+        content = get_review(id)
+        publish(content)
+        return { status: "published" }
+    }
+    return { status: "rejected" }
+}
+\end{lstlisting}
+
+No new primitives are needed. The ``event'' is just another HTTP request hitting another workflow. Notifications go out via tools (email, Slack, etc.), and the callback URL points back to a \code{@webhook} workflow.
+
+\subsection{Pattern Summary}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Pattern} & \textbf{Primitives Used} & \textbf{New Syntax?} \\
+\midrule
+Sequential chain & statements & No \\
+Parallel fan-out & \keyword{spawn} & No \\
+Router / dispatcher & \keyword{match} + agents & No \\
+Handoff & \code{handoffs} agent field & Field only \\
+Iterative refinement & \keyword{for} + \keyword{break} & No \\
+Supervisor & loop + \keyword{match} + agents & No \\
+Voting / consensus & \keyword{spawn} + aggregation & No \\
+Human-in-the-loop & two workflows + tools & No \\
+\bottomrule
+\end{tabular}
+\caption{Orchestration patterns and their primitives}
+\end{table}
+
 \section{Workflow Grammar}
 
 \begin{lstlisting}[language=EBNF]

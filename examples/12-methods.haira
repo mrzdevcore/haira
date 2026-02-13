@@ -1,0 +1,17 @@
+import "io"
+
+fn increment(n: int) -> int {
+    return n + 1
+}
+
+fn display_count(n: int) {
+    io.println("Count: {n}")
+}
+
+fn main() {
+    count = 0
+    count = increment(count)
+    count = increment(count)
+    count = increment(count)
+    display_count(count)
+}

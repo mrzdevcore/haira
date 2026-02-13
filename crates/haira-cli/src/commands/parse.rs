@@ -104,6 +104,65 @@ fn print_item(item: &haira_ast::Item, source: &str, indent: usize) {
             );
             println!("{}  intent: {}", prefix, ai_block.intent);
         }
+        haira_ast::ItemKind::ImportDecl(import) => {
+            println!("{}ImportDecl: \"{}\"", prefix, import.path);
+        }
+        haira_ast::ItemKind::ProviderDecl(provider) => {
+            println!(
+                "{}ProviderDecl: {} ({} fields)",
+                prefix,
+                provider.name.node,
+                provider.fields.len()
+            );
+            for (key, _value) in &provider.fields {
+                println!("{}  - {}", prefix, key.node);
+            }
+        }
+        haira_ast::ItemKind::ToolDecl(tool) => {
+            println!(
+                "{}ToolDecl: {} ({} params)",
+                prefix,
+                tool.name.node,
+                tool.params.len()
+            );
+            for param in &tool.params {
+                println!("{}  param: {}", prefix, param.name.node);
+            }
+            println!("{}  description: {:?}", prefix, tool.description.as_str());
+        }
+        haira_ast::ItemKind::AgentDecl(agent) => {
+            println!(
+                "{}AgentDecl: {} ({} fields)",
+                prefix,
+                agent.name.node,
+                agent.fields.len()
+            );
+            for (key, _value) in &agent.fields {
+                println!("{}  - {}", prefix, key.node);
+            }
+        }
+        haira_ast::ItemKind::WorkflowDecl(workflow) => {
+            let trigger = workflow
+                .trigger
+                .as_ref()
+                .map(|d| format!("@{}", d.name.node))
+                .unwrap_or_default();
+            println!(
+                "{}WorkflowDecl: {} {} ({} params)",
+                prefix,
+                trigger,
+                workflow.name.node,
+                workflow.params.len()
+            );
+            for param in &workflow.params {
+                println!("{}  param: {}", prefix, param.name.node);
+            }
+            println!(
+                "{}  body: {} statements",
+                prefix,
+                workflow.body.statements.len()
+            );
+        }
         haira_ast::ItemKind::Statement(stmt) => {
             print_statement_kind(stmt, source, indent);
         }

@@ -8,6 +8,7 @@ Haira is a statically-typed, compiled programming language where workflows, agen
 
 ```haira
 import "io"
+import "http"
 
 provider anthropic {
     api_key: env("ANTHROPIC_API_KEY")
@@ -36,7 +37,7 @@ workflow Research(topic: string) -> ResearchResult {
 }
 
 fn main() {
-    server = haira.serve([Research])
+    server = http.Server([Research])
     io.println("Running on :8080")
     server.listen(8080)
 }

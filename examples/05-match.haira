@@ -1,0 +1,16 @@
+import "io"
+
+fn describe(code: int) -> string {
+    match code {
+        200 => return "OK"
+        404 => return "Not Found"
+        500 => return "Internal Server Error"
+        _ => return "Unknown"
+    }
+}
+
+fn main() {
+    io.println(describe(200))
+    io.println(describe(404))
+    io.println(describe(999))
+}

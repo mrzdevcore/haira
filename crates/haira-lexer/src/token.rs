@@ -77,6 +77,18 @@ pub enum TokenKind {
     Default,
     #[token("ai")]
     Ai,
+    #[token("provider")]
+    Provider,
+    #[token("tool")]
+    Tool,
+    #[token("agent")]
+    Agent,
+    #[token("workflow")]
+    Workflow,
+    #[token("fn")]
+    Fn,
+    #[token("import")]
+    Import,
 
     // ========================================================================
     // Operators
@@ -127,6 +139,8 @@ pub enum TokenKind {
     Comma,
     #[token("...")]
     Ellipsis,
+    #[token("@")]
+    At,
 
     // ========================================================================
     // Delimiters
@@ -166,6 +180,10 @@ pub enum TokenKind {
     /// We match strings that contain `{` and parse them specially
     #[regex(r#""([^"\\]|\\.)*""#, |lex| parse_interpolated_string(lex.slice()), priority = 1)]
     InterpolatedString(SmolStr),
+
+    /// Triple-quoted string literal: """..."""
+    #[token(r#"""""#, parse_triple_quote_string)]
+    TripleQuoteString(SmolStr),
 
     /// Identifier
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| SmolStr::from(lex.slice()))]
@@ -225,6 +243,12 @@ impl TokenKind {
                 | TokenKind::From
                 | TokenKind::Default
                 | TokenKind::Ai
+                | TokenKind::Provider
+                | TokenKind::Tool
+                | TokenKind::Agent
+                | TokenKind::Workflow
+                | TokenKind::Fn
+                | TokenKind::Import
         )
     }
 
@@ -236,6 +260,7 @@ impl TokenKind {
                 | TokenKind::Float(_)
                 | TokenKind::String(_)
                 | TokenKind::InterpolatedString(_)
+                | TokenKind::TripleQuoteString(_)
                 | TokenKind::True
                 | TokenKind::False
                 | TokenKind::None
@@ -270,6 +295,43 @@ fn parse_binary(s: &str) -> Option<i64> {
 fn parse_octal(s: &str) -> Option<i64> {
     let s = s.strip_prefix("0o").unwrap_or(s).replace('_', "");
     i64::from_str_radix(&s, 8).ok()
+}
+
+/// Parse a triple-quoted string: reads until closing `"""`
+fn parse_triple_quote_string(lex: &mut logos::Lexer<TokenKind>) -> Option<SmolStr> {
+    let remainder = lex.remainder();
+    // Find the closing """
+    if let Some(end) = remainder.find("\"\"\"") {
+        let content = &remainder[..end];
+        lex.bump(end + 3); // skip content + closing """
+                           // Dedent: strip common leading whitespace
+        let lines: Vec<&str> = content.lines().collect();
+        let non_empty_lines: Vec<&&str> = lines.iter().filter(|l| !l.trim().is_empty()).collect();
+        let min_indent = non_empty_lines
+            .iter()
+            .map(|l| l.len() - l.trim_start().len())
+            .min()
+            .unwrap_or(0);
+        let dedented: Vec<&str> = lines
+            .iter()
+            .map(|l| {
+                if l.trim().is_empty() {
+                    ""
+                } else if l.len() >= min_indent {
+                    &l[min_indent..]
+                } else {
+                    l
+                }
+            })
+            .collect();
+        let result = dedented.join("\n");
+        let result = result.trim();
+        Some(SmolStr::from(result))
+    } else {
+        // No closing """ found — consume everything
+        lex.bump(remainder.len());
+        None
+    }
 }
 
 fn parse_float(s: &str) -> Option<f64> {

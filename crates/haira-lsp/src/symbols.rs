@@ -130,6 +130,83 @@ pub fn get_document_symbols(source: &str) -> Vec<SymbolInformation> {
                     });
                 }
             }
+            ItemKind::ImportDecl(_) => {}
+            ItemKind::ProviderDecl(provider) => {
+                let range = span_to_range(
+                    source,
+                    provider.name.span.start as usize,
+                    provider.name.span.end as usize,
+                );
+                #[allow(deprecated)]
+                symbols.push(SymbolInformation {
+                    name: provider.name.node.to_string(),
+                    kind: SymbolKind::NAMESPACE,
+                    tags: None,
+                    deprecated: None,
+                    location: Location {
+                        uri: Url::parse("file:///").unwrap(),
+                        range,
+                    },
+                    container_name: None,
+                });
+            }
+            ItemKind::ToolDecl(tool) => {
+                let range = span_to_range(
+                    source,
+                    tool.name.span.start as usize,
+                    tool.name.span.end as usize,
+                );
+                #[allow(deprecated)]
+                symbols.push(SymbolInformation {
+                    name: tool.name.node.to_string(),
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    deprecated: None,
+                    location: Location {
+                        uri: Url::parse("file:///").unwrap(),
+                        range,
+                    },
+                    container_name: None,
+                });
+            }
+            ItemKind::AgentDecl(agent) => {
+                let range = span_to_range(
+                    source,
+                    agent.name.span.start as usize,
+                    agent.name.span.end as usize,
+                );
+                #[allow(deprecated)]
+                symbols.push(SymbolInformation {
+                    name: agent.name.node.to_string(),
+                    kind: SymbolKind::CLASS,
+                    tags: None,
+                    deprecated: None,
+                    location: Location {
+                        uri: Url::parse("file:///").unwrap(),
+                        range,
+                    },
+                    container_name: None,
+                });
+            }
+            ItemKind::WorkflowDecl(workflow) => {
+                let range = span_to_range(
+                    source,
+                    workflow.name.span.start as usize,
+                    workflow.name.span.end as usize,
+                );
+                #[allow(deprecated)]
+                symbols.push(SymbolInformation {
+                    name: workflow.name.node.to_string(),
+                    kind: SymbolKind::FUNCTION,
+                    tags: None,
+                    deprecated: None,
+                    location: Location {
+                        uri: Url::parse("file:///").unwrap(),
+                        range,
+                    },
+                    container_name: None,
+                });
+            }
             ItemKind::Statement(stmt) => {
                 // Check for top-level assignments (global variables)
                 if let StatementKind::Assignment(assign) = &stmt.node {

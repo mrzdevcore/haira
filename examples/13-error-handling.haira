@@ -1,0 +1,25 @@
+import "io"
+
+fn divide(a: int, b: int) -> int {
+    if b == 0 {
+        io.println("Error: division by zero")
+        return 0
+    }
+    return a / b
+}
+
+fn abs(n: int) -> int {
+    if n < 0 {
+        return 0 - n
+    }
+    return n
+}
+
+fn main() {
+    io.println(divide(10, 3))
+    io.println(divide(10, 0))
+    io.println(divide(100, 5))
+
+    io.println(abs(-42))
+    io.println(abs(7))
+}

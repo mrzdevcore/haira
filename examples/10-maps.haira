@@ -1,0 +1,13 @@
+import "io"
+
+fn main() {
+    scores = {
+        "alice": 95,
+        "bob": 82,
+        "charlie": 90
+    }
+
+    io.println(scores["alice"])
+    io.println(scores["bob"])
+    io.println(scores["charlie"])
+}

@@ -285,7 +285,7 @@ Start a server that listens for all triggered workflows:
 
 \begin{lstlisting}
 fn main() {
-    server = haira.serve([
+    server = http.Server([
         Summarizer,         // POST /summarize
         Chat,               // WebSocket /chat
         ProcessOrder,       // on order.created events

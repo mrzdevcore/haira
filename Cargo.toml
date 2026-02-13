@@ -12,6 +12,7 @@ members = [
     "crates/haira-hir",
     "crates/haira-mir",
     "crates/haira-codegen",
+    "crates/haira-codegen-go", # Go transpiler backend
     "crates/haira-driver",
     "crates/haira-cli",
     "crates/haira-lsp",       # Language Server Protocol implementation
@@ -59,6 +60,7 @@ haira-types = { path = "crates/haira-types" }
 haira-hir = { path = "crates/haira-hir" }
 haira-mir = { path = "crates/haira-mir" }
 haira-codegen = { path = "crates/haira-codegen" }
+haira-codegen-go = { path = "crates/haira-codegen-go" }
 haira-driver = { path = "crates/haira-driver" }
 haira-local-ai = { path = "crates/haira-local-ai" }
 haira-runtime = { path = "crates/haira-runtime" }

@@ -1,0 +1,20 @@
+import "io"
+
+fn double(n: int) -> int {
+    return n * 2
+}
+
+fn add_one(n: int) -> int {
+    return n + 1
+}
+
+fn to_label(n: int) -> string {
+    return "Result: {n}"
+}
+
+fn main() {
+    result = 5 | double | add_one | to_label
+    io.println(result)
+
+    io.println(10 | double | double)
+}

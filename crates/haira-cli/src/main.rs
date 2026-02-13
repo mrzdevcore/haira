@@ -89,6 +89,12 @@ enum Commands {
         file: PathBuf,
     },
 
+    /// Parse and serve a Haira file (starts the agentic runtime)
+    Serve {
+        /// Input .haira file
+        file: PathBuf,
+    },
+
     /// Show information about the Haira installation
     Info,
 
@@ -137,6 +143,7 @@ fn main() -> miette::Result<()> {
             ModelAction::Info => commands::model::info(),
         },
         Commands::Run { file } => commands::run::run(&file),
+        Commands::Serve { file } => commands::serve::run(&file),
         Commands::Parse { file, json } => commands::parse::run(&file, json),
         Commands::Check { files } => commands::check::run(&files),
         Commands::Lex { file } => commands::lex::run(&file),

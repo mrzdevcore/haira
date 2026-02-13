@@ -1,0 +1,32 @@
+import "io"
+
+fn classify(n: int) -> string {
+    if n > 0 {
+        return "positive"
+    } else if n < 0 {
+        return "negative"
+    } else {
+        return "zero"
+    }
+}
+
+fn fibonacci(n: int) -> int {
+    a = 0
+    b = 1
+    i = 0
+    while i < n {
+        temp = a + b
+        a = b
+        b = temp
+        i = i + 1
+    }
+    return a
+}
+
+fn main() {
+    io.println(classify(42))
+    io.println(classify(-3))
+    io.println(classify(0))
+
+    io.println(fibonacci(10))
+}

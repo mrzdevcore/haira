@@ -1,0 +1,61 @@
+import "io"
+import "http"
+
+provider anthropic {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-5-20250929"
+}
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
+}
+
+tool search_docs(query: string) -> string {
+    """
+    Search the documentation for relevant information.
+    Returns matching documentation snippets.
+    """
+}
+
+tool create_ticket(title: string, body: string) -> string {
+    """
+    Create a support ticket with the given title and body.
+    Returns the ticket ID.
+    """
+}
+
+agent Researcher {
+    model: anthropic
+    system: "You are a research assistant. Find relevant information."
+    tools: [search_docs]
+    temperature: 0.3
+}
+
+agent SupportBot {
+    model: openai
+    system: "You are a support agent. Help users and create tickets when needed."
+    tools: [create_ticket]
+    memory: conversation(max_turns: 20)
+    temperature: 0.5
+}
+
+@webhook("/api/research")
+workflow Research(query: string) -> { answer: string } {
+    answer, err = Researcher.ask(query)
+    if err != nil { return { answer: "Research failed." } }
+    return { answer: answer }
+}
+
+@webhook("/api/support")
+workflow Support(message: string, session_id: string) -> { reply: string } {
+    reply, err = SupportBot.ask(message, session: session_id)
+    if err != nil { return { reply: "Support unavailable." } }
+    return { reply: reply }
+}
+
+fn main() {
+    server = http.Server([Research, Support])
+    io.println("Multi-agent server running on :3000")
+    server.listen(3000)
+}

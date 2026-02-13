@@ -1,0 +1,19 @@
+import "io"
+
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn multiply(a: int, b: int) -> int {
+    return a * b
+}
+
+fn greet(name: string) -> string {
+    return "Hello, " + name + "!"
+}
+
+fn main() {
+    io.println(add(3, 5))
+    io.println(multiply(4, 7))
+    io.println(greet("World"))
+}

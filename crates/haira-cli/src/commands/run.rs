@@ -1,10 +1,9 @@
-//! Run command - compile and execute a Haira file.
+//! Run command — compile and execute a Haira file via Go transpilation.
 
-use haira_codegen::{compile_to_executable, CodegenOptions};
+use haira_codegen_go::{find_runtime_path, run_program};
 use haira_parser::parse;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 pub(crate) fn run(file: &Path) -> miette::Result<()> {
     let source =
@@ -20,22 +19,17 @@ pub(crate) fn run(file: &Path) -> miette::Result<()> {
         return Err(miette::miette!("{} parse error(s)", result.errors.len()));
     }
 
-    // Create temporary output path
-    let tmp_dir = std::env::temp_dir();
-    let output_file = tmp_dir.join("haira_run_temp");
+    // Find Go runtime path
+    let runtime_path = find_runtime_path().ok_or_else(|| {
+        miette::miette!(
+            "Could not find go-runtime directory.\n\
+             Expected at: <project_root>/go-runtime/\n\
+             Make sure you're running from the Haira project directory."
+        )
+    })?;
 
-    // Compile to native binary
-    let options = CodegenOptions::default();
-    compile_to_executable(&result.ast, &output_file, options)
-        .map_err(|e| miette::miette!("Compilation error: {}", e))?;
-
-    // Execute the binary
-    let status = Command::new(&output_file)
-        .status()
-        .map_err(|e| miette::miette!("Failed to execute: {}", e))?;
-
-    // Clean up
-    fs::remove_file(&output_file).ok();
+    // Run via Go transpilation
+    let status = run_program(&result.ast, &runtime_path).map_err(|e| miette::miette!("{}", e))?;
 
     if !status.success() {
         if let Some(code) = status.code() {

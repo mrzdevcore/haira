@@ -1,0 +1,19 @@
+import "io"
+
+User {
+    name: string
+    age: int
+}
+
+fn describe_user(name: string, age: int) -> string {
+    if age >= 18 {
+        return name + " is an adult"
+    } else {
+        return name + " is a minor"
+    }
+}
+
+fn main() {
+    io.println(describe_user("Alice", 30))
+    io.println(describe_user("Bob", 15))
+}

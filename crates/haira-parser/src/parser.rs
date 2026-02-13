@@ -310,6 +310,68 @@ impl<'source> Parser<'source> {
                     self.span(start),
                 ))
             }
+            // Import declaration: `import "http"`
+            TokenKind::Import => {
+                self.advance();
+                let import = self.parse_import_decl()?;
+                Some(Spanned::new(ItemKind::ImportDecl(import), self.span(start)))
+            }
+            // Provider declaration: `provider name { ... }`
+            TokenKind::Provider => {
+                self.advance();
+                let provider = self.parse_provider_decl()?;
+                Some(Spanned::new(
+                    ItemKind::ProviderDecl(provider),
+                    self.span(start),
+                ))
+            }
+            // Tool declaration: `tool name(...) -> Type { ... }`
+            TokenKind::Tool => {
+                self.advance();
+                let tool = self.parse_tool_decl()?;
+                Some(Spanned::new(ItemKind::ToolDecl(tool), self.span(start)))
+            }
+            // Agent declaration: `agent Name { ... }`
+            TokenKind::Agent => {
+                self.advance();
+                let agent = self.parse_agent_decl()?;
+                Some(Spanned::new(ItemKind::AgentDecl(agent), self.span(start)))
+            }
+            // Decorated item: `@webhook("/path") workflow ...`
+            TokenKind::At => {
+                let decorator = self.parse_decorator()?;
+                // After decorator, expect `workflow`
+                if self.check(&TokenKind::Workflow) {
+                    self.advance();
+                    let workflow = self.parse_workflow_decl(Some(decorator))?;
+                    Some(Spanned::new(
+                        ItemKind::WorkflowDecl(workflow),
+                        self.span(start),
+                    ))
+                } else {
+                    self.error(ParseError::UnexpectedToken {
+                        expected: "workflow".to_string(),
+                        found: self.current.kind.clone(),
+                        span: self.current.span.clone(),
+                    });
+                    None
+                }
+            }
+            // Workflow declaration: `workflow Name(...) -> Type { ... }`
+            TokenKind::Workflow => {
+                self.advance();
+                let workflow = self.parse_workflow_decl(None)?;
+                Some(Spanned::new(
+                    ItemKind::WorkflowDecl(workflow),
+                    self.span(start),
+                ))
+            }
+            // Named function: `fn name(...) { ... }`
+            TokenKind::Fn => {
+                self.advance();
+                let func = self.parse_fn_decl(is_public)?;
+                Some(Spanned::new(ItemKind::FunctionDef(func), self.span(start)))
+            }
             // Keywords that start statements
             TokenKind::If
             | TokenKind::For
@@ -551,12 +613,30 @@ impl<'source> Parser<'source> {
                 self.consume(TokenKind::RBracket, "]");
                 Type::List(Box::new(inner))
             }
-            // Map type: `{string: int}`
+            // Map type: `{string: int}` or record type: `{ reply: string }`
+            // We peek to differentiate: if first token is an ident followed by colon,
+            // and the ident starts lowercase (field name), treat as record → Named type.
+            // For the POC, we parse `{ ident: type }` as a Named("_record") placeholder.
             TokenKind::LBrace => {
                 self.advance();
+                self.skip_newlines();
+                // Try to parse as map type or record type
                 let key = self.parse_type()?;
                 self.consume(TokenKind::Colon, ":");
                 let value = self.parse_type()?;
+                // Check for additional fields (record type has comma-separated pairs)
+                while self.check(&TokenKind::Comma) {
+                    self.advance();
+                    self.skip_newlines();
+                    if self.check(&TokenKind::RBrace) {
+                        break;
+                    }
+                    // Skip additional record fields for now
+                    let _k = self.parse_type()?;
+                    self.consume(TokenKind::Colon, ":");
+                    let _v = self.parse_type()?;
+                }
+                self.skip_newlines();
                 self.consume(TokenKind::RBrace, "}");
                 Type::Map {
                     key: Box::new(key),
@@ -923,6 +1003,14 @@ impl<'source> Parser<'source> {
                     self.span(start),
                 ))
             }
+            TokenKind::TripleQuoteString(s) => {
+                let s = s.clone();
+                self.advance();
+                Some(Spanned::new(
+                    ExprKind::Literal(Literal::String(s)),
+                    self.span(start),
+                ))
+            }
             TokenKind::True => {
                 self.advance();
                 Some(Spanned::new(
@@ -1064,52 +1152,21 @@ impl<'source> Parser<'source> {
                 Some(Spanned::new(ExprKind::Ai(ai_block), self.span(start)))
             }
 
-            // err(...) expression - treat as a call
+            // err - treat as identifier (can be used in assignments, calls, etc.)
             TokenKind::Err => {
                 self.advance();
-                // Create identifier "err"
-                let callee =
-                    Spanned::new(ExprKind::Identifier(SmolStr::from("err")), self.span(start));
-
-                // Parse arguments if present
-                if self.check(&TokenKind::LParen) {
-                    self.advance();
-                    let mut args = Vec::new();
-
-                    if !self.check(&TokenKind::RParen) {
-                        loop {
-                            let arg_start = self.current.span.start;
-                            let value = self.parse_expr()?;
-                            args.push(Argument {
-                                name: None,
-                                value,
-                                span: self.span(arg_start),
-                            });
-                            if !self.check(&TokenKind::Comma) {
-                                break;
-                            }
-                            self.advance();
-                        }
-                    }
-                    self.consume(TokenKind::RParen, ")");
-
-                    Some(Spanned::new(
-                        ExprKind::Call(CallExpr {
-                            callee: Box::new(callee),
-                            args,
-                        }),
-                        self.span(start),
-                    ))
-                } else {
-                    // Just `err` without parens - treat as call with no args
-                    Some(Spanned::new(
-                        ExprKind::Call(CallExpr {
-                            callee: Box::new(callee),
-                            args: vec![],
-                        }),
-                        self.span(start),
-                    ))
-                }
+                Some(Spanned::new(
+                    ExprKind::Identifier(SmolStr::from("err")),
+                    self.span(start),
+                ))
+            }
+            // ok - treat as identifier
+            TokenKind::Ok => {
+                self.advance();
+                Some(Spanned::new(
+                    ExprKind::Identifier(SmolStr::from("ok")),
+                    self.span(start),
+                ))
             }
 
             _ => {
@@ -1286,11 +1343,11 @@ impl<'source> Parser<'source> {
         while !self.check(&TokenKind::RParen) && !self.at_end() {
             let start = self.current.span.start;
 
-            // Check for named argument
+            // Check for named argument: `name = value` or `name: value`
             let name = if matches!(self.current.kind, TokenKind::Ident(_)) {
                 let ident = self.parse_identifier()?;
 
-                if self.check(&TokenKind::Eq) {
+                if self.check(&TokenKind::Eq) || self.check(&TokenKind::Colon) {
                     self.advance();
                     Some(ident)
                 } else {
@@ -1607,6 +1664,9 @@ impl<'source> Parser<'source> {
         while !self.check(&TokenKind::RBrace) && !self.at_end() {
             if let Some(arm) = self.parse_match_arm() {
                 arms.push(arm);
+            } else {
+                // Error recovery: skip token to avoid infinite loop
+                self.advance();
             }
             self.skip_newlines();
         }
@@ -1635,6 +1695,17 @@ impl<'source> Parser<'source> {
 
         let body = if self.check(&TokenKind::LBrace) {
             MatchArmBody::Block(self.parse_block()?)
+        } else if matches!(
+            self.current.kind,
+            TokenKind::Return | TokenKind::Break | TokenKind::Continue
+        ) {
+            // Statement-bodied match arms: wrap the statement in a synthetic block
+            let stmt = self.parse_statement()?;
+            let span = stmt.span;
+            MatchArmBody::Block(Block {
+                statements: vec![stmt],
+                span,
+            })
         } else {
             MatchArmBody::Expr(self.parse_expr()?)
         };
@@ -1750,6 +1821,213 @@ impl<'source> Parser<'source> {
             channel,
             body,
             span: self.span(start),
+        })
+    }
+
+    // ========================================================================
+    // Agentic Declarations
+    // ========================================================================
+
+    /// Parse `import "module_path"`
+    fn parse_import_decl(&mut self) -> Option<ImportDecl> {
+        // Expect a string literal
+        match &self.current.kind {
+            TokenKind::String(path) => {
+                let path = path.clone();
+                self.advance();
+                Some(ImportDecl { path })
+            }
+            _ => {
+                self.error(ParseError::UnexpectedToken {
+                    expected: "string".to_string(),
+                    found: self.current.kind.clone(),
+                    span: self.current.span.clone(),
+                });
+                None
+            }
+        }
+    }
+
+    /// Parse `provider name { key: value, ... }`
+    fn parse_provider_decl(&mut self) -> Option<ProviderDecl> {
+        let name = self.parse_identifier()?;
+        self.consume(TokenKind::LBrace, "{");
+        self.skip_newlines();
+
+        let mut fields = Vec::new();
+        while !self.check(&TokenKind::RBrace) && !self.at_end() {
+            let key = self.parse_identifier()?;
+            self.consume(TokenKind::Colon, ":");
+            let value = self.parse_expr()?;
+            fields.push((key, value));
+
+            // Allow comma or newline separation
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+            self.skip_newlines();
+        }
+
+        self.consume(TokenKind::RBrace, "}");
+        Some(ProviderDecl { name, fields })
+    }
+
+    /// Parse `tool name(params) -> RetType { """description""" body }`
+    fn parse_tool_decl(&mut self) -> Option<ToolDecl> {
+        let name = self.parse_identifier()?;
+        let params = self.parse_params()?;
+
+        let return_ty = if self.check(&TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        self.consume(TokenKind::LBrace, "{");
+        self.skip_newlines();
+
+        // Expect triple-quoted description string
+        let description = match &self.current.kind {
+            TokenKind::TripleQuoteString(s) => {
+                let s = s.clone();
+                self.advance();
+                s
+            }
+            _ => {
+                self.error(ParseError::UnexpectedToken {
+                    expected: "triple-quoted description string".to_string(),
+                    found: self.current.kind.clone(),
+                    span: self.current.span.clone(),
+                });
+                return None;
+            }
+        };
+
+        self.skip_newlines();
+
+        // Parse optional body statements
+        let body = if self.check(&TokenKind::RBrace) {
+            None
+        } else {
+            let block_start = self.current.span.start;
+            let mut statements = Vec::new();
+            while !self.check(&TokenKind::RBrace) && !self.at_end() {
+                if let Some(stmt) = self.parse_statement() {
+                    statements.push(stmt);
+                } else {
+                    self.advance();
+                }
+                self.skip_newlines();
+            }
+            Some(Block {
+                statements,
+                span: self.span(block_start),
+            })
+        };
+
+        self.consume(TokenKind::RBrace, "}");
+
+        Some(ToolDecl {
+            name,
+            params,
+            return_ty,
+            description,
+            body,
+        })
+    }
+
+    /// Parse `agent Name { key: value, ... }`
+    /// Agent fields can have expression values including lists: `tools: [a, b, c]`
+    fn parse_agent_decl(&mut self) -> Option<AgentDecl> {
+        let name = self.parse_identifier()?;
+        self.consume(TokenKind::LBrace, "{");
+        self.skip_newlines();
+
+        let mut fields = Vec::new();
+        while !self.check(&TokenKind::RBrace) && !self.at_end() {
+            let key = self.parse_identifier()?;
+            self.consume(TokenKind::Colon, ":");
+            let value = self.parse_expr()?;
+            fields.push((key, value));
+
+            if self.check(&TokenKind::Comma) {
+                self.advance();
+            }
+            self.skip_newlines();
+        }
+
+        self.consume(TokenKind::RBrace, "}");
+        Some(AgentDecl { name, fields })
+    }
+
+    /// Parse `workflow Name(params) -> RetType { body }`
+    fn parse_workflow_decl(&mut self, trigger: Option<Decorator>) -> Option<WorkflowDecl> {
+        let name = self.parse_identifier()?;
+        let params = self.parse_params()?;
+
+        let return_ty = if self.check(&TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        let body = self.parse_block()?;
+
+        Some(WorkflowDecl {
+            name,
+            trigger,
+            params,
+            return_ty,
+            body,
+        })
+    }
+
+    /// Parse `@name(args)`
+    fn parse_decorator(&mut self) -> Option<Decorator> {
+        self.consume(TokenKind::At, "@");
+        let name = self.parse_identifier()?;
+
+        let args = if self.check(&TokenKind::LParen) {
+            self.advance();
+            let mut args = Vec::new();
+            while !self.check(&TokenKind::RParen) && !self.at_end() {
+                args.push(self.parse_expr()?);
+                if !self.check(&TokenKind::RParen) {
+                    self.consume(TokenKind::Comma, ",");
+                }
+            }
+            self.consume(TokenKind::RParen, ")");
+            args
+        } else {
+            Vec::new()
+        };
+
+        self.skip_newlines();
+        Some(Decorator { name, args })
+    }
+
+    /// Parse `fn name(params) -> RetType { body }` (explicit fn keyword)
+    fn parse_fn_decl(&mut self, is_public: bool) -> Option<FunctionDef> {
+        let name = self.parse_identifier()?;
+        let params = self.parse_params()?;
+
+        let return_ty = if self.check(&TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        let body = self.parse_block()?;
+
+        Some(FunctionDef {
+            is_public,
+            name,
+            params,
+            return_ty,
+            body,
         })
     }
 
@@ -2019,6 +2297,44 @@ impl<'source> Parser<'source> {
                     intent_parts.push(" ".to_string());
                     self.advance();
                 }
+                TokenKind::Provider => {
+                    intent_parts.push("provider".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Tool => {
+                    intent_parts.push("tool".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Agent => {
+                    intent_parts.push("agent".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Workflow => {
+                    intent_parts.push("workflow".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Fn => {
+                    intent_parts.push("fn".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::Import => {
+                    intent_parts.push("import".to_string());
+                    intent_parts.push(" ".to_string());
+                    self.advance();
+                }
+                TokenKind::At => {
+                    intent_parts.push("@".to_string());
+                    self.advance();
+                }
+                TokenKind::TripleQuoteString(s) => {
+                    intent_parts.push(format!("\"\"\"{}\"\"\"", s));
+                    self.advance();
+                }
                 TokenKind::Eq => {
                     intent_parts.push("=".to_string());
                     self.advance();
@@ -2100,6 +2416,27 @@ impl<'source> Parser<'source> {
                 let span = self.current_span();
                 self.advance();
                 Some(Spanned::new(name, span))
+            }
+            // Allow contextual keywords to be used as identifiers
+            TokenKind::Err => {
+                let span = self.current_span();
+                self.advance();
+                Some(Spanned::new(SmolStr::from("err"), span))
+            }
+            TokenKind::Ok => {
+                let span = self.current_span();
+                self.advance();
+                Some(Spanned::new(SmolStr::from("ok"), span))
+            }
+            TokenKind::Tool => {
+                let span = self.current_span();
+                self.advance();
+                Some(Spanned::new(SmolStr::from("tool"), span))
+            }
+            TokenKind::Agent => {
+                let span = self.current_span();
+                self.advance();
+                Some(Spanned::new(SmolStr::from("agent"), span))
             }
             _ => {
                 self.error(ParseError::ExpectedIdent {

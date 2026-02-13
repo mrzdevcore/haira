@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.11.7)  12 FEB 2026 05:06
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.11.7)  12 FEB 2026 05:20
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -2804,8 +2804,8 @@ Package rerunfilecheck Info: File `haira-spec.out' has not changed.
 (rerunfilecheck)             Checksum: CABF87D9895734FDA9BF6F4F40866BC3;64399.
  ) 
 Here is how much of TeX's memory you used:
- 37416 strings out of 473190
- 693627 string characters out of 5704335
+ 37417 strings out of 473190
+ 693644 string characters out of 5704335
  1418291 words of memory out of 5000000
  54360 multiletter control sequences out of 15000+600000
  632851 words of font info for 175 fonts, out of 8000000 for 9000
@@ -2825,10 +2825,10 @@ ype1/public/lm/lmsy10.pfb></opt/homebrew/Cellar/texlive/20250308_2/share/texmf-
 dist/fonts/type1/public/lm/lmtk10.pfb></opt/homebrew/Cellar/texlive/20250308_2/
 share/texmf-dist/fonts/type1/public/lm/lmtt10.pfb></opt/homebrew/Cellar/texlive
 /20250308_2/share/texmf-dist/fonts/type1/public/lm/lmtti10.pfb>
-Output written on build/haira-spec.pdf (187 pages, 1086173 bytes).
+Output written on build/haira-spec.pdf (187 pages, 1086485 bytes).
 PDF statistics:
- 9287 PDF objects out of 10688 (max. 8388607)
- 8982 compressed objects within 90 object streams
- 5607 named destinations out of 6186 (max. 500000)
+ 9288 PDF objects out of 10688 (max. 8388607)
+ 8983 compressed objects within 90 object streams
+ 5608 named destinations out of 6186 (max. 500000)
  47093 words of extra memory for PDF output out of 51595 (max. 10000000)
 

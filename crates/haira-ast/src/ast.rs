@@ -29,6 +29,16 @@ pub enum ItemKind {
     TypeAlias(TypeAlias),
     /// AI-generated function: `ai summarize(user: User) -> Summary { ... }`
     AiFunctionDef(AiBlock),
+    /// Import declaration: `import "http"`
+    ImportDecl(ImportDecl),
+    /// Provider declaration: `provider azure_openai { ... }`
+    ProviderDecl(ProviderDecl),
+    /// Tool declaration: `tool search_recipes(...) -> Type { """...""" ... }`
+    ToolDecl(ToolDecl),
+    /// Agent declaration: `agent BrewingAdvisor { ... }`
+    AgentDecl(AgentDecl),
+    /// Workflow declaration: `workflow Chat(...) -> Type { ... }`
+    WorkflowDecl(WorkflowDecl),
     /// A statement at module level
     Statement(Statement),
 }
@@ -71,6 +81,80 @@ pub struct TypeAlias {
     pub name: Spanned<SmolStr>,
     /// Target type
     pub ty: Spanned<Type>,
+}
+
+// ============================================================================
+// Agentic Declarations
+// ============================================================================
+
+/// An import declaration: `import "http"`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ImportDecl {
+    /// Module path string
+    pub path: SmolStr,
+}
+
+/// A provider declaration: `provider azure_openai { api_key: env("..."), ... }`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ProviderDecl {
+    /// Provider name
+    pub name: Spanned<SmolStr>,
+    /// Key-value configuration fields
+    pub fields: Vec<(Spanned<SmolStr>, Expr)>,
+}
+
+/// A tool declaration: `tool search_recipes(query: string) -> [Recipe] { """...""" ... }`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ToolDecl {
+    /// Tool name
+    pub name: Spanned<SmolStr>,
+    /// Parameters
+    pub params: Vec<Param>,
+    /// Optional return type
+    pub return_ty: Option<Spanned<Type>>,
+    /// Tool description (from triple-quoted string)
+    pub description: SmolStr,
+    /// Optional function body (may be empty for external tools)
+    pub body: Option<Block>,
+}
+
+/// An agent declaration: `agent BrewingAdvisor { model: ..., system: ..., tools: [...] }`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AgentDecl {
+    /// Agent name
+    pub name: Spanned<SmolStr>,
+    /// Key-value configuration fields (model, system, tools, temperature, memory)
+    pub fields: Vec<(Spanned<SmolStr>, Expr)>,
+}
+
+/// A workflow declaration: `@webhook("/path") workflow Chat(...) -> Type { ... }`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WorkflowDecl {
+    /// Workflow name
+    pub name: Spanned<SmolStr>,
+    /// Optional decorator trigger (@webhook, @cron, etc.)
+    pub trigger: Option<Decorator>,
+    /// Parameters
+    pub params: Vec<Param>,
+    /// Optional return type
+    pub return_ty: Option<Spanned<Type>>,
+    /// Workflow body
+    pub body: Block,
+}
+
+/// A decorator: `@webhook("/api/conversations")`
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Decorator {
+    /// Decorator name (e.g., "webhook", "cron")
+    pub name: Spanned<SmolStr>,
+    /// Arguments
+    pub args: Vec<Expr>,
 }
 
 // ============================================================================

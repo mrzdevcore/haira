@@ -52,7 +52,7 @@ Hello, world! Great to meet you!
 Python + LangChain/LangGraph & \keyword{agent} + \keyword{tool} + \keyword{workflow} \\
 n8n / Make / Zapier & \keyword{workflow} with \code{@webhook}, \code{@cron} triggers \\
 CrewAI / AutoGen & Multi-agent \keyword{workflow} composition \\
-FastAPI / Flask & \code{haira.serve()} with typed endpoints \\
+FastAPI / Flask & \code{http.Server()} with typed endpoints \\
 \code{.env} files + API configs & \keyword{provider} blocks \\
 \bottomrule
 \end{tabular}
@@ -152,7 +152,7 @@ workflow Summarizer(url: string) -> Summary {
 }
 
 fn main() {
-    server = haira.serve([Summarizer])
+    server = http.Server([Summarizer])
     io.println("Running on :8080")
     server.listen(8080)
 }

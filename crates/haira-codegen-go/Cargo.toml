@@ -1,0 +1,11 @@
+[package]
+name = "haira-codegen-go"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Go transpiler backend for the Haira programming language"
+
+[dependencies]
+haira-ast.workspace = true
+smol_str.workspace = true
+thiserror.workspace = true

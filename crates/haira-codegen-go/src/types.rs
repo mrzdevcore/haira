@@ -11,6 +11,7 @@ pub fn haira_type_to_go(ty: &Type) -> String {
             "string" => "string".to_string(),
             "bool" => "bool".to_string(),
             "any" => "any".to_string(),
+            "map" => "map[string]any".to_string(),
             other => other.to_string(), // User-defined types
         },
         Type::List(inner) => format!("[]{}", haira_type_to_go(&inner.node)),

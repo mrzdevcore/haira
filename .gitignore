@@ -24,6 +24,9 @@ Thumbs.db
 # Object files
 *.o
 
+# POC projects
+poc-*
+
 # Environment
 .env
 .env.local

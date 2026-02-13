@@ -41,6 +41,13 @@ fn emit_assignment(em: &mut GoEmitter, assign: &Assignment) {
 
     if assign.targets.len() == 1 {
         let target = &assign.targets[0];
+        // Special case: index assignment like `table_data[key] = val` → `haira.Set(obj, key, val)`
+        if let AssignPath::Index { object, index } = &target.path {
+            let obj = assign_path_to_go(object);
+            let idx = expr_to_go(index);
+            em.line(&format!("haira.Set({}, {}, {})", obj, idx, value));
+            return;
+        }
         let path = assign_path_to_go(&target.path);
         // Use := for first assignment of simple identifiers, = for reassignment or field/index
         let op = match &target.path {
@@ -142,13 +149,38 @@ fn emit_if(em: &mut GoEmitter, if_stmt: &IfStatement) {
 }
 
 fn emit_for(em: &mut GoEmitter, for_stmt: &ForStatement) {
-    let iter = expr_to_go(&for_stmt.iterator);
-    match &for_stmt.pattern {
-        ForPattern::Single(var) => {
-            em.open_block(&format!("for _, {} := range {}", var.node, iter));
-        }
-        ForPattern::Pair(idx, val) => {
-            em.open_block(&format!("for {}, {} := range {}", idx.node, val.node, iter));
+    // Check if iterator is a range expression (0..N)
+    if let ExprKind::Range(range) = &for_stmt.iterator.node {
+        let start = expr_to_go(&range.start);
+        let end = expr_to_go(&range.end);
+        let op = if range.inclusive { "<=" } else { "<" };
+        let var_name = match &for_stmt.pattern {
+            ForPattern::Single(var) => var.node.to_string(),
+            ForPattern::Pair(_, val) => val.node.to_string(),
+        };
+        em.open_block(&format!(
+            "for {} := {}; {} {} {}; {}++",
+            var_name, start, var_name, op, end, var_name
+        ));
+    } else {
+        let iter = expr_to_go(&for_stmt.iterator);
+        // Wrap with haira.ToSlice() for safe iteration over any-typed values.
+        // List literals and map literals are already typed in Go, but identifiers
+        // and function results may be `any`.
+        let safe_iter = match &for_stmt.iterator.node {
+            ExprKind::List(_) | ExprKind::Map(_) => iter.clone(),
+            _ => format!("haira.ToSlice({})", iter),
+        };
+        match &for_stmt.pattern {
+            ForPattern::Single(var) => {
+                em.open_block(&format!("for _, {} := range {}", var.node, safe_iter));
+            }
+            ForPattern::Pair(idx, val) => {
+                em.open_block(&format!(
+                    "for {}, {} := range {}",
+                    idx.node, val.node, safe_iter
+                ));
+            }
         }
     }
     emit_block_body(em, &for_stmt.body);

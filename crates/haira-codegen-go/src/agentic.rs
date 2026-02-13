@@ -130,6 +130,7 @@ pub fn emit_agent(em: &mut GoEmitter, agent: &AgentDecl) {
 
 /// Emit a tool declaration as a Go handler function + ToolDef var.
 pub fn emit_tool(em: &mut GoEmitter, tool: &ToolDecl) {
+    em.reset_vars();
     let handler_name = to_go_func_name("tool", &tool.name.node);
     let def_name = to_go_var_name("toolDef", &tool.name.node);
 
@@ -215,6 +216,7 @@ pub fn emit_workflow(em: &mut GoEmitter, workflow: &WorkflowDecl) {
     let def_name = to_go_var_name("workflowDef", &workflow.name.node);
 
     // Handler function
+    em.reset_vars();
     em.open_block(&format!(
         "func {}(params map[string]any) (any, error)",
         handler_name
@@ -230,6 +232,10 @@ pub fn emit_workflow(em: &mut GoEmitter, workflow: &WorkflowDecl) {
             "{}, _ := params[\"{}\"].({})",
             param.name.node, param.name.node, go_type
         ));
+    }
+    // Suppress unused param warnings
+    for param in &workflow.params {
+        em.line(&format!("_ = {}", param.name.node));
     }
 
     emit_workflow_body(em, &workflow.body);
@@ -266,8 +272,10 @@ fn emit_workflow_body(em: &mut GoEmitter, block: &Block) {
                 }
             }
             StatementKind::If(if_stmt) => {
-                // Need to recurse into if/else to wrap returns there too
                 emit_workflow_if(em, if_stmt);
+            }
+            StatementKind::Match(match_expr) => {
+                emit_workflow_match(em, match_expr);
             }
             _ => {
                 crate::statements::emit_statement(em, stmt);
@@ -300,6 +308,45 @@ fn emit_workflow_if(em: &mut GoEmitter, if_stmt: &IfStatement) {
         None => {
             em.close_block();
         }
+    }
+}
+
+/// Emit a match statement in workflow context, wrapping returns in arms.
+fn emit_workflow_match(em: &mut GoEmitter, match_expr: &MatchExpr) {
+    let subject = expr_to_go(&match_expr.subject);
+    em.open_block(&format!("switch {}", subject));
+    for arm in &match_expr.arms {
+        emit_workflow_match_arm_header(em, &arm.pattern.node);
+        em.indent();
+        match &arm.body {
+            MatchArmBody::Expr(expr) => em.line(&expr_to_go(expr)),
+            MatchArmBody::Block(block) => emit_workflow_body(em, block),
+        }
+        em.dedent();
+    }
+    em.close_block();
+}
+
+fn emit_workflow_match_arm_header(em: &mut GoEmitter, pattern: &Pattern) {
+    if matches!(pattern, Pattern::Wildcard) {
+        em.line("default:");
+    } else {
+        em.line(&format!("case {}:", workflow_pattern_to_go(pattern)));
+    }
+}
+
+fn workflow_pattern_to_go(pattern: &Pattern) -> String {
+    match pattern {
+        Pattern::Wildcard => "default".to_string(),
+        Pattern::Literal(lit) => match lit {
+            Literal::Int(n) => n.to_string(),
+            Literal::Float(f) => f.to_string(),
+            Literal::String(s) => format!("\"{}\"", s),
+            Literal::Bool(b) => b.to_string(),
+            Literal::InterpolatedString(_) => "/* interp */".to_string(),
+        },
+        Pattern::Identifier(name) => name.to_string(),
+        Pattern::Constructor { name, .. } => name.to_string(),
     }
 }
 

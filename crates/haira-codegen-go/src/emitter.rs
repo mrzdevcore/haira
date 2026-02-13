@@ -25,6 +25,11 @@ impl GoEmitter {
         self.declared_vars.insert(name.to_string())
     }
 
+    /// Reset declared variables — call at the start of each function/workflow.
+    pub fn reset_vars(&mut self) {
+        self.declared_vars.clear();
+    }
+
     /// Write a line with current indentation.
     pub fn line(&mut self, s: &str) {
         if s.is_empty() {

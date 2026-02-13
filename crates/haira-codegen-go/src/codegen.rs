@@ -93,14 +93,23 @@ fn generate_main_go(ast: &SourceFile) -> String {
         }
     }
 
-    // Fifth pass: type defs
+    // Fifth pass: top-level statements (variable declarations)
+    for item in &ast.items {
+        if let ItemKind::Statement(stmt) = &item.node {
+            if let StatementKind::Assignment(assign) = &stmt.node {
+                emit_top_level_var(&mut em, assign);
+            }
+        }
+    }
+
+    // Sixth pass: type defs
     for item in &ast.items {
         if let ItemKind::TypeDef(type_def) = &item.node {
             emit_type_def(&mut em, type_def);
         }
     }
 
-    // Sixth pass: non-main functions
+    // Seventh pass: non-main functions
     for item in &ast.items {
         if let ItemKind::FunctionDef(func) = &item.node {
             if func.name.node.as_str() == "main" {
@@ -124,6 +133,38 @@ fn generate_main_go(ast: &SourceFile) -> String {
     em.finish()
 }
 
+fn emit_top_level_var(em: &mut GoEmitter, assign: &Assignment) {
+    let value = crate::expressions::expr_to_go(&assign.value);
+    if assign.targets.len() == 1 {
+        let name = assign_target_name(&assign.targets[0].path);
+        em.line(&format!("var {} = {}", name, value));
+    } else {
+        // Multi-target: var a, b = ...
+        let names: Vec<String> = assign
+            .targets
+            .iter()
+            .map(|t| assign_target_name(&t.path))
+            .collect();
+        em.line(&format!("var {} = {}", names.join(", "), value));
+    }
+}
+
+fn assign_target_name(path: &AssignPath) -> String {
+    match path {
+        AssignPath::Identifier(name) => name.node.to_string(),
+        AssignPath::Field { object, field } => {
+            format!("{}.{}", assign_target_name(object), field.node)
+        }
+        AssignPath::Index { object, index } => {
+            format!(
+                "{}[{}]",
+                assign_target_name(object),
+                crate::expressions::expr_to_go(index)
+            )
+        }
+    }
+}
+
 fn emit_type_def(em: &mut GoEmitter, type_def: &TypeDef) {
     em.open_block(&format!("type {} struct", type_def.name.node));
     for field in &type_def.fields {
@@ -140,7 +181,8 @@ fn emit_type_def(em: &mut GoEmitter, type_def: &TypeDef) {
 }
 
 fn emit_function(em: &mut GoEmitter, func: &FunctionDef) {
-    let name = capitalize(&func.name.node);
+    em.reset_vars();
+    let name = snake_to_pascal(&func.name.node);
     let params = func
         .params
         .iter()
@@ -167,6 +209,7 @@ fn emit_function(em: &mut GoEmitter, func: &FunctionDef) {
 }
 
 fn emit_main_function(em: &mut GoEmitter, func: &FunctionDef, agent_names: &[String]) {
+    em.reset_vars();
     em.open_block("func main()");
 
     // Call agent init functions
@@ -285,4 +328,10 @@ fn capitalize(s: &str) -> String {
         Some(c) => c.to_uppercase().to_string() + chars.as_str(),
         None => String::new(),
     }
+}
+
+fn snake_to_pascal(name: &str) -> String {
+    name.split('_')
+        .map(|part| capitalize(part))
+        .collect::<String>()
 }

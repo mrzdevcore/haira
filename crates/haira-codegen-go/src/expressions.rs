@@ -10,6 +10,20 @@ pub fn expr_to_go(expr: &Expr) -> String {
         ExprKind::Literal(lit) => literal_to_go(lit),
         ExprKind::Identifier(name) => name.to_string(),
         ExprKind::Binary(bin) => {
+            // Detect slice concatenation: x + [...]  →  append(x, ...items)
+            if matches!(bin.op.node, BinaryOp::Add) && matches!(bin.right.node, ExprKind::List(_)) {
+                let left = expr_to_go(&bin.left);
+                let right = expr_to_go(&bin.right);
+                return format!("append({}, {}...)", left, right);
+            }
+            // Detect string concatenation involving dynamic (any) values
+            // Use haira.Concat() when either side might be any-typed
+            if matches!(bin.op.node, BinaryOp::Add) && has_any_typed_operand(&bin.left, &bin.right)
+            {
+                let left = expr_to_go(&bin.left);
+                let right = expr_to_go(&bin.right);
+                return format!("haira.Concat({}, {})", left, right);
+            }
             let left = expr_to_go(&bin.left);
             let right = expr_to_go(&bin.right);
             let op = binop_to_go(&bin.op.node);
@@ -27,9 +41,9 @@ pub fn expr_to_go(expr: &Expr) -> String {
             if let Some(resolved) = resolve_stdlib_call(call) {
                 return resolved;
             }
-            // Capitalize function name for Go export convention
+            // Convert function name to PascalCase for Go export convention
             let callee = match &call.callee.node {
-                ExprKind::Identifier(name) => capitalize(name),
+                ExprKind::Identifier(name) => snake_to_pascal(name),
                 _ => expr_to_go(&call.callee),
             };
             let args = call
@@ -75,7 +89,7 @@ pub fn expr_to_go(expr: &Expr) -> String {
                 }
             }
             let receiver = expr_to_go(&mc.receiver);
-            let method = capitalize(&mc.method.node);
+            let method = snake_to_pascal(&mc.method.node);
             let args = mc
                 .args
                 .iter()
@@ -98,7 +112,7 @@ pub fn expr_to_go(expr: &Expr) -> String {
             // x | f | g  →  G(F(x))
             let left = expr_to_go(&pipe.left);
             let right = match &pipe.right.node {
-                ExprKind::Identifier(name) => capitalize(name),
+                ExprKind::Identifier(name) => snake_to_pascal(name),
                 _ => expr_to_go(&pipe.right),
             };
             format!("{}({})", right, left)
@@ -192,6 +206,58 @@ fn capitalize(s: &str) -> String {
     match chars.next() {
         Some(c) => c.to_uppercase().to_string() + chars.as_str(),
         None => String::new(),
+    }
+}
+
+/// Convert snake_case to PascalCase for Go method names.
+fn snake_to_pascal(name: &str) -> String {
+    name.split('_')
+        .map(|part| capitalize(part))
+        .collect::<String>()
+}
+
+/// Check if either operand in a binary expression might produce an `any` value.
+/// This includes: haira.Get() (index expressions), identifiers that could be any-typed,
+/// function calls, and method calls — essentially anything that isn't a literal or
+/// a known string operation.
+fn has_any_typed_operand(left: &Expr, right: &Expr) -> bool {
+    // Use Concat if either side is a string literal (explicit string context)
+    // OR if either side is an expression that may return `any` (Index, MethodCall, Binary, etc.)
+    let has_string = involves_string(left) || involves_string(right);
+    let has_dynamic = is_dynamic_value(left) || is_dynamic_value(right);
+    (has_string || has_dynamic) && !both_numeric(left, right)
+}
+
+fn is_dynamic_value(expr: &Expr) -> bool {
+    match &expr.node {
+        ExprKind::Index(_) => true,
+        ExprKind::MethodCall(_) => true,
+        // A binary expression is "dynamic" if it itself involves string concat
+        // (i.e., it will produce a haira.Concat call). This prevents 1+2+3 from
+        // being wrapped, but catches "a" + b + c chains.
+        ExprKind::Binary(bin) => {
+            matches!(bin.op.node, BinaryOp::Add) && has_any_typed_operand(&bin.left, &bin.right)
+        }
+        _ => false,
+    }
+}
+
+fn both_numeric(left: &Expr, right: &Expr) -> bool {
+    is_numeric_literal(left) && is_numeric_literal(right)
+}
+
+fn is_numeric_literal(expr: &Expr) -> bool {
+    matches!(
+        &expr.node,
+        ExprKind::Literal(Literal::Int(_)) | ExprKind::Literal(Literal::Float(_))
+    )
+}
+
+fn involves_string(expr: &Expr) -> bool {
+    match &expr.node {
+        ExprKind::Literal(Literal::String(_)) => true,
+        ExprKind::Literal(Literal::InterpolatedString(_)) => true,
+        _ => false,
     }
 }
 

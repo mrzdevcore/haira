@@ -39,7 +39,7 @@ const handoffToolPrefix = "transfer_to_"
 func NewAgent(config AgentConfig) *Agent {
 	var client *openai.Client
 
-	if config.Provider.Endpoint != "" {
+	if config.Provider.Endpoint != "" && config.Provider.ApiVersion != "" {
 		// Azure OpenAI
 		fmt.Fprintf(os.Stderr, "[haira] Using Azure OpenAI: endpoint=%s model=%s api_version=%s\n",
 			config.Provider.Endpoint, config.Provider.Model, config.Provider.ApiVersion)
@@ -47,10 +47,15 @@ func NewAgent(config AgentConfig) *Agent {
 			config.Provider.ApiKey,
 			config.Provider.Endpoint,
 		)
-		if config.Provider.ApiVersion != "" {
-			azCfg.APIVersion = config.Provider.ApiVersion
-		}
+		azCfg.APIVersion = config.Provider.ApiVersion
 		client = openai.NewClientWithConfig(azCfg)
+	} else if config.Provider.Endpoint != "" {
+		// OpenAI-compatible endpoint (Ollama, Groq, Mistral, etc.)
+		fmt.Fprintf(os.Stderr, "[haira] Using OpenAI-compatible: endpoint=%s model=%s\n",
+			config.Provider.Endpoint, config.Provider.Model)
+		cfg := openai.DefaultConfig(config.Provider.ApiKey)
+		cfg.BaseURL = config.Provider.Endpoint
+		client = openai.NewClientWithConfig(cfg)
 	} else {
 		// Standard OpenAI
 		client = openai.NewClient(config.Provider.ApiKey)

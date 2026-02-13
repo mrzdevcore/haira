@@ -72,11 +72,28 @@ fn main() {
 ### Provider — LLM backend configuration
 
 ```haira
+// OpenAI
 provider openai {
     api_key: env("OPENAI_API_KEY")
     model: "gpt-4o"
 }
+
+// Azure OpenAI
+provider azure {
+    api_key: env("AZURE_OPENAI_API_KEY")
+    endpoint: env("AZURE_OPENAI_ENDPOINT")
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+    api_version: "2025-01-01-preview"
+}
+
+// Local models via Ollama
+provider local {
+    endpoint: "http://localhost:11434/v1"
+    model: "llama3"
+}
 ```
+
+Any OpenAI-compatible API works — set `endpoint` and `model`. This includes Groq, Together, Mistral, vLLM, and any local server running Ollama or llama.cpp.
 
 ### Tool — function with LLM-visible description
 

@@ -1,4 +1,4 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate help
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
@@ -100,6 +100,10 @@ run-examples: build
 		echo "All examples ran successfully!"; \
 	fi
 
+# Regenerate tree-sitter grammar
+tree-sitter-generate:
+	cd tree-sitter-haira && tree-sitter generate
+
 # Quick development cycle: format, vet, test
 dev: fmt vet test
 
@@ -124,5 +128,6 @@ help:
 	@echo "  lex              Lex a file (use FILE=\"...\")"
 	@echo "  build-examples   Build all examples"
 	@echo "  run-examples     Run non-agentic examples"
+	@echo "  tree-sitter-generate  Regenerate tree-sitter grammar"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

@@ -57,6 +57,14 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.Println(%s)", args), true
 		case "print":
 			return fmt.Sprintf("haira.Print(%s)", args), true
+		case "printf":
+			return fmt.Sprintf("haira.Printf(%s)", args), true
+		case "readln":
+			return "haira.Readln()", true
+		case "eprintln":
+			return fmt.Sprintf("haira.Eprintln(%s)", args), true
+		case "eprintf":
+			return fmt.Sprintf("haira.Eprintf(%s)", args), true
 		}
 	case "http":
 		switch method {
@@ -85,6 +93,218 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.JSONMarshal(%s)", args), true
 		case "unmarshal":
 			return fmt.Sprintf("haira.JSONUnmarshal(%s)", args), true
+		case "marshal_pretty":
+			return fmt.Sprintf("haira.JSONMarshalPretty(%s)", args), true
+		case "parse":
+			return fmt.Sprintf("haira.JSONParse(%s)", args), true
+		}
+	case "string":
+		switch method {
+		case "len":
+			return fmt.Sprintf("haira.StringLen(%s)", args), true
+		case "is_empty":
+			return fmt.Sprintf("haira.StringIsEmpty(%s)", args), true
+		case "trim":
+			return fmt.Sprintf("haira.StringTrim(%s)", args), true
+		case "trim_left":
+			return fmt.Sprintf("haira.StringTrimLeft(%s)", args), true
+		case "trim_right":
+			return fmt.Sprintf("haira.StringTrimRight(%s)", args), true
+		case "to_upper":
+			return fmt.Sprintf("haira.StringToUpper(%s)", args), true
+		case "to_lower":
+			return fmt.Sprintf("haira.StringToLower(%s)", args), true
+		case "contains":
+			return fmt.Sprintf("haira.StringContains(%s)", args), true
+		case "starts_with":
+			return fmt.Sprintf("haira.StringStartsWith(%s)", args), true
+		case "ends_with":
+			return fmt.Sprintf("haira.StringEndsWith(%s)", args), true
+		case "index_of":
+			return fmt.Sprintf("haira.StringIndexOf(%s)", args), true
+		case "last_index_of":
+			return fmt.Sprintf("haira.StringLastIndexOf(%s)", args), true
+		case "split":
+			return fmt.Sprintf("haira.StringSplit(%s)", args), true
+		case "join":
+			return fmt.Sprintf("haira.StringJoin(%s)", args), true
+		case "substring":
+			return fmt.Sprintf("haira.StringSubstring(%s)", args), true
+		case "char_at":
+			return fmt.Sprintf("haira.StringCharAt(%s)", args), true
+		case "replace":
+			return fmt.Sprintf("haira.StringReplace(%s)", args), true
+		case "replace_all":
+			return fmt.Sprintf("haira.StringReplaceAll(%s)", args), true
+		case "repeat":
+			return fmt.Sprintf("haira.StringRepeat(%s)", args), true
+		}
+	case "regex":
+		switch method {
+		case "is_match":
+			return fmt.Sprintf("haira.RegexIsMatch(%s)", args), true
+		case "find":
+			return fmt.Sprintf("haira.RegexFind(%s)", args), true
+		case "find_all":
+			return fmt.Sprintf("haira.RegexFindAll(%s)", args), true
+		case "replace":
+			return fmt.Sprintf("haira.RegexReplace(%s)", args), true
+		case "replace_all":
+			return fmt.Sprintf("haira.RegexReplaceAll(%s)", args), true
+		case "captures":
+			return fmt.Sprintf("haira.RegexCaptures(%s)", args), true
+		case "split":
+			return fmt.Sprintf("haira.RegexSplit(%s)", args), true
+		}
+	case "math":
+		switch method {
+		case "abs":
+			return fmt.Sprintf("haira.MathAbs(%s)", args), true
+		case "min":
+			return fmt.Sprintf("haira.MathMin(%s)", args), true
+		case "max":
+			return fmt.Sprintf("haira.MathMax(%s)", args), true
+		case "clamp":
+			return fmt.Sprintf("haira.MathClamp(%s)", args), true
+		case "floor":
+			return fmt.Sprintf("haira.MathFloor(%s)", args), true
+		case "ceil":
+			return fmt.Sprintf("haira.MathCeil(%s)", args), true
+		case "round":
+			return fmt.Sprintf("haira.MathRound(%s)", args), true
+		case "trunc":
+			return fmt.Sprintf("haira.MathTrunc(%s)", args), true
+		case "pow":
+			return fmt.Sprintf("haira.MathPow(%s)", args), true
+		case "sqrt":
+			return fmt.Sprintf("haira.MathSqrt(%s)", args), true
+		case "cbrt":
+			return fmt.Sprintf("haira.MathCbrt(%s)", args), true
+		case "exp":
+			return fmt.Sprintf("haira.MathExp(%s)", args), true
+		case "log":
+			return fmt.Sprintf("haira.MathLog(%s)", args), true
+		case "log10":
+			return fmt.Sprintf("haira.MathLog10(%s)", args), true
+		case "log2":
+			return fmt.Sprintf("haira.MathLog2(%s)", args), true
+		case "sin":
+			return fmt.Sprintf("haira.MathSin(%s)", args), true
+		case "cos":
+			return fmt.Sprintf("haira.MathCos(%s)", args), true
+		case "tan":
+			return fmt.Sprintf("haira.MathTan(%s)", args), true
+		case "asin":
+			return fmt.Sprintf("haira.MathAsin(%s)", args), true
+		case "acos":
+			return fmt.Sprintf("haira.MathAcos(%s)", args), true
+		case "atan":
+			return fmt.Sprintf("haira.MathAtan(%s)", args), true
+		case "atan2":
+			return fmt.Sprintf("haira.MathAtan2(%s)", args), true
+		case "random":
+			return "haira.MathRandom()", true
+		case "random_int":
+			return fmt.Sprintf("haira.MathRandomInt(%s)", args), true
+		case "pi":
+			return "haira.MathPI", true
+		case "e":
+			return "haira.MathE", true
+		}
+	case "conv":
+		switch method {
+		case "int_to_string":
+			return fmt.Sprintf("haira.ConvIntToString(%s)", args), true
+		case "float_to_string":
+			return fmt.Sprintf("haira.ConvFloatToString(%s)", args), true
+		case "bool_to_string":
+			return fmt.Sprintf("haira.ConvBoolToString(%s)", args), true
+		case "string_to_int":
+			return fmt.Sprintf("haira.ConvStringToInt(%s)", args), true
+		case "string_to_float":
+			return fmt.Sprintf("haira.ConvStringToFloat(%s)", args), true
+		case "string_to_bool":
+			return fmt.Sprintf("haira.ConvStringToBool(%s)", args), true
+		case "int_to_float":
+			return fmt.Sprintf("haira.ConvIntToFloat(%s)", args), true
+		case "float_to_int":
+			return fmt.Sprintf("haira.ConvFloatToInt(%s)", args), true
+		case "int_to_hex":
+			return fmt.Sprintf("haira.ConvIntToHex(%s)", args), true
+		case "int_to_binary":
+			return fmt.Sprintf("haira.ConvIntToBinary(%s)", args), true
+		case "int_to_octal":
+			return fmt.Sprintf("haira.ConvIntToOctal(%s)", args), true
+		case "hex_to_int":
+			return fmt.Sprintf("haira.ConvHexToInt(%s)", args), true
+		}
+	case "array":
+		switch method {
+		case "len":
+			return fmt.Sprintf("haira.ArrayLen(%s)", args), true
+		case "is_empty":
+			return fmt.Sprintf("haira.ArrayIsEmpty(%s)", args), true
+		case "first":
+			return fmt.Sprintf("haira.ArrayFirst(%s)", args), true
+		case "last":
+			return fmt.Sprintf("haira.ArrayLast(%s)", args), true
+		case "get":
+			return fmt.Sprintf("haira.ArrayGet(%s)", args), true
+		case "push":
+			return fmt.Sprintf("haira.ArrayPush(%s)", args), true
+		case "pop":
+			return fmt.Sprintf("haira.ArrayPop(%s)", args), true
+		case "insert":
+			return fmt.Sprintf("haira.ArrayInsert(%s)", args), true
+		case "remove":
+			return fmt.Sprintf("haira.ArrayRemove(%s)", args), true
+		case "slice":
+			return fmt.Sprintf("haira.ArraySlice(%s)", args), true
+		case "take":
+			return fmt.Sprintf("haira.ArrayTake(%s)", args), true
+		case "drop":
+			return fmt.Sprintf("haira.ArrayDrop(%s)", args), true
+		case "contains":
+			return fmt.Sprintf("haira.ArrayContains(%s)", args), true
+		case "index_of":
+			return fmt.Sprintf("haira.ArrayIndexOf(%s)", args), true
+		case "reverse":
+			return fmt.Sprintf("haira.ArrayReverse(%s)", args), true
+		case "concat":
+			return fmt.Sprintf("haira.ArrayConcat(%s)", args), true
+		case "flatten":
+			return fmt.Sprintf("haira.ArrayFlatten(%s)", args), true
+		case "unique":
+			return fmt.Sprintf("haira.ArrayUnique(%s)", args), true
+		case "sort":
+			return fmt.Sprintf("haira.ArraySort(%s)", args), true
+		case "join":
+			return fmt.Sprintf("haira.ArrayJoin(%s)", args), true
+		}
+	case "map":
+		switch method {
+		case "len":
+			return fmt.Sprintf("haira.MapLen(%s)", args), true
+		case "is_empty":
+			return fmt.Sprintf("haira.MapIsEmpty(%s)", args), true
+		case "get":
+			return fmt.Sprintf("haira.MapGet(%s)", args), true
+		case "has":
+			return fmt.Sprintf("haira.MapHas(%s)", args), true
+		case "set":
+			return fmt.Sprintf("haira.MapSet(%s)", args), true
+		case "remove":
+			return fmt.Sprintf("haira.MapRemove(%s)", args), true
+		case "keys":
+			return fmt.Sprintf("haira.MapKeys(%s)", args), true
+		case "values":
+			return fmt.Sprintf("haira.MapValues(%s)", args), true
+		case "entries":
+			return fmt.Sprintf("haira.MapEntries(%s)", args), true
+		case "merge":
+			return fmt.Sprintf("haira.MapMerge(%s)", args), true
+		case "contains_value":
+			return fmt.Sprintf("haira.MapContainsValue(%s)", args), true
 		}
 	case "postgres":
 		if method == "connect" {
@@ -140,7 +360,8 @@ func callArgsToGo(args []ast.Argument) string {
 // IsStdlibImport returns whether a Haira import path maps to a stdlib module.
 func IsStdlibImport(path string) bool {
 	switch path {
-	case "io", "http", "env", "json", "postgres", "slack", "excel", "time":
+	case "io", "http", "env", "json", "postgres", "slack", "excel", "time",
+		"string", "regex", "math", "conv", "array", "map":
 		return true
 	}
 	return false

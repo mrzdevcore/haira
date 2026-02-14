@@ -96,7 +96,8 @@ func ExprToGo(expr ast.Expr) string {
 				}
 			}
 		}
-		return ExprToGo(e.Object) + "." + e.Field.Node
+		// Default: capitalize field name for Go struct field access (e.g., resp.body → resp.Body)
+		return ExprToGo(e.Object) + "." + Capitalize(e.Field.Node)
 	case ast.IndexExpr:
 		obj := ExprToGo(e.Object)
 		index := ExprToGo(e.Index)
@@ -117,7 +118,14 @@ func ExprToGo(expr ast.Expr) string {
 		if ty := lookupExprGoType(expr.Span); ty != "" && ty != "any" {
 			// ty is like "[]int", extract element type
 			if len(ty) > 2 && ty[:2] == "[]" {
-				goType = ty[2:]
+				candidate := ty[2:]
+				// Only use primitive element types. Compound types like
+				// map[string]any are not covariant in Go ([]map[string]any
+				// is not assignable to []any), so keep "any" for safety.
+				switch candidate {
+				case "int", "float64", "string", "bool":
+					goType = candidate
+				}
 			}
 		}
 		return fmt.Sprintf("[]%s{%s}", goType, strings.Join(elems, ", "))
@@ -130,14 +138,10 @@ func ExprToGo(expr ast.Expr) string {
 			}
 			pairs[i] = fmt.Sprintf("%s: %s", key, ExprToGo(entry.Value))
 		}
-		valType := "any"
-		if ty := lookupExprGoType(expr.Span); ty != "" && ty != "any" {
-			// ty is like "map[string]int", extract value type
-			if idx := strings.Index(ty, "]"); idx >= 0 && idx+1 < len(ty) {
-				valType = ty[idx+1:]
-			}
-		}
-		return fmt.Sprintf("map[string]%s{%s}", valType, strings.Join(pairs, ", "))
+		// Always use map[string]any for map literals. Go's type system does
+		// not allow covariant map types (map[string]string is not assignable
+		// to map[string]any), and Haira is dynamically typed so any is correct.
+		return fmt.Sprintf("map[string]any{%s}", strings.Join(pairs, ", "))
 	case ast.ParenExpr:
 		return "(" + ExprToGo(e.Inner) + ")"
 	case ast.NoneExpr:
@@ -468,4 +472,40 @@ func involvesString(expr ast.Expr) bool {
 		}
 	}
 	return false
+}
+
+// nodeKind returns a string tag identifying the broad category of an AST expression node.
+// Used to detect heterogeneous map literal values (e.g., bool + string).
+func nodeKind(node ast.ExprKind) string {
+	switch n := node.(type) {
+	case ast.LiteralExpr:
+		switch n.Lit.(type) {
+		case ast.BoolLit:
+			return "bool"
+		case ast.IntLit:
+			return "int"
+		case ast.FloatLit:
+			return "float"
+		case ast.StringLit, ast.InterpolatedStringLit:
+			return "string"
+		default:
+			return "literal"
+		}
+	case ast.BinaryExpr:
+		return "binary"
+	case ast.CallExpr:
+		return "call"
+	case ast.MethodCallExpr:
+		return "method"
+	case ast.IdentExpr:
+		return "ident"
+	case ast.IndexExpr:
+		return "index"
+	case ast.MapExpr:
+		return "map"
+	case ast.ListExpr:
+		return "list"
+	default:
+		return fmt.Sprintf("%T", node)
+	}
 }

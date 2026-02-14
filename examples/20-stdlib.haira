@@ -1,0 +1,95 @@
+// Example 20: Standard Library - string, regex, math, conv, array, map, json
+import "io"
+import "string"
+import "regex"
+import "math"
+import "conv"
+import "array"
+import "map"
+import "json"
+
+fn main() {
+    // === String module ===
+    io.println("=== String ===")
+    msg = "  Hello, Haira!  "
+    io.println(string.trim(msg))
+    io.println(string.to_upper("haira"))
+    io.println(string.to_lower("HAIRA"))
+    io.println(string.contains("Hello World", "World"))
+    io.println(string.starts_with("Hello", "Hel"))
+    io.println(string.ends_with("Hello", "llo"))
+    io.println(string.index_of("abcdef", "cd"))
+    io.println(string.replace("foo bar foo", "foo", "baz"))
+    io.println(string.replace_all("foo bar foo", "foo", "baz"))
+    io.println(string.repeat("ha", 3))
+    io.println(string.substring("Hello World", 0, 5))
+
+    parts = string.split("a,b,c,d", ",")
+    io.println(parts)
+
+    // === Regex module ===
+    io.println("=== Regex ===")
+    io.println(regex.is_match("^[0-9]+$", "12345"))
+    io.println(regex.is_match("^[0-9]+$", "abc"))
+    io.println(regex.find("[0-9]+", "order-42-item"))
+    io.println(regex.find_all("[0-9]+", "a1b2c3"))
+    io.println(regex.replace_all("[aeiou]", "hello world", "*"))
+    io.println(regex.captures("(\\w+)@(\\w+)", "user@host"))
+
+    // === Math module ===
+    io.println("=== Math ===")
+    io.println(math.abs(-42))
+    io.println(math.min(3, 7))
+    io.println(math.max(3, 7))
+    io.println(math.floor(3.7))
+    io.println(math.ceil(3.2))
+    io.println(math.round(3.5))
+    io.println(math.pow(2, 10))
+    io.println(math.sqrt(144))
+
+    // === Conv module ===
+    io.println("=== Conv ===")
+    io.println(conv.int_to_string(42))
+    io.println(conv.float_to_string(3.14))
+    io.println(conv.int_to_hex(255))
+    io.println(conv.int_to_binary(10))
+    n, err = conv.string_to_int("123")
+    if err == nil {
+        io.println(n)
+    }
+
+    // === Array module ===
+    io.println("=== Array ===")
+    nums = [3, 1, 4, 1, 5, 9, 2, 6]
+    io.println(array.first(nums))
+    io.println(array.last(nums))
+    io.println(array.contains(nums, 5))
+    io.println(array.index_of(nums, 4))
+    io.println(array.unique(nums))
+    io.println(array.sort(nums))
+    io.println(array.reverse(nums))
+    io.println(array.slice(nums, 2, 5))
+
+    // === Map module ===
+    io.println("=== Map ===")
+    user = {"name": "Alice", "age": 30, "city": "Paris"}
+    io.println(map.has(user, "name"))
+    io.println(map.has(user, "email"))
+    io.println(map.keys(user))
+    io.println(map.values(user))
+    extra = {"email": "alice@example.com", "role": "admin"}
+    merged = map.merge(user, extra)
+    io.println(merged)
+
+    // === JSON module ===
+    io.println("=== JSON ===")
+    data = {"name": "Haira", "version": 1}
+    encoded, err = json.marshal(data)
+    if err == nil {
+        io.println(encoded)
+    }
+    decoded, err = json.unmarshal(encoded)
+    if err == nil {
+        io.println(decoded)
+    }
+}

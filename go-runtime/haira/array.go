@@ -1,0 +1,216 @@
+package haira
+
+import (
+	"fmt"
+	"sort"
+)
+
+// ArrayLen returns the length of an array.
+func ArrayLen(arr any) int {
+	return Len(arr)
+}
+
+// ArrayIsEmpty returns true if the array is empty.
+func ArrayIsEmpty(arr any) bool {
+	return Len(arr) == 0
+}
+
+// ArrayFirst returns the first element or nil.
+func ArrayFirst(arr any) any {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return nil
+	}
+	return s[0]
+}
+
+// ArrayLast returns the last element or nil.
+func ArrayLast(arr any) any {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return nil
+	}
+	return s[len(s)-1]
+}
+
+// ArrayGet returns the element at index, or nil if out of bounds.
+func ArrayGet(arr any, index int) any {
+	s := ToSlice(arr)
+	if index < 0 || index >= len(s) {
+		return nil
+	}
+	return s[index]
+}
+
+// ArrayPush appends an element to the array and returns the new array.
+func ArrayPush(arr any, elem any) []any {
+	s := ToSlice(arr)
+	return append(s, elem)
+}
+
+// ArrayPop removes and returns the last element. Returns (new_array, popped_element).
+func ArrayPop(arr any) ([]any, any) {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return s, nil
+	}
+	return s[:len(s)-1], s[len(s)-1]
+}
+
+// ArrayInsert inserts an element at the given index.
+func ArrayInsert(arr any, index int, elem any) []any {
+	s := ToSlice(arr)
+	if index < 0 {
+		index = 0
+	}
+	if index >= len(s) {
+		return append(s, elem)
+	}
+	s = append(s, nil)
+	copy(s[index+1:], s[index:])
+	s[index] = elem
+	return s
+}
+
+// ArrayRemove removes the element at the given index.
+func ArrayRemove(arr any, index int) []any {
+	s := ToSlice(arr)
+	if index < 0 || index >= len(s) {
+		return s
+	}
+	return append(s[:index], s[index+1:]...)
+}
+
+// ArraySlice returns a sub-array from start to end (exclusive).
+func ArraySlice(arr any, start, end int) []any {
+	s := ToSlice(arr)
+	if start < 0 {
+		start = 0
+	}
+	if end > len(s) {
+		end = len(s)
+	}
+	if start >= end {
+		return []any{}
+	}
+	result := make([]any, end-start)
+	copy(result, s[start:end])
+	return result
+}
+
+// ArrayTake returns the first n elements.
+func ArrayTake(arr any, n int) []any {
+	s := ToSlice(arr)
+	if n > len(s) {
+		n = len(s)
+	}
+	if n < 0 {
+		n = 0
+	}
+	result := make([]any, n)
+	copy(result, s[:n])
+	return result
+}
+
+// ArrayDrop returns the array without the first n elements.
+func ArrayDrop(arr any, n int) []any {
+	s := ToSlice(arr)
+	if n > len(s) {
+		n = len(s)
+	}
+	if n < 0 {
+		n = 0
+	}
+	result := make([]any, len(s)-n)
+	copy(result, s[n:])
+	return result
+}
+
+// ArrayContains returns true if the array contains the element.
+func ArrayContains(arr any, elem any) bool {
+	s := ToSlice(arr)
+	target := fmt.Sprintf("%v", elem)
+	for _, item := range s {
+		if fmt.Sprintf("%v", item) == target {
+			return true
+		}
+	}
+	return false
+}
+
+// ArrayIndexOf returns the index of the first occurrence, or -1.
+func ArrayIndexOf(arr any, elem any) int {
+	s := ToSlice(arr)
+	target := fmt.Sprintf("%v", elem)
+	for i, item := range s {
+		if fmt.Sprintf("%v", item) == target {
+			return i
+		}
+	}
+	return -1
+}
+
+// ArrayReverse returns a new array with elements in reverse order.
+func ArrayReverse(arr any) []any {
+	s := ToSlice(arr)
+	result := make([]any, len(s))
+	for i, item := range s {
+		result[len(s)-1-i] = item
+	}
+	return result
+}
+
+// ArrayConcat concatenates two arrays.
+func ArrayConcat(a, b any) []any {
+	sa := ToSlice(a)
+	sb := ToSlice(b)
+	result := make([]any, 0, len(sa)+len(sb))
+	result = append(result, sa...)
+	result = append(result, sb...)
+	return result
+}
+
+// ArrayFlatten flattens one level of nesting.
+func ArrayFlatten(arr any) []any {
+	s := ToSlice(arr)
+	result := make([]any, 0)
+	for _, item := range s {
+		if inner := ToSlice(item); inner != nil {
+			result = append(result, inner...)
+		} else {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// ArrayUnique returns a new array with duplicates removed.
+func ArrayUnique(arr any) []any {
+	s := ToSlice(arr)
+	seen := make(map[string]bool)
+	result := make([]any, 0)
+	for _, item := range s {
+		key := fmt.Sprintf("%v", item)
+		if !seen[key] {
+			seen[key] = true
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// ArraySort sorts an array of strings or numbers in ascending order.
+func ArraySort(arr any) []any {
+	s := ToSlice(arr)
+	result := make([]any, len(s))
+	copy(result, s)
+	sort.Slice(result, func(i, j int) bool {
+		return fmt.Sprintf("%v", result[i]) < fmt.Sprintf("%v", result[j])
+	})
+	return result
+}
+
+// ArrayJoin joins array elements into a string with a separator.
+func ArrayJoin(arr any, sep string) string {
+	return Join(arr, sep)
+}

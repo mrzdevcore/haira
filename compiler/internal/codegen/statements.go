@@ -164,22 +164,35 @@ func emitFor(em *GoEmitter, forStmt ast.ForStmt) {
 		em.OpenBlock(fmt.Sprintf("for %s := %s; %s %s %s; %s++", varName, start, varName, op, end, varName))
 	} else {
 		iter := ExprToGo(forStmt.Iterator)
-		// Wrap with haira.ToSlice() for safe iteration on any-typed values
-		switch forStmt.Iterator.Node.(type) {
-		case ast.ListExpr, ast.MapExpr:
-			// Already typed, use directly
-		default:
-			if isTypedNonAny(forStmt.Iterator.Span) {
-				// Type checker knows this is a typed slice, use directly
-			} else {
-				iter = fmt.Sprintf("haira.ToSlice(%s)", iter)
+		_, isPairPattern := forStmt.Pattern.(ast.PairPattern)
+		if isPairPattern {
+			// PairPattern (for key, value in map) — use haira.ToMap() for safe map iteration
+			switch forStmt.Iterator.Node.(type) {
+			case ast.MapExpr:
+				// Already a map literal, use directly
+			default:
+				if isTypedNonAny(forStmt.Iterator.Span) {
+					// Type checker knows this is a typed map, use directly
+				} else {
+					iter = fmt.Sprintf("haira.ToMap(%s)", iter)
+				}
 			}
-		}
-		switch p := forStmt.Pattern.(type) {
-		case ast.SinglePattern:
-			em.OpenBlock(fmt.Sprintf("for _, %s := range %s", p.Name.Node, iter))
-		case ast.PairPattern:
+			p := forStmt.Pattern.(ast.PairPattern)
 			em.OpenBlock(fmt.Sprintf("for %s, %s := range %s", p.First.Node, p.Second.Node, iter))
+		} else {
+			// SinglePattern (for item in list) — use haira.ToSlice() for safe slice iteration
+			switch forStmt.Iterator.Node.(type) {
+			case ast.ListExpr, ast.MapExpr:
+				// Already typed, use directly
+			default:
+				if isTypedNonAny(forStmt.Iterator.Span) {
+					// Type checker knows this is a typed slice, use directly
+				} else {
+					iter = fmt.Sprintf("haira.ToSlice(%s)", iter)
+				}
+			}
+			p := forStmt.Pattern.(ast.SinglePattern)
+			em.OpenBlock(fmt.Sprintf("for _, %s := range %s", p.Name.Node, iter))
 		}
 	}
 	EmitBlockBody(em, forStmt.Body)

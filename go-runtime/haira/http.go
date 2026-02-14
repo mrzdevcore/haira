@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 )
 
@@ -102,11 +103,20 @@ func Len(v any) int {
 	case string:
 		return len(val)
 	default:
+		// Use reflection for typed slices ([]int, []string, []float64, etc.)
+		rv := reflect.ValueOf(v)
+		if rv.Kind() == reflect.Slice {
+			return rv.Len()
+		}
+		if rv.Kind() == reflect.Map {
+			return rv.Len()
+		}
 		return 0
 	}
 }
 
 // ToSlice converts an any value to []any for safe iteration.
+// Handles []any, []map[string]any, and typed slices ([]int, []string, etc.) via reflection.
 func ToSlice(v any) []any {
 	if v == nil {
 		return nil
@@ -121,8 +131,38 @@ func ToSlice(v any) []any {
 		}
 		return result
 	default:
+		// Use reflection for typed slices ([]int, []string, []float64, etc.)
+		rv := reflect.ValueOf(v)
+		if rv.Kind() == reflect.Slice {
+			result := make([]any, rv.Len())
+			for i := 0; i < rv.Len(); i++ {
+				result[i] = rv.Index(i).Interface()
+			}
+			return result
+		}
 		return nil
 	}
+}
+
+// ToMap converts an any value to map[string]any for safe map iteration.
+// Handles map[string]any and typed maps (map[string]string, map[string]bool, etc.) via reflection.
+func ToMap(v any) map[string]any {
+	if v == nil {
+		return nil
+	}
+	if m, ok := v.(map[string]any); ok {
+		return m
+	}
+	// Use reflection for typed maps (map[string]string, map[string]bool, etc.)
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String {
+		result := make(map[string]any, rv.Len())
+		for _, key := range rv.MapKeys() {
+			result[key.String()] = rv.MapIndex(key).Interface()
+		}
+		return result
+	}
+	return nil
 }
 
 // Keys returns the keys of a map as a slice of strings.

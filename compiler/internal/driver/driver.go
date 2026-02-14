@@ -7,27 +7,29 @@ import (
 	"path/filepath"
 
 	"github.com/haira-lang/haira/internal/ast"
+	"github.com/haira-lang/haira/internal/checker"
 	"github.com/haira-lang/haira/internal/codegen"
+	hairaerr "github.com/haira-lang/haira/internal/errors"
 	"github.com/haira-lang/haira/internal/lexer"
 	"github.com/haira-lang/haira/internal/parser"
+	"github.com/haira-lang/haira/internal/resolver"
 )
 
 // Compile reads a Haira source file and compiles it to a binary.
 func Compile(file, output string) error {
-	source, err := os.ReadFile(file)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
 	fmt.Fprintf(os.Stderr, "Compiling: %s\n", file)
 
-	ast, errs := parser.Parse(string(source))
-	if len(errs) > 0 {
-		for _, e := range errs {
-			fmt.Fprintf(os.Stderr, "Parse error: %s\n", e.Message)
-		}
-		return fmt.Errorf("%d parse error(s)", len(errs))
+	sf, src, err := resolveAndParse(file)
+	if err != nil {
+		return err
 	}
+
+	// Type check
+	typeInfo, typeDiags := checker.Check(sf)
+	if hairaerr.HasErrors(typeDiags) {
+		return reportErrors(typeDiags, src)
+	}
+	reportWarnings(typeDiags, src)
 
 	runtimePath := codegen.FindRuntimePath()
 	if runtimePath == "" {
@@ -45,7 +47,7 @@ func Compile(file, output string) error {
 		output = filepath.Join(outputDir, stem)
 	}
 
-	if err := codegen.CompileToBinary(ast, output, runtimePath); err != nil {
+	if err := codegen.CompileToBinary(sf, output, runtimePath, typeInfo); err != nil {
 		return err
 	}
 
@@ -55,25 +57,24 @@ func Compile(file, output string) error {
 
 // Run reads a Haira source file, compiles, and executes it.
 func Run(file string) error {
-	source, err := os.ReadFile(file)
+	sf, src, err := resolveAndParse(file)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
+		return err
 	}
 
-	ast, errs := parser.Parse(string(source))
-	if len(errs) > 0 {
-		for _, e := range errs {
-			fmt.Fprintf(os.Stderr, "Parse error: %s\n", e.Message)
-		}
-		return fmt.Errorf("%d parse error(s)", len(errs))
+	// Type check
+	typeInfo, typeDiags := checker.Check(sf)
+	if hairaerr.HasErrors(typeDiags) {
+		return reportErrors(typeDiags, src)
 	}
+	reportWarnings(typeDiags, src)
 
 	runtimePath := codegen.FindRuntimePath()
 	if runtimePath == "" {
 		return fmt.Errorf("could not find go-runtime directory")
 	}
 
-	return codegen.RunProgram(ast, runtimePath)
+	return codegen.RunProgram(sf, runtimePath, typeInfo)
 }
 
 // ParseFile parses a file and prints the AST.
@@ -85,14 +86,13 @@ func ParseFile(file string) error {
 
 	fmt.Printf("Parsing: %s\n\n", file)
 
-	ast, errs := parser.Parse(string(source))
+	src := string(source)
+	ast, errs := parser.Parse(src)
 
 	if len(errs) > 0 {
 		fmt.Println("Errors:")
-		for _, e := range errs {
-			line, col := offsetToLineCol(string(source), e.Span.Start)
-			fmt.Printf("  %s:%d:%d: %s\n", file, line, col, e.Message)
-		}
+		diags := toDiagnostics(errs, file)
+		fmt.Print(hairaerr.FormatAll(diags, src))
 		fmt.Println()
 	}
 
@@ -109,20 +109,17 @@ func ParseFile(file string) error {
 
 // CheckFile parses a file and reports errors without generating code.
 func CheckFile(file string) error {
-	source, err := os.ReadFile(file)
+	sf, src, err := resolveAndParse(file)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
+		return err
 	}
 
-	_, errs := parser.Parse(string(source))
-
-	if len(errs) > 0 {
-		for _, e := range errs {
-			line, col := offsetToLineCol(string(source), e.Span.Start)
-			fmt.Printf("%s:%d:%d: %s\n", file, line, col, e.Message)
-		}
-		return fmt.Errorf("%d error(s)", len(errs))
+	// Type check
+	_, typeDiags := checker.Check(sf)
+	if hairaerr.HasErrors(typeDiags) {
+		return reportErrors(typeDiags, src)
 	}
+	reportWarnings(typeDiags, src)
 
 	fmt.Printf("%s: OK\n", file)
 	return nil
@@ -130,21 +127,19 @@ func CheckFile(file string) error {
 
 // EmitFile parses a file and prints the generated Go code.
 func EmitFile(file string) error {
-	source, err := os.ReadFile(file)
+	sf, src, err := resolveAndParse(file)
 	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
+		return err
 	}
 
-	ast, errs := parser.Parse(string(source))
-	if len(errs) > 0 {
-		for _, e := range errs {
-			line, col := offsetToLineCol(string(source), e.Span.Start)
-			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s\n", file, line, col, e.Message)
-		}
-		return fmt.Errorf("%d parse error(s)", len(errs))
+	// Type check
+	typeInfo, typeDiags := checker.Check(sf)
+	if hairaerr.HasErrors(typeDiags) {
+		return reportErrors(typeDiags, src)
 	}
+	reportWarnings(typeDiags, src)
 
-	fmt.Print(codegen.ShowGeneratedGo(ast))
+	fmt.Print(codegen.ShowGeneratedGo(sf, typeInfo))
 	return nil
 }
 
@@ -162,20 +157,64 @@ func LexFile(file string) error {
 	return nil
 }
 
-func offsetToLineCol(source string, offset int) (int, int) {
-	line, col := 1, 1
-	for i, ch := range source {
-		if i >= offset {
-			break
-		}
-		if ch == '\n' {
-			line++
-			col = 1
-		} else {
-			col++
+// resolveAndParse resolves imports and parses all files into a merged SourceFile.
+// Returns the merged AST, the main file source (for error reporting), and any error.
+func resolveAndParse(file string) (*ast.SourceFile, string, error) {
+	source, err := os.ReadFile(file)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read file: %w", err)
+	}
+	src := string(source)
+
+	// Use resolver for multi-file support
+	prog, diags := resolver.Resolve(file)
+	if hairaerr.HasErrors(diags) {
+		return nil, src, reportErrors(diags, src)
+	}
+	reportWarnings(diags, src)
+
+	// If there are imported modules, merge their items into the main AST
+	if len(prog.Modules) > 0 {
+		merged := prog.MergedItems()
+		prog.Main.Items = merged
+	}
+
+	return prog.Main, src, nil
+}
+
+// toDiagnostics converts parser errors to Diagnostic values.
+func toDiagnostics(errs []parser.ParseError, file string) []hairaerr.Diagnostic {
+	diags := make([]hairaerr.Diagnostic, len(errs))
+	for i, e := range errs {
+		diags[i] = hairaerr.Diagnostic{
+			Level:   hairaerr.Error,
+			Message: e.Message,
+			Span:    e.Span,
+			File:    file,
 		}
 	}
-	return line, col
+	return diags
+}
+
+// reportWarnings prints non-error diagnostics to stderr.
+func reportWarnings(diags []hairaerr.Diagnostic, source string) {
+	for _, d := range diags {
+		if d.Level != hairaerr.Error {
+			fmt.Fprint(os.Stderr, hairaerr.PrettyPrint(d, source))
+		}
+	}
+}
+
+// reportErrors pretty-prints diagnostics to stderr and returns an error summary.
+func reportErrors(diags []hairaerr.Diagnostic, source string) error {
+	fmt.Fprint(os.Stderr, hairaerr.FormatAll(diags, source))
+	count := 0
+	for _, d := range diags {
+		if d.Level == hairaerr.Error {
+			count++
+		}
+	}
+	return fmt.Errorf("%d error(s)", count)
 }
 
 func printAST(file *ast.SourceFile) {

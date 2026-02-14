@@ -5,11 +5,18 @@ import (
 	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
+	"github.com/haira-lang/haira/internal/checker"
 )
 
 // GenerateMainGo generates the contents of main.go from the AST.
-func GenerateMainGo(file *ast.SourceFile) string {
+func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string {
 	em := NewEmitter()
+	if len(typeInfo) > 0 && typeInfo[0] != nil {
+		em.typeInfo = typeInfo[0]
+		activeTypeInfo = typeInfo[0]
+	} else {
+		activeTypeInfo = nil
+	}
 
 	em.Line("package main")
 	em.Blank()

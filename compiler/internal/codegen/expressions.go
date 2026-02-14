@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
+	"github.com/haira-lang/haira/internal/checker"
 )
 
 // ExprToGo converts a Haira expression to a Go expression string.
@@ -87,6 +88,14 @@ func ExprToGo(expr ast.Expr) string {
 				return ident.Name + e.Field.Node
 			}
 		}
+		// If the object is a known struct, capitalize the field name
+		if activeTypeInfo != nil {
+			if objTy, ok := activeTypeInfo.ExprTypes[e.Object.Span]; ok {
+				if _, isSt := objTy.(checker.StructType); isSt {
+					return ExprToGo(e.Object) + "." + Capitalize(e.Field.Node)
+				}
+			}
+		}
 		return ExprToGo(e.Object) + "." + e.Field.Node
 	case ast.IndexExpr:
 		obj := ExprToGo(e.Object)
@@ -104,7 +113,14 @@ func ExprToGo(expr ast.Expr) string {
 		for i, el := range e.Elems {
 			elems[i] = ExprToGo(el)
 		}
-		return fmt.Sprintf("[]any{%s}", strings.Join(elems, ", "))
+		goType := "any"
+		if ty := lookupExprGoType(expr.Span); ty != "" && ty != "any" {
+			// ty is like "[]int", extract element type
+			if len(ty) > 2 && ty[:2] == "[]" {
+				goType = ty[2:]
+			}
+		}
+		return fmt.Sprintf("[]%s{%s}", goType, strings.Join(elems, ", "))
 	case ast.MapExpr:
 		pairs := make([]string, len(e.Entries))
 		for i, entry := range e.Entries {
@@ -114,7 +130,14 @@ func ExprToGo(expr ast.Expr) string {
 			}
 			pairs[i] = fmt.Sprintf("%s: %s", key, ExprToGo(entry.Value))
 		}
-		return fmt.Sprintf("map[string]any{%s}", strings.Join(pairs, ", "))
+		valType := "any"
+		if ty := lookupExprGoType(expr.Span); ty != "" && ty != "any" {
+			// ty is like "map[string]int", extract value type
+			if idx := strings.Index(ty, "]"); idx >= 0 && idx+1 < len(ty) {
+				valType = ty[idx+1:]
+			}
+		}
+		return fmt.Sprintf("map[string]%s{%s}", valType, strings.Join(pairs, ", "))
 	case ast.ParenExpr:
 		return "(" + ExprToGo(e.Inner) + ")"
 	case ast.NoneExpr:

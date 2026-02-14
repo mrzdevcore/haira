@@ -1,13 +1,27 @@
 // Package codegen generates Go source code from Haira AST.
 package codegen
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/haira-lang/haira/internal/ast"
+	"github.com/haira-lang/haira/internal/checker"
+)
 
 // GoEmitter writes Go source code with proper indentation.
 type GoEmitter struct {
 	buf          strings.Builder
 	indent       int
 	declaredVars map[string]bool
+	typeInfo     *checker.TypeInfo
+}
+
+// LookupExprType returns the inferred checker type for an expression span, or nil.
+func (e *GoEmitter) LookupExprType(span ast.Span) checker.Type {
+	if e.typeInfo == nil {
+		return nil
+	}
+	return e.typeInfo.ExprTypes[span]
 }
 
 // NewEmitter creates a new GoEmitter.

@@ -169,7 +169,11 @@ func emitFor(em *GoEmitter, forStmt ast.ForStmt) {
 		case ast.ListExpr, ast.MapExpr:
 			// Already typed, use directly
 		default:
-			iter = fmt.Sprintf("haira.ToSlice(%s)", iter)
+			if isTypedNonAny(forStmt.Iterator.Span) {
+				// Type checker knows this is a typed slice, use directly
+			} else {
+				iter = fmt.Sprintf("haira.ToSlice(%s)", iter)
+			}
 		}
 		switch p := forStmt.Pattern.(type) {
 		case ast.SinglePattern:

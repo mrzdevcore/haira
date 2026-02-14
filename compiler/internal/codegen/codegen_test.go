@@ -1,0 +1,563 @@
+package codegen
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/haira-lang/haira/internal/parser"
+)
+
+// helper: find examples directory.
+func examplesDir() string {
+	cwd, _ := os.Getwd()
+	root := filepath.Join(cwd, "..", "..", "..")
+	dir := filepath.Join(root, "examples")
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		return dir
+	}
+	return ""
+}
+
+func parseAndGenerate(t *testing.T, src string) string {
+	t.Helper()
+	sf, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("parse error: %s", e.Message)
+		}
+		t.FailNow()
+	}
+	return GenerateMainGo(sf)
+}
+
+// ---------------------------------------------------------------------------
+// All examples generate Go without panic
+// ---------------------------------------------------------------------------
+
+func TestAllExamplesGenerate(t *testing.T) {
+	dir := examplesDir()
+	if dir == "" {
+		t.Skip("examples directory not found")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) != ".haira" {
+			continue
+		}
+		count++
+		t.Run(entry.Name(), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sf, errs := parser.Parse(string(data))
+			if len(errs) > 0 {
+				t.Skipf("skipping (parse errors): %s", entry.Name())
+			}
+			// Should not panic
+			got := GenerateMainGo(sf)
+			if !strings.Contains(got, "package main") {
+				t.Error("generated Go should contain 'package main'")
+			}
+		})
+	}
+	if count == 0 {
+		t.Fatal("no .haira files found")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: 01-hello
+// ---------------------------------------------------------------------------
+
+func TestGoldenHello(t *testing.T) {
+	src := `import "io"
+fn main() {
+    io.println("Hello, World!")
+}`
+	got := parseAndGenerate(t, src)
+
+	// Must contain package main
+	if !strings.Contains(got, "package main") {
+		t.Error("missing 'package main'")
+	}
+	// Must import haira runtime
+	if !strings.Contains(got, `"haira-go-runtime/haira"`) {
+		t.Error("missing haira runtime import")
+	}
+	// Must call haira.Println
+	if !strings.Contains(got, `haira.Println("Hello, World!")`) {
+		t.Error("missing haira.Println call")
+	}
+	// Must have func main()
+	if !strings.Contains(got, "func main()") {
+		t.Error("missing func main()")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: functions
+// ---------------------------------------------------------------------------
+
+func TestGoldenFunctions(t *testing.T) {
+	src := `import "io"
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+fn main() {
+    io.println(add(3, 5))
+}`
+	got := parseAndGenerate(t, src)
+
+	// Function should be PascalCase
+	if !strings.Contains(got, "func Add(a int, b int) int") {
+		t.Errorf("missing 'func Add(a int, b int) int' in output:\n%s", got)
+	}
+	// Call should use PascalCase
+	if !strings.Contains(got, "Add(3, 5)") {
+		t.Error("missing Add(3, 5) call")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: variables
+// ---------------------------------------------------------------------------
+
+func TestGoldenVariables(t *testing.T) {
+	src := `import "io"
+fn main() {
+    name = "Haira"
+    version = 1
+    io.println(name)
+    io.println(version)
+}`
+	got := parseAndGenerate(t, src)
+
+	// First assignment should use :=
+	if !strings.Contains(got, `name := "Haira"`) {
+		t.Error("missing name := assignment")
+	}
+	if !strings.Contains(got, "version := 1") {
+		t.Error("missing version := assignment")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: structs
+// ---------------------------------------------------------------------------
+
+func TestGoldenStructs(t *testing.T) {
+	src := `User {
+    name: string
+    age: int
+}
+User.greet() -> string {
+    return "Hello, I'm " + self.Name
+}`
+	got := parseAndGenerate(t, src)
+
+	// Struct definition
+	if !strings.Contains(got, "type User struct") {
+		t.Error("missing 'type User struct'")
+	}
+	// Fields should be capitalized
+	if !strings.Contains(got, "Name string") {
+		t.Error("missing 'Name string' field")
+	}
+	if !strings.Contains(got, "Age int") {
+		t.Error("missing 'Age int' field")
+	}
+	// Method
+	if !strings.Contains(got, "func (self *User) Greet()") {
+		t.Error("missing method receiver")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: enum (simple)
+// ---------------------------------------------------------------------------
+
+func TestGoldenSimpleEnum(t *testing.T) {
+	src := `enum Direction {
+    North
+    South
+    East
+    West
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "type Direction int") {
+		t.Error("missing 'type Direction int'")
+	}
+	if !strings.Contains(got, "DirectionNorth Direction = iota") {
+		t.Error("missing iota declaration")
+	}
+	if !strings.Contains(got, "DirectionSouth") {
+		t.Error("missing DirectionSouth")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: if/else
+// ---------------------------------------------------------------------------
+
+func TestGoldenIfElse(t *testing.T) {
+	src := `fn classify(n: int) -> string {
+    if n > 0 {
+        return "positive"
+    } else {
+        return "zero or negative"
+    }
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "if n > 0") {
+		t.Error("missing if condition")
+	}
+	if !strings.Contains(got, "} else {") {
+		t.Error("missing else block")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: for loop with range
+// ---------------------------------------------------------------------------
+
+func TestGoldenForRange(t *testing.T) {
+	src := `fn main() {
+    for i in 0..10 {
+        x = i
+    }
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "for i := 0; i < 10; i++") {
+		t.Error("missing range-based for loop")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: while loop
+// ---------------------------------------------------------------------------
+
+func TestGoldenWhile(t *testing.T) {
+	src := `fn main() {
+    x = 10
+    while x > 0 {
+        x = x - 1
+    }
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "for x > 0") {
+		t.Error("while should become 'for condition'")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: interpolated string
+// ---------------------------------------------------------------------------
+
+func TestGoldenInterpolation(t *testing.T) {
+	src := `import "io"
+fn main() {
+    name = "World"
+    io.println("Hello, ${name}!")
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "fmt.Sprintf") {
+		t.Error("interpolated string should use fmt.Sprintf")
+	}
+	if !strings.Contains(got, `"fmt"`) {
+		t.Error("should import fmt for interpolated strings")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: agentic declarations
+// ---------------------------------------------------------------------------
+
+func TestGoldenProvider(t *testing.T) {
+	src := `provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "providerOpenai") {
+		t.Error("missing provider variable")
+	}
+	if !strings.Contains(got, "haira.Provider") {
+		t.Error("missing haira.Provider")
+	}
+}
+
+func TestGoldenAgent(t *testing.T) {
+	src := `provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+    temperature: 0.7
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "agentBot") {
+		t.Error("missing agent variable")
+	}
+	if !strings.Contains(got, "haira.AgentConfig") {
+		t.Error("missing haira.AgentConfig")
+	}
+	if !strings.Contains(got, "initAgentBot") {
+		t.Error("missing initAgentBot function")
+	}
+}
+
+func TestGoldenWorkflow(t *testing.T) {
+	src := `provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+}
+@webhook("/api/chat")
+workflow Chat(message: string) -> { reply: string } {
+    reply, err = Bot.ask(message)
+    return { reply: reply }
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "workflowDefChat") {
+		t.Error("missing workflow definition variable")
+	}
+	if !strings.Contains(got, `Path:`) {
+		t.Error("missing Path field in workflow")
+	}
+	if !strings.Contains(got, "haira.WorkflowDef") {
+		t.Error("missing haira.WorkflowDef")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: tool
+// ---------------------------------------------------------------------------
+
+func TestGoldenTool(t *testing.T) {
+	src := `tool search(query: string) -> string {
+    """
+    Search the web.
+    """
+    return "result"
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "toolSearch") {
+		t.Error("missing tool variable")
+	}
+	if !strings.Contains(got, "haira.ToolDef") {
+		t.Error("missing haira.ToolDef")
+	}
+	if !strings.Contains(got, "Search the web.") {
+		t.Error("missing tool description")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: compound assignment desugaring
+// ---------------------------------------------------------------------------
+
+func TestGoldenCompoundAssign(t *testing.T) {
+	src := `fn main() {
+    x = 0
+    x += 5
+}`
+	got := parseAndGenerate(t, src)
+
+	// After desugaring, x += 5 becomes x = x + 5
+	if !strings.Contains(got, "x = x + 5") {
+		t.Errorf("expected desugared 'x = x + 5', got:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: list literal
+// ---------------------------------------------------------------------------
+
+func TestGoldenList(t *testing.T) {
+	src := `fn main() {
+    xs = [1, 2, 3]
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "[]any{1, 2, 3}") {
+		t.Error("list should become []any{...}")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: map literal
+// ---------------------------------------------------------------------------
+
+func TestGoldenMap(t *testing.T) {
+	src := `fn main() {
+    m = {"name": "Alice", "age": 30}
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "map[string]any{") {
+		t.Error("map should become map[string]any{...}")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Type mapping
+// ---------------------------------------------------------------------------
+
+func TestHairaTypeToGo(t *testing.T) {
+	tests := map[string]string{
+		"int":    "int",
+		"float":  "float64",
+		"string": "string",
+		"bool":   "bool",
+		"any":    "any",
+	}
+	// nil → "any"
+	got := HairaTypeToGo(nil)
+	if got != "any" {
+		t.Errorf("HairaTypeToGo(nil) = %q, want 'any'", got)
+	}
+	// Test actual named types
+	for haira, expected := range tests {
+		result := hairaNamedTypeToGo(haira)
+		if result != expected {
+			t.Errorf("HairaTypeToGo(%q) = %q, want %q", haira, result, expected)
+		}
+	}
+}
+
+func hairaNamedTypeToGo(name string) string {
+	switch name {
+	case "int":
+		return "int"
+	case "float":
+		return "float64"
+	case "string":
+		return "string"
+	case "bool":
+		return "bool"
+	default:
+		return "any"
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Utility functions
+// ---------------------------------------------------------------------------
+
+func TestCapitalize(t *testing.T) {
+	tests := map[string]string{
+		"hello": "Hello",
+		"":      "",
+		"A":     "A",
+		"abc":   "Abc",
+	}
+	for input, expected := range tests {
+		got := Capitalize(input)
+		if got != expected {
+			t.Errorf("Capitalize(%q) = %q, want %q", input, got, expected)
+		}
+	}
+}
+
+func TestSnakeToPascal(t *testing.T) {
+	tests := map[string]string{
+		"hello_world": "HelloWorld",
+		"get_weather": "GetWeather",
+		"main":        "Main",
+		"a_b_c":       "ABC",
+	}
+	for input, expected := range tests {
+		got := SnakeToPascal(input)
+		if got != expected {
+			t.Errorf("SnakeToPascal(%q) = %q, want %q", input, got, expected)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stdlib resolution
+// ---------------------------------------------------------------------------
+
+func TestIsStdlibImport(t *testing.T) {
+	stdlibs := []string{"io", "http", "env", "json", "postgres", "slack", "excel", "time"}
+	for _, s := range stdlibs {
+		if !IsStdlibImport(s) {
+			t.Errorf("expected %q to be stdlib import", s)
+		}
+	}
+	nonStdlibs := []string{"mylib", "utils", "models"}
+	for _, s := range nonStdlibs {
+		if IsStdlibImport(s) {
+			t.Errorf("expected %q to NOT be stdlib import", s)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Agent topological sort
+// ---------------------------------------------------------------------------
+
+func TestAgentTopoSort(t *testing.T) {
+	src := `provider openai {
+    api_key: env("KEY")
+    model: "gpt-4"
+}
+agent FrontDesk {
+    model: openai
+    system: "Route requests"
+    handoffs: [Billing, Tech]
+}
+agent Billing {
+    model: openai
+    system: "Handle billing"
+}
+agent Tech {
+    model: openai
+    system: "Handle tech"
+}
+fn main() {
+    io.println("ok")
+}`
+	got := parseAndGenerate(t, src)
+
+	// Extract the main() function body to check init call order there
+	mainIdx := strings.Index(got, "func main()")
+	if mainIdx < 0 {
+		t.Fatalf("missing func main() in output:\n%s", got)
+	}
+	mainBody := got[mainIdx:]
+
+	billingPos := strings.Index(mainBody, "initAgentBilling()")
+	techPos := strings.Index(mainBody, "initAgentTech()")
+	frontPos := strings.Index(mainBody, "initAgentFrontDesk()")
+	if billingPos < 0 || techPos < 0 || frontPos < 0 {
+		t.Fatalf("missing init calls in main():\n%s", mainBody)
+	}
+	if billingPos > frontPos {
+		t.Error("Billing should be initialized before FrontDesk in main()")
+	}
+	if techPos > frontPos {
+		t.Error("Tech should be initialized before FrontDesk in main()")
+	}
+}

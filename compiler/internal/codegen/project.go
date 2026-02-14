@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 
 	"github.com/haira-lang/haira/internal/ast"
+	"github.com/haira-lang/haira/internal/checker"
 )
 
 // CompileToBinary generates Go source and runs go build.
-func CompileToBinary(file *ast.SourceFile, output, runtimePath string) error {
+func CompileToBinary(file *ast.SourceFile, output, runtimePath string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
 
-	mainGo := GenerateMainGo(file)
+	mainGo := GenerateMainGo(file, typeInfo...)
 
 	if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
 		return err
@@ -33,10 +34,10 @@ func CompileToBinary(file *ast.SourceFile, output, runtimePath string) error {
 }
 
 // RunProgram generates Go source and runs go run.
-func RunProgram(file *ast.SourceFile, runtimePath string) error {
+func RunProgram(file *ast.SourceFile, runtimePath string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-run-%d", os.Getpid()))
 
-	mainGo := GenerateMainGo(file)
+	mainGo := GenerateMainGo(file, typeInfo...)
 
 	if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
 		return err
@@ -57,8 +58,8 @@ func RunProgram(file *ast.SourceFile, runtimePath string) error {
 }
 
 // ShowGeneratedGo generates Go source and prints it (for debugging).
-func ShowGeneratedGo(file *ast.SourceFile) string {
-	return GenerateMainGo(file)
+func ShowGeneratedGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string {
+	return GenerateMainGo(file, typeInfo...)
 }
 
 func writeProject(dir, mainGo, runtimePath string) error {

@@ -7,8 +7,8 @@ authors = ["Haira Contributors"]
 repository = "https://github.com/haira-lang/haira"
 
 [grammars.haira]
-repository = "https://github.com/haira-lang/haira"
-rev = "60ad7dfeb8153fcc122a75791d09d95247840756"
+repository = "https://github.com/mrzdevcore/haira"
+rev = "ab2806a4f3fb4d5f1072864b5df7e11de13029b8"
 path = "tree-sitter-haira"
 
 [language_servers.haira-lsp]

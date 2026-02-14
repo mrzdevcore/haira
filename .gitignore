@@ -23,7 +23,7 @@ Thumbs.db
 *.o
 
 # POC projects
-poc-*
+poc
 
 # Environment
 .env

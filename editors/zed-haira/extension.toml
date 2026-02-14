@@ -1,0 +1,16 @@
+id = "haira"
+name = "Haira"
+description = "Haira language support — agentic orchestration programming language"
+version = "0.1.0"
+schema_version = 1
+authors = ["Haira Contributors"]
+repository = "https://github.com/haira-lang/haira"
+
+[grammars.haira]
+repository = "https://github.com/haira-lang/haira"
+rev = "60ad7dfeb8153fcc122a75791d09d95247840756"
+path = "tree-sitter-haira"
+
+[language_servers.haira-lsp]
+name = "Haira LSP"
+languages = ["Haira"]

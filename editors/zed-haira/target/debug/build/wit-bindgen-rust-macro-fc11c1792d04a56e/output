@@ -1,0 +1,2 @@
+cargo:rerun-if-changed=build.rs
+cargo:rustc-env=DEBUG_OUTPUT_DIR=/Users/mrzdevcore/Projects/opensource/haira/editors/zed-haira/target/debug/build/wit-bindgen-rust-macro-fc11c1792d04a56e/out

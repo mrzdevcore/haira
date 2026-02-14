@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/haira-lang/haira/internal/driver"
+	"github.com/haira-lang/haira/internal/lsp"
 )
 
 const version = "0.1.0"
@@ -34,6 +35,8 @@ func main() {
 		err = cmdLex(rest)
 	case "emit":
 		err = cmdEmit(rest)
+	case "lsp":
+		err = lsp.RunStdio()
 	case "version", "--version", "-v":
 		fmt.Printf("haira %s\n", version)
 	case "help", "--help", "-h":
@@ -117,6 +120,7 @@ Commands:
   check <file> [files...]    Parse and report errors
   lex <file>                 Show tokens
   emit <file>                Show generated Go code
+  lsp                        Start the language server (LSP)
   version                    Show version
   help                       Show this help
 

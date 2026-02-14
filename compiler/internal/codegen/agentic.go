@@ -168,6 +168,9 @@ func EmitTool(em *GoEmitter, tool ast.ToolDecl) {
 
 // EmitWorkflow emits a workflow declaration.
 func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
+	activeWorkflowName = workflow.Name.Node
+	defer func() { activeWorkflowName = "" }()
+
 	handlerName := goFuncName("workflow", workflow.Name.Node)
 	defName := goVarName("workflowDef", workflow.Name.Node)
 	isStream := isStreamWorkflow(workflow)
@@ -319,11 +322,47 @@ func emitWorkflowBody(em *GoEmitter, block ast.Block) {
 			emitWorkflowIf(em, s)
 		case ast.MatchStmt:
 			emitWorkflowMatch(em, s.Match)
+		case ast.StepStmt:
+			emitStep(em, s)
 		default:
 			EmitStatement(em, stmt)
 		}
 	}
 }
+
+func emitStep(em *GoEmitter, step ast.StepStmt) {
+	wfName := activeWorkflowName
+	stepName := step.Name.Node
+	timerVar := fmt.Sprintf("_step%d", stepCounter)
+	stepCounter++
+
+	em.Line(fmt.Sprintf("%s := haira.StepStart(%q, %q)", timerVar, wfName, stepName))
+	// Emit body statements inline (no block scope — variables flow through)
+	for _, stmt := range step.Body {
+		switch s := stmt.Node.(type) {
+		case ast.ReturnStmt:
+			// Emit StepEnd before return
+			if len(s.Values) == 0 {
+				em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+				em.Line("return nil, nil")
+			} else {
+				vals := make([]string, len(s.Values))
+				for i, v := range s.Values {
+					vals[i] = ExprToGo(v)
+				}
+				em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+				em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
+			}
+		case ast.IfStmt:
+			emitWorkflowIf(em, s)
+		default:
+			EmitStatement(em, stmt)
+		}
+	}
+	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+}
+
+var stepCounter int
 
 func emitWorkflowIf(em *GoEmitter, ifStmt ast.IfStmt) {
 	cond := ExprToGo(ifStmt.Condition)

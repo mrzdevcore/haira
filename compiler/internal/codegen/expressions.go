@@ -114,21 +114,10 @@ func ExprToGo(expr ast.Expr) string {
 		for i, el := range e.Elems {
 			elems[i] = ExprToGo(el)
 		}
-		goType := "any"
-		if ty := lookupExprGoType(expr.Span); ty != "" && ty != "any" {
-			// ty is like "[]int", extract element type
-			if len(ty) > 2 && ty[:2] == "[]" {
-				candidate := ty[2:]
-				// Only use primitive element types. Compound types like
-				// map[string]any are not covariant in Go ([]map[string]any
-				// is not assignable to []any), so keep "any" for safety.
-				switch candidate {
-				case "int", "float64", "string", "bool":
-					goType = candidate
-				}
-			}
-		}
-		return fmt.Sprintf("[]%s{%s}", goType, strings.Join(elems, ", "))
+		// Always use []any for list literals. Go's type system does not
+		// allow covariant slice types ([]string is not assignable to []any),
+		// causing issues with append and assignment.
+		return fmt.Sprintf("[]any{%s}", strings.Join(elems, ", "))
 	case ast.MapExpr:
 		pairs := make([]string, len(e.Entries))
 		for i, entry := range e.Entries {

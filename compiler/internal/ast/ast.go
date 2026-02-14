@@ -290,6 +290,11 @@ type ExprStmt struct {
 	Value Expr
 }
 
+type StepStmt struct {
+	Name Spanned[string]
+	Body []Statement
+}
+
 func (AssignStmt) stmtKind()   {}
 func (IfStmt) stmtKind()       {}
 func (ForStmt) stmtKind()      {}
@@ -301,6 +306,7 @@ func (MatchStmt) stmtKind()    {}
 func (BreakStmt) stmtKind()    {}
 func (ContinueStmt) stmtKind() {}
 func (ExprStmt) stmtKind()     {}
+func (StepStmt) stmtKind()     {}
 
 // --- Expressions ---
 

@@ -42,6 +42,7 @@ const (
 	Enum
 	Defer
 	Import
+	Step
 
 	// Operators
 	Plus      // +
@@ -137,6 +138,7 @@ var Keywords = map[string]TokenKind{
 	"enum":     Enum,
 	"defer":    Defer,
 	"import":   Import,
+	"step":     Step,
 }
 
 // Token represents a lexical token with its kind, literal value, and position.
@@ -224,6 +226,8 @@ func (k TokenKind) String() string {
 		return "defer"
 	case Import:
 		return "import"
+	case Step:
+		return "step"
 	case Plus:
 		return "+"
 	case Minus:
@@ -321,7 +325,7 @@ func (k TokenKind) String() string {
 
 // IsKeyword returns true if the token kind is a keyword.
 func (k TokenKind) IsKeyword() bool {
-	return k >= If && k <= Import
+	return k >= If && k <= Step
 }
 
 // IsLiteral returns true if the token kind is a literal value.

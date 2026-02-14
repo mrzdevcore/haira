@@ -142,6 +142,169 @@ workflow ArticlePipeline(topic: string) -> Article {
 }
 \end{lstlisting}
 
+\section{Named Steps}
+\label{sec:named-steps}
+
+The \keyword{step} keyword creates named, observable regions within a workflow body. Each step has a string label and a block of statements. The runtime automatically emits structured telemetry for every step---start time, end time, duration, and success/failure status---giving production-grade observability with zero manual logging.
+
+\subsection{Syntax}
+
+\begin{lstlisting}
+step "Step Name" {
+    // statements
+}
+\end{lstlisting}
+
+A \keyword{step} is only valid inside a \keyword{workflow} body (including inside \keyword{spawn} blocks within workflows). The step name must be a string literal.
+
+\subsection{Transparent Scope}
+
+Steps are \emph{not} functions---they are labeled regions of the enclosing workflow. Variables assigned inside a step are visible to all subsequent steps and to the rest of the workflow body. A \keyword{return} inside a step returns from the enclosing workflow.
+
+\begin{lstlisting}
+@webhook("/api/process")
+workflow ProcessData(input: string) -> { status: string, count: int } {
+    step "Parse input" {
+        records = parse_csv(input)?
+        count = len(records)
+    }
+
+    step "Validate" {
+        // `records` and `count` are visible here
+        errors = validate_records(records)
+        if len(errors) > 0 {
+            // returns from ProcessData, not just the step
+            return { status: "invalid", count: 0 }
+        }
+    }
+
+    step "Save to database" {
+        save_all(records)?
+    }
+
+    return { status: "ok", count: count }
+}
+\end{lstlisting}
+
+This matches the n8n/Zapier mental model: every node's output flows to downstream nodes.
+
+\subsection{Automatic Telemetry}
+
+The runtime emits structured log events for each step without any explicit logging code:
+
+\begin{lstlisting}[language=bash,numbers=none]
+[ProcessData] step:start  "Parse input"
+[ProcessData] step:end    "Parse input"        duration=42ms   status=success
+[ProcessData] step:start  "Validate"
+[ProcessData] step:end    "Validate"           duration=3ms    status=success
+[ProcessData] step:start  "Save to database"
+[ProcessData] step:end    "Save to database"   duration=156ms  status=success
+\end{lstlisting}
+
+If a step fails (via error propagation or early return), the telemetry reflects it:
+
+\begin{lstlisting}[language=bash,numbers=none]
+[ProcessData] step:start  "Validate"
+[ProcessData] step:end    "Validate"           duration=3ms    status=failed   error="Validation failed"
+\end{lstlisting}
+
+This gives operations teams per-step visibility in production:
+\begin{itemize}
+    \item Which step is slow (duration)
+    \item Which step failed (status + error message)
+    \item Dashboards and alerts per workflow per step
+\end{itemize}
+
+\subsection{Parallel Steps}
+
+Use existing \keyword{spawn} blocks to run steps concurrently---no new syntax needed:
+
+\begin{lstlisting}
+workflow ProcessOrder(order: Order) -> Result {
+    step "Validate order" {
+        validate(order)?
+    }
+
+    // These run in parallel
+    spawn {
+        step "Check inventory" {
+            stock = check_stock(order.items)
+        }
+        step "Verify payment" {
+            payment = verify_payment(order.card)
+        }
+    }
+
+    // Back to sequential --- stock, payment available after spawn completes
+    step "Fulfill" {
+        fulfill(order, stock, payment)
+    }
+
+    return Result{ status: "fulfilled" }
+}
+\end{lstlisting}
+
+Telemetry shows overlapping timestamps for parallel steps:
+
+\begin{lstlisting}[language=bash,numbers=none]
+[ProcessOrder] step:start  "Check inventory"
+[ProcessOrder] step:start  "Verify payment"
+[ProcessOrder] step:end    "Check inventory"    duration=120ms  status=success
+[ProcessOrder] step:end    "Verify payment"     duration=200ms  status=success
+\end{lstlisting}
+
+Variables from parallel steps flow to workflow scope after the \keyword{spawn} block completes (spawn is a synchronization point).
+
+\subsection{Real-World Example}
+
+A data pipeline with multiple stages, each automatically traced:
+
+\begin{lstlisting}
+@webhook("/api/upload-config")
+workflow UploadConfig(file_path: string) -> { status: string, message: string } {
+    filename = file_path | string.split("/") | last()
+
+    step "Open Excel" {
+        wb = excel.open(file_path)?
+        defer wb.close()
+        index_rows = wb.read_sheet("index")?
+    }
+
+    step "Extract table data" {
+        table_data = {}
+        for row in index_rows {
+            sheet = wb.read_sheet(row["sheet_name"])?
+            table_data[row["table_name"]] = sheet
+        }
+    }
+
+    step "Validate" {
+        validation = validate_data(table_data)
+        if !validation.is_valid {
+            return { status: "error", message: "Validation failed: ${validation.errors}" }
+        }
+    }
+
+    step "Push to GitLab" {
+        branch = "feature/${filename}"
+        create_branch(branch)?
+        for name, data in table_data {
+            sql = generate_sql(name, data)
+            commit_file(branch, "${name}.sql", sql)?
+        }
+        create_merge_request(branch, "Update ${filename}")?
+    }
+
+    step "Wait for CI/CD" {
+        poll_pipeline(branch)?
+    }
+
+    return { status: "success", message: "Deployed ${filename}" }
+}
+\end{lstlisting}
+
+Without \keyword{step}, this workflow would need 10+ manual \code{io.println} calls to achieve the same observability. With \keyword{step}, every stage is automatically traced in production.
+
 \section{Parallel Execution}
 
 Use \keyword{spawn} blocks to run steps in parallel:
@@ -470,6 +633,7 @@ No new primitives are needed. The ``event'' is just another HTTP request hitting
 \textbf{Pattern} & \textbf{Primitives Used} & \textbf{New Syntax?} \\
 \midrule
 Sequential chain & statements & No \\
+Named steps & \keyword{step} blocks & Keyword \\
 Parallel fan-out & \keyword{spawn} & No \\
 Router / dispatcher & \keyword{match} + agents & No \\
 Handoff & \code{handoffs} agent field & Field only \\
@@ -491,4 +655,6 @@ workflow_decl = { decorator } "workflow" identifier
 decorator     = "@" identifier [ "(" [ arguments ] ")" ] ;
 
 spawn_block   = "spawn" "{" { statement } "}" ;
+
+step_stmt     = "step" string_literal block ;
 \end{lstlisting}

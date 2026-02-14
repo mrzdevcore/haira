@@ -32,6 +32,8 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 		emitMatch(em, s.Match)
 	case ast.TryStmt:
 		emitTry(em, s)
+	case ast.StepStmt:
+		emitStep(em, s)
 	}
 }
 

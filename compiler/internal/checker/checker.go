@@ -288,6 +288,12 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 				c.checkBlock(body.Value)
 			}
 		}
+
+	case ast.StepStmt:
+		// Step body shares the enclosing workflow scope (variables flow through)
+		for _, stmt := range s.Body {
+			c.checkStmt(stmt)
+		}
 	}
 }
 

@@ -11,6 +11,9 @@ import (
 // activeTypeInfo holds type info during code generation. Set by GenerateMainGo.
 var activeTypeInfo *checker.TypeInfo
 
+// activeWorkflowName holds the current workflow name during codegen (for step telemetry).
+var activeWorkflowName string
+
 // CheckerTypeToGo converts a checker.Type to a Go type string.
 func CheckerTypeToGo(ty checker.Type) string {
 	if ty == nil {

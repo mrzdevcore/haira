@@ -148,10 +148,17 @@ func (l *Lexer) scanString(start int) {
 	l.pos++ // skip opening "
 	var hasInterpolation bool
 	var buf strings.Builder
+	interpDepth := 0 // track brace depth inside ${...}
 
-	for l.pos < len(l.source) && l.source[l.pos] != '"' {
+	for l.pos < len(l.source) {
 		ch := l.source[l.pos]
-		if ch == '\\' {
+
+		// Only treat " as string terminator when NOT inside ${...}
+		if ch == '"' && interpDepth == 0 {
+			break
+		}
+
+		if ch == '\\' && interpDepth == 0 {
 			l.pos++
 			if l.pos < len(l.source) {
 				esc := l.source[l.pos]
@@ -178,9 +185,47 @@ func (l *Lexer) scanString(start int) {
 			}
 			continue
 		}
-		if ch == '$' && l.pos+1 < len(l.source) && l.source[l.pos+1] == '{' {
+
+		if ch == '$' && l.pos+1 < len(l.source) && l.source[l.pos+1] == '{' && interpDepth == 0 {
 			hasInterpolation = true
+			interpDepth = 1
+			buf.WriteByte(ch)
+			l.pos++
+			buf.WriteByte(l.source[l.pos])
+			l.pos++
+			continue
 		}
+
+		if interpDepth > 0 {
+			if ch == '{' {
+				interpDepth++
+			} else if ch == '}' {
+				interpDepth--
+			}
+			// Inside interpolation, pass through quotes and everything else
+			if ch == '"' {
+				// Scan the nested string literal inside ${...}
+				buf.WriteByte(ch)
+				l.pos++
+				for l.pos < len(l.source) && l.source[l.pos] != '"' {
+					if l.source[l.pos] == '\\' && l.pos+1 < len(l.source) {
+						buf.WriteByte(l.source[l.pos])
+						l.pos++
+						buf.WriteByte(l.source[l.pos])
+						l.pos++
+						continue
+					}
+					buf.WriteByte(l.source[l.pos])
+					l.pos++
+				}
+				if l.pos < len(l.source) {
+					buf.WriteByte(l.source[l.pos]) // closing "
+					l.pos++
+				}
+				continue
+			}
+		}
+
 		buf.WriteByte(ch)
 		l.pos++
 	}

@@ -64,9 +64,9 @@ keyword       = "agent" | "and" | "as" | "break" | "catch"
               | "else" | "enum" | "false" | "fn" | "for"
               | "from" | "if" | "impl" | "import" | "in"
               | "match" | "nil" | "not" | "or" | "provider"
-              | "return" | "select" | "spawn" | "struct" | "tool"
-              | "true" | "try" | "type" | "unsafe" | "where"
-              | "while" | "workflow" ;
+              | "return" | "select" | "spawn" | "step" | "struct"
+              | "tool" | "true" | "try" | "type" | "unsafe"
+              | "where" | "while" | "workflow" ;
 \end{lstlisting}
 
 \begin{note}
@@ -361,6 +361,7 @@ statement     = var_decl
               | continue_stmt
               | defer_stmt
               | spawn_stmt
+              | step_stmt
               | send_stmt
               | select_stmt
               | block ;
@@ -404,6 +405,8 @@ defer_stmt    = "defer" statement ;
 
 spawn_stmt    = "spawn" ( block | fn_call ) ;
 
+step_stmt     = "step" string_lit block ;
+
 send_stmt     = expression "<-" expression ;
 
 select_stmt   = "select" "{" { select_case } [ default_case ] "}" ;
@@ -420,7 +423,7 @@ fn_call       = identifier "(" [ arguments ] ")"
 \end{lstlisting}
 
 \begin{note}
-Inside a workflow, a \keyword{spawn} block runs all its statements concurrently and returns a list of results when all complete. This is equivalent to \code{Promise.all()} in JavaScript. Outside a workflow, \keyword{spawn} launches a concurrent goroutine-style task.
+Inside a workflow, a \keyword{spawn} block runs all its statements concurrently and returns a list of results when all complete. This is equivalent to \code{Promise.all()} in JavaScript. Outside a workflow, \keyword{spawn} launches a concurrent goroutine-style task. A \keyword{step} block is a named region with automatic telemetry; it is only valid inside \keyword{workflow} bodies. Variables assigned inside a step are visible in subsequent steps and the enclosing workflow scope.
 \end{note}
 
 \subsection{Expressions}

@@ -469,8 +469,13 @@ func (p *Parser) parseItemIdent(start int, isPublic bool) (ast.Item, bool) {
 
 	default:
 		// Anything else: treat identifier as start of expression statement.
+		// Must complete expression parsing (e.g. index, pipe) before checking for assignment.
 		expr := ast.Expr{Node: ast.IdentExpr{Name: name.Node}, Span: name.Span}
-		stmt, ok := p.parseStatementRest(expr)
+		fullExpr, ok := p.parseExprRest(expr)
+		if !ok {
+			return ast.Item{}, false
+		}
+		stmt, ok := p.parseStatementRest(fullExpr)
 		if !ok {
 			return ast.Item{}, false
 		}
@@ -886,6 +891,14 @@ func (p *Parser) parseStatement() (ast.Statement, bool) {
 		}
 		return ast.Statement{Node: ast.DeferStmt{Value: expr}, Span: p.span(start)}, true
 
+	case token.Step:
+		p.advance()
+		ss, ok := p.parseStepStatement()
+		if !ok {
+			return ast.Statement{}, false
+		}
+		return ast.Statement{Node: ss, Span: p.span(start)}, true
+
 	case token.Break:
 		p.advance()
 		return ast.Statement{Node: ast.BreakStmt{}, Span: p.span(start)}, true
@@ -1164,6 +1177,39 @@ func (p *Parser) parseReturnStatement() (ast.ReturnStmt, bool) {
 		values = append(values, v)
 	}
 	return ast.ReturnStmt{Values: values}, true
+}
+
+func (p *Parser) parseStepStatement() (ast.StepStmt, bool) {
+	// Expect a string literal for the step name
+	if p.peek().Kind != token.String && p.peek().Kind != token.InterpolatedString {
+		tok := p.peek()
+		p.addError("expected string literal for step name", ast.Span{Start: tok.Start, End: tok.End})
+		return ast.StepStmt{}, false
+	}
+	name := p.peek().Value
+	nameSpan := p.currentSpan()
+	p.advance()
+
+	// Parse block body
+	p.consume(token.LBrace, "{")
+	p.skipNewlines()
+
+	var stmts []ast.Statement
+	for !p.check(token.RBrace) && !p.atEnd() {
+		stmt, ok := p.parseStatement()
+		if ok {
+			stmts = append(stmts, stmt)
+		} else {
+			p.advance()
+		}
+		p.skipNewlines()
+	}
+	p.consume(token.RBrace, "}")
+
+	return ast.StepStmt{
+		Name: ast.Spanned[string]{Node: name, Span: nameSpan},
+		Body: stmts,
+	}, true
 }
 
 func (p *Parser) parseTryStatement() (ast.TryStmt, bool) {

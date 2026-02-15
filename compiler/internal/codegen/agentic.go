@@ -235,7 +235,11 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		for _, param := range workflow.Params {
 			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
 		}
-		emitWorkflowBody(em, workflow.Body)
+		if len(workflow.Hooks) > 0 {
+			emitWorkflowBodyWithHooks(em, workflow.Body, workflow.Hooks)
+		} else {
+			emitWorkflowBody(em, workflow.Body)
+		}
 		em.CloseBlock()
 		em.Blank()
 
@@ -307,26 +311,93 @@ func emitStreamFallbackBody(em *GoEmitter, block ast.Block) {
 
 func emitWorkflowBody(em *GoEmitter, block ast.Block) {
 	for _, stmt := range block.Statements {
-		switch s := stmt.Node.(type) {
-		case ast.ReturnStmt:
-			if len(s.Values) == 0 {
-				em.Line("return nil, nil")
-			} else {
-				vals := make([]string, len(s.Values))
-				for i, v := range s.Values {
-					vals[i] = ExprToGo(v)
-				}
-				em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
+		emitWorkflowStatement(em, stmt)
+	}
+}
+
+func emitWorkflowStatement(em *GoEmitter, stmt ast.Statement) {
+	switch s := stmt.Node.(type) {
+	case ast.ReturnStmt:
+		if len(s.Values) == 0 {
+			em.Line("return nil, nil")
+		} else {
+			vals := make([]string, len(s.Values))
+			for i, v := range s.Values {
+				vals[i] = ExprToGo(v)
 			}
-		case ast.IfStmt:
-			emitWorkflowIf(em, s)
-		case ast.MatchStmt:
-			emitWorkflowMatch(em, s.Match)
-		case ast.StepStmt:
-			emitStep(em, s)
-		default:
-			EmitStatement(em, stmt)
+			em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
 		}
+	case ast.IfStmt:
+		emitWorkflowIf(em, s)
+	case ast.MatchStmt:
+		emitWorkflowMatch(em, s.Match)
+	case ast.StepStmt:
+		emitStep(em, s)
+	default:
+		EmitStatement(em, stmt)
+	}
+}
+
+// emitWorkflowBodyWithHooks wraps the workflow body with lifecycle hooks.
+func emitWorkflowBodyWithHooks(em *GoEmitter, block ast.Block, hooks []ast.LifecycleHook) {
+	var onerrorHook *ast.LifecycleHook
+	var onsuccessHook *ast.LifecycleHook
+	for i := range hooks {
+		switch hooks[i].Kind {
+		case ast.HookOnerror:
+			onerrorHook = &hooks[i]
+		case ast.HookOnsuccess:
+			onsuccessHook = &hooks[i]
+		}
+	}
+
+	if onerrorHook != nil {
+		// Wrap body in a closure to catch panics from ? operator
+		em.Line("var _wfErr error")
+		em.Line("var _wfResult any")
+		em.OpenBlock("func()")
+		em.OpenBlock("defer func()")
+		em.OpenBlock("if r := recover(); r != nil")
+		em.Line("_wfErr = fmt.Errorf(\"%v\", r)")
+		em.CloseBlock()
+		em.CloseBlock()
+		em.Line("()")
+		// Emit body, but capture returns instead of returning directly
+		for _, stmt := range block.Statements {
+			emitWorkflowStatement(em, stmt)
+		}
+		em.CloseBlock()
+		em.Line("()")
+
+		// onerror handler
+		em.OpenBlock("if _wfErr != nil")
+		em.Line(fmt.Sprintf("%s := fmt.Sprintf(\"%%v\", _wfErr)", onerrorHook.ErrName))
+		em.Line(fmt.Sprintf("_ = %s", onerrorHook.ErrName))
+		emitWorkflowBody(em, onerrorHook.Body)
+		em.CloseBlock()
+	} else {
+		// No onerror — emit body directly
+		for _, stmt := range block.Statements {
+			emitWorkflowStatement(em, stmt)
+		}
+	}
+
+	// onsuccess hook (non-fatal)
+	if onsuccessHook != nil {
+		em.OpenBlock("if _wfErr == nil")
+		em.OpenBlock("func()")
+		em.OpenBlock("defer func()")
+		em.Line("recover() // onsuccess errors are non-fatal")
+		em.CloseBlock()
+		em.Line("()")
+		if onsuccessHook.ArgName != "" {
+			em.Line(fmt.Sprintf("%s := _wfResult", onsuccessHook.ArgName))
+			em.Line(fmt.Sprintf("_ = %s", onsuccessHook.ArgName))
+		}
+		EmitBlockBody(em, onsuccessHook.Body)
+		em.CloseBlock()
+		em.Line("()")
+		em.CloseBlock()
 	}
 }
 
@@ -336,12 +407,149 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 	timerVar := fmt.Sprintf("_step%d", stepCounter)
 	stepCounter++
 
+	// Check for @retry decorator
+	var retryMax int
+	var retryBackoff string
+	var retryDelay int
+	hasRetry := false
+	for _, dec := range step.Decorators {
+		if dec.Name.Node == "retry" {
+			hasRetry = true
+			retryMax = 3 // default
+			retryBackoff = "exponential"
+			retryDelay = 1000
+			for _, arg := range dec.Args {
+				// Named args are encoded as single-entry MapExpr: {key: value}
+				if mapExpr, ok := arg.Node.(ast.MapExpr); ok && len(mapExpr.Entries) == 1 {
+					entry := mapExpr.Entries[0]
+					if keyIdent, ok := entry.Key.Node.(ast.IdentExpr); ok {
+						switch keyIdent.Name {
+						case "max":
+							if lit, ok := entry.Value.Node.(ast.LiteralExpr); ok {
+								if intLit, ok := lit.Lit.(ast.IntLit); ok {
+									retryMax = int(intLit.Value)
+								}
+							}
+						case "delay":
+							if lit, ok := entry.Value.Node.(ast.LiteralExpr); ok {
+								if intLit, ok := lit.Lit.(ast.IntLit); ok {
+									retryDelay = int(intLit.Value)
+								}
+							}
+						case "backoff":
+							if lit, ok := entry.Value.Node.(ast.LiteralExpr); ok {
+								if strLit, ok := lit.Lit.(ast.StringLit); ok {
+									retryBackoff = strLit.Value
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Check for onerror hook
+	var onerrorHook *ast.LifecycleHook
+	var onsuccessHook *ast.LifecycleHook
+	for i := range step.Hooks {
+		switch step.Hooks[i].Kind {
+		case ast.HookOnerror:
+			onerrorHook = &step.Hooks[i]
+		case ast.HookOnsuccess:
+			onsuccessHook = &step.Hooks[i]
+		}
+	}
+
 	em.Line(fmt.Sprintf("%s := haira.StepStart(%q, %q)", timerVar, wfName, stepName))
-	// Emit body statements inline (no block scope — variables flow through)
-	for _, stmt := range step.Body {
+
+	// If retry, wrap in retry loop
+	if hasRetry {
+		retryVar := fmt.Sprintf("_retry%d", stepCounter)
+		em.Line(fmt.Sprintf("var %s_err error", retryVar))
+		em.OpenBlock(fmt.Sprintf("for %s := 0; %s < %d; %s++", retryVar, retryVar, retryMax, retryVar))
+		em.Line(fmt.Sprintf("%s_err = nil", retryVar))
+		// Emit body in a func to catch panics from ? operator
+		em.OpenBlock("func()")
+		em.OpenBlock("defer func()")
+		em.OpenBlock("if r := recover(); r != nil")
+		em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"%%v\", r)", retryVar))
+		em.CloseBlock()
+		em.CloseBlock()
+		em.Line("()")
+		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
+		em.CloseBlock()
+		em.Line("()")
+		em.OpenBlock(fmt.Sprintf("if %s_err == nil", retryVar))
+		em.Line("break")
+		em.CloseBlock()
+		// Backoff delay
+		if retryBackoff == "exponential" {
+			em.Line(fmt.Sprintf("haira.StepRetry(%q, %q, %s+1, %d << uint(%s))", wfName, stepName, retryVar, retryDelay, retryVar))
+			em.Line(fmt.Sprintf("time.Sleep(time.Duration(%d<<uint(%s)) * time.Millisecond)", retryDelay, retryVar))
+		} else {
+			em.Line(fmt.Sprintf("haira.StepRetry(%q, %q, %s+1, %d)", wfName, stepName, retryVar, retryDelay))
+			em.Line(fmt.Sprintf("time.Sleep(time.Duration(%d) * time.Millisecond)", retryDelay))
+		}
+		em.CloseBlock() // end retry loop
+
+		// After retries exhausted, check error
+		em.OpenBlock(fmt.Sprintf("if %s_err != nil", retryVar))
+		if onerrorHook != nil {
+			em.Line(fmt.Sprintf("%s := fmt.Sprintf(\"%%v\", %s_err)", onerrorHook.ErrName, retryVar))
+			em.Line(fmt.Sprintf("_ = %s", onerrorHook.ErrName))
+			em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, %s_err)", wfName, stepName, timerVar, retryVar))
+			emitWorkflowBody(em, onerrorHook.Body)
+		} else {
+			em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, %s_err)", wfName, stepName, timerVar, retryVar))
+			em.Line(fmt.Sprintf("return nil, %s_err", retryVar))
+		}
+		em.CloseBlock()
+	} else if onerrorHook != nil {
+		// No retry, but has onerror — wrap body in panic recovery
+		errVar := fmt.Sprintf("_stepErr%d", stepCounter)
+		em.Line(fmt.Sprintf("var %s error", errVar))
+		em.OpenBlock("func()")
+		em.OpenBlock("defer func()")
+		em.OpenBlock("if r := recover(); r != nil")
+		em.Line(fmt.Sprintf("%s = fmt.Errorf(\"%%v\", r)", errVar))
+		em.CloseBlock()
+		em.CloseBlock()
+		em.Line("()")
+		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
+		em.CloseBlock()
+		em.Line("()")
+		em.OpenBlock(fmt.Sprintf("if %s != nil", errVar))
+		em.Line(fmt.Sprintf("%s := fmt.Sprintf(\"%%v\", %s)", onerrorHook.ErrName, errVar))
+		em.Line(fmt.Sprintf("_ = %s", onerrorHook.ErrName))
+		em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, %s)", wfName, stepName, timerVar, errVar))
+		emitWorkflowBody(em, onerrorHook.Body)
+		em.CloseBlock()
+	} else {
+		// No retry, no onerror — emit body inline
+		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
+	}
+
+	// Onsuccess hook
+	if onsuccessHook != nil {
+		em.Line("// onsuccess hook")
+		em.OpenBlock("func()")
+		em.OpenBlock("defer func()")
+		em.Line("recover() // onsuccess errors are non-fatal")
+		em.CloseBlock()
+		em.Line("()")
+		EmitBlockBody(em, onsuccessHook.Body)
+		em.CloseBlock()
+		em.Line("()")
+	}
+
+	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+}
+
+func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepName, timerVar string) {
+	for _, stmt := range stmts {
 		switch s := stmt.Node.(type) {
 		case ast.ReturnStmt:
-			// Emit StepEnd before return
 			if len(s.Values) == 0 {
 				em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
 				em.Line("return nil, nil")
@@ -359,7 +567,6 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 			EmitStatement(em, stmt)
 		}
 	}
-	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
 }
 
 var stepCounter int

@@ -17,6 +17,7 @@ type Precedence int
 
 const (
 	PrecNone       Precedence = iota
+	PrecOrelse                // orelse
 	PrecPipe                  // |>
 	PrecOr                    // or
 	PrecAnd                   // and
@@ -35,6 +36,8 @@ const (
 // precedenceOf returns the precedence of a token kind for infix parsing.
 func precedenceOf(kind token.TokenKind) Precedence {
 	switch kind {
+	case token.Orelse:
+		return PrecOrelse
 	case token.PipeArrow:
 		return PrecPipe
 	case token.Or:
@@ -916,6 +919,14 @@ func (p *Parser) parseStatement() (ast.Statement, bool) {
 		}
 		return ast.Statement{Node: ast.DeferStmt{Value: expr}, Span: p.span(start)}, true
 
+	case token.Errdefer:
+		p.advance()
+		expr, ok := p.parseExpr()
+		if !ok {
+			return ast.Statement{}, false
+		}
+		return ast.Statement{Node: ast.ErrDeferStmt{Value: expr}, Span: p.span(start)}, true
+
 	case token.Step:
 		p.advance()
 		ss, ok := p.parseStepStatement()
@@ -1215,6 +1226,10 @@ func (p *Parser) parseReturnStatement() (ast.ReturnStmt, bool) {
 }
 
 func (p *Parser) parseStepStatement() (ast.StepStmt, bool) {
+	return p.parseStepStatementWithDecorators(nil)
+}
+
+func (p *Parser) parseStepStatementWithDecorators(decorators []ast.Decorator) (ast.StepStmt, bool) {
 	// Expect a string literal for the step name
 	if p.peek().Kind != token.String && p.peek().Kind != token.InterpolatedString {
 		tok := p.peek()
@@ -1229,6 +1244,16 @@ func (p *Parser) parseStepStatement() (ast.StepStmt, bool) {
 	p.consume(token.LBrace, "{")
 	p.skipNewlines()
 
+	// Parse lifecycle hooks at top of step body
+	var hooks []ast.LifecycleHook
+	for p.check(token.Onerror) || p.check(token.Onsuccess) || p.check(token.Oncancel) {
+		hook, ok := p.parseLifecycleHook()
+		if ok {
+			hooks = append(hooks, hook)
+		}
+		p.skipNewlines()
+	}
+
 	var stmts []ast.Statement
 	for !p.check(token.RBrace) && !p.atEnd() {
 		stmt, ok := p.parseStatement()
@@ -1242,9 +1267,49 @@ func (p *Parser) parseStepStatement() (ast.StepStmt, bool) {
 	p.consume(token.RBrace, "}")
 
 	return ast.StepStmt{
-		Name: ast.Spanned[string]{Node: name, Span: nameSpan},
-		Body: stmts,
+		Name:       ast.Spanned[string]{Node: name, Span: nameSpan},
+		Body:       stmts,
+		Decorators: decorators,
+		Hooks:      hooks,
 	}, true
+}
+
+func (p *Parser) parseLifecycleHook() (ast.LifecycleHook, bool) {
+	hook := ast.LifecycleHook{}
+
+	switch p.peek().Kind {
+	case token.Onerror:
+		p.advance()
+		hook.Kind = ast.HookOnerror
+		// Parse optional error variable name (accept `err` keyword as variable name)
+		if p.check(token.Ident) || p.check(token.Err) {
+			hook.ErrName = p.peek().Value
+			p.advance()
+		} else {
+			hook.ErrName = "err"
+		}
+	case token.Onsuccess:
+		p.advance()
+		hook.Kind = ast.HookOnsuccess
+		// Parse optional result variable name
+		if p.check(token.Ident) {
+			hook.ArgName = p.peek().Value
+			p.advance()
+		}
+	case token.Oncancel:
+		p.advance()
+		hook.Kind = ast.HookOncancel
+	default:
+		return ast.LifecycleHook{}, false
+	}
+
+	body, ok := p.parseBlock()
+	if !ok {
+		return ast.LifecycleHook{}, false
+	}
+	hook.Body = body
+
+	return hook, true
 }
 
 func (p *Parser) parseTryStatement() (ast.TryStmt, bool) {
@@ -1704,6 +1769,18 @@ func (p *Parser) parseInfix(left ast.Expr, prec Precedence) (ast.Expr, bool) {
 		p.advance()
 		return ast.Expr{
 			Node: ast.PropagateExpr{Inner: left},
+			Span: p.span(start),
+		}, true
+
+	// Orelse: expr orelse default
+	case token.Orelse:
+		p.advance()
+		def, ok := p.parseExprPrecedence(prec)
+		if !ok {
+			return ast.Expr{}, false
+		}
+		return ast.Expr{
+			Node: ast.OrelseExpr{Left: left, Default: def},
 			Span: p.span(start),
 		}, true
 
@@ -2673,17 +2750,65 @@ func (p *Parser) parseWorkflowDecl(trigger *ast.Decorator) (ast.WorkflowDecl, bo
 		retTy = &rt
 	}
 
-	body, ok := p.parseBlock()
-	if !ok {
-		return ast.WorkflowDecl{}, false
+	p.consume(token.LBrace, "{")
+	p.skipNewlines()
+
+	// Parse lifecycle hooks at top of workflow body
+	var hooks []ast.LifecycleHook
+	for p.check(token.Onerror) || p.check(token.Onsuccess) || p.check(token.Oncancel) {
+		hook, ok := p.parseLifecycleHook()
+		if ok {
+			hooks = append(hooks, hook)
+		}
+		p.skipNewlines()
 	}
+
+	// Parse body statements
+	var stmts []ast.Statement
+	for !p.check(token.RBrace) && !p.atEnd() {
+		// Check for @decorator before step
+		if p.check(token.At) {
+			decoStart := p.current
+			var decorators []ast.Decorator
+			for p.check(token.At) {
+				dec, ok := p.parseDecorator()
+				if ok {
+					decorators = append(decorators, dec)
+				}
+				p.skipNewlines()
+			}
+			// After decorators, expect step
+			if p.check(token.Step) {
+				p.advance()
+				ss, ok := p.parseStepStatementWithDecorators(decorators)
+				if ok {
+					stmts = append(stmts, ast.Statement{Node: ss, Span: p.span(decoStart)})
+				}
+			} else {
+				// Not a step — treat decorators as error, re-parse as statement
+				tok := p.peek()
+				p.addError("decorator can only precede step inside workflow", ast.Span{Start: tok.Start, End: tok.End})
+				p.advance()
+			}
+		} else {
+			stmt, ok := p.parseStatement()
+			if ok {
+				stmts = append(stmts, stmt)
+			} else {
+				p.advance()
+			}
+		}
+		p.skipNewlines()
+	}
+	p.consume(token.RBrace, "}")
 
 	return ast.WorkflowDecl{
 		Name:     name,
 		Trigger:  trigger,
 		Params:   params,
 		ReturnTy: retTy,
-		Body:     body,
+		Body:     ast.Block{Statements: stmts},
+		Hooks:    hooks,
 	}, true
 }
 
@@ -2698,11 +2823,26 @@ func (p *Parser) parseDecorator() (ast.Decorator, bool) {
 	if p.check(token.LParen) {
 		p.advance()
 		for !p.check(token.RParen) && !p.atEnd() {
+			argStart := p.current
 			e, ok := p.parseExpr()
 			if !ok {
 				return ast.Decorator{}, false
 			}
-			args = append(args, e)
+			// Handle named args: key: value → wrap as MapEntry-style MapExpr
+			if p.check(token.Colon) {
+				p.advance()
+				val, ok := p.parseExpr()
+				if !ok {
+					return ast.Decorator{}, false
+				}
+				// Encode as a single-entry map: {key: value}
+				entry := ast.MapExpr{
+					Entries: []ast.MapEntry{{Key: e, Value: val}},
+				}
+				args = append(args, ast.Expr{Node: entry, Span: p.span(argStart)})
+			} else {
+				args = append(args, e)
+			}
 			if !p.check(token.RParen) {
 				p.consume(token.Comma, ",")
 			}

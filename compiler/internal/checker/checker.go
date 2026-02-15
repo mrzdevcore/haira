@@ -228,6 +228,20 @@ func (c *checker) checkWorkflow(wf ast.WorkflowDecl) {
 	saved := c.env
 	c.env = env
 	c.checkBlock(wf.Body)
+	// Check workflow-level lifecycle hooks
+	for _, hook := range wf.Hooks {
+		hookEnv := c.env.Child()
+		if hook.Kind == ast.HookOnerror && hook.ErrName != "" {
+			hookEnv.DefineVar(hook.ErrName, StringType{})
+		}
+		if hook.Kind == ast.HookOnsuccess && hook.ArgName != "" {
+			hookEnv.DefineVar(hook.ArgName, AnyType{})
+		}
+		savedInner := c.env
+		c.env = hookEnv
+		c.checkBlock(hook.Body)
+		c.env = savedInner
+	}
 	c.env = saved
 }
 
@@ -347,6 +361,20 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 		for _, stmt := range s.Body {
 			c.checkStmt(stmt)
 		}
+		// Check lifecycle hooks
+		for _, hook := range s.Hooks {
+			env := c.env.Child()
+			if hook.Kind == ast.HookOnerror && hook.ErrName != "" {
+				env.DefineVar(hook.ErrName, StringType{})
+			}
+			saved := c.env
+			c.env = env
+			c.checkBlock(hook.Body)
+			c.env = saved
+		}
+
+	case ast.ErrDeferStmt:
+		c.inferExpr(s.Value)
 	}
 }
 
@@ -514,6 +542,10 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 
 	case ast.PropagateExpr:
 		ty = c.inferExpr(e.Inner)
+
+	case ast.OrelseExpr:
+		c.inferExpr(e.Left)
+		ty = c.inferExpr(e.Default)
 
 	case ast.SpawnExpr:
 		c.checkBlock(e.Body)

@@ -48,6 +48,11 @@ const (
 	Defer
 	Import
 	Step
+	Orelse
+	Onerror
+	Onsuccess
+	Oncancel
+	Errdefer
 
 	// Operators
 	Plus      // +
@@ -120,46 +125,51 @@ const (
 
 // Keywords maps keyword strings to their TokenKind.
 var Keywords = map[string]TokenKind{
-	"if":       If,
-	"else":     Else,
-	"for":      For,
-	"while":    While,
-	"return":   Return,
-	"match":    Match,
-	"true":     True,
-	"false":    False,
-	"none":     None,
-	"some":     Some,
-	"and":      And,
-	"or":       Or,
-	"not":      Not,
-	"in":       In,
-	"async":    Async,
-	"spawn":    Spawn,
-	"select":   Select,
-	"try":      Try,
-	"catch":    Catch,
-	"pub":      Pub,
-	"export":   Export,
-	"err":      Err,
-	"ok":       Ok,
-	"break":    Break,
-	"continue": Continue,
-	"from":     From,
-	"default":  Default,
-	"provider": Provider,
-	"tool":     Tool,
-	"agent":    Agent,
-	"workflow": Workflow,
-	"fn":       Fn,
-	"enum":     Enum,
-	"struct":   Struct,
-	"type":     Type,
-	"trait":    Trait,
-	"impl":     Impl,
-	"defer":    Defer,
-	"import":   Import,
-	"step":     Step,
+	"if":        If,
+	"else":      Else,
+	"for":       For,
+	"while":     While,
+	"return":    Return,
+	"match":     Match,
+	"true":      True,
+	"false":     False,
+	"none":      None,
+	"some":      Some,
+	"and":       And,
+	"or":        Or,
+	"not":       Not,
+	"in":        In,
+	"async":     Async,
+	"spawn":     Spawn,
+	"select":    Select,
+	"try":       Try,
+	"catch":     Catch,
+	"pub":       Pub,
+	"export":    Export,
+	"err":       Err,
+	"ok":        Ok,
+	"break":     Break,
+	"continue":  Continue,
+	"from":      From,
+	"default":   Default,
+	"provider":  Provider,
+	"tool":      Tool,
+	"agent":     Agent,
+	"workflow":  Workflow,
+	"fn":        Fn,
+	"enum":      Enum,
+	"struct":    Struct,
+	"type":      Type,
+	"trait":     Trait,
+	"impl":      Impl,
+	"defer":     Defer,
+	"import":    Import,
+	"step":      Step,
+	"orelse":    Orelse,
+	"onerror":   Onerror,
+	"onsuccess": Onsuccess,
+	"oncancel":  Oncancel,
+	"errdefer":  Errdefer,
 }
 
 // Token represents a lexical token with its kind, literal value, and position.
@@ -259,6 +269,16 @@ func (k TokenKind) String() string {
 		return "import"
 	case Step:
 		return "step"
+	case Orelse:
+		return "orelse"
+	case Onerror:
+		return "onerror"
+	case Onsuccess:
+		return "onsuccess"
+	case Oncancel:
+		return "oncancel"
+	case Errdefer:
+		return "errdefer"
 	case Plus:
 		return "+"
 	case Minus:
@@ -378,7 +398,7 @@ func (k TokenKind) String() string {
 
 // IsKeyword returns true if the token kind is a keyword.
 func (k TokenKind) IsKeyword() bool {
-	return k >= If && k <= Step
+	return k >= If && k <= Errdefer
 }
 
 // IsLiteral returns true if the token kind is a literal value.

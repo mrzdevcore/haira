@@ -28,6 +28,7 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 	needsJSON := needsJSONImport(file)
 	needsHaira := needsHairaImport(file)
 	needsSync := needsSyncImport(file)
+	needsTime := needsTimeImport(file)
 
 	var imports []string
 	if needsFmt {
@@ -38,6 +39,9 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 	}
 	if needsSync {
 		imports = append(imports, `"sync"`)
+	}
+	if needsTime {
+		imports = append(imports, `"time"`)
 	}
 	if needsHaira {
 		imports = append(imports, `"haira-go-runtime/haira"`)
@@ -375,6 +379,21 @@ func needsFmtImport(file *ast.SourceFile) bool {
 			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
 				return true
 			}
+			// Lifecycle hooks and @retry use fmt.Errorf/fmt.Sprintf
+			if len(it.Hooks) > 0 || blockHasRetryDecorator(it.Body) || blockHasStepHooks(it.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasStepHooks(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if s, ok := stmt.Node.(ast.StepStmt); ok {
+			if len(s.Hooks) > 0 {
+				return true
+			}
 		}
 	}
 	return false
@@ -398,6 +417,30 @@ func needsHairaImport(file *ast.SourceFile) bool {
 	}
 	// Also need haira if any statement uses stdlib functions
 	return hasStdlibCalls(file)
+}
+
+func needsTimeImport(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if w, ok := item.Node.(ast.WorkflowDecl); ok {
+			if blockHasRetryDecorator(w.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasRetryDecorator(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if s, ok := stmt.Node.(ast.StepStmt); ok {
+			for _, dec := range s.Decorators {
+				if dec.Name.Node == "retry" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func needsSyncImport(file *ast.SourceFile) bool {

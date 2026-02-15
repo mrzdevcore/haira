@@ -31,6 +31,11 @@
   "spawn"
   "select"
   "defer"
+  "errdefer"
+  "step"
+  "onerror"
+  "onsuccess"
+  "oncancel"
   "import"
   "export"
   "from"
@@ -43,6 +48,7 @@
   "and"
   "or"
   "not"
+  "orelse"
 ] @keyword.operator
 
 ; --- Agentic keywords ---
@@ -128,6 +134,9 @@
 ; --- Members ---
 (member_access member: (identifier) @property)
 (key_value key: (identifier) @property)
+
+; --- Step ---
+(step_statement name: (string) @string)
 
 ; --- Identifiers (fallback) ---
 (identifier) @variable

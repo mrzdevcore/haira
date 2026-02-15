@@ -91,6 +91,7 @@ type WorkflowDecl struct {
 	Params   []Param
 	ReturnTy *Spanned[Type]
 	Body     Block
+	Hooks    []LifecycleHook
 }
 
 type Decorator struct {
@@ -300,8 +301,30 @@ type ExprStmt struct {
 }
 
 type StepStmt struct {
-	Name Spanned[string]
-	Body []Statement
+	Name       Spanned[string]
+	Body       []Statement
+	Decorators []Decorator // @retry etc.
+	Hooks      []LifecycleHook
+}
+
+// LifecycleHook represents onerror/onsuccess/oncancel blocks in workflows and steps.
+type LifecycleHook struct {
+	Kind    LifecycleHookKind
+	ErrName string // only for Onerror: the error variable name
+	ArgName string // only for Onsuccess at workflow level: the result variable name
+	Body    Block
+}
+
+type LifecycleHookKind int
+
+const (
+	HookOnerror LifecycleHookKind = iota
+	HookOnsuccess
+	HookOncancel
+)
+
+type ErrDeferStmt struct {
+	Value Expr
 }
 
 func (AssignStmt) stmtKind()   {}
@@ -311,6 +334,7 @@ func (WhileStmt) stmtKind()    {}
 func (ReturnStmt) stmtKind()   {}
 func (TryStmt) stmtKind()      {}
 func (DeferStmt) stmtKind()    {}
+func (ErrDeferStmt) stmtKind() {}
 func (MatchStmt) stmtKind()    {}
 func (BreakStmt) stmtKind()    {}
 func (ContinueStmt) stmtKind() {}
@@ -545,6 +569,11 @@ type PropagateExpr struct {
 	Inner Expr
 }
 
+type OrelseExpr struct {
+	Left    Expr
+	Default Expr
+}
+
 type SomeExpr struct {
 	Inner Expr
 }
@@ -593,6 +622,7 @@ func (MapExpr) exprKind()        {}
 func (InstanceExpr) exprKind()   {}
 func (RangeExpr) exprKind()      {}
 func (PropagateExpr) exprKind()  {}
+func (OrelseExpr) exprKind()     {}
 func (SomeExpr) exprKind()       {}
 func (NoneExpr) exprKind()       {}
 func (AsyncExpr) exprKind()      {}

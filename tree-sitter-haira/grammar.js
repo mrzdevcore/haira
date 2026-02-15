@@ -183,6 +183,9 @@ module.exports = grammar({
         $.spawn_block,
         $.select_block,
         $.defer_statement,
+        $.errdefer_statement,
+        $.step_statement,
+        $.lifecycle_hook,
         $.break_statement,
         $.continue_statement,
         $.assignment_or_call,
@@ -248,6 +251,26 @@ module.exports = grammar({
     defer_statement: ($) =>
       prec.right(1, seq("defer", choice($.block, $._expression))),
 
+    errdefer_statement: ($) =>
+      prec.right(1, seq("errdefer", choice($.block, $._expression))),
+
+    step_statement: ($) =>
+      seq(
+        repeat($.decorator),
+        "step",
+        field("name", $.string),
+        "{",
+        repeat(choice($.lifecycle_hook, $._statement)),
+        "}",
+      ),
+
+    lifecycle_hook: ($) =>
+      choice(
+        seq("onerror", optional(field("error", $.identifier)), $.block),
+        seq("onsuccess", optional(field("result", $.identifier)), $.block),
+        seq("oncancel", $.block),
+      ),
+
     break_statement: (_$) => "break",
 
     continue_statement: (_$) => "continue",
@@ -300,6 +323,7 @@ module.exports = grammar({
           [">=", 3],
           ["and", 2],
           ["or", 1],
+          ["orelse", 0],
         ].map(([op, p]) =>
           prec.left(
             p,

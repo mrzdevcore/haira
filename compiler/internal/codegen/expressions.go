@@ -153,6 +153,8 @@ func ExprToGo(expr ast.Expr) string {
 		return "nil /* range */"
 	case ast.PropagateExpr:
 		return propagateExprToGo(e)
+	case ast.OrelseExpr:
+		return orelseExprToGo(e)
 	case ast.AsyncExpr:
 		return "nil /* async */"
 	case ast.SpawnExpr:
@@ -224,6 +226,17 @@ func binopToGo(op ast.BinaryOp) string {
 }
 
 var propagateCounter int
+
+var orelseCounter int
+
+func orelseExprToGo(e ast.OrelseExpr) string {
+	orelseCounter++
+	id := orelseCounter
+	left := ExprToGo(e.Left)
+	def := ExprToGo(e.Default)
+	return fmt.Sprintf("func() any { _r%d, _e%d := %s; if _e%d != nil { return %s }; return _r%d }()",
+		id, id, left, id, def, id)
+}
 
 func propagateExprToGo(e ast.PropagateExpr) string {
 	propagateCounter++

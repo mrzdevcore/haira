@@ -35,11 +35,13 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 		emitTry(em, s)
 	case ast.StepStmt:
 		emitStep(em, s)
+	case ast.ErrDeferStmt:
+		emitErrDefer(em, s)
 	}
 }
 
 func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
-	// Special case: error propagation → emit inline error check
+	// Special case: error propagation → emit inline error check (return-based)
 	if len(assign.Targets) == 1 {
 		if prop, ok := assign.Value.Node.(ast.PropagateExpr); ok {
 			target := assignPathToGo(assign.Targets[0].Path)
@@ -51,7 +53,7 @@ func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
 			id := propagateCounter
 			em.Line(fmt.Sprintf("_r%d, _e%d := %s", id, id, inner))
 			em.OpenBlock(fmt.Sprintf("if _e%d != nil", id))
-			em.Line(fmt.Sprintf("panic(_e%d)", id))
+			em.Line(fmt.Sprintf("return nil, _e%d", id))
 			em.CloseBlock()
 			em.Line(fmt.Sprintf("%s := _r%d", target, id))
 			return
@@ -444,6 +446,18 @@ func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {
 	em.CloseBlock()
 	em.Line("()")
 	EmitBlockBody(em, tryStmt.Body)
+	em.CloseBlock()
+	em.Line("()")
+}
+
+// emitErrDefer emits an errdefer — a deferred call that only runs on error.
+// Implemented as: defer func() { if _haira_err != nil { <expr> } }()
+// The enclosing function must use a named error return (_haira_err).
+func emitErrDefer(em *GoEmitter, s ast.ErrDeferStmt) {
+	em.OpenBlock("defer func()")
+	em.OpenBlock("if _haira_err != nil")
+	em.Line(ExprToGo(s.Value))
+	em.CloseBlock()
 	em.CloseBlock()
 	em.Line("()")
 }

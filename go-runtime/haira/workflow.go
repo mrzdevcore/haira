@@ -30,6 +30,11 @@ func StepEnd(workflow, step string, startTime time.Time, err error) {
 	}
 }
 
+// StepRetry logs a retry attempt for a workflow step.
+func StepRetry(workflow, step string, attempt, delayMs int) {
+	fmt.Printf("[%s] step:retry  %q  attempt=%d  delay=%dms\n", workflow, step, attempt, delayMs)
+}
+
 func formatDuration(d time.Duration) string {
 	if d < time.Millisecond {
 		return fmt.Sprintf("%dµs", d.Microseconds())

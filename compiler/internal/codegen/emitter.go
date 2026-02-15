@@ -2,6 +2,7 @@
 package codegen
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
@@ -14,6 +15,8 @@ type GoEmitter struct {
 	indent       int
 	declaredVars map[string]bool
 	typeInfo     *checker.TypeInfo
+	sourceFile   string // Haira source filename (e.g., "examples/08-structs.haira")
+	sourceText   string // Haira source text (for offset→line conversion)
 }
 
 // LookupExprType returns the inferred checker type for an expression span, or nil.
@@ -96,4 +99,34 @@ func (e *GoEmitter) Blank() {
 // String returns the generated source code.
 func (e *GoEmitter) String() string {
 	return e.buf.String()
+}
+
+// LineDirective emits a //line directive mapping back to the Haira source location.
+func (e *GoEmitter) LineDirective(span ast.Span) {
+	if e.sourceFile == "" || e.sourceText == "" {
+		return
+	}
+	line, _ := offsetToLineCol(e.sourceText, span.Start)
+	e.buf.WriteString(fmt.Sprintf("//line %s:%d\n", e.sourceFile, line))
+}
+
+// offsetToLineCol converts a byte offset to 1-based line and column numbers.
+func offsetToLineCol(source string, offset int) (int, int) {
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > len(source) {
+		offset = len(source)
+	}
+	line := 1
+	col := 1
+	for i := 0; i < offset; i++ {
+		if source[i] == '\n' {
+			line++
+			col = 1
+		} else {
+			col++
+		}
+	}
+	return line, col
 }

@@ -48,7 +48,7 @@ func Compile(file, output string) error {
 		output = filepath.Join(outputDir, stem)
 	}
 
-	if err := codegen.CompileToBinary(sf, output, runtimePath, typeInfo); err != nil {
+	if err := codegen.CompileToBinary(sf, output, runtimePath, file, src, typeInfo); err != nil {
 		return err
 	}
 
@@ -75,7 +75,7 @@ func Run(file string) error {
 		return fmt.Errorf("could not find go-runtime directory")
 	}
 
-	return codegen.RunProgram(sf, runtimePath, typeInfo)
+	return codegen.RunProgram(sf, runtimePath, file, src, typeInfo)
 }
 
 // ParseFile parses a file and prints the AST.
@@ -140,7 +140,7 @@ func EmitFile(file string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	fmt.Print(codegen.ShowGeneratedGo(sf, typeInfo))
+	fmt.Print(codegen.ShowGeneratedGo(sf, file, src, typeInfo))
 	return nil
 }
 

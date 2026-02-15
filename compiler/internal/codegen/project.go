@@ -1,20 +1,22 @@
 package codegen
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
 	"github.com/haira-lang/haira/internal/checker"
 )
 
 // CompileToBinary generates Go source and runs go build.
-func CompileToBinary(file *ast.SourceFile, output, runtimePath string, typeInfo ...*checker.TypeInfo) error {
+func CompileToBinary(file *ast.SourceFile, output, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
 
-	mainGo := GenerateMainGo(file, typeInfo...)
+	mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
 
 	if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
 		return err
@@ -26,7 +28,7 @@ func CompileToBinary(file *ast.SourceFile, output, runtimePath string, typeInfo 
 
 	if err := runGoBuild(tmpDir, output); err != nil {
 		fmt.Fprintf(os.Stderr, "Debug: generated Go project at %s\n", tmpDir)
-		return err
+		return fmt.Errorf("%s", cleanGoErrors(err.Error()))
 	}
 
 	os.RemoveAll(tmpDir)
@@ -34,10 +36,10 @@ func CompileToBinary(file *ast.SourceFile, output, runtimePath string, typeInfo 
 }
 
 // RunProgram generates Go source and runs go run.
-func RunProgram(file *ast.SourceFile, runtimePath string, typeInfo ...*checker.TypeInfo) error {
+func RunProgram(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-run-%d", os.Getpid()))
 
-	mainGo := GenerateMainGo(file, typeInfo...)
+	mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
 
 	if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
 		return err
@@ -50,16 +52,38 @@ func RunProgram(file *ast.SourceFile, runtimePath string, typeInfo ...*checker.T
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = tmpDir
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	err := cmd.Run()
+
+	if stderr.Len() > 0 {
+		if err != nil {
+			fmt.Fprint(os.Stderr, cleanGoErrors(stderr.String()))
+		} else {
+			fmt.Fprint(os.Stderr, stderr.String())
+		}
+	}
 
 	os.RemoveAll(tmpDir)
 	return err
 }
 
+// cleanGoErrors strips Go module/build noise from error output,
+// since //line directives already point to the Haira source file.
+func cleanGoErrors(output string) string {
+	var lines []string
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "# haira-generated") {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // ShowGeneratedGo generates Go source and prints it (for debugging).
-func ShowGeneratedGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string {
-	return GenerateMainGo(file, typeInfo...)
+func ShowGeneratedGo(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) string {
+	return GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
 }
 
 func writeProject(dir, mainGo, runtimePath string) error {

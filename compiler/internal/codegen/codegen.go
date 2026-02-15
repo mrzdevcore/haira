@@ -9,8 +9,10 @@ import (
 )
 
 // GenerateMainGo generates the contents of main.go from the AST.
-func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string {
+func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInfo ...*checker.TypeInfo) string {
 	em := NewEmitter()
+	em.sourceFile = sourceFile
+	em.sourceText = sourceText
 	if len(typeInfo) > 0 && typeInfo[0] != nil {
 		em.typeInfo = typeInfo[0]
 		activeTypeInfo = typeInfo[0]
@@ -73,6 +75,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	// Pass 1: providers
 	for _, item := range file.Items {
 		if p, ok := item.Node.(ast.ProviderDecl); ok {
+			em.LineDirective(item.Span)
 			EmitProvider(em, p)
 		}
 	}
@@ -80,6 +83,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	// Pass 2: tools
 	for _, item := range file.Items {
 		if t, ok := item.Node.(ast.ToolDecl); ok {
+			em.LineDirective(item.Span)
 			EmitTool(em, t)
 		}
 	}
@@ -87,6 +91,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	// Pass 3: agents
 	for _, item := range file.Items {
 		if a, ok := item.Node.(ast.AgentDecl); ok {
+			em.LineDirective(item.Span)
 			agents = append(agents, a)
 			EmitAgent(em, a)
 		}
@@ -95,6 +100,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	// Pass 4: workflows
 	for _, item := range file.Items {
 		if w, ok := item.Node.(ast.WorkflowDecl); ok {
+			em.LineDirective(item.Span)
 			EmitWorkflow(em, w)
 		}
 	}
@@ -103,6 +109,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	for _, item := range file.Items {
 		if is, ok := item.Node.(ast.ItemStatement); ok {
 			if assign, ok := is.Stmt.Node.(ast.AssignStmt); ok {
+				em.LineDirective(item.Span)
 				emitTopLevelVar(em, assign)
 			}
 		}
@@ -111,9 +118,11 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	// Pass 6: type defs and enums
 	for _, item := range file.Items {
 		if td, ok := item.Node.(ast.TypeDef); ok {
+			em.LineDirective(item.Span)
 			emitTypeDef(em, td)
 		}
 		if ed, ok := item.Node.(ast.EnumDef); ok {
+			em.LineDirective(item.Span)
 			emitEnumDef(em, ed)
 		}
 	}
@@ -121,6 +130,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 	// Pass 7: method definitions
 	for _, item := range file.Items {
 		if md, ok := item.Node.(ast.MethodDef); ok {
+			em.LineDirective(item.Span)
 			emitMethod(em, md)
 		}
 	}
@@ -131,6 +141,7 @@ func GenerateMainGo(file *ast.SourceFile, typeInfo ...*checker.TypeInfo) string 
 			if f.Name.Node == "main" {
 				mainFn = &f
 			} else {
+				em.LineDirective(item.Span)
 				emitFunction(em, f)
 			}
 		}

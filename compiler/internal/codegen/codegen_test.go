@@ -29,7 +29,7 @@ func parseAndGenerate(t *testing.T, src string) string {
 		}
 		t.FailNow()
 	}
-	return GenerateMainGo(sf)
+	return GenerateMainGo(sf, "", "")
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ func TestAllExamplesGenerate(t *testing.T) {
 				t.Skipf("skipping (parse errors): %s", entry.Name())
 			}
 			// Should not panic
-			got := GenerateMainGo(sf)
+			got := GenerateMainGo(sf, "", "")
 			if !strings.Contains(got, "package main") {
 				t.Error("generated Go should contain 'package main'")
 			}

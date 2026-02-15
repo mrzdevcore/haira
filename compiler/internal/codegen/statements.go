@@ -9,6 +9,7 @@ import (
 
 // EmitStatement emits a Haira statement as Go code.
 func EmitStatement(em *GoEmitter, stmt ast.Statement) {
+	em.LineDirective(stmt.Span)
 	switch s := stmt.Node.(type) {
 	case ast.AssignStmt:
 		emitAssignment(em, s)

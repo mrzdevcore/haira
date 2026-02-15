@@ -61,6 +61,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.Printf(%s)", args), true
 		case "readln":
 			return "haira.Readln()", true
+		case "read_file":
+			return fmt.Sprintf("haira.ReadFile(%s)", args), true
 		case "eprintln":
 			return fmt.Sprintf("haira.Eprintln(%s)", args), true
 		case "eprintf":

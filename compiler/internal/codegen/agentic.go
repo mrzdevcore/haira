@@ -357,7 +357,8 @@ func emitWorkflowBodyWithHooks(em *GoEmitter, block ast.Block, hooks []ast.Lifec
 	}
 
 	if onerrorHook != nil {
-		// Wrap body in a closure to catch panics from ? operator
+		// Wrap body in a closure to catch panics from ? operator.
+		// Returns inside the closure become _wfResult assignments.
 		em.Line("var _wfErr error")
 		em.Line("var _wfResult any")
 		em.OpenBlock("func()")
@@ -365,20 +366,26 @@ func emitWorkflowBodyWithHooks(em *GoEmitter, block ast.Block, hooks []ast.Lifec
 		em.OpenBlock("if r := recover(); r != nil")
 		em.Line("_wfErr = fmt.Errorf(\"%v\", r)")
 		em.CloseBlock()
-		em.CloseBlock()
-		em.Line("()")
-		// Emit body, but capture returns instead of returning directly
+		em.Dedent()
+		em.Line("}()")
+		inCapturedContext = true
 		for _, stmt := range block.Statements {
-			emitWorkflowStatement(em, stmt)
+			emitWorkflowStatementCaptured(em, stmt)
 		}
-		em.CloseBlock()
-		em.Line("()")
+		inCapturedContext = false
+		em.Dedent()
+		em.Line("}()")
 
 		// onerror handler
 		em.OpenBlock("if _wfErr != nil")
 		em.Line(fmt.Sprintf("%s := fmt.Sprintf(\"%%v\", _wfErr)", onerrorHook.ErrName))
 		em.Line(fmt.Sprintf("_ = %s", onerrorHook.ErrName))
 		emitWorkflowBody(em, onerrorHook.Body)
+		em.CloseBlock()
+
+		// If no error and we have a result, return it
+		em.OpenBlock("if _wfResult != nil")
+		em.Line("return _wfResult, nil")
 		em.CloseBlock()
 	} else {
 		// No onerror — emit body directly
@@ -393,17 +400,78 @@ func emitWorkflowBodyWithHooks(em *GoEmitter, block ast.Block, hooks []ast.Lifec
 		em.OpenBlock("func()")
 		em.OpenBlock("defer func()")
 		em.Line("recover() // onsuccess errors are non-fatal")
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		if onsuccessHook.ArgName != "" {
 			em.Line(fmt.Sprintf("%s := _wfResult", onsuccessHook.ArgName))
 			em.Line(fmt.Sprintf("_ = %s", onsuccessHook.ArgName))
 		}
 		EmitBlockBody(em, onsuccessHook.Body)
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		em.CloseBlock()
 	}
+
+	// Fallback return — needed when onerror wraps body in IIFE
+	if onerrorHook != nil {
+		em.Line("return nil, nil")
+	}
+}
+
+// emitWorkflowStatementCaptured emits a workflow statement inside an onerror IIFE,
+// converting returns to _wfResult assignments so they don't try to return from the closure.
+func emitWorkflowStatementCaptured(em *GoEmitter, stmt ast.Statement) {
+	switch s := stmt.Node.(type) {
+	case ast.ReturnStmt:
+		if len(s.Values) == 0 {
+			em.Line("return")
+		} else {
+			vals := make([]string, len(s.Values))
+			for i, v := range s.Values {
+				vals[i] = ExprToGo(v)
+			}
+			em.Line(fmt.Sprintf("_wfResult = %s", strings.Join(vals, ", ")))
+			em.Line("return")
+		}
+	case ast.IfStmt:
+		emitWorkflowIfCaptured(em, s)
+	case ast.StepStmt:
+		emitStep(em, s)
+	default:
+		EmitStatement(em, stmt)
+	}
+}
+
+func emitWorkflowIfCaptured(em *GoEmitter, ifStmt ast.IfStmt) {
+	cond := ExprToGo(ifStmt.Condition)
+	em.OpenBlock(fmt.Sprintf("if %s", cond))
+	for _, stmt := range ifStmt.ThenBranch.Statements {
+		emitWorkflowStatementCaptured(em, stmt)
+	}
+	if ifStmt.ElseBranch != nil {
+		switch eb := ifStmt.ElseBranch.(type) {
+		case *ast.ElseBlock:
+			em.Dedent()
+			em.Line("} else {")
+			em.Indent()
+			for _, stmt := range eb.Body.Statements {
+				emitWorkflowStatementCaptured(em, stmt)
+			}
+			em.CloseBlock()
+			return
+		case *ast.ElseIf:
+			em.Dedent()
+			cond := ExprToGo(eb.If.Node.Condition)
+			em.Line(fmt.Sprintf("} else if %s {", cond))
+			em.Indent()
+			for _, stmt := range eb.If.Node.ThenBranch.Statements {
+				emitWorkflowStatementCaptured(em, stmt)
+			}
+			em.CloseBlock()
+			return
+		}
+	}
+	em.CloseBlock()
 }
 
 func emitStep(em *GoEmitter, step ast.StepStmt) {
@@ -480,11 +548,11 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 		em.OpenBlock("if r := recover(); r != nil")
 		em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"%%v\", r)", retryVar))
 		em.CloseBlock()
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		em.OpenBlock(fmt.Sprintf("if %s_err == nil", retryVar))
 		em.Line("break")
 		em.CloseBlock()
@@ -519,11 +587,11 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 		em.OpenBlock("if r := recover(); r != nil")
 		em.Line(fmt.Sprintf("%s = fmt.Errorf(\"%%v\", r)", errVar))
 		em.CloseBlock()
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		em.OpenBlock(fmt.Sprintf("if %s != nil", errVar))
 		em.Line(fmt.Sprintf("%s := fmt.Sprintf(\"%%v\", %s)", onerrorHook.ErrName, errVar))
 		em.Line(fmt.Sprintf("_ = %s", onerrorHook.ErrName))
@@ -541,11 +609,11 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 		em.OpenBlock("func()")
 		em.OpenBlock("defer func()")
 		em.Line("recover() // onsuccess errors are non-fatal")
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 		EmitBlockBody(em, onsuccessHook.Body)
-		em.CloseBlock()
-		em.Line("()")
+		em.Dedent()
+		em.Line("}()")
 	}
 
 	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
@@ -555,19 +623,35 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 	for _, stmt := range stmts {
 		switch s := stmt.Node.(type) {
 		case ast.ReturnStmt:
-			if len(s.Values) == 0 {
-				em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
-				em.Line("return nil, nil")
-			} else {
-				vals := make([]string, len(s.Values))
-				for i, v := range s.Values {
-					vals[i] = ExprToGo(v)
+			em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+			if inCapturedContext {
+				if len(s.Values) == 0 {
+					em.Line("return")
+				} else {
+					vals := make([]string, len(s.Values))
+					for i, v := range s.Values {
+						vals[i] = ExprToGo(v)
+					}
+					em.Line(fmt.Sprintf("_wfResult = %s", strings.Join(vals, ", ")))
+					em.Line("return")
 				}
-				em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
-				em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
+			} else {
+				if len(s.Values) == 0 {
+					em.Line("return nil, nil")
+				} else {
+					vals := make([]string, len(s.Values))
+					for i, v := range s.Values {
+						vals[i] = ExprToGo(v)
+					}
+					em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
+				}
 			}
 		case ast.IfStmt:
-			emitWorkflowIf(em, s)
+			if inCapturedContext {
+				emitWorkflowIfCaptured(em, s)
+			} else {
+				emitWorkflowIf(em, s)
+			}
 		default:
 			EmitStatement(em, stmt)
 		}
@@ -575,6 +659,10 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 }
 
 var stepCounter int
+
+// inCapturedContext is true when emitting inside a workflow-level onerror IIFE.
+// Returns become _wfResult assignments instead of actual returns.
+var inCapturedContext bool
 
 func emitWorkflowIf(em *GoEmitter, ifStmt ast.IfStmt) {
 	cond := ExprToGo(ifStmt.Condition)

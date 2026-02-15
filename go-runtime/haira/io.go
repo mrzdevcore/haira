@@ -31,6 +31,15 @@ func Readln() string {
 	return ""
 }
 
+// ReadFile reads a file and returns its contents as a string.
+func ReadFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 // Eprintln prints values to stderr followed by a newline.
 func Eprintln(args ...any) {
 	fmt.Fprintln(os.Stderr, args...)

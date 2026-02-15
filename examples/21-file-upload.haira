@@ -1,0 +1,69 @@
+// File upload example — upload a text file, AI summarises it.
+// Demonstrates: file type, @webui, @post, steps, onerror, onsuccess.
+
+import "io"
+import "http"
+
+provider azure_openai {
+    api_key: env("AZURE_OPENAI_API_KEY")
+    endpoint: env("AZURE_OPENAI_ENDPOINT")
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+    api_version: env("AZURE_OPENAI_API_VERSION")
+}
+
+agent Summarizer {
+    model: azure_openai
+    system: "You are a helpful assistant. Summarize the given text clearly and concisely."
+    temperature: 0.3
+}
+
+@webui(title: "File Summarizer", description: "Upload a text file and get an AI-powered summary")
+@post("/api/summarize")
+workflow Summarize(document: file, context: string, format: string) -> { summary: string } {
+    onerror err {
+        io.eprintln("Workflow failed: ${err}")
+        return { summary: "Error: ${err}" }
+    }
+
+    onsuccess {
+        io.println("Summary generated successfully")
+    }
+
+    step "Read file" {
+        content, read_err = io.read_file(document)
+        if read_err != nil {
+            return { summary: "Failed to read file." }
+        }
+        if content == "" {
+            return { summary: "File is empty." }
+        }
+    }
+
+    step "Build prompt" {
+        prompt = "Summarize the following text."
+        if context != "" {
+            prompt = prompt + " Context: " + context
+        }
+        if format != "" {
+            prompt = prompt + " Format: " + format
+        }
+        prompt = prompt + "\n\n" + content
+    }
+
+    step "Summarize" {
+        reply, ai_err = Summarizer.ask(prompt)
+        if ai_err != nil {
+            return { summary: "AI error: something went wrong." }
+        }
+    }
+
+    return { summary: reply }
+}
+
+fn main() {
+    server = http.Server([Summarize])
+    io.println("File Summarizer running on :8080")
+    io.println("  POST /api/summarize  — upload a text file")
+    io.println("  UI:  http://localhost:8080/_ui/api/summarize")
+    server.listen(8080)
+}

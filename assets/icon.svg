@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 68" fill="none">
+  <!--
+    Haira Logo — The AI Craftsman
+    Amber/Gold palette — ties to craft/straw heritage
+  -->
+
+  <!-- === FOUNDATION === -->
+  <rect x="6" y="55" width="52" height="7" rx="3.5" fill="#3D2B1F"/>
+  <rect x="12" y="47" width="9" height="10" rx="3" fill="#3D2B1F"/>
+  <rect x="43" y="47" width="9" height="10" rx="3" fill="#3D2B1F"/>
+  <rect x="12" y="47" width="40" height="4" rx="2" fill="#5C3A1E"/>
+
+  <!-- === BODY === -->
+  <rect x="20" y="31" width="24" height="16" rx="4" fill="#E8A317"/>
+  <rect x="25" y="34" width="14" height="10" rx="3" fill="#3D2B1F"/>
+  <circle cx="32" cy="39" r="5" fill="#FDE68A" opacity="0.3"/>
+  <circle cx="32" cy="39" r="3.5" fill="#FDE68A"/>
+  <circle cx="32" cy="39" r="1.8" fill="#ffffff" opacity="0.9"/>
+
+  <!-- === ARMS === -->
+  <rect x="10" y="34" width="10" height="5" rx="2.5" fill="#E8A317"/>
+  <rect x="44" y="34" width="10" height="5" rx="2.5" fill="#E8A317"/>
+  <circle cx="9" cy="36.5" r="3.5" fill="#E8A317"/>
+  <circle cx="9" cy="36.5" r="2" fill="#FDE68A"/>
+  <circle cx="55" cy="36.5" r="3.5" fill="#E8A317"/>
+  <circle cx="55" cy="36.5" r="2" fill="#FDE68A"/>
+
+  <!-- === HEAD === -->
+  <rect x="17" y="11" width="30" height="20" rx="6" fill="#F0BD4F"/>
+  <rect x="21" y="15" width="22" height="9" rx="4" fill="#3D2B1F"/>
+  <circle cx="27" cy="19.5" r="3.5" fill="#FDE68A"/>
+  <circle cx="27" cy="19.5" r="1.5" fill="#ffffff"/>
+  <circle cx="37" cy="19.5" r="3.5" fill="#FDE68A"/>
+  <circle cx="37" cy="19.5" r="1.5" fill="#ffffff"/>
+
+  <!-- === STRAW HAT === -->
+  <ellipse cx="32" cy="12" rx="31" ry="4.5" fill="#C4A265"/>
+  <ellipse cx="32" cy="11.5" rx="29" ry="3.5" fill="#D4B87A"/>
+  <line x1="4" y1="12" x2="60" y2="12" stroke="#B89555" stroke-width="0.4" opacity="0.5"/>
+  <line x1="6" y1="13.5" x2="58" y2="13.5" stroke="#B89555" stroke-width="0.3" opacity="0.4"/>
+  <rect x="15" y="2" width="34" height="10" rx="5" fill="#C4A265"/>
+  <rect x="18" y="0" width="28" height="6" rx="4" fill="#D4B87A"/>
+  <path d="M22 1 Q32 3 42 1" stroke="#B89555" stroke-width="1" fill="none"/>
+  <rect x="15" y="8" width="34" height="4" rx="2" fill="#5C3A1E"/>
+  <line x1="19" y1="9.5" x2="21" y2="9.5" stroke="#7B5230" stroke-width="0.8"/>
+  <line x1="24" y1="9.5" x2="26" y2="9.5" stroke="#7B5230" stroke-width="0.8"/>
+  <line x1="29" y1="9.5" x2="31" y2="9.5" stroke="#7B5230" stroke-width="0.8"/>
+  <line x1="34" y1="9.5" x2="36" y2="9.5" stroke="#7B5230" stroke-width="0.8"/>
+  <line x1="39" y1="9.5" x2="41" y2="9.5" stroke="#7B5230" stroke-width="0.8"/>
+  <line x1="44" y1="9.5" x2="46" y2="9.5" stroke="#7B5230" stroke-width="0.8"/>
+</svg>

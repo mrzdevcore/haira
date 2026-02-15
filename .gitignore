@@ -28,3 +28,5 @@ poc
 # Environment
 .env
 .env.local
+editors/zed-haira/extension.wasm
+editors/zed-haira/grammars/haira.wasm

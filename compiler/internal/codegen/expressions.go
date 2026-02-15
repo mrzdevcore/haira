@@ -24,6 +24,8 @@ func ExprToGo(expr ast.Expr) string {
 			return "-" + operand
 		case ast.OpNot:
 			return "!" + operand
+		case ast.OpBitNot:
+			return "^" + operand // Go uses ^ for bitwise NOT
 		}
 		return operand
 	case ast.CallExpr:
@@ -150,7 +152,7 @@ func ExprToGo(expr ast.Expr) string {
 	case ast.RangeExpr:
 		return "nil /* range */"
 	case ast.PropagateExpr:
-		return ExprToGo(e.Inner)
+		return propagateExprToGo(e)
 	case ast.AsyncExpr:
 		return "nil /* async */"
 	case ast.SpawnExpr:
@@ -207,8 +209,28 @@ func binopToGo(op ast.BinaryOp) string {
 		return "&&"
 	case ast.OpOr:
 		return "||"
+	case ast.OpBitAnd:
+		return "&"
+	case ast.OpBitOr:
+		return "|"
+	case ast.OpBitXor:
+		return "^"
+	case ast.OpShl:
+		return "<<"
+	case ast.OpShr:
+		return ">>"
 	}
 	return "+"
+}
+
+var propagateCounter int
+
+func propagateExprToGo(e ast.PropagateExpr) string {
+	propagateCounter++
+	id := propagateCounter
+	inner := ExprToGo(e.Inner)
+	return fmt.Sprintf("func() any { _r%d, _e%d := %s; if _e%d != nil { panic(_e%d) }; return _r%d }()",
+		id, id, inner, id, id, id)
 }
 
 func literalToGo(lit ast.Literal) string {
@@ -274,6 +296,9 @@ func lambdaToGo(lambda ast.LambdaExpr) string {
 }
 
 func matchExprToGo(m ast.MatchExpr) string {
+	if needsIfChain(m) {
+		return matchExprToGoIfChain(m)
+	}
 	subject := ExprToGo(m.Subject)
 	em := NewEmitter()
 	em.Line("func() any {")
@@ -284,28 +309,63 @@ func matchExprToGo(m ast.MatchExpr) string {
 		} else {
 			em.Line(fmt.Sprintf("\tcase %s:", patternToGoExpr(arm.Pattern.Node)))
 		}
-		switch body := arm.Body.(type) {
-		case ast.MatchArmExpr:
-			em.Line(fmt.Sprintf("\t\treturn %s", ExprToGo(body.Value)))
-		case ast.MatchArmBlock:
-			stmts := body.Value.Statements
-			for i, stmt := range stmts {
-				if i == len(stmts)-1 {
-					if es, ok := stmt.Node.(ast.ExprStmt); ok {
-						em.Line(fmt.Sprintf("\t\treturn %s", ExprToGo(es.Value)))
-						continue
-					}
-				}
-				inner := NewEmitter()
-				EmitStatement(inner, stmt)
-				em.Line("\t\t" + strings.TrimSpace(inner.String()))
-			}
-		}
+		emitMatchExprArmBody(em, arm.Body)
 	}
 	em.Line("\t}")
 	em.Line("\treturn nil")
 	em.Line("}()")
 	return strings.TrimSpace(em.String())
+}
+
+func matchExprToGoIfChain(m ast.MatchExpr) string {
+	subject := ExprToGo(m.Subject)
+	em := NewEmitter()
+	em.Line("func() any {")
+	em.Line(fmt.Sprintf("\t_match := %s", subject))
+	for i, arm := range m.Arms {
+		cond := patternToCondition("_match", arm.Pattern.Node)
+		if arm.Guard != nil {
+			cond = fmt.Sprintf("%s && %s", cond, ExprToGo(*arm.Guard))
+		}
+		if _, ok := arm.Pattern.Node.(ast.WildcardPattern); ok && arm.Guard == nil {
+			if i > 0 {
+				em.Line("\t} else {")
+			} else {
+				em.Line("\t{")
+			}
+		} else {
+			if i > 0 {
+				em.Line(fmt.Sprintf("\t} else if %s {", cond))
+			} else {
+				em.Line(fmt.Sprintf("\tif %s {", cond))
+			}
+		}
+		emitMatchExprArmBody(em, arm.Body)
+	}
+	em.Line("\t}")
+	em.Line("\treturn nil")
+	em.Line("}()")
+	return strings.TrimSpace(em.String())
+}
+
+func emitMatchExprArmBody(em *GoEmitter, body ast.MatchArmBody) {
+	switch b := body.(type) {
+	case ast.MatchArmExpr:
+		em.Line(fmt.Sprintf("\t\treturn %s", ExprToGo(b.Value)))
+	case ast.MatchArmBlock:
+		stmts := b.Value.Statements
+		for i, stmt := range stmts {
+			if i == len(stmts)-1 {
+				if es, ok := stmt.Node.(ast.ExprStmt); ok {
+					em.Line(fmt.Sprintf("\t\treturn %s", ExprToGo(es.Value)))
+					continue
+				}
+			}
+			inner := NewEmitter()
+			EmitStatement(inner, stmt)
+			em.Line("\t\t" + strings.TrimSpace(inner.String()))
+		}
+	}
 }
 
 func ifExprToGo(ifStmt ast.IfStmt) string {
@@ -414,6 +474,12 @@ func patternToGoExpr(pattern ast.Pattern) string {
 		return p.Name
 	case ast.ConstructorPattern:
 		return p.Name
+	case ast.OrPattern:
+		parts := make([]string, len(p.Patterns))
+		for i, sub := range p.Patterns {
+			parts[i] = patternToGoExpr(sub.Node)
+		}
+		return strings.Join(parts, ", ")
 	}
 	return "nil"
 }

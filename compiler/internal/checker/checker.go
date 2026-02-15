@@ -1,6 +1,9 @@
 package checker
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/haira-lang/haira/internal/ast"
 	hairaerr "github.com/haira-lang/haira/internal/errors"
 )
@@ -57,6 +60,42 @@ func (c *checker) addWarning(msg string, span ast.Span, hint string) {
 		File:    c.file,
 		Hint:    hint,
 	})
+}
+
+func (c *checker) checkEnumExhaustiveness(enumTy EnumType, arms []ast.MatchArm, span ast.Span) {
+	hasWildcard := false
+	covered := map[string]bool{}
+	for _, arm := range arms {
+		collectCoveredVariants(arm.Pattern.Node, enumTy.Name, covered, &hasWildcard)
+	}
+	if hasWildcard {
+		return
+	}
+	var missing []string
+	for _, v := range enumTy.Variants {
+		fullName := enumTy.Name + v
+		if !covered[fullName] {
+			missing = append(missing, v)
+		}
+	}
+	if len(missing) > 0 {
+		hint := "add a wildcard '_' arm or handle all variants"
+		msg := fmt.Sprintf("non-exhaustive match on %s: missing %s", enumTy.Name, strings.Join(missing, ", "))
+		c.addWarning(msg, span, hint)
+	}
+}
+
+func collectCoveredVariants(p ast.Pattern, enumName string, covered map[string]bool, hasWildcard *bool) {
+	switch pat := p.(type) {
+	case ast.WildcardPattern:
+		*hasWildcard = true
+	case ast.IdentPattern:
+		covered[pat.Name] = true
+	case ast.OrPattern:
+		for _, sub := range pat.Patterns {
+			collectCoveredVariants(sub.Node, enumName, covered, hasWildcard)
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -286,14 +325,21 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 		c.inferExpr(s.Value)
 
 	case ast.MatchStmt:
-		c.inferExpr(s.Match.Subject)
+		subjectType := c.inferExpr(s.Match.Subject)
 		for _, arm := range s.Match.Arms {
+			if arm.Guard != nil {
+				c.inferExpr(*arm.Guard)
+			}
 			switch body := arm.Body.(type) {
 			case ast.MatchArmExpr:
 				c.inferExpr(body.Value)
 			case ast.MatchArmBlock:
 				c.checkBlock(body.Value)
 			}
+		}
+		// Exhaustiveness check for simple enums
+		if enumTy, ok := subjectType.(EnumType); ok {
+			c.checkEnumExhaustiveness(enumTy, s.Match.Arms, s.Match.Subject.Span)
 		}
 
 	case ast.StepStmt:

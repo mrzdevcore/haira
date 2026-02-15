@@ -840,7 +840,7 @@ func TestImportDecl(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPipeExpr(t *testing.T) {
-	src := `fn main() { x = data | transform | output }`
+	src := `fn main() { x = data |> transform |> output }`
 	sf, errs := Parse(src)
 	if len(errs) > 0 {
 		t.Fatalf("parse errors: %v", errs)

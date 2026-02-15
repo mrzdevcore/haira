@@ -68,6 +68,17 @@ const (
 	SlashEq   // /=
 	PercentEq // %=
 	Pipe      // |
+	PipeArrow // |>
+	Amp       // &
+	AmpEq     // &=
+	Caret     // ^
+	CaretEq   // ^=
+	Tilde     // ~
+	Shl       // <<
+	ShlEq     // <<=
+	Shr       // >>
+	ShrEq     // >>=
+	PipeEq    // |=
 	Question  // ?
 	FatArrow  // =>
 	Arrow     // ->
@@ -284,6 +295,28 @@ func (k TokenKind) String() string {
 		return "%="
 	case Pipe:
 		return "|"
+	case PipeArrow:
+		return "|>"
+	case Amp:
+		return "&"
+	case AmpEq:
+		return "&="
+	case Caret:
+		return "^"
+	case CaretEq:
+		return "^="
+	case Tilde:
+		return "~"
+	case Shl:
+		return "<<"
+	case ShlEq:
+		return "<<="
+	case Shr:
+		return ">>"
+	case ShrEq:
+		return ">>="
+	case PipeEq:
+		return "|="
 	case Question:
 		return "?"
 	case FatArrow:

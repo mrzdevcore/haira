@@ -282,7 +282,7 @@ workflow ParallelReview(article: Article) -> [Review] {
 
 \section{Pipe Operator}
 
-The pipe operator \code{|} enables functional composition:
+The pipe operator \code{|>} enables functional composition:
 
 \begin{lstlisting}
 import "io"
@@ -291,10 +291,10 @@ import "array"
 
 fn main() {
     result = "  hello, world  "
-        | string.trim
-        | string.to_upper
-        | string.split(", ")
-        | array.first
+        |> string.trim
+        |> string.to_upper
+        |> string.split(", ")
+        |> array.first
 
     io.println(result)  // "HELLO"
 }

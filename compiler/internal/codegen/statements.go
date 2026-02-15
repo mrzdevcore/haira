@@ -38,6 +38,25 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 }
 
 func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
+	// Special case: error propagation → emit inline error check
+	if len(assign.Targets) == 1 {
+		if prop, ok := assign.Value.Node.(ast.PropagateExpr); ok {
+			target := assignPathToGo(assign.Targets[0].Path)
+			if ident, ok := assign.Targets[0].Path.(ast.IdentPath); ok {
+				em.DeclareVar(ident.Name.Node)
+			}
+			inner := ExprToGo(prop.Inner)
+			propagateCounter++
+			id := propagateCounter
+			em.Line(fmt.Sprintf("_r%d, _e%d := %s", id, id, inner))
+			em.OpenBlock(fmt.Sprintf("if _e%d != nil", id))
+			em.Line(fmt.Sprintf("panic(_e%d)", id))
+			em.CloseBlock()
+			em.Line(fmt.Sprintf("%s := _r%d", target, id))
+			return
+		}
+	}
+
 	// Special case: match expression as RHS → emit switch that assigns to variable
 	if len(assign.Targets) == 1 {
 		if matchExpr, ok := assign.Value.Node.(ast.MatchExpr); ok {
@@ -90,6 +109,10 @@ func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
 }
 
 func emitMatchAssignment(em *GoEmitter, target string, matchExpr ast.MatchExpr) {
+	if needsIfChain(matchExpr) {
+		emitMatchAssignmentIfChain(em, target, matchExpr)
+		return
+	}
 	subject := ExprToGo(matchExpr.Subject)
 	em.OpenBlock(fmt.Sprintf("switch %s", subject))
 	for _, arm := range matchExpr.Arms {
@@ -102,6 +125,43 @@ func emitMatchAssignment(em *GoEmitter, target string, matchExpr ast.MatchExpr) 
 			EmitBlockBody(em, body.Value)
 		}
 		em.Dedent()
+	}
+	em.CloseBlock()
+}
+
+func emitMatchAssignmentIfChain(em *GoEmitter, target string, matchExpr ast.MatchExpr) {
+	subject := ExprToGo(matchExpr.Subject)
+	tmpVar := "_match"
+	em.Line(fmt.Sprintf("%s := %s", tmpVar, subject))
+	for i, arm := range matchExpr.Arms {
+		cond := patternToCondition(tmpVar, arm.Pattern.Node)
+		if arm.Guard != nil {
+			cond = fmt.Sprintf("%s && %s", cond, ExprToGo(*arm.Guard))
+		}
+		if _, ok := arm.Pattern.Node.(ast.WildcardPattern); ok && arm.Guard == nil {
+			if i > 0 {
+				em.Dedent()
+				em.Line("} else {")
+				em.Indent()
+			} else {
+				em.Line("{")
+				em.Indent()
+			}
+		} else {
+			if i > 0 {
+				em.Dedent()
+				em.Line(fmt.Sprintf("} else if %s {", cond))
+				em.Indent()
+			} else {
+				em.OpenBlock(fmt.Sprintf("if %s", cond))
+			}
+		}
+		switch body := arm.Body.(type) {
+		case ast.MatchArmExpr:
+			em.Line(fmt.Sprintf("%s = %s", target, ExprToGo(body.Value)))
+		case ast.MatchArmBlock:
+			EmitBlockBody(em, body.Value)
+		}
 	}
 	em.CloseBlock()
 }
@@ -231,20 +291,88 @@ func emitReturn(em *GoEmitter, ret ast.ReturnStmt) {
 }
 
 func emitMatch(em *GoEmitter, matchExpr ast.MatchExpr) {
+	if needsIfChain(matchExpr) {
+		emitMatchIfChain(em, matchExpr)
+		return
+	}
 	subject := ExprToGo(matchExpr.Subject)
 	em.OpenBlock(fmt.Sprintf("switch %s", subject))
 	for _, arm := range matchExpr.Arms {
 		emitMatchArmHeader(em, arm.Pattern.Node)
 		em.Indent()
-		switch body := arm.Body.(type) {
-		case ast.MatchArmExpr:
-			em.Line(ExprToGo(body.Value))
-		case ast.MatchArmBlock:
-			EmitBlockBody(em, body.Value)
-		}
+		emitMatchArmBody(em, arm.Body)
 		em.Dedent()
 	}
 	em.CloseBlock()
+}
+
+func emitMatchIfChain(em *GoEmitter, matchExpr ast.MatchExpr) {
+	subject := ExprToGo(matchExpr.Subject)
+	tmpVar := "_match"
+	em.Line(fmt.Sprintf("%s := %s", tmpVar, subject))
+	for i, arm := range matchExpr.Arms {
+		cond := patternToCondition(tmpVar, arm.Pattern.Node)
+		if arm.Guard != nil {
+			cond = fmt.Sprintf("%s && %s", cond, ExprToGo(*arm.Guard))
+		}
+		if _, ok := arm.Pattern.Node.(ast.WildcardPattern); ok && arm.Guard == nil {
+			if i > 0 {
+				em.Dedent()
+				em.Line("} else {")
+				em.Indent()
+			} else {
+				em.Line("{")
+				em.Indent()
+			}
+		} else {
+			if i > 0 {
+				em.Dedent()
+				em.Line(fmt.Sprintf("} else if %s {", cond))
+				em.Indent()
+			} else {
+				em.OpenBlock(fmt.Sprintf("if %s", cond))
+			}
+		}
+		emitMatchArmBody(em, arm.Body)
+	}
+	em.CloseBlock()
+}
+
+func emitMatchArmBody(em *GoEmitter, body ast.MatchArmBody) {
+	switch b := body.(type) {
+	case ast.MatchArmExpr:
+		em.Line(ExprToGo(b.Value))
+	case ast.MatchArmBlock:
+		EmitBlockBody(em, b.Value)
+	}
+}
+
+// needsIfChain returns true if the match has guards or range patterns,
+// which cannot be expressed as a Go switch statement.
+func needsIfChain(matchExpr ast.MatchExpr) bool {
+	for _, arm := range matchExpr.Arms {
+		if arm.Guard != nil {
+			return true
+		}
+		if hasRangePattern(arm.Pattern.Node) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRangePattern(p ast.Pattern) bool {
+	switch pat := p.(type) {
+	case ast.RangePattern:
+		return true
+	case ast.OrPattern:
+		for _, sub := range pat.Patterns {
+			if hasRangePattern(sub.Node) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func emitMatchArmHeader(em *GoEmitter, pattern ast.Pattern) {
@@ -265,8 +393,42 @@ func patternToGo(pattern ast.Pattern) string {
 		return p.Name
 	case ast.ConstructorPattern:
 		return p.Name
+	case ast.OrPattern:
+		parts := make([]string, len(p.Patterns))
+		for i, sub := range p.Patterns {
+			parts[i] = patternToGo(sub.Node)
+		}
+		return strings.Join(parts, ", ")
 	}
 	return "nil"
+}
+
+// patternToCondition converts a pattern to a Go boolean condition string.
+func patternToCondition(subject string, pattern ast.Pattern) string {
+	switch p := pattern.(type) {
+	case ast.WildcardPattern:
+		return "true"
+	case ast.LiteralPattern:
+		return fmt.Sprintf("%s == %s", subject, literalToGo(p.Lit))
+	case ast.IdentPattern:
+		return fmt.Sprintf("%s == %s", subject, p.Name)
+	case ast.ConstructorPattern:
+		return fmt.Sprintf("%s == %s", subject, p.Name)
+	case ast.OrPattern:
+		parts := make([]string, len(p.Patterns))
+		for i, sub := range p.Patterns {
+			parts[i] = patternToCondition(subject, sub.Node)
+		}
+		return "(" + strings.Join(parts, " || ") + ")"
+	case ast.RangePattern:
+		startVal := literalToGo(p.Start)
+		endVal := literalToGo(p.End)
+		if p.Inclusive {
+			return fmt.Sprintf("%s >= %s && %s <= %s", subject, startVal, subject, endVal)
+		}
+		return fmt.Sprintf("%s >= %s && %s < %s", subject, startVal, subject, endVal)
+	}
+	return "true"
 }
 
 func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {

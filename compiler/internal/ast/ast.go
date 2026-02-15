@@ -381,6 +381,11 @@ const (
 	OpGe
 	OpAnd
 	OpOr
+	OpBitAnd // &
+	OpBitOr  // |
+	OpBitXor // ^
+	OpShl    // <<
+	OpShr    // >>
 )
 
 type UnaryExpr struct {
@@ -393,6 +398,7 @@ type UnaryOp int
 const (
 	OpNeg UnaryOp = iota
 	OpNot
+	OpBitNot // ~
 )
 
 type CallExpr struct {
@@ -481,10 +487,21 @@ type ConstructorPattern struct {
 	Fields []Spanned[string]
 }
 
+type OrPattern struct {
+	Patterns []Spanned[Pattern]
+}
+type RangePattern struct {
+	Start     Literal // IntLit
+	End       Literal // IntLit
+	Inclusive bool    // ..= vs ..
+}
+
 func (WildcardPattern) patternKind()    {}
 func (LiteralPattern) patternKind()     {}
 func (IdentPattern) patternKind()       {}
 func (ConstructorPattern) patternKind() {}
+func (OrPattern) patternKind()          {}
+func (RangePattern) patternKind()       {}
 
 type IfExpr struct {
 	If IfStmt

@@ -13,8 +13,8 @@ fn to_label(n: int) -> string {
 }
 
 fn main() {
-    result = 5 | double | add_one | to_label
+    result = 5 |> double |> add_one |> to_label
     io.println(result)
 
-    io.println(10 | double | double)
+    io.println(10 |> double |> double)
 }

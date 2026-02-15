@@ -387,13 +387,47 @@ func (l *Lexer) scanOperatorOrDelimiter(start int) {
 			l.pos++
 			l.tokens = append(l.tokens, token.Token{Kind: token.Ne, Start: start, End: l.pos})
 			return
+		case ch == '<' && next == '<':
+			if l.pos+1 < len(l.source) && l.source[l.pos+1] == '=' {
+				l.pos += 2
+				l.tokens = append(l.tokens, token.Token{Kind: token.ShlEq, Start: start, End: l.pos})
+			} else {
+				l.pos++
+				l.tokens = append(l.tokens, token.Token{Kind: token.Shl, Start: start, End: l.pos})
+			}
+			return
 		case ch == '<' && next == '=':
 			l.pos++
 			l.tokens = append(l.tokens, token.Token{Kind: token.Le, Start: start, End: l.pos})
 			return
+		case ch == '>' && next == '>':
+			if l.pos+1 < len(l.source) && l.source[l.pos+1] == '=' {
+				l.pos += 2
+				l.tokens = append(l.tokens, token.Token{Kind: token.ShrEq, Start: start, End: l.pos})
+			} else {
+				l.pos++
+				l.tokens = append(l.tokens, token.Token{Kind: token.Shr, Start: start, End: l.pos})
+			}
+			return
 		case ch == '>' && next == '=':
 			l.pos++
 			l.tokens = append(l.tokens, token.Token{Kind: token.Ge, Start: start, End: l.pos})
+			return
+		case ch == '|' && next == '>':
+			l.pos++
+			l.tokens = append(l.tokens, token.Token{Kind: token.PipeArrow, Start: start, End: l.pos})
+			return
+		case ch == '|' && next == '=':
+			l.pos++
+			l.tokens = append(l.tokens, token.Token{Kind: token.PipeEq, Start: start, End: l.pos})
+			return
+		case ch == '&' && next == '=':
+			l.pos++
+			l.tokens = append(l.tokens, token.Token{Kind: token.AmpEq, Start: start, End: l.pos})
+			return
+		case ch == '^' && next == '=':
+			l.pos++
+			l.tokens = append(l.tokens, token.Token{Kind: token.CaretEq, Start: start, End: l.pos})
 			return
 		case ch == '=' && next == '>':
 			l.pos++
@@ -447,6 +481,12 @@ func (l *Lexer) scanOperatorOrDelimiter(start int) {
 		kind = token.Eq
 	case '|':
 		kind = token.Pipe
+	case '&':
+		kind = token.Amp
+	case '^':
+		kind = token.Caret
+	case '~':
+		kind = token.Tilde
 	case '?':
 		kind = token.Question
 	case '.':

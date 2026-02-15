@@ -17,30 +17,42 @@ type Precedence int
 
 const (
 	PrecNone       Precedence = iota
-	PrecPipe                  // |
+	PrecPipe                  // |>
 	PrecOr                    // or
 	PrecAnd                   // and
+	PrecBitOr                 // |
+	PrecBitXor                // ^
+	PrecBitAnd                // &
 	PrecEquality              // == !=
 	PrecComparison            // < > <= >= .. ..=
+	PrecShift                 // << >>
 	PrecTerm                  // + -
 	PrecFactor                // * / %
-	PrecUnary                 // - not
+	PrecUnary                 // - not ~
 	PrecCall                  // () [] . ?
 )
 
 // precedenceOf returns the precedence of a token kind for infix parsing.
 func precedenceOf(kind token.TokenKind) Precedence {
 	switch kind {
-	case token.Pipe:
+	case token.PipeArrow:
 		return PrecPipe
 	case token.Or:
 		return PrecOr
 	case token.And:
 		return PrecAnd
+	case token.Pipe:
+		return PrecBitOr
+	case token.Caret:
+		return PrecBitXor
+	case token.Amp:
+		return PrecBitAnd
 	case token.EqEq, token.Ne:
 		return PrecEquality
 	case token.Lt, token.Gt, token.Le, token.Ge:
 		return PrecComparison
+	case token.Shl, token.Shr:
+		return PrecShift
 	case token.Plus, token.Minus:
 		return PrecTerm
 	case token.Star, token.Slash, token.Percent:
@@ -955,6 +967,16 @@ func (p *Parser) parseStatementRest(firstExpr ast.Expr) (ast.Statement, bool) {
 		compoundOp = ast.OpDiv
 	case token.PercentEq:
 		compoundOp = ast.OpMod
+	case token.AmpEq:
+		compoundOp = ast.OpBitAnd
+	case token.PipeEq:
+		compoundOp = ast.OpBitOr
+	case token.CaretEq:
+		compoundOp = ast.OpBitXor
+	case token.ShlEq:
+		compoundOp = ast.OpShl
+	case token.ShrEq:
+		compoundOp = ast.OpShr
 	}
 	if compoundOp >= 0 {
 		opSpan := p.currentSpan()
@@ -1438,6 +1460,21 @@ func (p *Parser) parsePrefix() (ast.Expr, bool) {
 			Span: p.span(start),
 		}, true
 
+	// Bitwise NOT (~)
+	case token.Tilde:
+		p.advance()
+		operand, ok := p.parseExprPrecedence(PrecUnary)
+		if !ok {
+			return ast.Expr{}, false
+		}
+		return ast.Expr{
+			Node: ast.UnaryExpr{
+				Op:      ast.Spanned[ast.UnaryOp]{Node: ast.OpBitNot, Span: p.span(start)},
+				Operand: operand,
+			},
+			Span: p.span(start),
+		}, true
+
 	// Unary not
 	case token.Not:
 		p.advance()
@@ -1545,7 +1582,8 @@ func (p *Parser) parseInfix(left ast.Expr, prec Precedence) (ast.Expr, bool) {
 	// Binary operators
 	case token.Plus, token.Minus, token.Star, token.Slash, token.Percent,
 		token.EqEq, token.Ne, token.Lt, token.Gt, token.Le, token.Ge,
-		token.And, token.Or:
+		token.And, token.Or,
+		token.Amp, token.Caret, token.Shl, token.Shr:
 		op, ok := p.parseBinaryOp()
 		if !ok {
 			return left, true
@@ -1563,8 +1601,24 @@ func (p *Parser) parseInfix(left ast.Expr, prec Precedence) (ast.Expr, bool) {
 			Span: p.span(start),
 		}, true
 
-	// Pipe
+	// Bitwise OR (|) — handled as binary op
 	case token.Pipe:
+		p.advance()
+		right, ok := p.parseExprPrecedence(prec)
+		if !ok {
+			return ast.Expr{}, false
+		}
+		return ast.Expr{
+			Node: ast.BinaryExpr{
+				Left:  left,
+				Op:    ast.Spanned[ast.BinaryOp]{Node: ast.OpBitOr, Span: opSpan},
+				Right: right,
+			},
+			Span: p.span(start),
+		}, true
+
+	// Pipe (|>)
+	case token.PipeArrow:
 		p.advance()
 		right, ok := p.parseExprPrecedence(prec)
 		if !ok {
@@ -1687,6 +1741,14 @@ func (p *Parser) parseBinaryOp() (ast.BinaryOp, bool) {
 		op = ast.OpAnd
 	case token.Or:
 		op = ast.OpOr
+	case token.Amp:
+		op = ast.OpBitAnd
+	case token.Caret:
+		op = ast.OpBitXor
+	case token.Shl:
+		op = ast.OpShl
+	case token.Shr:
+		op = ast.OpShr
 	default:
 		return 0, false
 	}
@@ -2152,6 +2214,33 @@ func (p *Parser) parseMatchArm() (ast.MatchArm, bool) {
 
 func (p *Parser) parsePattern() (ast.Spanned[ast.Pattern], bool) {
 	start := p.peek().Start
+	first, ok := p.parseSinglePattern()
+	if !ok {
+		return ast.Spanned[ast.Pattern]{}, false
+	}
+
+	// Or-pattern: A | B | C
+	if p.check(token.Pipe) {
+		patterns := []ast.Spanned[ast.Pattern]{first}
+		for p.check(token.Pipe) {
+			p.advance()
+			next, ok := p.parseSinglePattern()
+			if !ok {
+				return ast.Spanned[ast.Pattern]{}, false
+			}
+			patterns = append(patterns, next)
+		}
+		return ast.Spanned[ast.Pattern]{
+			Node: ast.OrPattern{Patterns: patterns},
+			Span: p.span(start),
+		}, true
+	}
+
+	return first, true
+}
+
+func (p *Parser) parseSinglePattern() (ast.Spanned[ast.Pattern], bool) {
+	start := p.peek().Start
 
 	switch p.peek().Kind {
 	case token.Ident:
@@ -2200,6 +2289,28 @@ func (p *Parser) parsePattern() (ast.Spanned[ast.Pattern], bool) {
 		raw := p.peek().Value
 		p.advance()
 		val := parseInt(raw)
+
+		// Range pattern: 1..5 or 1..=5
+		if p.check(token.DotDot) || p.check(token.DotDotEq) {
+			inclusive := p.check(token.DotDotEq)
+			p.advance()
+			if !p.check(token.Int) {
+				p.addError("expected integer in range pattern", p.currentSpan())
+				return ast.Spanned[ast.Pattern]{}, false
+			}
+			endRaw := p.peek().Value
+			p.advance()
+			endVal := parseInt(endRaw)
+			return ast.Spanned[ast.Pattern]{
+				Node: ast.RangePattern{
+					Start:     ast.IntLit{Value: val},
+					End:       ast.IntLit{Value: endVal},
+					Inclusive: inclusive,
+				},
+				Span: p.span(start),
+			}, true
+		}
+
 		return ast.Spanned[ast.Pattern]{
 			Node: ast.LiteralPattern{Lit: ast.IntLit{Value: val}},
 			Span: p.span(start),

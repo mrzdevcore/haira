@@ -32,6 +32,8 @@
   "select"
   "defer"
   "import"
+  "export"
+  "from"
 ] @keyword
 
 (break_statement) @keyword

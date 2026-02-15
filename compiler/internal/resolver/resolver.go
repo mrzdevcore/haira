@@ -216,18 +216,55 @@ func (r *resolver) parseModule(importPath, filePath string) *Module {
 // MergedItems returns all items from the main file and imported modules,
 // suitable for passing to codegen. Imported types and functions are included
 // so they appear in the generated Go output.
+//
+// Visibility rules:
+//   - Only `pub` items are exported from modules.
+//   - Selective imports (import { X, Y } from "m") only include named items.
+//   - Glob imports (import * from "m") include all pub items.
+//   - Basic imports (import "m") include all pub items (accessed as m.X).
 func (p *Program) MergedItems() []ast.Item {
+	// Build a map of import path → ImportDecl from main file
+	importMap := make(map[string]ast.ImportDecl)
+	for _, item := range p.Main.Items {
+		if imp, ok := item.Node.(ast.ImportDecl); ok {
+			importMap[imp.Path] = imp
+		}
+	}
+
 	var items []ast.Item
 
 	// Add imported module items first (types, functions — skip their imports)
 	for _, mod := range p.Modules {
+		imp := importMap[mod.Path]
+		// Build a set of selectively imported names (if any)
+		var selectiveNames map[string]bool
+		if len(imp.Names) > 0 {
+			selectiveNames = make(map[string]bool, len(imp.Names))
+			for _, n := range imp.Names {
+				selectiveNames[n.Node] = true
+			}
+		}
+
 		for _, item := range mod.File.Items {
 			switch item.Node.(type) {
-			case ast.ImportDecl:
-				continue // skip nested imports
-			default:
-				items = append(items, item)
+			case ast.ImportDecl, ast.ExportDecl:
+				continue // skip nested imports and exports
 			}
+
+			// Check pub visibility
+			if !isItemPublic(item) {
+				continue
+			}
+
+			// If selective import, only include named items
+			if selectiveNames != nil {
+				name := itemName(item)
+				if name == "" || !selectiveNames[name] {
+					continue
+				}
+			}
+
+			items = append(items, item)
 		}
 	}
 
@@ -235,6 +272,55 @@ func (p *Program) MergedItems() []ast.Item {
 	items = append(items, p.Main.Items...)
 
 	return items
+}
+
+// isItemPublic returns whether a top-level item is marked as pub (exported).
+// Agentic declarations (provider, tool, agent, workflow) are always public.
+func isItemPublic(item ast.Item) bool {
+	switch it := item.Node.(type) {
+	case ast.FunctionDef:
+		return it.IsPublic
+	case ast.TypeDef:
+		return it.IsPublic
+	case ast.EnumDef:
+		return it.IsPublic
+	case ast.MethodDef:
+		return true // methods follow their type's visibility
+	case ast.ProviderDecl, ast.ToolDecl, ast.AgentDecl, ast.WorkflowDecl:
+		return true // agentic declarations are always public
+	case ast.TypeAlias:
+		return true // type aliases are always public for now
+	case ast.ItemStatement:
+		return true // top-level statements (vars) are public for now
+	default:
+		return false
+	}
+}
+
+// itemName returns the name of a top-level item, or "" if unnamed.
+func itemName(item ast.Item) string {
+	switch it := item.Node.(type) {
+	case ast.FunctionDef:
+		return it.Name.Node
+	case ast.TypeDef:
+		return it.Name.Node
+	case ast.EnumDef:
+		return it.Name.Node
+	case ast.MethodDef:
+		return it.Name.Node
+	case ast.TypeAlias:
+		return it.Name.Node
+	case ast.ProviderDecl:
+		return it.Name.Node
+	case ast.ToolDecl:
+		return it.Name.Node
+	case ast.AgentDecl:
+		return it.Name.Node
+	case ast.WorkflowDecl:
+		return it.Name.Node
+	default:
+		return ""
+	}
 }
 
 // ModuleName returns the short name for an import path (last segment).

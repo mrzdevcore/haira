@@ -204,9 +204,9 @@ func (p *Parser) parseSourceFile() *ast.SourceFile {
 func (p *Parser) parseItem() (ast.Item, bool) {
 	start := p.peek().Start
 
-	// Check for `public` modifier.
+	// Check for `pub` modifier.
 	isPublic := false
-	if p.check(token.Public) {
+	if p.check(token.Pub) {
 		p.advance()
 		isPublic = true
 	}
@@ -218,6 +218,14 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 	case token.Import:
 		p.advance()
 		decl, ok := p.parseImportDecl()
+		if !ok {
+			return ast.Item{}, false
+		}
+		return ast.Item{Node: decl, Span: p.span(start)}, true
+
+	case token.Export:
+		p.advance()
+		decl, ok := p.parseExportDecl()
 		if !ok {
 			return ast.Item{}, false
 		}
@@ -282,7 +290,7 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 
 	case token.Enum:
 		p.advance()
-		ed, ok := p.parseEnumDecl()
+		ed, ok := p.parseEnumDecl(isPublic)
 		if !ok {
 			return ast.Item{}, false
 		}
@@ -541,7 +549,7 @@ func (p *Parser) parseField() (ast.Field, bool) {
 // Enum definitions
 // ---------------------------------------------------------------------------
 
-func (p *Parser) parseEnumDecl() (ast.EnumDef, bool) {
+func (p *Parser) parseEnumDecl(isPublic bool) (ast.EnumDef, bool) {
 	name, ok := p.parseIdentifier()
 	if !ok {
 		return ast.EnumDef{}, false
@@ -576,7 +584,7 @@ func (p *Parser) parseEnumDecl() (ast.EnumDef, bool) {
 	}
 
 	p.consume(token.RBrace, "}")
-	return ast.EnumDef{Name: name, Variants: variants}, true
+	return ast.EnumDef{IsPublic: isPublic, Name: name, Variants: variants}, true
 }
 
 // ---------------------------------------------------------------------------
@@ -2295,14 +2303,114 @@ func (p *Parser) parseSelectArm() (ast.SelectArm, bool) {
 // ---------------------------------------------------------------------------
 
 func (p *Parser) parseImportDecl() (ast.ImportDecl, bool) {
-	if p.peek().Kind == token.String {
+	switch p.peek().Kind {
+	case token.String:
+		// Basic: import "io"
 		path := p.peek().Value
 		p.advance()
 		return ast.ImportDecl{Path: path}, true
+
+	case token.LBrace:
+		// Selective: import { User, Post } from "models"
+		p.advance() // consume {
+		p.skipNewlines()
+		var names []ast.Spanned[string]
+		for !p.check(token.RBrace) && !p.atEnd() {
+			name, ok := p.parseIdentifier()
+			if !ok {
+				return ast.ImportDecl{}, false
+			}
+			names = append(names, name)
+			if p.check(token.Comma) {
+				p.advance()
+			}
+			p.skipNewlines()
+		}
+		p.consume(token.RBrace, "}")
+		if !p.check(token.From) {
+			tok := p.peek()
+			p.addError("expected 'from' after import names", ast.Span{Start: tok.Start, End: tok.End})
+			return ast.ImportDecl{}, false
+		}
+		p.advance() // consume from
+		if p.peek().Kind != token.String {
+			tok := p.peek()
+			p.addError("expected string for import path", ast.Span{Start: tok.Start, End: tok.End})
+			return ast.ImportDecl{}, false
+		}
+		path := p.peek().Value
+		p.advance()
+		return ast.ImportDecl{Path: path, Names: names}, true
+
+	case token.Star:
+		// Glob: import * from "math"
+		p.advance() // consume *
+		if !p.check(token.From) {
+			tok := p.peek()
+			p.addError("expected 'from' after '*'", ast.Span{Start: tok.Start, End: tok.End})
+			return ast.ImportDecl{}, false
+		}
+		p.advance() // consume from
+		if p.peek().Kind != token.String {
+			tok := p.peek()
+			p.addError("expected string for import path", ast.Span{Start: tok.Start, End: tok.End})
+			return ast.ImportDecl{}, false
+		}
+		path := p.peek().Value
+		p.advance()
+		return ast.ImportDecl{Path: path, IsGlob: true}, true
+
+	case token.Ident:
+		// Aliased: import fmt from "io"
+		alias, ok := p.parseIdentifier()
+		if !ok {
+			return ast.ImportDecl{}, false
+		}
+		if !p.check(token.From) {
+			tok := p.peek()
+			p.addError("expected 'from' after alias name", ast.Span{Start: tok.Start, End: tok.End})
+			return ast.ImportDecl{}, false
+		}
+		p.advance() // consume from
+		if p.peek().Kind != token.String {
+			tok := p.peek()
+			p.addError("expected string for import path", ast.Span{Start: tok.Start, End: tok.End})
+			return ast.ImportDecl{}, false
+		}
+		path := p.peek().Value
+		p.advance()
+		return ast.ImportDecl{Path: path, Alias: &alias}, true
+
+	default:
+		tok := p.peek()
+		p.addError("expected string, identifier, '{', or '*' for import", ast.Span{Start: tok.Start, End: tok.End})
+		return ast.ImportDecl{}, false
 	}
-	tok := p.peek()
-	p.addError("expected string for import path", ast.Span{Start: tok.Start, End: tok.End})
-	return ast.ImportDecl{}, false
+}
+
+func (p *Parser) parseExportDecl() (ast.ExportDecl, bool) {
+	// export { User, Post }
+	if !p.check(token.LBrace) {
+		tok := p.peek()
+		p.addError("expected '{' after export", ast.Span{Start: tok.Start, End: tok.End})
+		return ast.ExportDecl{}, false
+	}
+	p.advance() // consume {
+	p.skipNewlines()
+	var names []ast.Spanned[string]
+	for !p.check(token.RBrace) && !p.atEnd() {
+		name, ok := p.parseIdentifier()
+		if !ok {
+			return ast.ExportDecl{}, false
+		}
+		names = append(names, name)
+		if p.check(token.Comma) {
+			p.advance()
+		}
+		p.skipNewlines()
+	}
+	p.consume(token.RBrace, "}")
+	return ast.ExportDecl{Names: names}, true
 }
 
 func (p *Parser) parseProviderDecl() (ast.ProviderDecl, bool) {

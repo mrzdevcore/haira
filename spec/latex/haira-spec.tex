@@ -51,7 +51,7 @@
 
 % Code listing style
 \lstdefinelanguage{Haira}{
-    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, agent, provider, tool, workflow},
+    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, export, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, pub, agent, provider, tool, workflow},
     keywordstyle=\color{keyword}\bfseries,
     ndkeywords={int, float, bool, string, Error},
     ndkeywordstyle=\color{hairaBlue},
@@ -264,12 +264,12 @@ The following identifiers are reserved as keywords and cannot be used as identif
 \begin{lstlisting}[numbers=none]
 agent     and       as        break     catch
 chan      const     continue  defer     else
-enum      false     fn        for       from
-if        impl      import    in        match
-nil       not       or        provider  return
-select    spawn     struct    tool      true
-try       type      unsafe    where     while
-workflow
+enum      export    false     fn        for
+from      if        impl      import    in
+match     nil       not       or        provider
+pub       return    select    spawn     struct
+tool      true      try       type      unsafe
+where     while     workflow
 \end{lstlisting}
 
 \chapter{Operator Precedence}

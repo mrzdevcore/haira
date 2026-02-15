@@ -30,6 +30,7 @@ type Field struct {
 }
 
 type EnumDef struct {
+	IsPublic bool
 	Name     Spanned[string]
 	Variants []EnumVariant
 }
@@ -46,7 +47,14 @@ type TypeAlias struct {
 }
 
 type ImportDecl struct {
-	Path string
+	Path   string            // "io", "models/user", "tools/github"
+	Alias  *Spanned[string]  // import fmt from "io" → Alias = "fmt"
+	Names  []Spanned[string] // import { User, Post } from "models"
+	IsGlob bool              // import * from "math"
+}
+
+type ExportDecl struct {
+	Names []Spanned[string] // export { User, Post }
 }
 
 type ProviderDecl struct {
@@ -114,6 +122,7 @@ func (TypeDef) itemKind()       {}
 func (EnumDef) itemKind()       {}
 func (TypeAlias) itemKind()     {}
 func (ImportDecl) itemKind()    {}
+func (ExportDecl) itemKind()    {}
 func (ProviderDecl) itemKind()  {}
 func (ToolDecl) itemKind()      {}
 func (AgentDecl) itemKind()     {}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
 	"github.com/haira-lang/haira/internal/checker"
@@ -237,6 +238,12 @@ func printItem(item ast.Item) {
 		fmt.Printf("  TypeAlias: %s\n", it.Name.Node)
 	case ast.ImportDecl:
 		fmt.Printf("  ImportDecl: %q\n", it.Path)
+	case ast.ExportDecl:
+		names := make([]string, len(it.Names))
+		for i, n := range it.Names {
+			names[i] = n.Node
+		}
+		fmt.Printf("  ExportDecl: {%s}\n", strings.Join(names, ", "))
 	case ast.ProviderDecl:
 		fmt.Printf("  ProviderDecl: %s (%d fields)\n", it.Name.Node, len(it.Fields))
 	case ast.ToolDecl:

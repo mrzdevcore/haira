@@ -142,7 +142,7 @@ Each \code{.haira} file is a module. The file name determines the module name:
 // File: utils/helpers.haira
 // Module: utils/helpers
 
-fn format_name(first: string, last: string) -> string {
+pub fn format_name(first: string, last: string) -> string {
     return first + " " + last
 }
 
@@ -151,22 +151,24 @@ fn validate_email(email: string) -> bool {
 }
 \end{lstlisting}
 
-\subsection{Exporting}
+\subsection{Visibility: The \code{pub} Keyword}
 
-By default, all top-level declarations are exported. Use underscore prefix for private:
+Declarations are \textbf{private by default}. Use the \keyword{pub} keyword to make them available to importers:
 
 \begin{lstlisting}
-// Public (exported)
-fn public_function() { }
-struct PublicType { }
+// Public (exported) — available to other modules
+pub fn create_user(name: string) -> User { }
+pub User { name: string, email: string }
+pub enum Status { Active, Inactive }
 
-// Private (not exported)
-fn _private_function() { }
-struct _PrivateType { }
-
-// Private helper
-_cache = [:]
+// Private (not exported) — file-local only
+fn validate_email(email: string) -> bool { }
+cache = [:]
 \end{lstlisting}
+
+\begin{note}
+Agentic declarations (\keyword{provider}, \keyword{tool}, \keyword{agent}, \keyword{workflow}) are always public --- they are inherently part of the module's external interface.
+\end{note}
 
 \subsection{Package Initialization}
 
@@ -175,18 +177,18 @@ Optional \code{init()} function runs when module is first imported:
 \begin{lstlisting}
 // database.haira
 
-_pool: ConnectionPool?
+pool: ConnectionPool?
 
 fn init() {
-    _pool = create_pool()
+    pool = create_pool()
     io.println("Database module initialized")
 }
 
-fn get_connection() -> (Connection, Error?) {
-    if _pool == nil {
+pub fn get_connection() -> (Connection, Error?) {
+    if pool == nil {
         return Connection{}, Error{message: "not initialized"}
     }
-    return _pool.get(), nil
+    return pool.get(), nil
 }
 \end{lstlisting}
 

@@ -17,6 +17,7 @@ module.exports = grammar({
     _item: ($) =>
       choice(
         $.import_statement,
+        $.export_statement,
         $.function_definition,
         $.type_definition,
         $.enum_definition,
@@ -28,7 +29,20 @@ module.exports = grammar({
       ),
 
     // --- Import ---
-    import_statement: ($) => seq("import", $.string),
+    // import "io"
+    // import fmt from "io"
+    // import { User, Post } from "models"
+    // import * from "math"
+    import_statement: ($) =>
+      choice(
+        seq("import", $.string),
+        seq("import", field("alias", $.identifier), "from", $.string),
+        seq("import", "{", commaSep1($.identifier), "}", "from", $.string),
+        seq("import", "*", "from", $.string),
+      ),
+
+    // --- Export ---
+    export_statement: ($) => seq("export", "{", commaSep1($.identifier), "}"),
 
     // --- Functions ---
     function_definition: ($) =>
@@ -41,7 +55,7 @@ module.exports = grammar({
         $.block,
       ),
 
-    visibility: (_$) => "public",
+    visibility: (_$) => "pub",
 
     parameter_list: ($) => seq("(", optional(commaSep1($.parameter)), ")"),
 
@@ -55,6 +69,7 @@ module.exports = grammar({
     // --- Types ---
     type_definition: ($) =>
       seq(
+        optional($.visibility),
         "type",
         field("name", $.identifier),
         "{",
@@ -68,6 +83,7 @@ module.exports = grammar({
     // --- Enums ---
     enum_definition: ($) =>
       seq(
+        optional($.visibility),
         "enum",
         field("name", $.identifier),
         "{",

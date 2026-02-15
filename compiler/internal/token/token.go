@@ -27,7 +27,8 @@ const (
 	Select
 	Try
 	Catch
-	Public
+	Pub
+	Export
 	Err
 	Ok
 	Break
@@ -123,7 +124,8 @@ var Keywords = map[string]TokenKind{
 	"select":   Select,
 	"try":      Try,
 	"catch":    Catch,
-	"public":   Public,
+	"pub":      Pub,
+	"export":   Export,
 	"err":      Err,
 	"ok":       Ok,
 	"break":    Break,
@@ -196,8 +198,10 @@ func (k TokenKind) String() string {
 		return "try"
 	case Catch:
 		return "catch"
-	case Public:
-		return "public"
+	case Pub:
+		return "pub"
+	case Export:
+		return "export"
 	case Err:
 		return "err"
 	case Ok:

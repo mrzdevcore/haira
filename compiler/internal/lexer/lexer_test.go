@@ -47,7 +47,7 @@ func TestKeywords(t *testing.T) {
 		"some": token.Some, "and": token.And, "or": token.Or,
 		"not": token.Not, "in": token.In, "async": token.Async,
 		"spawn": token.Spawn, "select": token.Select, "try": token.Try,
-		"catch": token.Catch, "public": token.Public, "err": token.Err,
+		"catch": token.Catch, "pub": token.Pub, "export": token.Export, "err": token.Err,
 		"ok": token.Ok, "break": token.Break, "continue": token.Continue,
 		"from": token.From, "default": token.Default, "provider": token.Provider,
 		"tool": token.Tool, "agent": token.Agent, "workflow": token.Workflow,

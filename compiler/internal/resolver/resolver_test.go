@@ -41,7 +41,7 @@ func TestResolveLocalImport(t *testing.T) {
 fn main() {
 	u = User{name = "Alice"}
 }`,
-		"models/user.haira": `type User {
+		"models/user.haira": `struct User {
 	name: string
 	age: int
 }`,
@@ -75,7 +75,7 @@ fn main() {
 fn verify(token: string) -> bool {
 	return true
 }`,
-		"models/user.haira": `type User {
+		"models/user.haira": `struct User {
 	name: string
 }`,
 	})
@@ -152,7 +152,7 @@ func TestMergedItems(t *testing.T) {
 fn main() {
 	u = User{name = "Alice"}
 }`,
-		"models/user.haira": `type User {
+		"models/user.haira": `struct User {
 	name: string
 }`,
 	})

@@ -588,7 +588,7 @@ func TestEnumDecl(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTypeDef(t *testing.T) {
-	src := `User {
+	src := `struct User {
     name: string
     age: int
 }`

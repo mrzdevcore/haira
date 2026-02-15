@@ -296,6 +296,34 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 		}
 		return ast.Item{Node: ed, Span: p.span(start)}, true
 
+	case token.Struct:
+		p.advance()
+		name, ok := p.parseIdentifier()
+		if !ok {
+			return ast.Item{}, false
+		}
+		td, ok := p.parseTypeDefBody(isPublic, name)
+		if !ok {
+			return ast.Item{}, false
+		}
+		return ast.Item{Node: td, Span: p.span(start)}, true
+
+	case token.Type:
+		p.advance()
+		name, ok := p.parseIdentifier()
+		if !ok {
+			return ast.Item{}, false
+		}
+		p.consume(token.Eq, "=")
+		ty, ok := p.parseType()
+		if !ok {
+			return ast.Item{}, false
+		}
+		return ast.Item{
+			Node: ast.TypeAlias{Name: name, Ty: ty},
+			Span: p.span(start),
+		}, true
+
 	case token.If, token.For, token.While, token.Return, token.Match,
 		token.Try, token.Defer, token.Break, token.Continue,
 		token.Spawn, token.Async:
@@ -339,17 +367,8 @@ func (p *Parser) parseItemIdent(start int, isPublic bool) (ast.Item, bool) {
 	}
 
 	switch p.peek().Kind {
-	// Type definition: Name { ... }
+	// Map/struct literal or block: name { ... }
 	case token.LBrace:
-		firstChar := firstRune(name.Node)
-		if unicode.IsUpper(firstChar) {
-			td, ok := p.parseTypeDefBody(isPublic, name)
-			if !ok {
-				return ast.Item{}, false
-			}
-			return ast.Item{Node: td, Span: p.span(start)}, true
-		}
-		// lowercase + LBrace => expression statement starting with ident then map/block
 		expr := ast.Expr{Node: ast.IdentExpr{Name: name.Node}, Span: name.Span}
 		fullExpr, ok := p.parseExprRest(expr)
 		if !ok {
@@ -434,22 +453,8 @@ func (p *Parser) parseItemIdent(start int, isPublic bool) (ast.Item, bool) {
 		}
 		return ast.Item{Node: ast.ItemStatement{Stmt: stmt}, Span: p.span(start)}, true
 
-	// Type alias (uppercase) or assignment (lowercase): name = ...
+	// Variable assignment: name = ...
 	case token.Eq:
-		firstChar := firstRune(name.Node)
-		if unicode.IsUpper(firstChar) {
-			// Type alias
-			p.advance() // consume =
-			ty, ok := p.parseType()
-			if !ok {
-				return ast.Item{}, false
-			}
-			return ast.Item{
-				Node: ast.TypeAlias{Name: name, Ty: ty},
-				Span: p.span(start),
-			}, true
-		}
-		// Variable assignment
 		expr := ast.Expr{Node: ast.IdentExpr{Name: name.Node}, Span: name.Span}
 		stmt, ok := p.parseStatementRest(expr)
 		if !ok {

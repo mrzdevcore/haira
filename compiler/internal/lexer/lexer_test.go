@@ -51,8 +51,9 @@ func TestKeywords(t *testing.T) {
 		"ok": token.Ok, "break": token.Break, "continue": token.Continue,
 		"from": token.From, "default": token.Default, "provider": token.Provider,
 		"tool": token.Tool, "agent": token.Agent, "workflow": token.Workflow,
-		"fn": token.Fn, "enum": token.Enum, "defer": token.Defer,
-		"import": token.Import,
+		"fn": token.Fn, "enum": token.Enum, "struct": token.Struct,
+		"type": token.Type, "trait": token.Trait, "impl": token.Impl,
+		"defer": token.Defer, "import": token.Import,
 	}
 	for kw, expected := range keywords {
 		kinds := tokenKinds(kw)

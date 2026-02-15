@@ -356,6 +356,10 @@ func needsFmtImport(file *ast.SourceFile) bool {
 			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
 				return true
 			}
+		case ast.MethodDef:
+			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
+				return true
+			}
 		case ast.WorkflowDecl:
 			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
 				return true

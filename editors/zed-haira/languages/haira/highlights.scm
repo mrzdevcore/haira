@@ -56,6 +56,7 @@
 ; --- Definition keywords ---
 [
   "fn"
+  "struct"
   "type"
   "enum"
 ] @keyword
@@ -91,8 +92,11 @@
 
 ; --- Definitions ---
 (function_definition name: (identifier) @function)
+(method_definition type: (identifier) @type)
+(method_definition name: (identifier) @function)
 (tool_declaration name: (identifier) @function)
 (workflow_declaration name: (identifier) @function)
+(type_alias name: (identifier) @type)
 (agent_declaration name: (identifier) @type)
 (provider_declaration name: (identifier) @type)
 (type_definition name: (identifier) @type)

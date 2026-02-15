@@ -469,7 +469,7 @@ fn main() {
 
 func TestInferStructInstance(t *testing.T) {
 	file := parse(t, `
-type User {
+struct User {
 	name: string
 	age: int
 }
@@ -496,7 +496,7 @@ fn main() {
 
 func TestInferFieldAccess(t *testing.T) {
 	file := parse(t, `
-type User {
+struct User {
 	name: string
 	age: int
 }
@@ -551,7 +551,7 @@ fn main() {
 
 func TestUnknownFieldError(t *testing.T) {
 	file := parse(t, `
-type User {
+struct User {
 	name: string
 }
 

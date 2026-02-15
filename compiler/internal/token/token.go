@@ -41,6 +41,10 @@ const (
 	Workflow
 	Fn
 	Enum
+	Struct
+	Type
+	Trait
+	Impl
 	Defer
 	Import
 	Step
@@ -138,6 +142,10 @@ var Keywords = map[string]TokenKind{
 	"workflow": Workflow,
 	"fn":       Fn,
 	"enum":     Enum,
+	"struct":   Struct,
+	"type":     Type,
+	"trait":    Trait,
+	"impl":     Impl,
 	"defer":    Defer,
 	"import":   Import,
 	"step":     Step,
@@ -226,6 +234,14 @@ func (k TokenKind) String() string {
 		return "fn"
 	case Enum:
 		return "enum"
+	case Struct:
+		return "struct"
+	case Type:
+		return "type"
+	case Trait:
+		return "trait"
+	case Impl:
+		return "impl"
 	case Defer:
 		return "defer"
 	case Import:

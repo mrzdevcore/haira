@@ -51,7 +51,7 @@
 
 % Code listing style
 \lstdefinelanguage{Haira}{
-    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, export, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, pub, agent, provider, tool, workflow},
+    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, export, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, pub, trait, impl, agent, provider, tool, workflow},
     keywordstyle=\color{keyword}\bfseries,
     ndkeywords={int, float, bool, string, Error},
     ndkeywordstyle=\color{hairaBlue},
@@ -268,8 +268,8 @@ enum      export    false     fn        for
 from      if        impl      import    in
 match     nil       not       or        provider
 pub       return    select    spawn     struct
-tool      true      try       type      unsafe
-where     while     workflow
+tool      trait     true      try       type
+unsafe    where     while     workflow
 \end{lstlisting}
 
 \chapter{Operator Precedence}

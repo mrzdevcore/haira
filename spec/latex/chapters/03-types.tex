@@ -253,16 +253,16 @@ struct Rectangle {
     height: float
 }
 
-fn (r: Rectangle) area() -> float {
-    return r.width * r.height
+Rectangle.area() -> float {
+    return self.width * self.height
 }
 
-fn (r: Rectangle) perimeter() -> float {
-    return 2 * (r.width + r.height)
+Rectangle.perimeter() -> float {
+    return 2 * (self.width + self.height)
 }
 
 // Usage
-rect = Rectangle{width: 10.0, height: 5.0}
+rect = Rectangle{width = 10.0, height = 5.0}
 io.println(rect.area())       // 50.0
 io.println(rect.perimeter())  // 30.0
 \end{lstlisting}

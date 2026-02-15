@@ -411,7 +411,7 @@ fn main() {
 func TestDefinitionTypeDef(t *testing.T) {
 	s, _ := testServer()
 
-	src := `type User {
+	src := `struct User {
 	name: string
 }
 

@@ -153,12 +153,12 @@ fn main() {
 // ---------------------------------------------------------------------------
 
 func TestGoldenStructs(t *testing.T) {
-	src := `User {
+	src := `struct User {
     name: string
     age: int
 }
 User.greet() -> string {
-    return "Hello, I'm " + self.Name
+    return "Hello, I'm " + self.name
 }`
 	got := parseAndGenerate(t, src)
 

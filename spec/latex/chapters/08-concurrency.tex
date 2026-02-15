@@ -387,12 +387,12 @@ fn new_semaphore(n: int) -> Semaphore {
     return sem
 }
 
-fn (s: Semaphore) acquire() {
-    <-s.ch
+Semaphore.acquire() {
+    <-self.ch
 }
 
-fn (s: Semaphore) release() {
-    s.ch <- true
+Semaphore.release() {
+    self.ch <- true
 }
 
 // Usage: limit concurrent operations
@@ -477,16 +477,16 @@ struct Counter {
     value: int
 }
 
-fn (c: *Counter) increment() {
-    c.mu.lock()
-    defer c.mu.unlock()
-    c.value += 1
+Counter.increment() {
+    self.mu.lock()
+    defer self.mu.unlock()
+    self.value += 1
 }
 
-fn (c: *Counter) get() -> int {
-    c.mu.lock()
-    defer c.mu.unlock()
-    return c.value
+Counter.get() -> int {
+    self.mu.lock()
+    defer self.mu.unlock()
+    return self.value
 }
 \end{lstlisting}
 

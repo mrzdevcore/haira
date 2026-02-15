@@ -9,7 +9,10 @@ module.exports = grammar({
 
   word: ($) => $.identifier,
 
-  conflicts: ($) => [[$.primary_expression, $.map_or_struct]],
+  conflicts: ($) => [
+    [$.primary_expression, $.map_or_struct],
+    [$.method_definition, $.primary_expression],
+  ],
 
   rules: {
     source_file: ($) => repeat($._item),
@@ -20,7 +23,9 @@ module.exports = grammar({
         $.export_statement,
         $.function_definition,
         $.type_definition,
+        $.type_alias,
         $.enum_definition,
+        $.method_definition,
         $.provider_declaration,
         $.tool_declaration,
         $.agent_declaration,
@@ -70,15 +75,35 @@ module.exports = grammar({
     type_definition: ($) =>
       seq(
         optional($.visibility),
-        "type",
+        "struct",
         field("name", $.identifier),
         "{",
         repeat($.field_definition),
         "}",
       ),
 
+    type_alias: ($) =>
+      seq(
+        optional($.visibility),
+        "type",
+        field("name", $.identifier),
+        "=",
+        field("type", $._type),
+      ),
+
     field_definition: ($) =>
       seq(field("name", $.identifier), ":", field("type", $._type)),
+
+    // --- Methods ---
+    method_definition: ($) =>
+      seq(
+        field("type", $.identifier),
+        ".",
+        field("name", $.identifier),
+        $.parameter_list,
+        optional(seq("->", field("return_type", $._type))),
+        $.block,
+      ),
 
     // --- Enums ---
     enum_definition: ($) =>

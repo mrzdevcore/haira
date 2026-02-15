@@ -33,10 +33,11 @@ func Check(file *ast.SourceFile) (*TypeInfo, []hairaerr.Diagnostic) {
 }
 
 type checker struct {
-	env   *Env
-	info  *TypeInfo
-	diags []hairaerr.Diagnostic
-	file  string
+	env      *Env
+	info     *TypeInfo
+	diags    []hairaerr.Diagnostic
+	file     string
+	inMethod bool // true when checking a method body (self is protected)
 }
 
 func (c *checker) addError(msg string, span ast.Span) {
@@ -159,9 +160,12 @@ func (c *checker) checkMethod(md ast.MethodDef) {
 		env.DefineVar(p.Name.Node, ty)
 	}
 	saved := c.env
+	savedInMethod := c.inMethod
 	c.env = env
+	c.inMethod = true
 	c.checkBlock(md.Body)
 	c.env = saved
+	c.inMethod = savedInMethod
 }
 
 func (c *checker) checkToolBody(tool ast.ToolDecl) {
@@ -204,6 +208,9 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 		rhsType := c.inferExpr(s.Value)
 		for _, target := range s.Targets {
 			if ident, ok := target.Path.(ast.IdentPath); ok {
+				if c.inMethod && ident.Name.Node == "self" {
+					c.addError("cannot reassign self in method", ident.Name.Span)
+				}
 				if target.Ty != nil {
 					// Annotated type — check compatibility
 					annotated := c.resolveASTType(target.Ty.Node)

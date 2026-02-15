@@ -97,6 +97,8 @@ func HairaTypeToGo(ty ast.Type) string {
 			return "any"
 		case "map":
 			return "map[string]any"
+		case "file":
+			return "string" // file is a temp path at runtime
 		default:
 			return t.Name
 		}

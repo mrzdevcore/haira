@@ -271,16 +271,33 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 		return ast.Item{Node: decl, Span: p.span(start)}, true
 
 	case token.At:
-		dec, ok := p.parseDecorator()
-		if !ok {
-			return ast.Item{}, false
-		}
-		if p.check(token.Workflow) {
-			p.advance()
-			wf, ok := p.parseWorkflowDecl(&dec)
+		// Collect all decorators before a workflow declaration
+		var decorators []ast.Decorator
+		for p.check(token.At) {
+			dec, ok := p.parseDecorator()
 			if !ok {
 				return ast.Item{}, false
 			}
+			decorators = append(decorators, dec)
+		}
+		if p.check(token.Workflow) {
+			p.advance()
+			// Separate trigger from other decorators
+			var trigger *ast.Decorator
+			var extras []ast.Decorator
+			for i := range decorators {
+				switch decorators[i].Name.Node {
+				case "webhook", "get", "post", "put", "delete":
+					trigger = &decorators[i]
+				default:
+					extras = append(extras, decorators[i])
+				}
+			}
+			wf, ok := p.parseWorkflowDecl(trigger)
+			if !ok {
+				return ast.Item{}, false
+			}
+			wf.Decorators = extras
 			return ast.Item{Node: wf, Span: p.span(start)}, true
 		}
 		tok := p.peek()

@@ -671,6 +671,8 @@ func (c *checker) resolveASTType(ty ast.Type) Type {
 			return AnyType{}
 		case "void":
 			return VoidType{}
+		case "file":
+			return StringType{} // file is semantically a string (temp path)
 		default:
 			if userTy, ok := c.env.LookupType(t.Name); ok {
 				return userTy

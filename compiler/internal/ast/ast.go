@@ -86,12 +86,13 @@ type AgentField struct {
 }
 
 type WorkflowDecl struct {
-	Name     Spanned[string]
-	Trigger  *Decorator
-	Params   []Param
-	ReturnTy *Spanned[Type]
-	Body     Block
-	Hooks    []LifecycleHook
+	Name       Spanned[string]
+	Trigger    *Decorator
+	Decorators []Decorator // @webui, @chatui, etc.
+	Params     []Param
+	ReturnTy   *Spanned[Type]
+	Body       Block
+	Hooks      []LifecycleHook
 }
 
 type Decorator struct {

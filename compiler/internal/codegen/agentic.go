@@ -217,6 +217,9 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
 		em.Line(fmt.Sprintf("Method: %q,", method))
 		em.Line(fmt.Sprintf("Path: %q,", path))
+		emitWorkflowParams(em, workflow.Params)
+		em.Line("IsStream: true,")
+		emitWorkflowUIMetadata(em, workflow.Decorators)
 		em.Line(fmt.Sprintf("Handler: %s,", fallbackName))
 		em.Line(fmt.Sprintf("StreamHandler: %s,", handlerName))
 		em.CloseBlock()
@@ -249,6 +252,8 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
 		em.Line(fmt.Sprintf("Method: %q,", method))
 		em.Line(fmt.Sprintf("Path: %q,", path))
+		emitWorkflowParams(em, workflow.Params)
+		emitWorkflowUIMetadata(em, workflow.Decorators)
 		em.Line(fmt.Sprintf("Handler: %s,", handlerName))
 		em.CloseBlock()
 		em.Blank()
@@ -620,10 +625,14 @@ func extractTriggerInfo(trigger *ast.Decorator) (string, string) {
 	}
 	method := "POST"
 	switch trigger.Name.Node {
-	case "webhook":
+	case "webhook", "post":
 		method = "POST"
 	case "get":
 		method = "GET"
+	case "put":
+		method = "PUT"
+	case "delete":
+		method = "DELETE"
 	}
 	path := "/"
 	if len(trigger.Args) > 0 {
@@ -634,6 +643,97 @@ func extractTriggerInfo(trigger *ast.Decorator) (string, string) {
 		}
 	}
 	return method, path
+}
+
+// extractDecoratorStringArg extracts a named string argument from a decorator.
+func extractDecoratorStringArg(dec ast.Decorator, key string) string {
+	for _, arg := range dec.Args {
+		if mapExpr, ok := arg.Node.(ast.MapExpr); ok && len(mapExpr.Entries) == 1 {
+			entry := mapExpr.Entries[0]
+			if keyIdent, ok := entry.Key.Node.(ast.IdentExpr); ok && keyIdent.Name == key {
+				if lit, ok := entry.Value.Node.(ast.LiteralExpr); ok {
+					if strLit, ok := lit.Lit.(ast.StringLit); ok {
+						return strLit.Value
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// extractDecoratorBoolArg extracts a named bool argument from a decorator.
+// Returns nil if not found, pointer to bool if found.
+func extractDecoratorBoolArg(dec ast.Decorator, key string) *bool {
+	for _, arg := range dec.Args {
+		if mapExpr, ok := arg.Node.(ast.MapExpr); ok && len(mapExpr.Entries) == 1 {
+			entry := mapExpr.Entries[0]
+			if keyIdent, ok := entry.Key.Node.(ast.IdentExpr); ok && keyIdent.Name == key {
+				if lit, ok := entry.Value.Node.(ast.LiteralExpr); ok {
+					if boolLit, ok := lit.Lit.(ast.BoolLit); ok {
+						val := boolLit.Value
+						return &val
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// emitWorkflowUIMetadata emits @webui and @chatui decorator fields into a WorkflowDef.
+func emitWorkflowUIMetadata(em *GoEmitter, decorators []ast.Decorator) {
+	for _, dec := range decorators {
+		switch dec.Name.Node {
+		case "webui":
+			if title := extractDecoratorStringArg(dec, "title"); title != "" {
+				em.Line(fmt.Sprintf("UITitle: %q,", title))
+			}
+			if desc := extractDecoratorStringArg(dec, "description"); desc != "" {
+				em.Line(fmt.Sprintf("UIDescription: %q,", desc))
+			}
+		case "chatui":
+			if enabled := extractDecoratorBoolArg(dec, "enabled"); enabled != nil {
+				if !*enabled {
+					em.Line("ChatEnabled: func() *bool { v := false; return &v }(),")
+				}
+			}
+		}
+	}
+}
+
+// hairaTypeToUIType converts a Haira AST type to a UI type string for WorkflowParam.
+func hairaTypeToUIType(ty ast.Type) string {
+	if named, ok := ty.(ast.NamedType); ok {
+		switch named.Name {
+		case "int":
+			return "int"
+		case "float":
+			return "float"
+		case "bool":
+			return "bool"
+		case "file":
+			return "file"
+		default:
+			return "string"
+		}
+	}
+	return "string"
+}
+
+// emitWorkflowParams emits the Params slice for a WorkflowDef.
+func emitWorkflowParams(em *GoEmitter, params []ast.Param) {
+	em.Line("Params: []haira.WorkflowParam{")
+	em.Indent()
+	for _, param := range params {
+		paramType := "string"
+		if param.Ty != nil {
+			paramType = hairaTypeToUIType(param.Ty.Node)
+		}
+		em.Line(fmt.Sprintf("{Name: %q, Type: %q},", param.Name.Node, paramType))
+	}
+	em.Dedent()
+	em.Line("},")
 }
 
 func buildToolJSONSchema(params []ast.Param) string {

@@ -5,11 +5,22 @@ import (
 	"time"
 )
 
+// WorkflowParam describes a workflow parameter for UI generation.
+type WorkflowParam struct {
+	Name string
+	Type string // "string", "int", "float", "bool", "file"
+}
+
 // WorkflowDef defines a workflow that can be exposed as an HTTP endpoint.
 type WorkflowDef struct {
 	Name          string
 	Method        string // HTTP method (GET, POST, etc.)
 	Path          string // URL path
+	Params        []WorkflowParam
+	IsStream      bool
+	UITitle       string // from @webui(title: "...")
+	UIDescription string // from @webui(description: "...")
+	ChatEnabled   *bool  // nil = default (on for stream), false = disabled
 	Handler       func(params map[string]any) (any, error)
 	StreamHandler func(params map[string]any) (<-chan StreamChunk, error)
 }

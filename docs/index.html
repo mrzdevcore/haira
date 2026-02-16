@@ -805,6 +805,241 @@
                 color: var(--muted);
             }
 
+            /* ===== AUTO UI DEMO ===== */
+            .autoui-section {
+                max-width: none;
+                padding: 5rem 0;
+            }
+            .autoui-section .section-label,
+            .autoui-section .section-title,
+            .autoui-section .section-sub {
+                max-width: var(--max-w);
+                margin-left: auto;
+                margin-right: auto;
+                padding: 0 2rem;
+            }
+            .autoui-demo {
+                display: grid;
+                grid-template-columns: 1fr 40px 1fr;
+                gap: 0;
+                align-items: start;
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 0 2rem;
+            }
+            @media (max-width: 1000px) {
+                .autoui-demo {
+                    grid-template-columns: 1fr;
+                    gap: 0;
+                }
+            }
+            .autoui-demo > .code-side {
+                min-width: 0;
+            }
+            .autoui-demo > .ui-side {
+                min-width: 0;
+            }
+            .autoui-arrow-col {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--gold);
+                font-size: 1.6rem;
+                padding-top: 2rem;
+            }
+            @media (max-width: 1000px) {
+                .autoui-arrow-col {
+                    padding: 1rem 0;
+                }
+                .autoui-arrow-col .arrow-h {
+                    display: none;
+                }
+                .autoui-arrow-col .arrow-v {
+                    display: block;
+                }
+            }
+            @media (min-width: 1001px) {
+                .autoui-arrow-col .arrow-v {
+                    display: none;
+                }
+                .autoui-arrow-col .arrow-h {
+                    display: block;
+                }
+            }
+
+            /* Browser chrome */
+            .browser-frame {
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow:
+                    0 20px 60px rgba(0, 0, 0, 0.45),
+                    0 0 0 1px rgba(0, 0, 0, 0.08);
+            }
+            .browser-bar {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.6rem 0.9rem;
+                background: #e2e2e2;
+                border-bottom: 1px solid #d0d0d0;
+            }
+            .browser-bar .code-dot {
+                width: 10px;
+                height: 10px;
+            }
+            .browser-url {
+                flex: 1;
+                margin-left: 0.5rem;
+                background: #fff;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                padding: 0.3rem 0.7rem;
+                font-size: 0.72rem;
+                font-family: var(--mono);
+                color: #444;
+                letter-spacing: -0.2px;
+            }
+            /* The actual Haira form UI — faithfully reproduced */
+            .browser-body {
+                background: #f5f5f5;
+                min-height: 200px;
+                display: flex;
+                justify-content: center;
+                padding: 2rem 1rem;
+            }
+            .haira-ui {
+                max-width: 600px;
+                width: 100%;
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                color: #1a1a1a;
+            }
+            .haira-ui h1 {
+                font-size: 1.35rem;
+                font-weight: 600;
+                margin-bottom: 0.2rem;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                color: #1a1a1a;
+                letter-spacing: 0;
+                background: none;
+                -webkit-text-fill-color: #1a1a1a;
+            }
+            .haira-ui .hbadge {
+                display: inline-block;
+                font-size: 0.65rem;
+                font-weight: 700;
+                padding: 0.12rem 0.5rem;
+                border-radius: 3px;
+                color: #fff;
+                background: #49cc90;
+                vertical-align: middle;
+            }
+            .haira-ui .hdesc {
+                font-size: 0.85rem;
+                color: #666;
+                margin-bottom: 0.2rem;
+            }
+            .haira-ui .hpath {
+                font-family: monospace;
+                font-size: 0.82rem;
+                color: #555;
+                margin-bottom: 1.25rem;
+            }
+            .haira-ui .hcard {
+                background: #fff;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                padding: 1.5rem;
+            }
+            .haira-ui .hcard label {
+                display: block;
+                font-weight: 600;
+                font-size: 0.88rem;
+                margin-bottom: 0.3rem;
+                color: #1a1a1a;
+            }
+            .haira-ui .hcard input[type="text"],
+            .haira-ui .hcard input[type="file"] {
+                width: 100%;
+                padding: 0.5rem 0.75rem;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                font-size: 0.88rem;
+                margin-bottom: 1rem;
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                background: #fff;
+                color: #333;
+            }
+            .haira-ui .hcard input[type="file"] {
+                background: #fafafa;
+                color: #666;
+                font-size: 0.82rem;
+            }
+            .haira-ui .hcard input:focus {
+                outline: none;
+                border-color: #4f8cff;
+                box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.15);
+            }
+            .haira-ui .hcard button {
+                width: 100%;
+                padding: 0.6rem 1.5rem;
+                border: none;
+                background: #4f8cff;
+                color: #fff;
+                border-radius: 5px;
+                font-size: 0.92rem;
+                font-weight: 600;
+                cursor: default;
+                font-family: inherit;
+            }
+            .haira-ui .hresult {
+                margin-top: 1rem;
+            }
+            .haira-ui .hresult .hresult-card {
+                background: #fff;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                padding: 1.25rem;
+            }
+            .haira-ui .hresult-header {
+                font-weight: 600;
+                font-size: 0.82rem;
+                color: #555;
+                margin-bottom: 0.4rem;
+            }
+            .haira-ui .hresult-body {
+                background: #1e1e1e;
+                color: #d4d4d4;
+                padding: 1rem;
+                border-radius: 5px;
+                font-family: monospace;
+                font-size: 0.82rem;
+                white-space: pre-wrap;
+                word-break: break-word;
+                line-height: 1.55;
+                border-left: 3px solid #49cc90;
+                margin: 0;
+            }
+            .haira-ui .hresult-body .jk {
+                color: #9cdcfe;
+            }
+            .haira-ui .hresult-body .jv {
+                color: #ce9178;
+            }
+
+            .autoui-label {
+                text-align: center;
+                margin-top: 0.75rem;
+                font-size: 0.78rem;
+                color: var(--muted);
+                font-style: italic;
+            }
+
             /* ===== SHOWCASE (tabbed) ===== */
             .showcase-tabs {
                 display: flex;
@@ -1539,6 +1774,114 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                         anywhere.
                     </p>
                     <span class="replaces">Replaces FastAPI + Docker</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- Auto UI Demo -->
+        <section class="fade-in autoui-section">
+            <div class="section-label">Zero-config UI</div>
+            <h2 class="section-title">Write code. Get a UI.</h2>
+            <p class="section-sub">
+                Every workflow automatically gets a web form. File uploads,
+                inputs, results &mdash; no frontend code.
+            </p>
+            <div class="autoui-demo">
+                <!-- Left: Haira code -->
+                <div class="code-side">
+                    <div class="code-window">
+                        <div class="code-bar">
+                            <span class="code-dot r"></span>
+                            <span class="code-dot y"></span>
+                            <span class="code-dot g"></span>
+                            <span class="code-title">summarizer.haira</span>
+                        </div>
+                        <div class="code-body" id="autoui-code"></div>
+                        <script>
+                            document.getElementById("autoui-code").innerHTML =
+                                '<pre><code><span class="kw">import<\/span> <span class="str">"io"<\/span>\n<span class="kw">import<\/span> <span class="str">"http"<\/span>\n\n<span class="kw">provider<\/span> <span class="fn">openai<\/span> {\n    api_key: <span class="fn">env<\/span>(<span class="str">"OPENAI_API_KEY"<\/span>)\n    model: <span class="str">"gpt-4o"<\/span>\n}\n\n<span class="kw">agent<\/span> <span class="fn">Summarizer<\/span> {\n    model: openai\n    system: <span class="str">"Summarize clearly."<\/span>\n    temperature: <span class="num">0.3<\/span>\n}\n\n<span class="dec">@webui<\/span>(title: <span class="str">"File Summarizer"<\/span>,\n       description: <span class="str">"Upload a text file and get an AI summary"<\/span>)\n<span class="dec">@post<\/span>(<span class="str">"/summarize"<\/span>)\n<span class="kw">workflow<\/span> <span class="fn">Summarize<\/span>(document: <span class="type">file<\/span>, context: <span class="type">string<\/span>, format: <span class="type">string<\/span>) -> { summary: <span class="type">string<\/span> } {\n    content, err = io.read_file(document)\n    <span class="kw">if<\/span> err != nil {\n        <span class="kw">return<\/span> { summary: <span class="str">"Failed."<\/span> }\n    }\n\n    prompt = <span class="str">"Summarize: ${content}"<\/span>\n    reply, _ = Summarizer.ask(prompt)\n    <span class="kw">return<\/span> { summary: reply }\n}\n\n<span class="kw">fn<\/span> <span class="fn">main<\/span>() {\n    http.Server([Summarize]).listen(<span class="num">8080<\/span>)\n}<\/code><\/pre>';
+                        </script>
+                    </div>
+                    <p class="autoui-label">Your Haira source code</p>
+                </div>
+
+                <!-- Arrow -->
+                <div class="autoui-arrow-col">
+                    <span class="arrow-h">&#x2192;</span>
+                    <span class="arrow-v">&#x2193;</span>
+                </div>
+
+                <!-- Right: Real HTML form UI (matches go-runtime/haira/ui/form.html) -->
+                <div class="ui-side">
+                    <div class="browser-frame">
+                        <div class="browser-bar">
+                            <span class="code-dot r"></span>
+                            <span class="code-dot y"></span>
+                            <span class="code-dot g"></span>
+                            <div class="browser-url">
+                                localhost:8080/_ui/summarize
+                            </div>
+                        </div>
+                        <div class="browser-body">
+                            <div class="haira-ui">
+                                <h1>
+                                    File Summarizer
+                                    <span class="hbadge">POST</span>
+                                </h1>
+                                <p class="hdesc">
+                                    Upload a text file and get an AI summary
+                                </p>
+                                <p class="hpath">/summarize</p>
+                                <div class="hcard">
+                                    <form onsubmit="return false;">
+                                        <label for="demo-doc">document</label>
+                                        <input
+                                            type="file"
+                                            id="demo-doc"
+                                            name="document"
+                                        />
+                                        <label for="demo-ctx">context</label>
+                                        <input
+                                            type="text"
+                                            id="demo-ctx"
+                                            name="context"
+                                            value="Q3 financial report for the board"
+                                        />
+                                        <label for="demo-fmt">format</label>
+                                        <input
+                                            type="text"
+                                            id="demo-fmt"
+                                            name="format"
+                                            value="bullet points"
+                                        />
+                                        <button type="button">Run</button>
+                                    </form>
+                                </div>
+                                <div class="hresult">
+                                    <div class="hresult-card">
+                                        <div class="hresult-header">
+                                            Response
+                                        </div>
+                                        <pre
+                                            class="hresult-body"
+                                            id="autoui-result"
+                                        ></pre>
+                                        <script>
+                                            document.getElementById(
+                                                "autoui-result",
+                                            ).innerHTML =
+                                                '{\n  <span class="jk">"summary"<\/span>: <span class="jv">"Key findings from Q3:\\n- Revenue up 23% YoY\\n- Customer acquisition cost down 12%\\n- Three new enterprise contracts signed\\n- R&amp;D spending increased for AI initiatives"<\/span>\n}';
+                                        </script>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="autoui-label">
+                        Auto-generated at /_ui/ &mdash; zero frontend code
+                    </p>
                 </div>
             </div>
         </section>

@@ -2,14 +2,13 @@ package haira
 
 import (
 	_ "embed"
-	"html/template"
+	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 //go:embed ui/form.html
 var formHTML string
-
-var formTmpl = template.Must(template.New("form").Parse(formHTML))
 
 func (s *Server) serveFormUI(rw http.ResponseWriter, wf *WorkflowDef) {
 	hasFile := false
@@ -19,15 +18,19 @@ func (s *Server) serveFormUI(rw http.ResponseWriter, wf *WorkflowDef) {
 			break
 		}
 	}
-	data := map[string]any{
-		"Name":        wf.Name,
-		"Method":      wf.Method,
-		"Path":        wf.Path,
-		"Params":      wf.Params,
-		"Title":       wf.UITitle,
-		"Description": wf.UIDescription,
-		"HasFile":     hasFile,
+	meta := map[string]any{
+		"mode":        "form",
+		"name":        wf.Name,
+		"method":      wf.Method,
+		"path":        wf.Path,
+		"params":      wf.Params,
+		"steps":       wf.Steps,
+		"title":       wf.UITitle,
+		"description": wf.UIDescription,
+		"hasFile":     hasFile,
 	}
+	metaJSON, _ := json.Marshal(meta)
+	html := strings.Replace(formHTML, "{{META}}", string(metaJSON), 1)
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	formTmpl.Execute(rw, data)
+	rw.Write([]byte(html))
 }

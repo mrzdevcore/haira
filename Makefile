@@ -1,15 +1,30 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate ui ui-dev help
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
 VERSION ?= dev
 LDFLAGS = -ldflags "-X main.version=$(VERSION)"
 
+# UI directories
+UI_SRC = go-runtime/haira/ui/src
+UI_DIST = go-runtime/haira/ui/dist
+
 # Default target
 all: build
 
-# Build the compiler
-build:
+# Build the UI bundle (TypeScript → JS via Bun)
+ui:
+	@mkdir -p $(UI_DIST)
+	cd go-runtime/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
+	@echo "UI bundle built: $(UI_DIST)/haira-ui.js"
+
+# Build UI in watch mode (development)
+ui-dev:
+	@mkdir -p $(UI_DIST)
+	cd go-runtime/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
+
+# Build the compiler (depends on UI bundle)
+build: ui
 	cd $(COMPILER_DIR) && go build $(LDFLAGS) -o haira .
 
 # Run Go tests
@@ -20,6 +35,7 @@ test:
 clean:
 	rm -f $(BINARY)
 	rm -rf .output
+	rm -rf $(UI_DIST)
 	@echo "Cleaned all build artifacts"
 
 # Format code
@@ -131,5 +147,7 @@ help:
 	@echo "  build-examples   Build all examples"
 	@echo "  run-examples     Run non-agentic examples"
 	@echo "  tree-sitter-generate  Regenerate tree-sitter grammar"
+	@echo "  ui               Build UI bundle (TypeScript → JS)"
+	@echo "  ui-dev           Build UI in watch mode"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

@@ -1,0 +1,85 @@
+// Pipeline UI showcase — demonstrates real-time step visualization with logging.
+// No API keys needed. Each step has a deliberate delay to show the pipeline progress.
+// Uses log.info/warn/error to display messages in the step UI.
+
+import "io"
+import "http"
+import "time"
+import "conv"
+import "string"
+import "log"
+
+@webui(title: "Text Analyzer", description: "Analyze text with a multi-step pipeline — watch each step progress in real time")
+@post("/api/analyze")
+workflow Analyze(text: string, mode: string) -> {
+    word_count: int,
+    char_count: int,
+    reading_time: string,
+    summary: string
+} {
+    step "Validate input" {
+        log.info("Checking input text...")
+        time.sleep(0.8)
+        if text == "" {
+            log.warn("Empty text received, returning defaults")
+            return {
+                word_count: 0,
+                char_count: 0,
+                reading_time: "0s",
+                summary: "No text provided."
+            }
+        }
+        log.info("Input validated: " + conv.int_to_string(string.len(text)) + " characters")
+    }
+
+    step "Count characters" {
+        log.info("Scanning characters...")
+        time.sleep(1.2)
+        char_count = string.len(text)
+        log.info("Found " + conv.int_to_string(char_count) + " characters")
+    }
+
+    step "Count words" {
+        log.info("Counting words...")
+        time.sleep(1.0)
+        word_count = char_count / 5
+        if word_count < 1 {
+            word_count = 1
+            log.warn("Text too short, defaulting to 1 word")
+        }
+        log.info("Estimated " + conv.int_to_string(word_count) + " words")
+    }
+
+    step "Calculate reading time" {
+        time.sleep(0.6)
+        reading_seconds = word_count * 60 / 200
+        reading_time = conv.int_to_string(reading_seconds) + "s"
+        log.info("Reading time: ~" + reading_time)
+    }
+
+    step "Generate report" {
+        log.info("Compiling results...")
+        time.sleep(1.5)
+        summary = conv.int_to_string(word_count) + " words, " + conv.int_to_string(char_count) + " chars, ~" + reading_time + " to read."
+        if mode == "detailed" {
+            log.info("Using detailed output format")
+            summary = "Detailed analysis: " + conv.int_to_string(char_count) + " characters, approximately " + conv.int_to_string(word_count) + " words. Estimated reading time: " + reading_time + "."
+        }
+        log.info("Report ready")
+    }
+
+    return {
+        word_count: word_count,
+        char_count: char_count,
+        reading_time: reading_time,
+        summary: summary
+    }
+}
+
+fn main() {
+    server = http.Server([Analyze])
+    io.println("Text Analyzer running on :8080")
+    io.println("  POST /api/analyze")
+    io.println("  UI:  http://localhost:8080/_ui/api/analyze")
+    server.listen(8080)
+}

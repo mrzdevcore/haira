@@ -2,27 +2,33 @@ package haira
 
 import (
 	_ "embed"
-	"html/template"
+	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 //go:embed ui/chat.html
 var chatHTML string
 
-var chatTmpl = template.Must(template.New("chat").Parse(chatHTML))
-
 func (s *Server) serveChatUI(rw http.ResponseWriter, wf *WorkflowDef) {
 	chatParam := findChatParam(wf.Params)
 	settingsParams := filterSettingsParams(wf.Params, chatParam)
-	data := map[string]any{
-		"Name":           wf.Name,
-		"Path":           wf.Path,
-		"ChatParam":      chatParam,
-		"SettingsParams": settingsParams,
-		"Title":          wf.UITitle,
+	meta := map[string]any{
+		"mode":           "chat",
+		"name":           wf.Name,
+		"method":         wf.Method,
+		"path":           wf.Path,
+		"params":         wf.Params,
+		"steps":          wf.Steps,
+		"title":          wf.UITitle,
+		"description":    wf.UIDescription,
+		"chatParam":      chatParam,
+		"settingsParams": settingsParams,
 	}
+	metaJSON, _ := json.Marshal(meta)
+	html := strings.Replace(chatHTML, "{{META}}", string(metaJSON), 1)
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	chatTmpl.Execute(rw, data)
+	rw.Write([]byte(html))
 }
 
 // findChatParam finds the primary chat input parameter name.

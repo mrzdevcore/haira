@@ -320,6 +320,28 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		if method == "open" {
 			return fmt.Sprintf("haira.ExcelOpen(%s)", args), true
 		}
+	case "log":
+		// log.info/warn/error inside steps → haira.StepLog with injected context
+		if activeWorkflowName != "" && activeStepName != "" {
+			switch method {
+			case "info":
+				return fmt.Sprintf("haira.StepLog(%q, %q, \"info\", %s)", activeWorkflowName, activeStepName, args), true
+			case "warn":
+				return fmt.Sprintf("haira.StepLog(%q, %q, \"warn\", %s)", activeWorkflowName, activeStepName, args), true
+			case "error":
+				return fmt.Sprintf("haira.StepLog(%q, %q, \"error\", %s)", activeWorkflowName, activeStepName, args), true
+			}
+		} else {
+			// Outside steps: print with level prefix to stdout/stderr
+			switch method {
+			case "info":
+				return fmt.Sprintf("haira.LogPrint(\"info\", %s)", args), true
+			case "warn":
+				return fmt.Sprintf("haira.LogPrint(\"warn\", %s)", args), true
+			case "error":
+				return fmt.Sprintf("haira.LogPrint(\"error\", %s)", args), true
+			}
+		}
 	case "time":
 		switch method {
 		case "sleep":
@@ -363,7 +385,7 @@ func callArgsToGo(args []ast.Argument) string {
 func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "env", "json", "postgres", "slack", "excel", "time",
-		"string", "regex", "math", "conv", "array", "map":
+		"string", "regex", "math", "conv", "array", "map", "log":
 		return true
 	}
 	return false

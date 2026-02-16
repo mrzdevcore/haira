@@ -218,6 +218,7 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.Line(fmt.Sprintf("Method: %q,", method))
 		em.Line(fmt.Sprintf("Path: %q,", path))
 		emitWorkflowParams(em, workflow.Params)
+		emitStepsField(em, workflow.Body.Statements)
 		em.Line("IsStream: true,")
 		emitWorkflowUIMetadata(em, workflow.Decorators)
 		em.Line(fmt.Sprintf("Handler: %s,", fallbackName))
@@ -253,6 +254,7 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.Line(fmt.Sprintf("Method: %q,", method))
 		em.Line(fmt.Sprintf("Path: %q,", path))
 		emitWorkflowParams(em, workflow.Params)
+		emitStepsField(em, workflow.Body.Statements)
 		emitWorkflowUIMetadata(em, workflow.Decorators)
 		em.Line(fmt.Sprintf("Handler: %s,", handlerName))
 		em.CloseBlock()
@@ -480,6 +482,9 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 	timerVar := fmt.Sprintf("_step%d", stepCounter)
 	stepCounter++
 
+	activeStepName = stepName
+	defer func() { activeStepName = "" }()
+
 	// Check for @retry decorator
 	var retryMax int
 	var retryBackoff string
@@ -623,39 +628,87 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 	for _, stmt := range stmts {
 		switch s := stmt.Node.(type) {
 		case ast.ReturnStmt:
-			em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
-			if inCapturedContext {
-				if len(s.Values) == 0 {
-					em.Line("return")
-				} else {
-					vals := make([]string, len(s.Values))
-					for i, v := range s.Values {
-						vals[i] = ExprToGo(v)
-					}
-					em.Line(fmt.Sprintf("_wfResult = %s", strings.Join(vals, ", ")))
-					em.Line("return")
-				}
-			} else {
-				if len(s.Values) == 0 {
-					em.Line("return nil, nil")
-				} else {
-					vals := make([]string, len(s.Values))
-					for i, v := range s.Values {
-						vals[i] = ExprToGo(v)
-					}
-					em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
-				}
-			}
+			emitStepReturn(em, s, wfName, stepName, timerVar)
 		case ast.IfStmt:
-			if inCapturedContext {
-				emitWorkflowIfCaptured(em, s)
-			} else {
-				emitWorkflowIf(em, s)
-			}
+			emitStepIf(em, s, wfName, stepName, timerVar)
+		case ast.MatchStmt:
+			emitStepMatch(em, s.Match, wfName, stepName, timerVar)
 		default:
 			EmitStatement(em, stmt)
 		}
 	}
+}
+
+// emitStepReturn emits a return statement inside a step body, ensuring StepEnd is called first.
+func emitStepReturn(em *GoEmitter, s ast.ReturnStmt, wfName, stepName, timerVar string) {
+	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+	if inCapturedContext {
+		if len(s.Values) == 0 {
+			em.Line("return")
+		} else {
+			vals := make([]string, len(s.Values))
+			for i, v := range s.Values {
+				vals[i] = ExprToGo(v)
+			}
+			em.Line(fmt.Sprintf("_wfResult = %s", strings.Join(vals, ", ")))
+			em.Line("return")
+		}
+	} else {
+		if len(s.Values) == 0 {
+			em.Line("return nil, nil")
+		} else {
+			vals := make([]string, len(s.Values))
+			for i, v := range s.Values {
+				vals[i] = ExprToGo(v)
+			}
+			em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
+		}
+	}
+}
+
+// emitStepIf emits an if statement inside a step body, preserving the step context for nested returns.
+func emitStepIf(em *GoEmitter, ifStmt ast.IfStmt, wfName, stepName, timerVar string) {
+	cond := ExprToGo(ifStmt.Condition)
+	em.OpenBlock(fmt.Sprintf("if %s", cond))
+	emitStepBodyStatements(em, ifStmt.ThenBranch.Statements, wfName, stepName, timerVar)
+	if ifStmt.ElseBranch != nil {
+		switch eb := ifStmt.ElseBranch.(type) {
+		case *ast.ElseBlock:
+			em.Dedent()
+			em.Line("} else {")
+			em.Indent()
+			emitStepBodyStatements(em, eb.Body.Statements, wfName, stepName, timerVar)
+			em.CloseBlock()
+			return
+		case *ast.ElseIf:
+			em.Dedent()
+			cond := ExprToGo(eb.If.Node.Condition)
+			em.Line(fmt.Sprintf("} else if %s {", cond))
+			em.Indent()
+			emitStepBodyStatements(em, eb.If.Node.ThenBranch.Statements, wfName, stepName, timerVar)
+			em.CloseBlock()
+			return
+		}
+	}
+	em.CloseBlock()
+}
+
+// emitStepMatch emits a match expression inside a step body, preserving the step context for nested returns.
+func emitStepMatch(em *GoEmitter, matchExpr ast.MatchExpr, wfName, stepName, timerVar string) {
+	subject := ExprToGo(matchExpr.Subject)
+	em.OpenBlock(fmt.Sprintf("switch %s", subject))
+	for _, arm := range matchExpr.Arms {
+		emitMatchArmHeader(em, arm.Pattern.Node)
+		em.Indent()
+		switch body := arm.Body.(type) {
+		case ast.MatchArmBlock:
+			emitStepBodyStatements(em, body.Value.Statements, wfName, stepName, timerVar)
+		case ast.MatchArmExpr:
+			em.Line(ExprToGo(body.Value))
+		}
+		em.Dedent()
+	}
+	em.CloseBlock()
 }
 
 var stepCounter int
@@ -788,6 +841,31 @@ func emitWorkflowUIMetadata(em *GoEmitter, decorators []ast.Decorator) {
 			}
 		}
 	}
+}
+
+// collectStepNames walks workflow body statements and extracts step names in order.
+func collectStepNames(stmts []ast.Statement) []string {
+	var names []string
+	for _, stmt := range stmts {
+		switch s := stmt.Node.(type) {
+		case ast.StepStmt:
+			names = append(names, s.Name.Node)
+		}
+	}
+	return names
+}
+
+// emitStepsField emits the Steps field for a WorkflowDef if there are steps.
+func emitStepsField(em *GoEmitter, stmts []ast.Statement) {
+	steps := collectStepNames(stmts)
+	if len(steps) == 0 {
+		return
+	}
+	quoted := make([]string, len(steps))
+	for i, s := range steps {
+		quoted[i] = fmt.Sprintf("%q", s)
+	}
+	em.Line(fmt.Sprintf("Steps: []string{%s},", strings.Join(quoted, ", ")))
 }
 
 // hairaTypeToUIType converts a Haira AST type to a UI type string for WorkflowParam.

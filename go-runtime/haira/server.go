@@ -1,12 +1,19 @@
 package haira
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 )
+
+//go:embed ui/index.html
+var indexHTML string
+
+//go:embed ui/dist/haira-ui.js
+var uiJS string
 
 // Server is an HTTP server that routes requests to workflows.
 type Server struct {
@@ -95,9 +102,15 @@ func NewServer(workflows []*WorkflowDef) *Server {
 			}
 
 			// Check if client wants streaming (Accept: text/event-stream)
-			if wf.StreamHandler != nil && r.Header.Get("Accept") == "text/event-stream" {
-				s.handleSSE(rw, r, wf, params)
-				return
+			if r.Header.Get("Accept") == "text/event-stream" {
+				if wf.StreamHandler != nil {
+					s.handleSSE(rw, r, wf, params)
+					return
+				}
+				if len(wf.Steps) > 0 {
+					s.handleStepSSE(rw, r, wf, params)
+					return
+				}
 			}
 
 			result, err := wf.Handler(params)
@@ -148,8 +161,59 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 	}
 }
 
-// registerUIRoutes sets up /_ui/ index and per-workflow UI pages.
+// handleStepSSE runs a sync workflow handler in a goroutine, streaming step events
+// via SSE, then sends the final result.
+func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *WorkflowDef, params map[string]any) {
+	flusher, ok := rw.(http.Flusher)
+	if !ok {
+		http.Error(rw, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "text/event-stream")
+	rw.Header().Set("Cache-Control", "no-cache")
+	rw.Header().Set("Connection", "keep-alive")
+	flusher.Flush()
+
+	stepCh := make(chan StepEvent, 16)
+	type handlerResult struct {
+		data any
+		err  error
+	}
+	resultCh := make(chan handlerResult, 1)
+
+	go func() {
+		SetStepNotifier(stepCh)
+		defer ClearStepNotifier()
+		defer close(stepCh)
+
+		result, err := wf.Handler(params)
+		resultCh <- handlerResult{data: result, err: err}
+	}()
+
+	// Stream step events until the handler completes
+	for event := range stepCh {
+		data, _ := json.Marshal(event)
+		fmt.Fprintf(rw, "event: step\ndata: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	// Send final result
+	res := <-resultCh
+	if res.err != nil {
+		errData, _ := json.Marshal(map[string]string{"error": res.err.Error()})
+		fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
+	} else {
+		resultData, _ := json.Marshal(res.data)
+		fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
+	}
+	fmt.Fprintf(rw, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
+// registerUIRoutes sets up /_ui/ index, per-workflow UI pages, and JS assets.
 func (s *Server) registerUIRoutes() {
+	s.mux.HandleFunc("/_ui/assets/haira-ui.js", s.serveUIJS)
 	s.mux.HandleFunc("/_ui/", s.handleUIIndex)
 
 	for _, w := range s.workflows {
@@ -165,31 +229,50 @@ func (s *Server) registerUIRoutes() {
 	}
 }
 
+func (s *Server) serveUIJS(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	rw.Header().Set("Cache-Control", "public, max-age=3600")
+	rw.Write([]byte(uiJS))
+}
+
 func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
 	// Only serve exact /_ui/ path as index
 	if r.URL.Path != "/_ui/" {
 		http.NotFound(rw, r)
 		return
 	}
-	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(rw, `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Haira Workflows</title>`)
-	fmt.Fprint(rw, `<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;padding:2rem 1rem;display:flex;justify-content:center}`)
-	fmt.Fprint(rw, `.container{max-width:600px;width:100%}h1{margin-bottom:1.5rem;font-size:1.5rem}`)
-	fmt.Fprint(rw, `.wf{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:1rem 1.25rem;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;text-decoration:none;color:#1a1a1a;transition:box-shadow .15s}`)
-	fmt.Fprint(rw, `.wf:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}.wf-name{font-weight:600}.wf-path{font-family:monospace;font-size:.85rem;color:#555}`)
-	fmt.Fprint(rw, `.badge{font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:3px;color:#fff;margin-right:.5rem}`)
-	fmt.Fprint(rw, `.badge-POST{background:#49cc90}.badge-GET{background:#61affe}.badge-PUT{background:#fca130}.badge-DELETE{background:#f93e3e}`)
-	fmt.Fprint(rw, `</style></head><body><div class="container"><h1>Haira Workflows</h1>`)
+
+	type wfItem struct {
+		Name   string `json:"name"`
+		Path   string `json:"path"`
+		Method string `json:"method"`
+		UIType string `json:"uiType"`
+		Title  string `json:"title"`
+	}
+
+	var items []wfItem
 	for _, wf := range s.workflows {
-		uiPath := "/_ui" + wf.Path
 		uiType := "Form"
 		if wf.IsStream {
 			uiType = "Chat"
 		}
-		fmt.Fprintf(rw, `<a class="wf" href="%s"><div><span class="badge badge-%s">%s</span><span class="wf-name">%s</span><br><span class="wf-path">%s</span></div><div style="color:#999;font-size:.8rem">%s</div></a>`,
-			uiPath, wf.Method, wf.Method, wf.Name, wf.Path, uiType)
+		items = append(items, wfItem{
+			Name:   wf.Name,
+			Path:   wf.Path,
+			Method: wf.Method,
+			UIType: uiType,
+			Title:  wf.UITitle,
+		})
 	}
-	fmt.Fprint(rw, `</div></body></html>`)
+
+	meta := map[string]any{
+		"mode":      "index",
+		"workflows": items,
+	}
+	metaJSON, _ := json.Marshal(meta)
+	html := strings.Replace(indexHTML, "{{META}}", string(metaJSON), 1)
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rw.Write([]byte(html))
 }
 
 // Listen starts the HTTP server on the given port.

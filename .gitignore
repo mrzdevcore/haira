@@ -19,6 +19,9 @@ Thumbs.db
 # Compiled Haira output
 .output/
 
+# UI build output
+go-runtime/haira/ui/dist/
+
 # Object files
 *.o
 

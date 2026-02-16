@@ -17,6 +17,8 @@ jobs:
           go-version: "1.22"
           cache-dependency-path: compiler/go.sum
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Vet
         run: cd compiler && go vet ./...
 

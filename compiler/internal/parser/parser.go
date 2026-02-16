@@ -300,8 +300,17 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 			wf.Decorators = extras
 			return ast.Item{Node: wf, Span: p.span(start)}, true
 		}
+		if p.check(token.Tool) {
+			p.advance()
+			tool, ok := p.parseToolDecl()
+			if !ok {
+				return ast.Item{}, false
+			}
+			tool.Decorators = decorators
+			return ast.Item{Node: tool, Span: p.span(start)}, true
+		}
 		tok := p.peek()
-		p.addError("expected workflow after decorator", ast.Span{Start: tok.Start, End: tok.End})
+		p.addError("expected workflow or tool after decorator", ast.Span{Start: tok.Start, End: tok.End})
 		return ast.Item{}, false
 
 	case token.Workflow:
@@ -780,6 +789,20 @@ func (p *Parser) parseType() (ast.Spanned[ast.Type], bool) {
 			ty = ast.GenericType{Name: name, Args: args}
 		} else {
 			ty = ast.NamedType{Name: name}
+		}
+
+		// Qualified type: ui.StatusCard → NamedType{Name: "ui.StatusCard"}
+		if _, isNamed := ty.(ast.NamedType); isNamed && p.check(token.Dot) {
+			// Peek ahead: if next after dot is an uppercase ident, consume as qualified type
+			if p.current+1 < len(p.tokens) {
+				next := p.tokens[p.current+1]
+				if next.Kind == token.Ident && unicode.IsUpper(firstRune(next.Value)) {
+					p.advance() // consume .
+					qualName := p.peek().Value
+					p.advance() // consume the qualified name
+					ty = ast.NamedType{Name: name + "." + qualName}
+				}
+			}
 		}
 
 	case token.LBracket:
@@ -1776,6 +1799,14 @@ func (p *Parser) parseInfix(left ast.Expr, prec Precedence) (ast.Expr, bool) {
 				Span: p.span(start),
 			}, true
 		}
+		// Qualified instance: ui.StatusCard { ... }
+		if unicode.IsUpper(firstRune(field.Node)) && p.check(token.LBrace) {
+			if ident, ok := left.Node.(ast.IdentExpr); ok {
+				qualName := ident.Name + "." + field.Node
+				return p.parseInstance(qualName, start)
+			}
+		}
+
 		return ast.Expr{
 			Node: ast.FieldExpr{Object: left, Field: field},
 			Span: p.span(start),

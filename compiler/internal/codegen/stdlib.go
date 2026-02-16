@@ -385,7 +385,7 @@ func callArgsToGo(args []ast.Argument) string {
 func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "env", "json", "postgres", "slack", "excel", "time",
-		"string", "regex", "math", "conv", "array", "map", "log":
+		"string", "regex", "math", "conv", "array", "map", "log", "ui":
 		return true
 	}
 	return false

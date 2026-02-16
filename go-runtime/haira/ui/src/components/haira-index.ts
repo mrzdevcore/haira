@@ -23,7 +23,12 @@ export class HairaIndex extends HTMLElement {
           justify-content: center;
           padding: 2.5rem 1rem;
         }
-        .container { max-width: 520px; width: 100%; }
+        .container { max-width: 960px; width: 100%; }
+        @media (min-width: 768px) {
+          :host {
+            padding: 2.5rem 2rem;
+          }
+        }
         h1 {
           font-size: 1.3rem;
           font-weight: 700;

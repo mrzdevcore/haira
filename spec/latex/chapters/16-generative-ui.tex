@@ -1,0 +1,1378 @@
+\chapter{Generative UI}
+\label{ch:generative-ui}
+
+Generative UI allows agents to render rich, interactive components inline in a chat conversation instead of returning only text. When an agent calls a tool, the tool's result can be rendered as a structured UI component---a table, a card, a diff view, a form---rather than a plain text bubble.
+
+\haira{} approaches generative UI at the language level. Tools declare what component renders their output. The runtime ships a built-in component catalog. No frontend framework, bundler, or client-side JavaScript is required.
+
+\section{Motivation}
+
+Consider a migration tool that returns a dry-run result:
+
+\begin{lstlisting}
+tool dry_run(file: string) -> string {
+    """Run SQL against the database in dry-run mode"""
+    // ... returns "DRY-RUN FAILED on seeds.\n\nROOT CAUSE: ..."
+}
+\end{lstlisting}
+
+The agent receives a string, streams it as markdown, and the user sees a wall of text. The information is there, but the presentation is poor---error details, affected tables, and fix SQL are all flattened into one block.
+
+With generative UI, the same tool returns structured data and declares a renderer:
+
+\begin{lstlisting}
+@render("status-card")
+tool dry_run(file: string) -> DryRunResult {
+    """Run SQL against the database in dry-run mode"""
+    // ... returns structured result
+}
+\end{lstlisting}
+
+The chat UI renders a status card with colored indicators, collapsible sections, and copy-paste SQL blocks---all from the same tool declaration, with zero frontend code.
+
+\section{The \code{@render} Decorator}
+
+Tools opt into generative UI with the \code{@render} decorator. It takes a component name from the built-in catalog:
+
+\begin{lstlisting}
+@render("component-name")
+tool tool_name(params) -> ReturnType {
+    """Description"""
+    // body
+}
+\end{lstlisting}
+
+The decorator does three things:
+
+\begin{enumerate}
+    \item Tells the compiler to include component metadata in the tool definition
+    \item Tells the runtime to emit a \code{tool\_render} SSE event with the structured result
+    \item Tells the chat UI to render the named component instead of showing raw text
+\end{enumerate}
+
+Tools without \code{@render} behave as before: the agent receives the result, interprets it, and streams a text response. Tools with \code{@render} still return their result to the agent for reasoning, but the UI additionally renders the component inline.
+
+\begin{note}
+The \code{@render} decorator is optional. Existing tools continue to work unchanged. Generative UI is additive.
+\end{note}
+
+\section{Built-in Component Catalog}
+
+\haira{} ships a set of built-in components that cover common patterns. Each component expects a specific data shape and renders accordingly.
+
+\subsection{table --- Tabular Data}
+
+Renders a table with headers and rows. Supports optional column alignment and row highlighting.
+
+\begin{lstlisting}
+struct TableData {
+    title: string
+    headers: [string]
+    rows: [[string]]
+    highlight: [int]        // row indices to highlight (optional)
+}
+
+@render("table")
+tool list_tables(file: string) -> TableData {
+    """List all tables found in the Excel config file"""
+
+    // ... extract tables ...
+    return TableData{
+        title: "Tables in " + filename,
+        headers: ["Table", "Rows", "Type"],
+        rows: [
+            ["parameters", "42", "configuration"],
+            ["batches", "8", "run"],
+        ],
+        highlight: [],
+    }
+}
+\end{lstlisting}
+
+\subsection{status-card --- Result Summary}
+
+Renders a card with a status indicator (success, error, warning), title, and detail sections.
+
+\begin{lstlisting}
+struct StatusCard {
+    status: string          // "success", "error", "warning", "info"
+    title: string
+    message: string
+    sections: [CardSection]
+}
+
+struct CardSection {
+    label: string
+    content: string         // markdown supported
+    style: string           // "default", "code", "error", "success"
+}
+
+@render("status-card")
+tool validate(file: string) -> StatusCard {
+    """Validate Excel data against the database schema"""
+
+    // ... run validation ...
+    return StatusCard{
+        status: "error",
+        title: "Validation Failed",
+        message: "3 errors, 1 warning",
+        sections: [
+            CardSection{
+                label: "Missing Columns",
+                content: "`id_plant` in table `parameters`",
+                style: "error",
+            },
+        ],
+    }
+}
+\end{lstlisting}
+
+\subsection{code-block --- Source Code or SQL}
+
+Renders a syntax-highlighted code block with a copy button and optional title.
+
+\begin{lstlisting}
+struct CodeBlock {
+    title: string           // optional header
+    language: string        // "sql", "json", "haira", etc.
+    code: string
+}
+
+@render("code-block")
+tool generate_sql(file: string) -> CodeBlock {
+    """Generate SQL INSERT statements from the config file"""
+
+    // ... generate SQL ...
+    return CodeBlock{
+        title: "Generated Seeds SQL",
+        language: "sql",
+        code: sql_output,
+    }
+}
+\end{lstlisting}
+
+\subsection{diff --- Before/After Comparison}
+
+Renders a side-by-side or unified diff view.
+
+\begin{lstlisting}
+struct DiffView {
+    title: string
+    before_label: string
+    after_label: string
+    before: string
+    after: string
+    language: string        // syntax highlighting language
+}
+
+@render("diff")
+tool compare_schemas(table: string) -> DiffView {
+    """Compare Excel schema with database schema for a table"""
+
+    return DiffView{
+        title: "Schema Diff: " + table,
+        before_label: "Database",
+        after_label: "Excel",
+        before: db_schema,
+        after: excel_schema,
+        language: "sql",
+    }
+}
+\end{lstlisting}
+
+\subsection{key-value --- Property List}
+
+Renders a compact list of labeled values. Useful for metadata, summaries, and configuration display.
+
+\begin{lstlisting}
+struct KeyValueList {
+    title: string
+    items: [KVItem]
+}
+
+struct KVItem {
+    key: string
+    value: string
+    style: string           // "default", "success", "error", "muted"
+}
+
+@render("key-value")
+tool file_info(file: string) -> KeyValueList {
+    """Show metadata about the uploaded config file"""
+
+    return KeyValueList{
+        title: "File Info",
+        items: [
+            KVItem{ key: "Filename", value: filename, style: "default" },
+            KVItem{ key: "Tables", value: "12", style: "default" },
+            KVItem{ key: "Rows", value: "347", style: "default" },
+            KVItem{ key: "Status", value: "Valid", style: "success" },
+        ],
+    }
+}
+\end{lstlisting}
+
+\subsection{progress --- Multi-Step Progress}
+
+Renders a vertical progress tracker showing completed, active, and pending steps. Useful for tools that report pipeline state.
+
+\begin{lstlisting}
+struct ProgressView {
+    title: string
+    steps: [ProgressStep]
+}
+
+struct ProgressStep {
+    name: string
+    status: string          // "done", "active", "pending", "failed"
+    detail: string          // optional detail text
+}
+
+@render("progress")
+tool pipeline_status(mr_id: string) -> ProgressView {
+    """Check the deployment pipeline status"""
+
+    return ProgressView{
+        title: "Deployment Pipeline",
+        steps: [
+            ProgressStep{ name: "Branch Created", status: "done", detail: "" },
+            ProgressStep{ name: "CI/CD Running", status: "active", detail: "2m 15s" },
+            ProgressStep{ name: "Merge", status: "pending", detail: "" },
+            ProgressStep{ name: "Deploy to QUA", status: "pending", detail: "" },
+        ],
+    }
+}
+\end{lstlisting}
+
+\subsection{form --- Interactive Input}
+
+Renders a form that the user can fill and submit. The submission triggers a follow-up tool call or message. This is the foundation for human-in-the-loop approval flows.
+
+\begin{lstlisting}
+struct FormView {
+    title: string
+    fields: [FormField]
+    submit_label: string
+    submit_action: string   // tool name or message prefix
+}
+
+struct FormField {
+    name: string
+    label: string
+    field_type: string      // "text", "select", "checkbox", "textarea"
+    value: string           // default value
+    options: [string]       // for "select" type
+    required: bool
+}
+
+@render("form")
+tool request_approval(branch: string, mr_url: string) -> FormView {
+    """Request user approval before pushing to GitLab"""
+
+    return FormView{
+        title: "Confirm Push to GitLab",
+        fields: [
+            FormField{
+                name: "confirm",
+                label: "Push branch '" + branch + "' and create MR?",
+                field_type: "select",
+                value: "",
+                options: ["Yes, push it", "No, cancel"],
+                required: true,
+            },
+            FormField{
+                name: "comment",
+                label: "MR comment (optional)",
+                field_type: "textarea",
+                value: "",
+                options: [],
+                required: false,
+            },
+        ],
+        submit_label: "Submit",
+        submit_action: "handle_approval",
+    }
+}
+\end{lstlisting}
+
+When the user submits the form, the chat sends a message in the format: \code{"[Form: handle\_approval] confirm=Yes, push it; comment=Looks good"}, which the agent can interpret and act upon.
+
+\subsection{Component Summary}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Component} & \textbf{Use Case} & \textbf{Data Shape} \\
+\midrule
+\code{table} & Tabular results, lists & Headers + rows \\
+\code{status-card} & Success/error summaries & Status + sections \\
+\code{code-block} & SQL, JSON, code output & Language + code string \\
+\code{diff} & Before/after comparisons & Two text blocks \\
+\code{key-value} & Metadata, config display & Key-value pairs \\
+\code{progress} & Pipeline/step tracking & Steps with status \\
+\code{form} & Approvals, user input & Fields + submit action \\
+\bottomrule
+\end{tabular}
+\caption{Built-in generative UI components}
+\label{tab:genui-components}
+\end{table}
+
+\section{Streaming Protocol}
+
+Generative UI extends the existing SSE protocol with a new event type: \code{tool\_render}.
+
+\subsection{Current Protocol}
+
+The existing protocol emits three event types:
+
+\begin{lstlisting}[language={},numbers=none]
+event: tool_start
+data: {"tool": "validate", "args": "{\"file\": \"/tmp/config.xlsx\"}"}
+
+event: tool_end
+data: {"tool": "validate", "ok": true}
+
+data: {"delta": "The validation passed with..."}
+\end{lstlisting}
+
+\subsection{Extended Protocol}
+
+When a tool has an \code{@render} decorator, the runtime emits \code{tool\_render} between \code{tool\_start} and \code{tool\_end}:
+
+\begin{lstlisting}[language={},numbers=none]
+event: tool_start
+data: {"tool": "validate", "args": "{\"file\": \"/tmp/config.xlsx\"}"}
+
+event: tool_render
+data: {
+    "tool": "validate",
+    "component": "status-card",
+    "props": {
+        "status": "error",
+        "title": "Validation Failed",
+        "message": "3 errors, 1 warning",
+        "sections": [...]
+    }
+}
+
+event: tool_end
+data: {"tool": "validate", "ok": false}
+\end{lstlisting}
+
+The \code{tool\_render} event carries:
+\begin{itemize}
+    \item \code{tool}: The tool name (for matching with the active tool card)
+    \item \code{component}: The component name from the catalog
+    \item \code{props}: The tool's return value, JSON-serialized, used as component props
+\end{itemize}
+
+The chat UI receives \code{tool\_render}, looks up the component in its registry, and renders it inline---replacing or augmenting the tool card.
+
+\subsection{Dual Consumption}
+
+The tool result is consumed twice:
+
+\begin{enumerate}
+    \item \textbf{By the UI}: The \code{tool\_render} event renders the component for the user
+    \item \textbf{By the agent}: The result is still appended to the message history, so the agent can reason about it and decide the next step
+\end{enumerate}
+
+This means the agent sees the structured data (to make decisions) and the user sees the rich component (for readability). Neither path is sacrificed.
+
+\section{Agent Behavior with Generative UI}
+
+Agents do not need any changes to use generative UI. The \code{@render} decorator is on the tool, not the agent. An agent with a mix of rendered and non-rendered tools works naturally:
+
+\begin{lstlisting}
+agent Maltimize {
+    model: azure_openai
+    system: "You help deploy Excel configs to PostgreSQL."
+    tools: [
+        read_excel,           // no @render -- text result
+        validate,             // @render("status-card")
+        generate_sql,         // @render("code-block")
+        dry_run,              // @render("status-card")
+        push_to_gitlab,       // no @render -- text result
+    ]
+    memory: conversation(max_turns: 20)
+    temperature: 0.3
+}
+\end{lstlisting}
+
+When the agent calls \code{validate}, the user sees a status card. When it calls \code{push\_to\_gitlab}, the user sees the agent's text interpretation. Both are valid---generative UI is opt-in per tool.
+
+\section{Fallback Behavior}
+
+Generative UI degrades gracefully in two scenarios:
+
+\subsection{Non-Chat Contexts}
+
+When a tool with \code{@render} is called outside a chat workflow (e.g., from a form workflow or a plain function), the decorator is ignored. The tool returns its structured data normally. The \code{@render} decorator only takes effect when the tool is executed through an agent's streaming loop.
+
+\subsection{API Consumers}
+
+When the SSE stream is consumed by a programmatic client (not the built-in chat UI), the \code{tool\_render} event provides the component name and props as JSON. The client can:
+\begin{itemize}
+    \item Render its own implementation of the component
+    \item Ignore \code{tool\_render} events and use only \code{tool\_end} for status
+    \item Use the \code{props} data directly for custom processing
+\end{itemize}
+
+\section{Complete Example}
+
+A full migration assistant with generative UI:
+
+\begin{lstlisting}
+import "io"
+import "http"
+import "excel"
+import "postgres"
+
+provider azure_openai {
+    type: "azure-openai"
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+}
+
+// --- Rendered tools ---
+
+@render("table")
+tool read_config(file_path: string) -> TableData {
+    """Read an Excel config file and list the tables found"""
+
+    wb = excel.open(file_path)?
+    index = wb.read_sheet("index")?
+    rows = []
+    for entry in index {
+        table = "" + entry["Table"]
+        sheet = wb.read_sheet(get_sheet(table)) orelse []
+        rows = rows + [[table, conv.int_to_string(len(sheet)), get_type(table)]]
+    }
+    wb.close()
+    return TableData{
+        title: "Config Tables",
+        headers: ["Table", "Rows", "Type"],
+        rows: rows,
+        highlight: [],
+    }
+}
+
+@render("status-card")
+tool dry_run(file_path: string) -> StatusCard {
+    """Dry-run the generated SQL against the local database"""
+
+    // ... generate and test SQL ...
+    if result["ok"] == true {
+        return StatusCard{
+            status: "success",
+            title: "Dry Run Passed",
+            message: "All SQL is valid",
+            sections: [],
+        }
+    }
+    return StatusCard{
+        status: "error",
+        title: "Dry Run Failed",
+        message: result["error"],
+        sections: [
+            CardSection{
+                label: "Root Cause",
+                content: analysis["root_cause"],
+                style: "error",
+            },
+            CardSection{
+                label: "Fix SQL",
+                content: "```sql\n" + analysis["fix"] + "\n```",
+                style: "code",
+            },
+        ],
+    }
+}
+
+// --- Agent ---
+
+agent ConfigAssistant {
+    model: azure_openai
+    system: "You deploy Excel configs to PostgreSQL via GitLab."
+    tools: [read_config, dry_run, push_to_gitlab]
+    memory: conversation(max_turns: 20)
+    temperature: 0.3
+}
+
+// --- Workflow ---
+
+@webui(title: "Config Assistant", description: "Chat-based config migration")
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string, file_path: file) -> stream {
+    msg = message
+    if file_path != "" { msg = "${message}\n\n[Attached file: ${file_path}]" }
+    return ConfigAssistant.stream(msg, session: session_id)
+}
+
+fn main() {
+    server = http.Server([Chat])
+    server.listen(9001)
+}
+\end{lstlisting}
+
+The user uploads an Excel file and says ``deploy this''. The agent calls \code{read\_config}---the chat renders a table showing all tables with row counts. Then calls \code{dry\_run}---the chat renders a status card showing success or failure with detailed sections. If it passes, the agent asks for confirmation before pushing.
+
+All of this happens in a standard \haira{} program. No React, no Next.js, no bundler, no client-side framework.
+
+\section{Custom Components}
+
+The built-in catalog covers common patterns, but domain-specific use cases need custom components. \haira{} supports two levels of customization: composite components built from built-in primitives, and fully custom components written as TypeScript Web Components.
+
+\subsection{Composite Components}
+
+The simplest way to extend the UI is to compose built-in components. A composite component is a Haira struct whose fields map to multiple built-in components, rendered together as a group:
+
+\begin{lstlisting}
+@render("composite")
+tool migration_report(file: string) -> MigrationReport {
+    """Generate a full migration report with tables, validation, and SQL"""
+
+    return MigrationReport{
+        components: [
+            Component{
+                type: "key-value",
+                props: KeyValueList{
+                    title: "File Summary",
+                    items: [
+                        KVItem{ key: "File", value: filename, style: "default" },
+                        KVItem{ key: "Tables", value: "12", style: "default" },
+                    ],
+                },
+            },
+            Component{
+                type: "table",
+                props: TableData{
+                    title: "Tables",
+                    headers: ["Name", "Rows", "Type"],
+                    rows: table_rows,
+                    highlight: [],
+                },
+            },
+            Component{
+                type: "status-card",
+                props: StatusCard{
+                    status: "success",
+                    title: "Validation Passed",
+                    message: "All checks passed",
+                    sections: [],
+                },
+            },
+        ],
+    }
+}
+\end{lstlisting}
+
+The \code{composite} renderer lays out multiple built-in components vertically in a single tool render. This requires no custom JavaScript---only data.
+
+\subsection{Custom Web Components}
+
+For fully custom rendering, users write a TypeScript Web Component in a \code{components/} directory next to their \haira{} source:
+
+\begin{lstlisting}[language={}]
+project/
+  main.haira
+  components/
+    gantt-chart.ts
+    schema-diagram.ts
+\end{lstlisting}
+
+A custom component file follows a simple contract:
+
+\begin{lstlisting}[language={}]
+// components/gantt-chart.ts
+
+interface GanttProps {
+    title: string;
+    tasks: Array<{
+        name: string;
+        start: string;
+        end: string;
+        progress: number;
+    }>;
+}
+
+export class HairaGanttChart extends HTMLElement {
+    connectedCallback() {
+        this.attachShadow({ mode: "open" });
+    }
+
+    // Called by the runtime with the tool's return value
+    setProps(props: GanttProps) {
+        const shadow = this.shadowRoot!;
+        shadow.innerHTML = `
+            <style>
+                :host { display: block; }
+                .chart {
+                    padding: 1rem;
+                    background: var(--haira-bg-card);
+                    border: 1px solid var(--haira-border);
+                    border-radius: var(--haira-radius);
+                }
+                .title {
+                    font-weight: 600;
+                    font-size: 0.85rem;
+                    color: var(--haira-text);
+                    margin-bottom: 0.75rem;
+                }
+                .bar-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin: 0.35rem 0;
+                }
+                .bar-label {
+                    font-size: 0.78rem;
+                    color: var(--haira-text-dim);
+                    min-width: 120px;
+                }
+                .bar-track {
+                    flex: 1;
+                    height: 20px;
+                    background: var(--haira-bg-elevated);
+                    border-radius: var(--haira-radius-sm);
+                    overflow: hidden;
+                }
+                .bar-fill {
+                    height: 100%;
+                    background: var(--haira-gold);
+                    border-radius: var(--haira-radius-sm);
+                    transition: width 0.3s;
+                }
+                .bar-pct {
+                    font-size: 0.7rem;
+                    color: var(--haira-muted);
+                    font-family: var(--haira-mono);
+                    min-width: 35px;
+                }
+            </style>
+            <div class="chart">
+                <div class="title">${this.esc(props.title)}</div>
+                ${props.tasks.map(t => `
+                    <div class="bar-row">
+                        <span class="bar-label">${this.esc(t.name)}</span>
+                        <div class="bar-track">
+                            <div class="bar-fill"
+                                 style="width: ${t.progress}%"></div>
+                        </div>
+                        <span class="bar-pct">${t.progress}%</span>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+    }
+
+    private esc(s: string): string {
+        return s.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+    }
+}
+
+// Export the component class and its custom element tag name
+export default {
+    tag: "haira-gantt-chart",
+    component: HairaGanttChart,
+};
+\end{lstlisting}
+
+The component must:
+\begin{enumerate}
+    \item Extend \code{HTMLElement}
+    \item Use Shadow DOM for style isolation
+    \item Implement a \code{setProps(props)} method that receives the tool's return value as a typed object
+    \item Export a default object with \code{tag} (the custom element name) and \code{component} (the class)
+\end{enumerate}
+
+The component is referenced in \code{@render} by its file name (without extension):
+
+\begin{lstlisting}
+struct GanttData {
+    title: string
+    tasks: [Task]
+}
+
+struct Task {
+    name: string
+    start: string
+    end: string
+    progress: int
+}
+
+@render("gantt-chart")
+tool project_timeline(project_id: string) -> GanttData {
+    """Show the project timeline as a Gantt chart"""
+
+    return GanttData{
+        title: "Q1 Roadmap",
+        tasks: [
+            Task{ name: "Backend API", start: "2025-01-01",
+                  end: "2025-02-15", progress: 80 },
+            Task{ name: "Frontend", start: "2025-02-01",
+                  end: "2025-03-15", progress: 40 },
+        ],
+    }
+}
+\end{lstlisting}
+
+\subsection{Component Resolution}
+
+When the compiler encounters \code{@render("name")}, it resolves the component in this order:
+
+\begin{enumerate}
+    \item \textbf{Built-in catalog}: Check if \code{name} matches a built-in component (\code{table}, \code{status-card}, \code{composite}, etc.)
+    \item \textbf{Local components}: Check if \code{components/name.ts} exists relative to the \code{.haira} source file
+    \item \textbf{Compile error}: If neither matches, emit a diagnostic with the list of available component names
+\end{enumerate}
+
+Example diagnostic:
+
+\begin{lstlisting}[language=bash,numbers=none]
+error: unknown render component "gantt-chart"
+  --> main.haira:42:9
+   |
+42 | @render("gantt-chart")
+   |         ^^^^^^^^^^^^
+   |
+   = available: table, status-card, code-block, diff,
+                 key-value, progress, form, composite
+   = hint: create components/gantt-chart.ts to register
+           a custom component
+\end{lstlisting}
+
+\subsection{Build Process}
+
+The \haira{} compiler handles custom components as part of its normal build pipeline. The existing pipeline is:
+
+\begin{lstlisting}[language=bash,numbers=none]
+.haira source --> Lexer --> Parser --> Checker --> Codegen --> main.go
+                                                                |
+go-runtime/haira/ (linked via go.mod replace) ---+              |
+                                                  |              v
+                                          go build (produces binary)
+\end{lstlisting}
+
+The runtime's built-in UI is a pre-compiled JavaScript bundle (\code{ui/dist/haira-ui.js}) embedded in the Go binary via \code{//go:embed}. HTML templates contain a \code{<script>} tag that loads this bundle at \code{/\_ui/assets/haira-ui.js}.
+
+Custom components extend this pipeline with one additional step:
+
+\begin{lstlisting}[language=bash,numbers=none]
+haira build main.haira
+
+1. Parse, check, codegen as normal
+2. Scan components/ directory for .ts files
+3. Generate components/_register.ts (entry point):
+      import c0 from "./gantt-chart.ts";
+      import c1 from "./schema-diagram.ts";
+      customElements.define(c0.tag, c0.component);
+      customElements.define(c1.tag, c1.component);
+4. Bundle components/_register.ts --> components.js
+   (using bun build --minify --target browser)
+5. Embed components.js as a Go string constant in
+   the generated main.go:
+      const customComponentsJS = `...minified JS...`
+6. Register a second asset route:
+      GET /_ui/assets/components.js
+7. HTML templates include a second <script> tag
+   after the built-in UI bundle
+\end{lstlisting}
+
+The generated \code{main.go} includes the custom bundle:
+
+\begin{lstlisting}[language={}]
+// Generated by haira build
+package main
+
+import "haira-go-runtime/haira"
+
+// Custom components bundle (empty if no components/ dir)
+const customComponentsJS = `(function(){class HairaGanttChart
+extends HTMLElement{...}customElements.define("haira-gantt-
+chart",HairaGanttChart);...})()`
+
+func main() {
+    server := haira.NewServer(workflows)
+    server.SetCustomComponentsJS(customComponentsJS)
+    server.Listen(9001)
+}
+\end{lstlisting}
+
+The server serves the custom bundle at \code{/\_ui/assets/components.js} and the HTML template includes both scripts:
+
+\begin{lstlisting}[language={}]
+<script src="/_ui/assets/haira-ui.js"></script>
+<script src="/_ui/assets/components.js"></script>
+\end{lstlisting}
+
+If no \code{components/} directory exists, the custom bundle is empty and the second \code{<script>} tag is omitted. Existing projects are unaffected.
+
+\begin{note}
+The compiler requires \code{bun} to be installed for TypeScript compilation of custom components. If \code{bun} is not found and custom components exist, the compiler emits a clear error with installation instructions. Projects without custom components do not require \code{bun}.
+\end{note}
+
+\subsection{Referencing Components from Tools}
+
+The connection between a tool and its component is the \code{@render} decorator. The decorator name must match either a built-in component or the filename (without \code{.ts}) of a file in \code{components/}:
+
+\begin{lstlisting}
+// Built-in: name matches catalog entry
+@render("table")
+tool list_items(...) -> TableData { ... }
+
+// Custom: name matches components/gantt-chart.ts
+@render("gantt-chart")
+tool project_timeline(...) -> GanttData { ... }
+
+// Custom: name matches components/schema-diagram.ts
+@render("schema-diagram")
+tool show_schema(...) -> SchemaView { ... }
+\end{lstlisting}
+
+The compiler validates this mapping at compile time. The runtime connects them at render time: when a \code{tool\_render} SSE event arrives with \code{"component": "gantt-chart"}, the chat UI looks up the custom element registered under that name, creates an instance, and calls \code{setProps()} with the tool's result data.
+
+The custom element tag name is defined by the component's \code{export default \{ tag: "..." \}} --- the convention is \code{haira-\{name\}} (e.g., \code{haira-gantt-chart} for \code{gantt-chart.ts}), but the developer controls it. The runtime matches by the \code{@render} name, not the tag name.
+
+\begin{note}
+Custom components run in the browser's Shadow DOM sandbox. They cannot access the parent page's DOM or interfere with other components. The \haira{} runtime provides theme CSS custom properties (\code{--haira-gold}, \code{--haira-bg}, etc.) that custom components can use for consistent styling.
+\end{note}
+
+\subsection{Theme Integration}
+
+Custom components inherit \haira{}'s theme through CSS custom properties. The runtime injects these variables into the document root, making them available inside Shadow DOM:
+
+\begin{lstlisting}[language={}]
+/* Inside a custom component's Shadow DOM styles: */
+:host {
+    display: block;
+    font-family: var(--haira-font);
+    color: var(--haira-text);
+}
+.chart-bar {
+    background: var(--haira-gold);
+    border-radius: var(--haira-radius-sm);
+}
+.error { color: var(--haira-error); }
+.success { color: var(--haira-success); }
+\end{lstlisting}
+
+Available CSS custom properties:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Variable} & \textbf{Purpose} \\
+\midrule
+\code{--haira-bg} & Page background \\
+\code{--haira-bg-card} & Card/panel background \\
+\code{--haira-bg-elevated} & Elevated surface background \\
+\code{--haira-border} & Border color \\
+\code{--haira-gold} & Brand accent (gold) \\
+\code{--haira-gold-light} & Lighter gold variant \\
+\code{--haira-text} & Primary text color \\
+\code{--haira-text-dim} & Secondary text color \\
+\code{--haira-muted} & Muted/disabled text \\
+\code{--haira-success} & Success state (green) \\
+\code{--haira-error} & Error state (red) \\
+\code{--haira-warn} & Warning state (yellow) \\
+\code{--haira-info} & Info state (blue) \\
+\code{--haira-font} & System font stack \\
+\code{--haira-mono} & Monospace font stack \\
+\code{--haira-radius} & Standard border radius \\
+\code{--haira-radius-sm} & Small border radius \\
+\bottomrule
+\end{tabular}
+\caption{CSS custom properties available to custom components}
+\label{tab:genui-css-vars}
+\end{table}
+
+\subsection{Interactive Components}
+
+Custom components can be interactive. When a user interacts with a component (clicks a button, selects a row, submits a form), the component dispatches a custom DOM event that the chat UI captures and sends as a follow-up message to the agent:
+
+\begin{lstlisting}[language={}]
+// Inside a custom component's setProps():
+const btn = shadow.getElementById("approve-btn")!;
+btn.addEventListener("click", () => {
+    this.dispatchEvent(new CustomEvent("haira-action", {
+        bubbles: true,
+        composed: true,    // crosses Shadow DOM boundary
+        detail: {
+            action: "approve",
+            data: { branch: "feature/config-123" },
+        },
+    }));
+});
+\end{lstlisting}
+
+The chat UI listens for \code{haira-action} events and sends the action to the agent as a message: \code{"[Action: approve] \{\"branch\": \"feature/config-123\"\}"}. The agent can then interpret this and call the appropriate tool.
+
+This pattern enables:
+\begin{itemize}
+    \item Clickable table rows that trigger drill-down queries
+    \item Approval/reject buttons on deployment cards
+    \item Filter controls that re-run a tool with different parameters
+    \item Form submissions within custom components
+\end{itemize}
+
+\subsection{Example: Custom Schema Diagram}
+
+A complete custom component for visualizing database table relationships:
+
+\begin{lstlisting}[language={}]
+// components/schema-diagram.ts
+
+interface SchemaProps {
+    title: string;
+    tables: Array<{
+        name: string;
+        columns: Array<{
+            name: string;
+            type: string;
+            pk: boolean;
+            fk: boolean;
+        }>;
+    }>;
+}
+
+export class HairaSchemaDiagram extends HTMLElement {
+    connectedCallback() {
+        this.attachShadow({ mode: "open" });
+    }
+
+    setProps(props: SchemaProps) {
+        const shadow = this.shadowRoot!;
+        shadow.innerHTML = `
+            <style>
+                :host { display: block; }
+                .diagram {
+                    padding: 1rem;
+                    background: var(--haira-bg-card);
+                    border: 1px solid var(--haira-border);
+                    border-radius: var(--haira-radius);
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.75rem;
+                }
+                .table-box {
+                    border: 1px solid var(--haira-border);
+                    border-radius: var(--haira-radius-sm);
+                    min-width: 150px;
+                }
+                .table-name {
+                    padding: 0.4rem 0.6rem;
+                    background: var(--haira-gold);
+                    color: #1a0e04;
+                    font-weight: 700;
+                    font-size: 0.8rem;
+                    border-radius:
+                        var(--haira-radius-sm)
+                        var(--haira-radius-sm) 0 0;
+                }
+                .col {
+                    padding: 0.25rem 0.6rem;
+                    font-size: 0.75rem;
+                    color: var(--haira-text-dim);
+                    font-family: var(--haira-mono);
+                    border-top: 1px solid var(--haira-border);
+                }
+                .col.pk { color: var(--haira-gold); }
+                .col.fk { color: var(--haira-info); }
+                .title {
+                    font-weight: 600;
+                    font-size: 0.85rem;
+                    color: var(--haira-text);
+                    width: 100%;
+                    margin-bottom: 0.25rem;
+                }
+            </style>
+            <div class="diagram">
+                <div class="title">${this.esc(props.title)}</div>
+                ${props.tables.map(t => `
+                    <div class="table-box">
+                        <div class="table-name">${this.esc(t.name)}</div>
+                        ${t.columns.map(c => `
+                            <div class="col ${c.pk ? "pk" : c.fk ? "fk" : ""}">
+                                ${this.esc(c.name)}: ${this.esc(c.type)}
+                            </div>
+                        `).join("")}
+                    </div>
+                `).join("")}
+            </div>
+        `;
+    }
+
+    private esc(s: string): string {
+        return s.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+    }
+}
+
+export default {
+    tag: "haira-schema-diagram",
+    component: HairaSchemaDiagram,
+};
+\end{lstlisting}
+
+Used in \haira{}:
+
+\begin{lstlisting}
+struct SchemaView {
+    title: string
+    tables: [TableView]
+}
+
+struct TableView {
+    name: string
+    columns: [ColumnView]
+}
+
+struct ColumnView {
+    name: string
+    type: string
+    pk: bool
+    fk: bool
+}
+
+@render("schema-diagram")
+tool show_schema(table_names: string) -> SchemaView {
+    """Visualize the database schema for the given tables"""
+
+    // ... query schema, build view ...
+    return SchemaView{
+        title: "Database Schema",
+        tables: tables,
+    }
+}
+\end{lstlisting}
+
+The result: the agent calls \code{show\_schema}, and the chat renders an interactive diagram with color-coded primary and foreign keys---no React, no build system, just a \code{.ts} file next to the \code{.haira} source.
+
+\section{Design Principles}
+
+\begin{enumerate}
+    \item \textbf{Tools own their rendering.} The \code{@render} decorator lives on the tool, not the agent or workflow. This keeps rendering co-located with the data source.
+
+    \item \textbf{Structured data, not markup.} Tools return typed structs, not HTML or JSX. The runtime maps data to components. This keeps tools testable and platform-independent.
+
+    \item \textbf{Catalog first, custom when needed.} The built-in catalog covers common patterns with zero configuration. Custom components extend the catalog with a single \code{.ts} file---no framework, no bundler, no build pipeline.
+
+    \item \textbf{Additive, not breaking.} Every tool works without \code{@render}. Adding it improves the UI without changing the tool's logic or the agent's behavior.
+
+    \item \textbf{Dual consumption.} The UI and the agent both receive the tool result. The UI renders a component; the agent reasons about the data. Neither path is secondary.
+
+    \item \textbf{Progressive complexity.} Simple needs use built-in components (data only). Moderate needs use composites (multiple built-ins). Advanced needs use custom TypeScript Web Components (one \code{.ts} file). The learning curve matches the complexity of the use case.
+
+    \item \textbf{Interactivity through events.} Custom components communicate back to the agent through a single event contract (\code{haira-action}). No callback registration, no bidirectional binding---just events that become messages.
+\end{enumerate}
+
+\section{External Frontend API}
+
+The built-in chat UI is a convenience, not a requirement. \haira{} exposes a complete HTTP API that gives external frontends---React, Vue, Svelte, mobile apps, or any HTTP client---the same capabilities as the built-in UI. The built-in UI is itself just a consumer of this API.
+
+\subsection{Discovery: \code{GET /\_api/}}
+
+Returns metadata about all registered workflows. This is the same data the built-in UI uses to render the index page and route to form/chat views.
+
+\begin{lstlisting}[language={},numbers=none]
+GET /_api/
+
+{
+    "workflows": [
+        {
+            "name": "UploadConfig",
+            "path": "/api/upload-config",
+            "method": "POST",
+            "ui_type": "form",
+            "title": "Maltimize Config",
+            "description": "Excel-to-PostgreSQL configuration migration",
+            "params": [
+                { "name": "file_path", "type": "file", "required": true },
+                { "name": "debug", "type": "string", "required": false }
+            ],
+            "steps": [
+                "Open Excel", "Extract table data", "Query schema",
+                "Validate", "Generate SQL", "Dry-run SQL",
+                "Push to GitLab", "Wait for CI/CD",
+                "Wait for merge", "Verify deployment"
+            ]
+        },
+        {
+            "name": "Chat",
+            "path": "/api/chat",
+            "method": "POST",
+            "ui_type": "chat",
+            "title": "Maltimize Chat",
+            "description": "Chat-based config migration assistant",
+            "params": [
+                { "name": "message", "type": "string", "required": true },
+                { "name": "session_id", "type": "string", "required": true },
+                { "name": "file_path", "type": "file", "required": false }
+            ],
+            "steps": [],
+            "tools": [
+                {
+                    "name": "read_config_excel",
+                    "description": "Read an Excel configuration file...",
+                    "render": null
+                },
+                {
+                    "name": "validate_config",
+                    "description": "Validate Excel config data...",
+                    "render": "status-card"
+                },
+                {
+                    "name": "dry_run_migration",
+                    "description": "Run the generated SQL...",
+                    "render": "status-card"
+                }
+            ],
+            "components": [
+                {
+                    "name": "status-card",
+                    "type": "builtin"
+                },
+                {
+                    "name": "gantt-chart",
+                    "type": "custom",
+                    "tag": "haira-gantt-chart"
+                }
+            ]
+        }
+    ]
+}
+\end{lstlisting}
+
+The \code{tools} array lists each tool available to the agent, including its \code{render} component (or \code{null} if the tool has no UI). The \code{components} array lists all generative UI components used by the workflow, distinguishing built-in from custom.
+
+\subsection{Workflow Metadata: \code{GET /\_api/\{path\}}}
+
+Returns detailed metadata for a single workflow:
+
+\begin{lstlisting}[language={},numbers=none]
+GET /_api/api/chat
+
+{
+    "name": "Chat",
+    "path": "/api/chat",
+    "method": "POST",
+    "ui_type": "chat",
+    "title": "Maltimize Chat",
+    "description": "Chat-based config migration assistant",
+    "params": [...],
+    "tools": [...],
+    "components": [...]
+}
+\end{lstlisting}
+
+\subsection{Streaming: \code{POST /\{path\}} with SSE}
+
+The same endpoint used by the built-in UI. An external client sends a request with \code{Accept: text/event-stream} to receive SSE events:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ curl -N -H "Accept: text/event-stream" \
+    -d '{"message":"deploy this","session_id":"abc123"}' \
+    http://localhost:9001/api/chat
+\end{lstlisting}
+
+The SSE stream emits these event types:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Event} & \textbf{When} & \textbf{Data} \\
+\midrule
+\code{tool\_start} & Tool begins & \code{\{"tool": "name", "args": "\{...\}"\}} \\
+\code{tool\_render} & Tool has UI result & \code{\{"tool": "name", "component": "status-card", "props": \{...\}\}} \\
+\code{tool\_end} & Tool finishes & \code{\{"tool": "name", "ok": true\}} \\
+(default) & Text delta & \code{\{"delta": "text chunk"\}} \\
+\code{step} & Pipeline step event & \code{\{"name": "...", "status": "start|end|failed"\}} \\
+\code{[DONE]} & Stream complete & --- \\
+\bottomrule
+\end{tabular}
+\caption{SSE event types}
+\label{tab:genui-sse-events}
+\end{table}
+
+An external frontend handles these events the same way the built-in UI does:
+
+\begin{enumerate}
+    \item On \code{tool\_start}: show a loading indicator for the tool
+    \item On \code{tool\_render}: render the component using the \code{component} name and \code{props} data. For built-in components, the frontend implements its own version (e.g., a React \code{<StatusCard>}). For custom components, it uses the \code{props} JSON directly.
+    \item On \code{tool\_end}: mark the tool as complete (success or failure)
+    \item On text deltas: append to the assistant message
+    \item On \code{[DONE]}: finalize the response
+\end{enumerate}
+
+\subsection{Form Submission: \code{POST /\{path\}} with JSON}
+
+For non-streaming workflows (form UI), the same endpoint accepts JSON and returns JSON:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ curl -X POST http://localhost:9001/api/upload-config \
+    -F "file_path=@config.xlsx" \
+    -F "debug=true"
+
+# Response with step-by-step SSE:
+event: step
+data: {"name": "Open Excel", "status": "start"}
+
+event: step
+data: {"name": "Open Excel", "status": "end", "duration_ms": 120}
+
+# ... more steps ...
+
+event: result
+data: {"status": "success", "message": "Configuration deployed"}
+\end{lstlisting}
+
+Without \code{Accept: text/event-stream}, the response is plain JSON:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ curl -X POST http://localhost:9001/api/upload-config \
+    -F "file_path=@config.xlsx"
+
+{"status": "success", "message": "Configuration deployed to QUA"}
+\end{lstlisting}
+
+\subsection{CORS Support}
+
+When an external frontend runs on a different origin (e.g., \code{localhost:3000} for a React dev server), the \haira{} server enables CORS automatically when the \code{HAIRA\_CORS\_ORIGIN} environment variable is set:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ HAIRA_CORS_ORIGIN="http://localhost:3000" ./maltimize
+\end{lstlisting}
+
+The wildcard \code{*} is also supported for development:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ HAIRA_CORS_ORIGIN="*" ./maltimize
+\end{lstlisting}
+
+\subsection{External Frontend Example}
+
+A React frontend consuming the \haira{} API:
+
+\begin{lstlisting}[language={}]
+// React component consuming Haira's SSE API
+
+function Chat() {
+    const [messages, setMessages] = useState([]);
+    const [tools, setTools] = useState(new Map());
+
+    async function send(text: string, file?: File) {
+        // Build request
+        const body = new FormData();
+        body.append("message", text);
+        body.append("session_id", sessionId);
+        if (file) body.append("file_path", file);
+
+        // Open SSE connection
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            body,
+            headers: { Accept: "text/event-stream" },
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const lines = decoder.decode(value).split("\n");
+            for (const line of lines) {
+                if (line.startsWith("event: tool_start")) {
+                    // Show loading state for the tool
+                }
+                if (line.startsWith("event: tool_render")) {
+                    const data = JSON.parse(/* next data line */);
+                    // data.component = "status-card"
+                    // data.props = { status: "error", ... }
+                    // Render <StatusCard {...data.props} />
+                }
+                if (line.startsWith("data: ")) {
+                    const data = JSON.parse(line.slice(6));
+                    if (data.delta) {
+                        // Append text to assistant message
+                    }
+                }
+            }
+        }
+    }
+
+    return (
+        <div>
+            {messages.map(msg =>
+                msg.component
+                    ? <ComponentRenderer
+                          name={msg.component}
+                          props={msg.props} />
+                    : <MessageBubble text={msg.text} />
+            )}
+        </div>
+    );
+}
+
+// Map Haira component names to React components
+function ComponentRenderer({ name, props }) {
+    const components = {
+        "status-card": StatusCard,
+        "table": DataTable,
+        "code-block": CodeBlock,
+        "gantt-chart": GanttChart,  // custom component
+    };
+    const Component = components[name];
+    return Component ? <Component {...props} /> : null;
+}
+\end{lstlisting}
+
+The external frontend renders its own components for each \code{tool\_render} event. The \code{component} name and \code{props} JSON provide all the information needed---the frontend maps component names to its own implementations (React, Vue, Svelte, or native mobile components).
+
+\subsection{API Parity Guarantee}
+
+The built-in UI has no privileged access. Every feature available in the built-in chat and form UIs is available through the HTTP API:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Feature} & \textbf{Built-in UI} & \textbf{External API} \\
+\midrule
+Workflow discovery & Index page & \code{GET /\_api/} \\
+Workflow metadata & \code{<script id="haira-meta">} & \code{GET /\_api/\{path\}} \\
+Form submission & \code{<haira-form>} submit & \code{POST /\{path\}} (JSON) \\
+Chat streaming & \code{<haira-chat>} SSE & \code{POST /\{path\}} (SSE) \\
+Tool execution status & \code{<haira-tool-card>} & \code{tool\_start}/\code{tool\_end} events \\
+Generative UI render & \code{<haira-*>} components & \code{tool\_render} event + props \\
+File upload & Drag \& drop / attach & \code{multipart/form-data} \\
+Step pipeline & \code{<haira-pipeline>} & \code{step} events \\
+\bottomrule
+\end{tabular}
+\caption{API parity between built-in UI and external frontends}
+\label{tab:genui-api-parity}
+\end{table}
+
+\begin{note}
+The built-in UI can be disabled entirely with the \code{HAIRA\_DISABLE\_UI} environment variable. The API endpoints remain active. This is useful when deploying \haira{} as a pure backend behind a separate frontend application.
+\end{note}
+
+\section{Grammar Extension}
+
+The \code{@render} decorator uses the existing decorator syntax. No new grammar is required:
+
+\begin{lstlisting}[language=EBNF]
+tool_decl     = { decorator } "tool" identifier "(" [ params ] ")" [ "->" type ]
+                "{" triple_string { statement } "}" ;
+
+decorator     = "@" identifier [ "(" decorator_args ")" ] ;
+\end{lstlisting}
+
+The compiler validates that the component name in \code{@render("name")} matches a known component from the catalog. Unknown component names produce a compile-time error.

@@ -454,6 +454,11 @@ func blockLastExpr(block ast.Block) string {
 }
 
 func instanceToGo(inst ast.InstanceExpr) string {
+	typeName := inst.TypeName.Node
+	// Map qualified stdlib types: ui.StatusCard → haira.UIStatusCard
+	if goType, ok := qualifiedTypeToGo(typeName); ok {
+		typeName = goType
+	}
 	fields := make([]string, len(inst.Fields))
 	for i, f := range inst.Fields {
 		val := ExprToGo(f.Value)
@@ -463,7 +468,7 @@ func instanceToGo(inst ast.InstanceExpr) string {
 			fields[i] = val
 		}
 	}
-	return fmt.Sprintf("%s{%s}", inst.TypeName.Node, strings.Join(fields, ", "))
+	return fmt.Sprintf("%s{%s}", typeName, strings.Join(fields, ", "))
 }
 
 func spawnToGo(spawn ast.SpawnExpr) string {

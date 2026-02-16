@@ -7,6 +7,15 @@ import { HairaMessage } from "./components/haira-message";
 import { HairaForm } from "./components/haira-form";
 import { HairaIndex } from "./components/haira-index";
 import { HairaChat } from "./components/haira-chat";
+import { HairaToolCard } from "./components/haira-tool-card";
+import { HairaStatusCard } from "./components/haira-status-card";
+import { HairaTable } from "./components/haira-table";
+import { HairaCodeBlock } from "./components/haira-code-block";
+import { HairaDiff } from "./components/haira-diff";
+import { HairaKeyValue } from "./components/haira-key-value";
+import { HairaProgressView } from "./components/haira-progress-view";
+import { HairaFormView } from "./components/haira-form-view";
+import { HairaUIRenderer } from "./components/haira-ui-renderer";
 
 // Register leaf components first — container components may create children
 // during connectedCallback, so children must already be defined.
@@ -15,6 +24,15 @@ customElements.define("haira-result", HairaResult);
 customElements.define("haira-step", HairaStep);
 customElements.define("haira-pipeline", HairaPipeline);
 customElements.define("haira-message", HairaMessage);
+customElements.define("haira-tool-card", HairaToolCard);
+customElements.define("haira-ui-status-card", HairaStatusCard);
+customElements.define("haira-ui-table", HairaTable);
+customElements.define("haira-ui-code-block", HairaCodeBlock);
+customElements.define("haira-ui-diff", HairaDiff);
+customElements.define("haira-ui-key-value", HairaKeyValue);
+customElements.define("haira-ui-progress-view", HairaProgressView);
+customElements.define("haira-ui-form-view", HairaFormView);
+customElements.define("haira-ui-renderer", HairaUIRenderer);
 customElements.define("haira-form", HairaForm);
 customElements.define("haira-index", HairaIndex);
 customElements.define("haira-chat", HairaChat);

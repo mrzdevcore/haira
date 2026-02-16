@@ -1,4 +1,10 @@
-import type { StepEvent } from "./types";
+import type { StepEvent, ToolRenderEvent } from "./types";
+
+export interface ToolEvent {
+  tool: string;
+  args?: string;
+  ok?: boolean;
+}
 
 export interface SSECallbacks {
   onStep?: (event: StepEvent) => void;
@@ -6,6 +12,9 @@ export interface SSECallbacks {
   onResult?: (data: unknown) => void;
   onError?: (error: string) => void;
   onDone?: () => void;
+  onToolStart?: (event: ToolEvent) => void;
+  onToolEnd?: (event: ToolEvent) => void;
+  onToolRender?: (event: ToolRenderEvent) => void;
 }
 
 export async function streamSSE(
@@ -81,6 +90,15 @@ export async function streamSSE(
             break;
           case "delta":
             callbacks.onDelta?.(parsed.delta);
+            break;
+          case "tool_start":
+            callbacks.onToolStart?.(parsed as ToolEvent);
+            break;
+          case "tool_end":
+            callbacks.onToolEnd?.(parsed as ToolEvent);
+            break;
+          case "tool_render":
+            callbacks.onToolRender?.(parsed as ToolRenderEvent);
             break;
           default:
             // Bare data: lines (legacy protocol) — treat as delta

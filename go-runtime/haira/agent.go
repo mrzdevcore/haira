@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -93,12 +94,23 @@ func (a *Agent) Run(message string, sessionID string) (*AgentResult, error) {
 
 // StreamChunk represents a piece of a streaming response.
 type StreamChunk struct {
-	Delta string // incremental text
+	Delta string // incremental text (for Type="" or "delta")
 	Done  bool   // true when stream is complete
+
+	// Event type: "" or "delta" for text, "tool_start", "tool_end", "tool_render"
+	Type string
+	// Tool-related fields (only set when Type is "tool_start", "tool_end", or "tool_render")
+	ToolName string
+	ToolArgs string // JSON args (tool_start only)
+	ToolOK   bool   // success status (tool_end only)
+	// Render fields (tool_render only)
+	RenderComponent string // component name ("status-card", "table", etc.)
+	RenderProps     string // JSON-serialized tool result
 }
 
 // Stream sends a message and returns a channel that yields StreamChunks.
-// The channel is closed when the response is complete.
+// Supports tool calling: emits tool_start/tool_end events during tool execution,
+// then streams the final text response.
 func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 	ch := make(chan StreamChunk, 64)
 	go func() {
@@ -121,36 +133,84 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 		})
 		a.store.AddMessage(sessionID, Message{Role: "user", Content: message})
 
-		req := openai.ChatCompletionRequest{
-			Model:       a.config.Provider.Model,
-			Messages:    messages,
-			Temperature: float32(a.config.Temperature),
-			Stream:      true,
-		}
+		tools := a.buildTools()
 
-		stream, err := a.client.CreateChatCompletionStream(ctx, req)
-		if err != nil {
-			ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
-			return
-		}
-		defer stream.Close()
-
-		var fullReply string
-		for {
-			resp, err := stream.Recv()
-			if err != nil {
-				break
+		// Tool-calling loop: use non-streaming calls to handle tool iterations
+		for i := 0; i < 10; i++ {
+			req := openai.ChatCompletionRequest{
+				Model:       a.config.Provider.Model,
+				Messages:    messages,
+				Temperature: float32(a.config.Temperature),
 			}
-			if len(resp.Choices) > 0 {
-				delta := resp.Choices[0].Delta.Content
-				if delta != "" {
-					fullReply += delta
-					ch <- StreamChunk{Delta: delta, Done: false}
+			if len(tools) > 0 {
+				req.Tools = tools
+			}
+
+			resp, err := a.client.CreateChatCompletion(ctx, req)
+			if err != nil {
+				ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
+				return
+			}
+
+			if len(resp.Choices) == 0 {
+				ch <- StreamChunk{Delta: "error: no response choices", Done: true}
+				return
+			}
+
+			choice := resp.Choices[0]
+
+			// No tool calls → this is the final response, stream it out
+			if len(choice.Message.ToolCalls) == 0 {
+				reply := choice.Message.Content
+				a.store.AddMessage(sessionID, Message{Role: "assistant", Content: reply})
+				// Emit the full reply as a single delta (already complete)
+				if reply != "" {
+					ch <- StreamChunk{Delta: reply, Done: false}
+				}
+				ch <- StreamChunk{Delta: "", Done: true}
+				return
+			}
+
+			// Has tool calls — execute them with events
+			messages = append(messages, choice.Message)
+
+			for _, tc := range choice.Message.ToolCalls {
+				// Emit tool_start
+				ch <- StreamChunk{
+					Type:     "tool_start",
+					ToolName: tc.Function.Name,
+					ToolArgs: tc.Function.Arguments,
+				}
+
+				// Execute tool
+				toolResult, rawResult := a.executeTool(tc)
+				messages = append(messages, toolResult)
+
+				// Emit tool_render if the result is a UiNode
+				isOK := !strings.HasPrefix(toolResult.Content, "error:")
+				if isOK {
+					if node, ok := rawResult.(UiNode); ok {
+						renderJSON, _ := json.Marshal(rawResult)
+						ch <- StreamChunk{
+							Type:            "tool_render",
+							ToolName:        tc.Function.Name,
+							RenderComponent: node.UiComponentName(),
+							RenderProps:     string(renderJSON),
+						}
+					}
+				}
+
+				// Emit tool_end
+				ch <- StreamChunk{
+					Type:     "tool_end",
+					ToolName: tc.Function.Name,
+					ToolOK:   isOK,
 				}
 			}
+			// Loop continues — next iteration will get the agent's response after tool results
 		}
-		a.store.AddMessage(sessionID, Message{Role: "assistant", Content: fullReply})
-		ch <- StreamChunk{Delta: "", Done: true}
+
+		ch <- StreamChunk{Delta: "error: max tool iterations reached", Done: true}
 	}()
 	return ch
 }
@@ -235,7 +295,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 
 		// Execute each tool call (non-handoff tools)
 		for _, tc := range choice.Message.ToolCalls {
-			toolResult := a.executeTool(tc)
+			toolResult, _ := a.executeTool(tc)
 			messages = append(messages, toolResult)
 		}
 	}
@@ -253,14 +313,14 @@ func (a *Agent) findHandoffTarget(toolName string) *Agent {
 	return nil
 }
 
-func (a *Agent) executeTool(tc openai.ToolCall) openai.ChatCompletionMessage {
+func (a *Agent) executeTool(tc openai.ToolCall) (openai.ChatCompletionMessage, any) {
 	toolDef, ok := a.config.Tools.Get(tc.Function.Name)
 	if !ok {
 		return openai.ChatCompletionMessage{
 			Role:       openai.ChatMessageRoleTool,
 			Content:    fmt.Sprintf("error: unknown tool %q", tc.Function.Name),
 			ToolCallID: tc.ID,
-		}
+		}, nil
 	}
 
 	result, err := toolDef.Handler(json.RawMessage(tc.Function.Arguments))
@@ -276,7 +336,7 @@ func (a *Agent) executeTool(tc openai.ToolCall) openai.ChatCompletionMessage {
 		Role:       openai.ChatMessageRoleTool,
 		Content:    content,
 		ToolCallID: tc.ID,
-	}
+	}, result
 }
 
 func (a *Agent) buildTools() []openai.Tool {

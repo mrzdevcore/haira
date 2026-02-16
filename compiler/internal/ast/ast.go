@@ -68,6 +68,7 @@ type ProviderField struct {
 }
 
 type ToolDecl struct {
+	Decorators  []Decorator // future: @cache, @timeout, etc.
 	Name        Spanned[string]
 	Params      []Param
 	ReturnTy    *Spanned[Type]

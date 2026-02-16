@@ -58,6 +58,20 @@ func CheckerTypeToGo(ty checker.Type) string {
 	}
 }
 
+// qualifiedTypeToGo maps a dotted stdlib type name (e.g. "ui.StatusCard")
+// to its Go runtime type (e.g. "haira.UIStatusCard").
+// Generic rule: module.Type → haira.<Module><Type> (module capitalized).
+func qualifiedTypeToGo(name string) (string, bool) {
+	parts := strings.SplitN(name, ".", 2)
+	if len(parts) != 2 {
+		return "", false
+	}
+	if !IsStdlibImport(parts[0]) {
+		return "", false
+	}
+	return "haira." + Capitalize(parts[0]) + parts[1], true
+}
+
 // lookupExprGoType returns the Go type string for an expression span, or "".
 func lookupExprGoType(span ast.Span) string {
 	if activeTypeInfo == nil {
@@ -103,6 +117,10 @@ func HairaTypeToGo(ty ast.Type) string {
 		case "file":
 			return "string" // file is a temp path at runtime
 		default:
+			// Qualified stdlib types: ui.StatusCard → haira.UIStatusCard
+			if goType, ok := qualifiedTypeToGo(t.Name); ok {
+				return goType
+			}
 			return t.Name
 		}
 	case ast.ListType:

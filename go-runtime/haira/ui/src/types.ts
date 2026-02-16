@@ -15,6 +15,7 @@ export interface WorkflowMeta {
   hasFile: boolean;
   // Chat-specific
   chatParam?: string;
+  fileParam?: string;
   settingsParams?: WorkflowParam[];
   // Index-specific
   workflows?: WorkflowListItem[];
@@ -50,3 +51,11 @@ export type StepStatus =
   | "failed"
   | "retrying"
   | "skipped";
+
+// Generative UI types
+
+export interface ToolRenderEvent {
+  tool: string;
+  component: string;
+  props: Record<string, unknown>;
+}

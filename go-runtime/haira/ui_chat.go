@@ -13,6 +13,15 @@ var chatHTML string
 func (s *Server) serveChatUI(rw http.ResponseWriter, wf *WorkflowDef) {
 	chatParam := findChatParam(wf.Params)
 	settingsParams := filterSettingsParams(wf.Params, chatParam)
+	hasFile := false
+	fileParam := ""
+	for _, p := range wf.Params {
+		if p.Type == "file" {
+			hasFile = true
+			fileParam = p.Name
+			break
+		}
+	}
 	meta := map[string]any{
 		"mode":           "chat",
 		"name":           wf.Name,
@@ -24,6 +33,8 @@ func (s *Server) serveChatUI(rw http.ResponseWriter, wf *WorkflowDef) {
 		"description":    wf.UIDescription,
 		"chatParam":      chatParam,
 		"settingsParams": settingsParams,
+		"hasFile":        hasFile,
+		"fileParam":      fileParam,
 	}
 	metaJSON, _ := json.Marshal(meta)
 	html := strings.Replace(chatHTML, "{{META}}", string(metaJSON), 1)
@@ -47,11 +58,12 @@ func findChatParam(params []WorkflowParam) string {
 	return "message"
 }
 
-// filterSettingsParams returns all params except the chat input param.
+// filterSettingsParams returns all params except the chat input param and session_id
+// (session_id is managed internally by the chat component).
 func filterSettingsParams(params []WorkflowParam, chatParam string) []WorkflowParam {
 	var result []WorkflowParam
 	for _, p := range params {
-		if p.Name != chatParam {
+		if p.Name != chatParam && p.Name != "session_id" {
 			result = append(result, p)
 		}
 	}

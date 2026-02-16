@@ -31,6 +31,14 @@ jobs:
           go-version: "1.22"
           cache-dependency-path: compiler/go.sum
 
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build UI bundle
+        run: |
+          cd go-runtime/haira/ui
+          bun install --frozen-lockfile || true
+          bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
+
       - name: Get version
         id: version
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
@@ -62,6 +70,7 @@ jobs:
           cp "compiler/${BINARY}" "${NAME}/bin/"
           cp -r go-runtime "${NAME}/runtime"
           cp LICENSE "${NAME}/"
+          cp README.md "${NAME}/"
 
           if [ "${{ matrix.goos }}" = "windows" ]; then
             zip -r "${NAME}.zip" "${NAME}"

@@ -139,22 +139,51 @@ func runGoBuild(dir, output string) error {
 
 // FindRuntimePath locates the go-runtime directory.
 func FindRuntimePath() string {
-	// Try relative to current exe
-	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(filepath.Dir(filepath.Dir(exe)))
-		runtime := filepath.Join(dir, "go-runtime")
+	// 1. Explicit override via environment variable
+	if envPath := os.Getenv("HAIRA_RUNTIME"); envPath != "" {
+		if info, err := os.Stat(envPath); err == nil && info.IsDir() {
+			return envPath
+		}
+	}
+
+	// 2. User install location (~/.haira/runtime/)
+	if home, err := os.UserHomeDir(); err == nil {
+		runtime := filepath.Join(home, ".haira", "runtime")
 		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
 			return runtime
 		}
 	}
 
-	// Try current working directory
+	// 3. Relative to executable (installed locations)
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+
+		// <exe_dir>/../lib/haira/runtime (system install: /usr/local/lib/haira/runtime)
+		runtime := filepath.Join(exeDir, "..", "lib", "haira", "runtime")
+		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+			return runtime
+		}
+
+		// <exe_dir>/runtime (same-directory install)
+		runtime = filepath.Join(exeDir, "runtime")
+		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+			return runtime
+		}
+
+		// Dev: <exe_dir>/../../go-runtime (running from compiler/)
+		runtime = filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(exe))), "go-runtime")
+		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+			return runtime
+		}
+	}
+
+	// 4. Current working directory (development)
 	if cwd, err := os.Getwd(); err == nil {
 		runtime := filepath.Join(cwd, "go-runtime")
 		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
 			return runtime
 		}
-		// Try parent directory (compiler is a subdirectory)
+		// Parent directory (compiler is a subdirectory)
 		runtime = filepath.Join(filepath.Dir(cwd), "go-runtime")
 		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
 			return runtime

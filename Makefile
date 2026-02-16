@@ -2,13 +2,15 @@
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
+VERSION ?= dev
+LDFLAGS = -ldflags "-X main.version=$(VERSION)"
 
 # Default target
 all: build
 
 # Build the compiler
 build:
-	cd $(COMPILER_DIR) && go build -o haira .
+	cd $(COMPILER_DIR) && go build $(LDFLAGS) -o haira .
 
 # Run Go tests
 test:

@@ -9,7 +9,7 @@ import (
 	"github.com/haira-lang/haira/internal/lsp"
 )
 
-const version = "0.1.0"
+var version = "dev"
 
 func main() {
 	args := os.Args[1:]

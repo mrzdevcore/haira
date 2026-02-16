@@ -4,34 +4,65 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Haira — The programming language for AI agents</title>
+        <meta
+            name="description"
+            content="Build agents and workflows, not boilerplate. The compiled, type-safe programming language for AI agent orchestration."
+        />
+        <meta
+            property="og:title"
+            content="Haira — The programming language for AI agents"
+        />
+        <meta
+            property="og:description"
+            content="Build agents and workflows, not boilerplate. Four keywords. One binary."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://haira.dev" />
+        <link
+            rel="icon"
+            type="image/svg+xml"
+            href="https://raw.githubusercontent.com/mrzdevcore/haira/main/assets/icon.svg"
+        />
         <style>
-            * {
+            @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+            *,
+            *::before,
+            *::after {
                 box-sizing: border-box;
                 margin: 0;
                 padding: 0;
+            }
+            html {
+                scroll-behavior: smooth;
             }
             :root {
                 --gold: #e8a317;
                 --gold-light: #f0bd4f;
                 --glow: #fde68a;
-                --dark: #0f0a04;
-                --card: rgba(42, 30, 16, 0.6);
-                --card-solid: #2a1e10;
-                --border: rgba(61, 43, 31, 0.6);
+                --dark: #0a0806;
+                --dark-card: #110e0a;
+                --card: rgba(35, 26, 14, 0.65);
+                --card-solid: #1a130a;
+                --border: rgba(61, 43, 31, 0.5);
+                --border-light: rgba(232, 163, 23, 0.15);
                 --text: #f5eedf;
-                --muted: #a89272;
+                --text-dim: #c4b89a;
+                --muted: #8a7a62;
+                --radius: 12px;
+                --max-w: 1140px;
+                --mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+                --sans:
+                    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                    sans-serif;
             }
             body {
-                font-family:
-                    "Inter",
-                    -apple-system,
-                    BlinkMacSystemFont,
-                    "Segoe UI",
-                    sans-serif;
+                font-family: var(--sans);
                 background: var(--dark);
                 color: var(--text);
                 line-height: 1.7;
                 overflow-x: hidden;
+                -webkit-font-smoothing: antialiased;
             }
             a {
                 color: var(--gold);
@@ -41,109 +72,216 @@
             a:hover {
                 color: var(--glow);
             }
-
-            /* Smooth scroll */
-            html {
-                scroll-behavior: smooth;
+            code {
+                font-family: var(--mono);
             }
 
-            /* === HERO === */
+            /* ===== NAV ===== */
+            nav {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 100;
+                background: rgba(10, 8, 6, 0.85);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border-bottom: 1px solid var(--border);
+            }
+            .nav-inner {
+                max-width: var(--max-w);
+                margin: 0 auto;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 2rem;
+                height: 56px;
+            }
+            .nav-brand {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                font-weight: 700;
+                font-size: 1.1rem;
+                color: var(--text);
+            }
+            .nav-brand:hover {
+                color: var(--gold);
+            }
+            .nav-brand svg {
+                width: 28px;
+                height: 30px;
+            }
+            .nav-links {
+                display: flex;
+                align-items: center;
+                gap: 1.75rem;
+            }
+            .nav-links a {
+                color: var(--text-dim);
+                font-size: 0.88rem;
+                font-weight: 500;
+            }
+            .nav-links a:hover {
+                color: var(--gold);
+            }
+            .nav-tag {
+                font-size: 0.65rem;
+                font-weight: 600;
+                color: var(--gold);
+                background: rgba(232, 163, 23, 0.1);
+                border: 1px solid rgba(232, 163, 23, 0.2);
+                padding: 0.15rem 0.5rem;
+                border-radius: 20px;
+                margin-left: -0.5rem;
+            }
+            .nav-gh {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                color: var(--text-dim) !important;
+            }
+            .nav-gh svg {
+                width: 18px;
+                height: 18px;
+                fill: currentColor;
+            }
+            @media (max-width: 640px) {
+                .nav-links a:not(.nav-gh) {
+                    display: none;
+                }
+                .nav-tag {
+                    display: none;
+                }
+            }
+
+            /* ===== HERO ===== */
             .hero {
                 position: relative;
-                text-align: center;
-                padding: 8rem 1.5rem 6rem;
-                overflow: hidden;
+                max-width: var(--max-w);
+                margin: 0 auto;
+                padding: 8rem 2rem 5rem;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 4rem;
+                align-items: center;
             }
-            .hero::before {
-                content: "";
+            @media (max-width: 900px) {
+                .hero {
+                    grid-template-columns: 1fr;
+                    padding: 7rem 1.5rem 3rem;
+                    gap: 2.5rem;
+                    text-align: center;
+                }
+            }
+            .hero-glow {
                 position: absolute;
-                top: -50%;
-                left: -50%;
-                width: 200%;
-                height: 200%;
+                top: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 800px;
+                height: 500px;
                 background: radial-gradient(
-                    circle at 50% 60%,
-                    rgba(232, 163, 23, 0.08) 0%,
-                    transparent 50%
+                    ellipse at center,
+                    rgba(232, 163, 23, 0.06) 0%,
+                    transparent 70%
                 );
                 pointer-events: none;
             }
-            .hero::after {
-                content: "";
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 1px;
-                background: linear-gradient(
-                    90deg,
-                    transparent,
-                    rgba(232, 163, 23, 0.3),
-                    transparent
-                );
+            .hero-text {
+                position: relative;
+                z-index: 1;
             }
-
-            .hero-icon {
-                width: 120px;
-                height: 128px;
-                margin-bottom: 2rem;
-                filter: drop-shadow(0 0 30px rgba(232, 163, 23, 0.3));
-                animation: float 4s ease-in-out infinite;
+            .hero-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.78rem;
+                font-weight: 600;
+                color: var(--gold);
+                background: rgba(232, 163, 23, 0.08);
+                border: 1px solid rgba(232, 163, 23, 0.18);
+                padding: 0.35rem 0.85rem;
+                border-radius: 20px;
+                margin-bottom: 1.5rem;
             }
-            @keyframes float {
+            .hero-badge-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--gold);
+                animation: pulse 2s ease-in-out infinite;
+            }
+            @keyframes pulse {
                 0%,
                 100% {
-                    transform: translateY(0);
+                    opacity: 1;
                 }
                 50% {
-                    transform: translateY(-8px);
+                    opacity: 0.4;
                 }
             }
-
             .hero h1 {
-                font-size: 4rem;
+                font-size: clamp(2.5rem, 5vw, 3.6rem);
                 font-weight: 800;
-                letter-spacing: -2px;
-                margin-bottom: 0.75rem;
+                letter-spacing: -1.5px;
+                line-height: 1.1;
+                margin-bottom: 1.25rem;
+            }
+            .hero h1 .gold {
                 background: linear-gradient(
                     135deg,
-                    var(--text) 0%,
-                    var(--gold-light) 50%,
-                    var(--gold) 100%
+                    var(--gold-light),
+                    var(--gold)
                 );
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
                 background-clip: text;
             }
-            .hero .tagline {
-                font-size: 1.3rem;
+            .hero-sub {
+                font-size: 1.1rem;
+                color: var(--text-dim);
+                line-height: 1.7;
+                margin-bottom: 0.75rem;
+                max-width: 480px;
+            }
+            @media (max-width: 900px) {
+                .hero-sub {
+                    max-width: 100%;
+                }
+            }
+            .hero-replace {
+                font-size: 0.85rem;
                 color: var(--muted);
-                margin: 0 auto 1rem;
-                max-width: 500px;
+                margin-bottom: 2rem;
             }
-            .hero .sub {
-                font-size: 0.95rem;
-                color: rgba(168, 146, 114, 0.6);
-                margin-bottom: 2.5rem;
+            .hero-replace strong {
+                color: var(--text-dim);
+                font-weight: 600;
             }
-
-            .hero-buttons {
+            .hero-ctas {
                 display: flex;
-                gap: 1rem;
-                justify-content: center;
+                gap: 0.75rem;
                 flex-wrap: wrap;
             }
+            @media (max-width: 900px) {
+                .hero-ctas {
+                    justify-content: center;
+                }
+            }
+
             .btn {
                 display: inline-flex;
                 align-items: center;
                 gap: 0.5rem;
-                padding: 0.75rem 2rem;
-                border-radius: 10px;
+                padding: 0.7rem 1.75rem;
+                border-radius: 8px;
                 font-weight: 600;
-                font-size: 0.95rem;
-                transition: all 0.2s;
+                font-size: 0.9rem;
                 border: none;
                 cursor: pointer;
+                transition: all 0.2s;
+                text-decoration: none;
             }
             .btn-primary {
                 background: linear-gradient(
@@ -152,120 +290,76 @@
                     var(--gold-light)
                 );
                 color: #1a0e04;
-                box-shadow: 0 4px 20px rgba(232, 163, 23, 0.3);
+                box-shadow: 0 2px 16px rgba(232, 163, 23, 0.25);
             }
             .btn-primary:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 30px rgba(232, 163, 23, 0.5);
-                text-decoration: none;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 24px rgba(232, 163, 23, 0.4);
+                color: #1a0e04;
             }
-            .btn-secondary {
-                background: var(--card);
-                color: var(--text);
+            .btn-ghost {
+                background: transparent;
+                color: var(--text-dim);
                 border: 1px solid var(--border);
-                backdrop-filter: blur(10px);
             }
-            .btn-secondary:hover {
+            .btn-ghost:hover {
                 border-color: var(--gold);
-                transform: translateY(-2px);
-                text-decoration: none;
+                color: var(--gold);
             }
 
-            /* === SECTIONS === */
-            section {
-                padding: 5rem 1.5rem;
-                max-width: 1100px;
-                margin: 0 auto;
+            /* Hero code panel */
+            .hero-code {
                 position: relative;
+                z-index: 1;
             }
-            .section-title {
-                font-size: 2.2rem;
-                font-weight: 700;
-                text-align: center;
-                margin-bottom: 0.5rem;
-                letter-spacing: -0.5px;
-            }
-            .section-sub {
-                text-align: center;
-                color: var(--muted);
-                margin-bottom: 3.5rem;
-                font-size: 1.05rem;
-            }
-            .section-divider {
-                height: 1px;
-                background: linear-gradient(
-                    90deg,
-                    transparent,
-                    var(--border),
-                    transparent
-                );
-                margin: 0 auto;
-                max-width: 600px;
-            }
-
-            /* === CODE COMPARISON === */
-            .compare {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 1.5rem;
-            }
-            @media (max-width: 768px) {
-                .compare {
-                    grid-template-columns: 1fr;
-                }
-            }
-            .compare-col {
-                background: var(--card);
+            .code-window {
+                background: var(--card-solid);
                 border: 1px solid var(--border);
-                border-radius: 14px;
+                border-radius: var(--radius);
                 overflow: hidden;
-                backdrop-filter: blur(10px);
-                transition:
-                    transform 0.2s,
-                    box-shadow 0.2s;
+                box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
             }
-            .compare-col:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-            }
-            .compare-col.highlight {
-                border-color: rgba(232, 163, 23, 0.4);
-                box-shadow: 0 0 40px rgba(232, 163, 23, 0.06);
-            }
-            .compare-header {
-                padding: 0.75rem 1.25rem;
-                font-size: 0.8rem;
-                font-weight: 600;
-                color: var(--muted);
-                border-bottom: 1px solid var(--border);
+            .code-bar {
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
+                gap: 0.4rem;
+                padding: 0.65rem 1rem;
+                background: rgba(20, 15, 8, 0.8);
+                border-bottom: 1px solid var(--border);
             }
-            .compare-header .lang {
-                color: var(--text);
-                font-size: 0.85rem;
+            .code-dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
             }
-            .compare-header .lines {
-                font-weight: 400;
-                font-size: 0.75rem;
-                background: var(--card-solid);
-                padding: 0.15rem 0.5rem;
-                border-radius: 20px;
+            .code-dot.r {
+                background: #ff5f57;
             }
-            .compare-col pre {
-                padding: 1.25rem;
-                font-size: 0.8rem;
-                line-height: 1.6;
+            .code-dot.y {
+                background: #ffbd2e;
+            }
+            .code-dot.g {
+                background: #28ca41;
+            }
+            .code-title {
+                font-size: 0.72rem;
+                color: var(--muted);
+                margin-left: 0.5rem;
+                font-family: var(--mono);
+            }
+            .code-body {
+                padding: 1.25rem 1.25rem;
+                font-family: var(--mono);
+                font-size: 0.78rem;
+                line-height: 1.65;
                 overflow-x: auto;
+                color: var(--text-dim);
+            }
+            .code-body pre {
                 margin: 0;
             }
-            .compare-col code {
-                font-family:
-                    "SF Mono", "Fira Code", Monaco, Consolas, monospace;
-            }
 
-            /* Syntax — warm */
+            /* Syntax colors */
             .kw {
                 color: #e8a317;
             }
@@ -273,7 +367,7 @@
                 color: #fde68a;
             }
             .cm {
-                color: #a89272;
+                color: #6b5e4a;
             }
             .fn {
                 color: #f0bd4f;
@@ -287,65 +381,173 @@
             .dec {
                 color: #d4b87a;
             }
+            .type {
+                color: #c4a265;
+            }
 
-            /* === FEATURES GRID === */
-            .features {
+            /* ===== DIVIDER ===== */
+            .divider {
+                height: 1px;
+                max-width: 600px;
+                margin: 0 auto;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--border),
+                    transparent
+                );
+            }
+
+            /* ===== SECTION ===== */
+            section {
+                padding: 5rem 2rem;
+                max-width: var(--max-w);
+                margin: 0 auto;
+            }
+            @media (max-width: 640px) {
+                section {
+                    padding: 3.5rem 1.25rem;
+                }
+            }
+            .section-label {
+                font-size: 0.72rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                color: var(--gold);
+                text-align: center;
+                margin-bottom: 0.75rem;
+            }
+            .section-title {
+                font-size: clamp(1.8rem, 3vw, 2.4rem);
+                font-weight: 700;
+                text-align: center;
+                letter-spacing: -0.5px;
+                margin-bottom: 0.5rem;
+            }
+            .section-sub {
+                text-align: center;
+                color: var(--muted);
+                margin-bottom: 3.5rem;
+                font-size: 1rem;
+                max-width: 540px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            /* ===== PILLARS (3 col) ===== */
+            .pillars {
                 display: grid;
                 grid-template-columns: repeat(3, 1fr);
                 gap: 1.25rem;
             }
             @media (max-width: 768px) {
-                .features {
+                .pillars {
                     grid-template-columns: 1fr;
                 }
             }
-            .feature {
+            .pillar {
                 background: var(--card);
                 border: 1px solid var(--border);
-                border-radius: 14px;
-                padding: 1.75rem;
-                backdrop-filter: blur(10px);
+                border-radius: var(--radius);
+                padding: 2rem 1.75rem;
                 transition: all 0.25s;
             }
-            .feature:hover {
-                transform: translateY(-4px);
-                border-color: rgba(232, 163, 23, 0.3);
-                box-shadow: 0 8px 30px rgba(232, 163, 23, 0.08);
+            .pillar:hover {
+                border-color: var(--border-light);
+                transform: translateY(-2px);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             }
-            .feature-icon {
-                margin-bottom: 1rem;
-                width: 44px;
-                height: 44px;
+            .pillar-icon {
+                width: 40px;
+                height: 40px;
+                border-radius: 10px;
                 background: linear-gradient(
                     135deg,
-                    rgba(232, 163, 23, 0.15),
-                    rgba(240, 189, 79, 0.05)
+                    rgba(232, 163, 23, 0.12),
+                    rgba(232, 163, 23, 0.03)
                 );
-                border-radius: 10px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                margin-bottom: 1rem;
             }
-            .feature h3 {
+            .pillar-icon svg {
+                width: 20px;
+                height: 20px;
+            }
+            .pillar h3 {
                 font-size: 1.05rem;
                 font-weight: 600;
-                margin-bottom: 0.4rem;
+                margin-bottom: 0.5rem;
             }
-            .feature p {
-                font-size: 0.9rem;
+            .pillar p {
+                font-size: 0.88rem;
                 color: var(--muted);
                 line-height: 1.6;
             }
-            .feature code {
-                background: rgba(232, 163, 23, 0.1);
-                color: var(--gold-light);
-                padding: 0.1rem 0.35rem;
-                border-radius: 4px;
+
+            /* ===== COMPARE ===== */
+            .compare {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.25rem;
+            }
+            @media (max-width: 800px) {
+                .compare {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .compare-col {
+                border-radius: var(--radius);
+                overflow: hidden;
+                border: 1px solid var(--border);
+                background: var(--card-solid);
+                transition: all 0.2s;
+            }
+            .compare-col:hover {
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            .compare-col.hl {
+                border-color: rgba(232, 163, 23, 0.35);
+            }
+            .compare-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0.6rem 1.15rem;
+                border-bottom: 1px solid var(--border);
                 font-size: 0.8rem;
-                font-family: "SF Mono", Monaco, monospace;
+                font-weight: 600;
+                color: var(--muted);
+            }
+            .compare-header .lang {
+                color: var(--text-dim);
+                font-size: 0.82rem;
+            }
+            .compare-header .hl-lang {
+                color: var(--gold);
+                font-size: 0.82rem;
+            }
+            .compare-header .lines {
+                font-weight: 400;
+                font-size: 0.7rem;
+                padding: 0.1rem 0.5rem;
+                border-radius: 20px;
+                background: var(--card);
+            }
+            .compare-col pre {
+                padding: 1.15rem;
+                font-size: 0.76rem;
+                line-height: 1.6;
+                overflow-x: auto;
+                margin: 0;
+            }
+            .compare-col code {
+                font-family: var(--mono);
             }
 
-            /* === PRIMITIVES === */
+            /* ===== PRIMITIVES ===== */
             .primitives {
                 display: grid;
                 grid-template-columns: repeat(2, 1fr);
@@ -359,42 +561,136 @@
             .prim {
                 background: var(--card);
                 border: 1px solid var(--border);
-                border-radius: 14px;
+                border-radius: var(--radius);
                 padding: 1.75rem;
-                backdrop-filter: blur(10px);
                 transition: all 0.25s;
             }
             .prim:hover {
-                transform: translateY(-3px);
-                border-color: rgba(232, 163, 23, 0.3);
+                border-color: var(--border-light);
+                transform: translateY(-2px);
             }
-            .prim-name {
-                font-size: 0.7rem;
+            .prim-label {
+                font-size: 0.65rem;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 1.5px;
                 color: var(--gold);
-                margin-bottom: 0.5rem;
+                margin-bottom: 0.4rem;
             }
             .prim h3 {
-                font-size: 1.1rem;
+                font-size: 1rem;
                 margin-bottom: 0.75rem;
+                font-weight: 600;
             }
             .prim pre {
                 background: var(--dark);
                 border: 1px solid var(--border);
                 border-radius: 8px;
                 padding: 1rem;
-                font-size: 0.8rem;
+                font-size: 0.76rem;
                 line-height: 1.6;
                 overflow-x: auto;
+                margin: 0;
             }
             .prim code {
-                font-family:
-                    "SF Mono", "Fira Code", Monaco, Consolas, monospace;
+                font-family: var(--mono);
             }
 
-            /* === STEPS === */
+            /* ===== FEATURES GRID ===== */
+            .features {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1.25rem;
+            }
+            @media (max-width: 768px) {
+                .features {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .feat {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 1.5rem 1.5rem;
+                transition: all 0.25s;
+            }
+            .feat:hover {
+                border-color: var(--border-light);
+                transform: translateY(-2px);
+            }
+            .feat h3 {
+                font-size: 0.95rem;
+                font-weight: 600;
+                margin-bottom: 0.35rem;
+            }
+            .feat p {
+                font-size: 0.85rem;
+                color: var(--muted);
+                line-height: 1.6;
+            }
+            .feat code {
+                background: rgba(232, 163, 23, 0.08);
+                color: var(--gold-light);
+                padding: 0.1rem 0.3rem;
+                border-radius: 4px;
+                font-size: 0.76rem;
+            }
+
+            /* ===== USE CASES ===== */
+            .use-cases {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 1rem;
+            }
+            @media (max-width: 900px) {
+                .use-cases {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            @media (max-width: 540px) {
+                .use-cases {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .use-case {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 1.5rem;
+                text-align: center;
+                transition: all 0.25s;
+            }
+            .use-case:hover {
+                border-color: var(--border-light);
+                transform: translateY(-2px);
+            }
+            .use-case-icon {
+                font-size: 1.8rem;
+                margin-bottom: 0.75rem;
+            }
+            .use-case h3 {
+                font-size: 0.92rem;
+                font-weight: 600;
+                margin-bottom: 0.3rem;
+            }
+            .use-case p {
+                font-size: 0.8rem;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+            .use-case .replaces {
+                display: inline-block;
+                margin-top: 0.5rem;
+                font-size: 0.7rem;
+                color: var(--gold);
+                font-weight: 500;
+                background: rgba(232, 163, 23, 0.06);
+                border: 1px solid rgba(232, 163, 23, 0.12);
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+            }
+
+            /* ===== STEPS ===== */
             .steps {
                 display: grid;
                 grid-template-columns: repeat(3, 1fr);
@@ -402,50 +698,12 @@
                 text-align: center;
                 position: relative;
             }
-            @media (max-width: 768px) {
+            @media (max-width: 640px) {
                 .steps {
                     grid-template-columns: 1fr;
+                    gap: 2.5rem;
                 }
             }
-            .step {
-                position: relative;
-            }
-            .step-num {
-                width: 56px;
-                height: 56px;
-                border-radius: 50%;
-                background: linear-gradient(
-                    135deg,
-                    var(--gold),
-                    var(--gold-light)
-                );
-                color: #1a0e04;
-                font-size: 1.3rem;
-                font-weight: 800;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto 1rem;
-                box-shadow: 0 4px 20px rgba(232, 163, 23, 0.25);
-            }
-            .step h3 {
-                font-size: 1.05rem;
-                margin-bottom: 0.5rem;
-            }
-            .step p {
-                font-size: 0.9rem;
-                color: var(--muted);
-            }
-            .step code {
-                background: var(--card-solid);
-                border: 1px solid var(--border);
-                padding: 0.15rem 0.5rem;
-                border-radius: 5px;
-                font-size: 0.82rem;
-                font-family: "SF Mono", Monaco, monospace;
-                color: var(--gold-light);
-            }
-            /* Connector line between steps */
             .steps::before {
                 content: "";
                 position: absolute;
@@ -456,35 +714,182 @@
                 background: linear-gradient(
                     90deg,
                     var(--gold),
-                    rgba(232, 163, 23, 0.2),
+                    rgba(232, 163, 23, 0.15),
                     var(--gold)
                 );
-                opacity: 0.3;
+                opacity: 0.25;
             }
-            @media (max-width: 768px) {
+            @media (max-width: 640px) {
                 .steps::before {
                     display: none;
                 }
             }
+            .step-num {
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                background: linear-gradient(
+                    135deg,
+                    var(--gold),
+                    var(--gold-light)
+                );
+                color: #1a0e04;
+                font-size: 1.2rem;
+                font-weight: 800;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 1rem;
+                box-shadow: 0 4px 16px rgba(232, 163, 23, 0.2);
+            }
+            .step h3 {
+                font-size: 1rem;
+                margin-bottom: 0.4rem;
+                font-weight: 600;
+            }
+            .step p {
+                font-size: 0.88rem;
+                color: var(--muted);
+            }
+            .step code {
+                background: var(--card-solid);
+                border: 1px solid var(--border);
+                padding: 0.1rem 0.45rem;
+                border-radius: 5px;
+                font-size: 0.78rem;
+                color: var(--gold-light);
+            }
 
-            /* === FOOTER === */
+            /* ===== INSTALL ===== */
+            .install-box {
+                position: relative;
+                max-width: 560px;
+                margin: 0 auto;
+                background: var(--card-solid);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 0.9rem 3.5rem 0.9rem 1.25rem;
+                font-family: var(--mono);
+                font-size: 0.9rem;
+                color: var(--gold);
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            .install-box .copy-btn {
+                position: absolute;
+                right: 0.65rem;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                color: var(--muted);
+                cursor: pointer;
+                padding: 0.35rem 0.5rem;
+                font-size: 0.82rem;
+                line-height: 1;
+                transition: all 0.2s;
+            }
+            .install-box .copy-btn:hover {
+                color: var(--gold);
+                border-color: var(--gold);
+            }
+            .install-box .copy-btn.copied {
+                color: #4ade80;
+                border-color: #4ade80;
+            }
+            .install-alt {
+                text-align: center;
+                margin-top: 0.75rem;
+                font-size: 0.82rem;
+                color: var(--muted);
+            }
+
+            /* ===== SHOWCASE (tabbed) ===== */
+            .showcase-tabs {
+                display: flex;
+                gap: 0;
+                justify-content: center;
+                margin-bottom: 0;
+            }
+            .showcase-tab {
+                padding: 0.6rem 1.25rem;
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--muted);
+                background: transparent;
+                border: 1px solid var(--border);
+                border-bottom: none;
+                cursor: pointer;
+                transition: all 0.2s;
+                border-radius: var(--radius) var(--radius) 0 0;
+                font-family: var(--sans);
+            }
+            .showcase-tab:hover {
+                color: var(--text-dim);
+            }
+            .showcase-tab.active {
+                color: var(--gold);
+                background: var(--card-solid);
+                border-color: var(--border);
+            }
+            .showcase-panel {
+                display: none;
+                background: var(--card-solid);
+                border: 1px solid var(--border);
+                border-radius: 0 var(--radius) var(--radius) var(--radius);
+                overflow: hidden;
+            }
+            .showcase-panel.active {
+                display: block;
+            }
+            .showcase-panel pre {
+                padding: 1.5rem;
+                font-size: 0.78rem;
+                line-height: 1.65;
+                overflow-x: auto;
+                margin: 0;
+            }
+            .showcase-panel code {
+                font-family: var(--mono);
+            }
+            @media (max-width: 640px) {
+                .showcase-tabs {
+                    flex-wrap: wrap;
+                }
+                .showcase-tab {
+                    font-size: 0.72rem;
+                    padding: 0.5rem 0.9rem;
+                }
+            }
+
+            /* ===== FOOTER ===== */
             footer {
                 text-align: center;
-                padding: 3.5rem 1.5rem;
-                color: var(--muted);
-                font-size: 0.85rem;
+                padding: 3rem 2rem;
                 border-top: 1px solid var(--border);
-                margin-top: 2rem;
+                color: var(--muted);
+                font-size: 0.82rem;
             }
             footer a {
                 color: var(--muted);
-                transition: color 0.2s;
             }
             footer a:hover {
                 color: var(--gold);
             }
+            .footer-links {
+                display: flex;
+                gap: 1.5rem;
+                justify-content: center;
+                margin-bottom: 0.75rem;
+                flex-wrap: wrap;
+            }
+            .footer-haira {
+                color: var(--gold);
+                font-weight: 600;
+            }
 
-            /* === PARTICLES (CSS-only ambient) === */
+            /* ===== PARTICLES ===== */
             .particles {
                 position: fixed;
                 top: 0;
@@ -497,42 +902,42 @@
             }
             .particles span {
                 position: absolute;
-                width: 3px;
-                height: 3px;
+                width: 2px;
+                height: 2px;
                 background: var(--gold);
                 border-radius: 50%;
                 opacity: 0;
-                animation: particle 8s linear infinite;
+                animation: particle 10s linear infinite;
             }
             .particles span:nth-child(1) {
-                left: 10%;
+                left: 8%;
                 animation-delay: 0s;
-                animation-duration: 7s;
-            }
-            .particles span:nth-child(2) {
-                left: 25%;
-                animation-delay: 1.5s;
-                animation-duration: 9s;
-            }
-            .particles span:nth-child(3) {
-                left: 45%;
-                animation-delay: 3s;
-                animation-duration: 6s;
-            }
-            .particles span:nth-child(4) {
-                left: 65%;
-                animation-delay: 0.5s;
-                animation-duration: 10s;
-            }
-            .particles span:nth-child(5) {
-                left: 80%;
-                animation-delay: 2s;
                 animation-duration: 8s;
             }
-            .particles span:nth-child(6) {
-                left: 92%;
+            .particles span:nth-child(2) {
+                left: 22%;
+                animation-delay: 2s;
+                animation-duration: 11s;
+            }
+            .particles span:nth-child(3) {
+                left: 40%;
                 animation-delay: 4s;
                 animation-duration: 7s;
+            }
+            .particles span:nth-child(4) {
+                left: 62%;
+                animation-delay: 1s;
+                animation-duration: 12s;
+            }
+            .particles span:nth-child(5) {
+                left: 78%;
+                animation-delay: 3s;
+                animation-duration: 9s;
+            }
+            .particles span:nth-child(6) {
+                left: 90%;
+                animation-delay: 5s;
+                animation-duration: 8s;
             }
             @keyframes particle {
                 0% {
@@ -540,10 +945,10 @@
                     opacity: 0;
                 }
                 10% {
-                    opacity: 0.15;
+                    opacity: 0.1;
                 }
                 90% {
-                    opacity: 0.15;
+                    opacity: 0.1;
                 }
                 100% {
                     transform: translateY(-10vh);
@@ -551,13 +956,13 @@
                 }
             }
 
-            /* === FADE IN on scroll === */
+            /* ===== FADE IN ===== */
             .fade-in {
                 opacity: 0;
-                transform: translateY(20px);
+                transform: translateY(16px);
                 transition:
-                    opacity 0.6s ease,
-                    transform 0.6s ease;
+                    opacity 0.5s ease,
+                    transform 0.5s ease;
             }
             .fade-in.visible {
                 opacity: 1;
@@ -566,243 +971,333 @@
         </style>
     </head>
     <body>
-        <!-- Ambient particles -->
         <div class="particles">
             <span></span><span></span><span></span><span></span><span></span
             ><span></span>
         </div>
 
+        <!-- Nav -->
+        <nav>
+            <div class="nav-inner">
+                <a href="/" class="nav-brand">
+                    <svg
+                        viewBox="0 0 64 68"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                    >
+                        <rect
+                            x="6"
+                            y="55"
+                            width="52"
+                            height="7"
+                            rx="3.5"
+                            fill="#3D2B1F"
+                        />
+                        <rect
+                            x="12"
+                            y="47"
+                            width="9"
+                            height="10"
+                            rx="3"
+                            fill="#3D2B1F"
+                        />
+                        <rect
+                            x="43"
+                            y="47"
+                            width="9"
+                            height="10"
+                            rx="3"
+                            fill="#3D2B1F"
+                        />
+                        <rect
+                            x="12"
+                            y="47"
+                            width="40"
+                            height="4"
+                            rx="2"
+                            fill="#5C3A1E"
+                        />
+                        <rect
+                            x="20"
+                            y="31"
+                            width="24"
+                            height="16"
+                            rx="4"
+                            fill="#E8A317"
+                        />
+                        <rect
+                            x="25"
+                            y="34"
+                            width="14"
+                            height="10"
+                            rx="3"
+                            fill="#3D2B1F"
+                        />
+                        <circle
+                            cx="32"
+                            cy="39"
+                            r="5"
+                            fill="#FDE68A"
+                            opacity="0.3"
+                        />
+                        <circle cx="32" cy="39" r="3.5" fill="#FDE68A" />
+                        <circle
+                            cx="32"
+                            cy="39"
+                            r="1.8"
+                            fill="#fff"
+                            opacity="0.9"
+                        />
+                        <rect
+                            x="10"
+                            y="34"
+                            width="10"
+                            height="5"
+                            rx="2.5"
+                            fill="#E8A317"
+                        />
+                        <rect
+                            x="44"
+                            y="34"
+                            width="10"
+                            height="5"
+                            rx="2.5"
+                            fill="#E8A317"
+                        />
+                        <circle cx="9" cy="36.5" r="3.5" fill="#E8A317" />
+                        <circle cx="9" cy="36.5" r="2" fill="#FDE68A" />
+                        <circle cx="55" cy="36.5" r="3.5" fill="#E8A317" />
+                        <circle cx="55" cy="36.5" r="2" fill="#FDE68A" />
+                        <rect
+                            x="17"
+                            y="11"
+                            width="30"
+                            height="20"
+                            rx="6"
+                            fill="#F0BD4F"
+                        />
+                        <rect
+                            x="21"
+                            y="15"
+                            width="22"
+                            height="9"
+                            rx="4"
+                            fill="#3D2B1F"
+                        />
+                        <circle cx="27" cy="19.5" r="3.5" fill="#FDE68A" />
+                        <circle cx="27" cy="19.5" r="1.5" fill="#fff" />
+                        <circle cx="37" cy="19.5" r="3.5" fill="#FDE68A" />
+                        <circle cx="37" cy="19.5" r="1.5" fill="#fff" />
+                        <ellipse
+                            cx="32"
+                            cy="12"
+                            rx="31"
+                            ry="4.5"
+                            fill="#C4A265"
+                        />
+                        <ellipse
+                            cx="32"
+                            cy="11.5"
+                            rx="29"
+                            ry="3.5"
+                            fill="#D4B87A"
+                        />
+                        <rect
+                            x="15"
+                            y="2"
+                            width="34"
+                            height="10"
+                            rx="5"
+                            fill="#C4A265"
+                        />
+                        <rect
+                            x="18"
+                            y="0"
+                            width="28"
+                            height="6"
+                            rx="4"
+                            fill="#D4B87A"
+                        />
+                        <rect
+                            x="15"
+                            y="8"
+                            width="34"
+                            height="4"
+                            rx="2"
+                            fill="#5C3A1E"
+                        />
+                    </svg>
+                    Haira
+                </a>
+                <div class="nav-links">
+                    <span class="nav-tag">v0.1</span>
+                    <a href="#features">Features</a>
+                    <a href="#examples">Examples</a>
+                    <a href="#install">Install</a>
+                    <a
+                        href="https://github.com/mrzdevcore/haira"
+                        class="nav-gh"
+                        target="_blank"
+                    >
+                        <svg viewBox="0 0 16 16">
+                            <path
+                                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+                            />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </nav>
+
         <!-- Hero -->
         <div class="hero">
-            <svg
-                class="hero-icon"
-                viewBox="0 0 64 68"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <rect
-                    x="6"
-                    y="55"
-                    width="52"
-                    height="7"
-                    rx="3.5"
-                    fill="#3D2B1F"
-                />
-                <rect
-                    x="12"
-                    y="47"
-                    width="9"
-                    height="10"
-                    rx="3"
-                    fill="#3D2B1F"
-                />
-                <rect
-                    x="43"
-                    y="47"
-                    width="9"
-                    height="10"
-                    rx="3"
-                    fill="#3D2B1F"
-                />
-                <rect
-                    x="12"
-                    y="47"
-                    width="40"
-                    height="4"
-                    rx="2"
-                    fill="#5C3A1E"
-                />
-                <rect
-                    x="20"
-                    y="31"
-                    width="24"
-                    height="16"
-                    rx="4"
-                    fill="#E8A317"
-                />
-                <rect
-                    x="25"
-                    y="34"
-                    width="14"
-                    height="10"
-                    rx="3"
-                    fill="#3D2B1F"
-                />
-                <circle cx="32" cy="39" r="5" fill="#FDE68A" opacity="0.3" />
-                <circle cx="32" cy="39" r="3.5" fill="#FDE68A" />
-                <circle cx="32" cy="39" r="1.8" fill="#ffffff" opacity="0.9" />
-                <rect
-                    x="10"
-                    y="34"
-                    width="10"
-                    height="5"
-                    rx="2.5"
-                    fill="#E8A317"
-                />
-                <rect
-                    x="44"
-                    y="34"
-                    width="10"
-                    height="5"
-                    rx="2.5"
-                    fill="#E8A317"
-                />
-                <circle cx="9" cy="36.5" r="3.5" fill="#E8A317" />
-                <circle cx="9" cy="36.5" r="2" fill="#FDE68A" />
-                <circle cx="55" cy="36.5" r="3.5" fill="#E8A317" />
-                <circle cx="55" cy="36.5" r="2" fill="#FDE68A" />
-                <rect
-                    x="17"
-                    y="11"
-                    width="30"
-                    height="20"
-                    rx="6"
-                    fill="#F0BD4F"
-                />
-                <rect
-                    x="21"
-                    y="15"
-                    width="22"
-                    height="9"
-                    rx="4"
-                    fill="#3D2B1F"
-                />
-                <circle cx="27" cy="19.5" r="3.5" fill="#FDE68A" />
-                <circle cx="27" cy="19.5" r="1.5" fill="#ffffff" />
-                <circle cx="37" cy="19.5" r="3.5" fill="#FDE68A" />
-                <circle cx="37" cy="19.5" r="1.5" fill="#ffffff" />
-                <ellipse cx="32" cy="12" rx="31" ry="4.5" fill="#C4A265" />
-                <ellipse cx="32" cy="11.5" rx="29" ry="3.5" fill="#D4B87A" />
-                <line
-                    x1="4"
-                    y1="12"
-                    x2="60"
-                    y2="12"
-                    stroke="#B89555"
-                    stroke-width="0.4"
-                    opacity="0.5"
-                />
-                <line
-                    x1="6"
-                    y1="13.5"
-                    x2="58"
-                    y2="13.5"
-                    stroke="#B89555"
-                    stroke-width="0.3"
-                    opacity="0.4"
-                />
-                <rect
-                    x="15"
-                    y="2"
-                    width="34"
-                    height="10"
-                    rx="5"
-                    fill="#C4A265"
-                />
-                <rect
-                    x="18"
-                    y="0"
-                    width="28"
-                    height="6"
-                    rx="4"
-                    fill="#D4B87A"
-                />
-                <path
-                    d="M22 1 Q32 3 42 1"
-                    stroke="#B89555"
-                    stroke-width="1"
-                    fill="none"
-                />
-                <rect
-                    x="15"
-                    y="8"
-                    width="34"
-                    height="4"
-                    rx="2"
-                    fill="#5C3A1E"
-                />
-                <line
-                    x1="19"
-                    y1="9.5"
-                    x2="21"
-                    y2="9.5"
-                    stroke="#7B5230"
-                    stroke-width="0.8"
-                />
-                <line
-                    x1="24"
-                    y1="9.5"
-                    x2="26"
-                    y2="9.5"
-                    stroke="#7B5230"
-                    stroke-width="0.8"
-                />
-                <line
-                    x1="29"
-                    y1="9.5"
-                    x2="31"
-                    y2="9.5"
-                    stroke="#7B5230"
-                    stroke-width="0.8"
-                />
-                <line
-                    x1="34"
-                    y1="9.5"
-                    x2="36"
-                    y2="9.5"
-                    stroke="#7B5230"
-                    stroke-width="0.8"
-                />
-                <line
-                    x1="39"
-                    y1="9.5"
-                    x2="41"
-                    y2="9.5"
-                    stroke="#7B5230"
-                    stroke-width="0.8"
-                />
-                <line
-                    x1="44"
-                    y1="9.5"
-                    x2="46"
-                    y2="9.5"
-                    stroke="#7B5230"
-                    stroke-width="0.8"
-                />
-            </svg>
-            <h1>Haira</h1>
-            <p class="tagline">Build agents and workflows, not boilerplate.</p>
-            <p class="sub">
-                The compiled programming language for AI agents. Four keywords.
-                One binary.
-            </p>
-            <div class="hero-buttons">
-                <a
-                    href="https://github.com/mrzdevcore/haira#getting-started"
-                    class="btn btn-primary"
-                    >Get Started</a
-                >
-                <a
-                    href="https://github.com/mrzdevcore/haira"
-                    class="btn btn-secondary"
-                    >GitHub</a
-                >
+            <div class="hero-glow"></div>
+            <div class="hero-text">
+                <div class="hero-badge">
+                    <span class="hero-badge-dot"></span>
+                    Open source &middot; Apache-2.0
+                </div>
+                <h1>
+                    Build <span class="gold">agents</span>, not boilerplate.
+                </h1>
+                <p class="hero-sub">
+                    Haira is a compiled, type-safe programming language with
+                    first-class primitives for AI agents, tools, and workflows.
+                    Four keywords. One binary.
+                </p>
+                <p class="hero-replace">
+                    Replaces <strong>Python + LangChain</strong>,
+                    <strong>n8n / Make / Zapier</strong>,
+                    <strong>CrewAI / AutoGen</strong>.
+                </p>
+                <div class="hero-ctas">
+                    <a href="#install" class="btn btn-primary">Get Started</a>
+                    <a
+                        href="https://github.com/mrzdevcore/haira"
+                        class="btn btn-ghost"
+                        target="_blank"
+                        >View on GitHub</a
+                    >
+                </div>
+            </div>
+            <div class="hero-code">
+                <div class="code-window">
+                    <div class="code-bar">
+                        <span class="code-dot r"></span>
+                        <span class="code-dot y"></span>
+                        <span class="code-dot g"></span>
+                        <span class="code-title">chatbot.haira</span>
+                    </div>
+                    <div class="code-body">
+                        <pre><code><span class="kw">import</span> <span class="str">"io"</span>
+<span class="kw">import</span> <span class="str">"http"</span>
+
+<span class="kw">provider</span> <span class="fn">openai</span> {
+    api_key: <span class="fn">env</span>(<span class="str">"OPENAI_KEY"</span>)
+    model: <span class="str">"gpt-4o"</span>
+}
+
+<span class="kw">agent</span> <span class="fn">Assistant</span> {
+    model: openai
+    system: <span class="str">"Be helpful and concise."</span>
+    memory: <span class="fn">conversation</span>(max_turns: <span class="num">10</span>)
+}
+
+<span class="dec">@post</span>(<span class="str">"/chat"</span>)
+<span class="kw">workflow</span> <span class="fn">Chat</span>(msg: <span class="type">string</span>) -> <span class="kw">stream</span> {
+    <span class="kw">return</span> Assistant.stream(msg)
+}
+
+<span class="kw">fn</span> <span class="fn">main</span>() {
+    http.Server([Chat]).listen(<span class="num">8080</span>)
+}</code></pre>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="section-divider"></div>
+        <div class="divider"></div>
+
+        <!-- Pillars -->
+        <section class="fade-in">
+            <div class="section-label">Why Haira</div>
+            <h2 class="section-title">Language-level AI primitives</h2>
+            <p class="section-sub">
+                Not a framework. Not a library. Agents, tools, and workflows are
+                part of the language.
+            </p>
+            <div class="pillars">
+                <div class="pillar">
+                    <div class="pillar-icon">
+                        <svg viewBox="0 0 20 20" fill="none">
+                            <path
+                                d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z"
+                                fill="#E8A317"
+                            />
+                        </svg>
+                    </div>
+                    <h3>Compiled to native binary</h3>
+                    <p>
+                        Haira compiles to Go, then to a native binary. No
+                        interpreter, no VM, no runtime dependencies. Ship a
+                        single executable.
+                    </p>
+                </div>
+                <div class="pillar">
+                    <div class="pillar-icon">
+                        <svg viewBox="0 0 20 20" fill="none">
+                            <circle
+                                cx="10"
+                                cy="10"
+                                r="6"
+                                stroke="#E8A317"
+                                stroke-width="2"
+                            />
+                            <circle cx="10" cy="10" r="2" fill="#E8A317" />
+                        </svg>
+                    </div>
+                    <h3>Agentic by design</h3>
+                    <p>
+                        Providers, tools, agents, and workflows are language
+                        keywords &mdash; not afterthoughts bolted on with
+                        decorators and classes.
+                    </p>
+                </div>
+                <div class="pillar">
+                    <div class="pillar-icon">
+                        <svg viewBox="0 0 20 20" fill="none">
+                            <path
+                                d="M6 4v12M14 4v12M6 10h8"
+                                stroke="#E8A317"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+                    </div>
+                    <h3>Type-safe &amp; expressive</h3>
+                    <p>
+                        Static types, pattern matching, enums, structs, pipe
+                        operator, and error handling &mdash; catch bugs at
+                        compile time, not in production.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
 
         <!-- Code Comparison -->
         <section class="fade-in">
+            <div class="section-label">Comparison</div>
             <h2 class="section-title">Less code. More agents.</h2>
             <p class="section-sub">
-                A complete AI agent with tools, memory, and HTTP endpoint.
+                A complete AI agent with tools, memory, and an HTTP endpoint.
             </p>
             <div class="compare">
                 <div class="compare-col">
                     <div class="compare-header">
-                        <span class="lang">Python + LangChain</span
-                        ><span class="lines">~45 lines</span>
+                        <span class="lang">Python + LangChain</span>
+                        <span class="lines">~45 lines</span>
                     </div>
                     <pre><code><span class="kw">from</span> langchain.chat_models <span class="kw">import</span> ChatOpenAI
 <span class="kw">from</span> langchain.agents <span class="kw">import</span> AgentExecutor
@@ -834,11 +1329,10 @@ app = FastAPI()
 
 uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                 </div>
-                <div class="compare-col highlight">
+                <div class="compare-col hl">
                     <div class="compare-header">
-                        <span class="lang" style="color: var(--gold)"
-                            >Haira</span
-                        ><span class="lines">~30 lines</span>
+                        <span class="hl-lang">Haira</span>
+                        <span class="lines">~28 lines</span>
                     </div>
                     <pre><code><span class="kw">import</span> <span class="str">"io"</span>
 <span class="kw">import</span> <span class="str">"http"</span>
@@ -848,7 +1342,7 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
     model: <span class="str">"gpt-4o"</span>
 }
 
-<span class="kw">tool</span> <span class="fn">get_weather</span>(city: string) -> string {
+<span class="kw">tool</span> <span class="fn">get_weather</span>(city: <span class="type">string</span>) -> <span class="type">string</span> {
     <span class="str">"""Get weather for a city"""</span>
     resp, err = http.get(<span class="str">"https://wttr.in/${city}?format=j1"</span>)
     <span class="kw">if</span> err != nil { <span class="kw">return</span> <span class="str">"Failed."</span> }
@@ -862,203 +1356,48 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
 }
 
 <span class="dec">@post</span>(<span class="str">"/api/chat"</span>)
-<span class="kw">workflow</span> <span class="fn">Chat</span>(message: string, session_id: string) {
-    reply, err = Assistant.ask(message, session: session_id)
+<span class="kw">workflow</span> <span class="fn">Chat</span>(msg: <span class="type">string</span>, sid: <span class="type">string</span>) {
+    reply, err = Assistant.ask(msg, session: sid)
     <span class="kw">return</span> { reply: reply }
 }
 
-<span class="kw">fn</span> <span class="fn">main</span>() {
-    http.Server([Chat]).listen(<span class="num">8080</span>)
-}</code></pre>
+<span class="kw">fn</span> <span class="fn">main</span>() { http.Server([Chat]).listen(<span class="num">8080</span>) }</code></pre>
                 </div>
             </div>
         </section>
 
-        <div class="section-divider"></div>
-
-        <!-- Features -->
-        <section class="fade-in">
-            <h2 class="section-title">Everything you need</h2>
-            <p class="section-sub">
-                From language design to production deployment.
-            </p>
-            <div class="features">
-                <div class="feature">
-                    <div class="feature-icon">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <path
-                                d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z"
-                                fill="#E8A317"
-                            />
-                        </svg>
-                    </div>
-                    <h3>Compiled</h3>
-                    <p>
-                        Compiles to native binaries via Go codegen. Single
-                        executable, no runtime dependencies.
-                    </p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <circle
-                                cx="10"
-                                cy="10"
-                                r="6"
-                                stroke="#E8A317"
-                                stroke-width="2"
-                            />
-                            <circle cx="10" cy="10" r="2" fill="#E8A317" />
-                        </svg>
-                    </div>
-                    <h3>Agentic</h3>
-                    <p>
-                        Agents, tools, providers, and workflows are language
-                        primitives. Not a framework.
-                    </p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <path
-                                d="M3 14l4-4 3 3 7-7"
-                                stroke="#E8A317"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                            />
-                        </svg>
-                    </div>
-                    <h3>Streaming</h3>
-                    <p>
-                        SSE streaming with <code>-> stream</code>. Built-in chat
-                        UI for every streaming workflow.
-                    </p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <rect
-                                x="3"
-                                y="3"
-                                width="14"
-                                height="14"
-                                rx="3"
-                                stroke="#E8A317"
-                                stroke-width="2"
-                            />
-                            <path
-                                d="M7 10h6M10 7v6"
-                                stroke="#E8A317"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                            />
-                        </svg>
-                    </div>
-                    <h3>Auto UI</h3>
-                    <p>
-                        Every workflow gets a web form at <code>/_ui/</code>.
-                        File uploads, settings — zero config.
-                    </p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <path
-                                d="M6 4v12M14 4v12M6 10h8"
-                                stroke="#E8A317"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                            />
-                        </svg>
-                    </div>
-                    <h3>Type-safe</h3>
-                    <p>
-                        Static type checking, pattern matching, enums, structs.
-                        Catch errors at compile time.
-                    </p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <circle cx="5" cy="10" r="2" fill="#E8A317" />
-                            <circle cx="15" cy="5" r="2" fill="#E8A317" />
-                            <circle cx="15" cy="15" r="2" fill="#E8A317" />
-                            <path
-                                d="M7 10l6-4M7 10l6 4"
-                                stroke="#E8A317"
-                                stroke-width="1.5"
-                            />
-                        </svg>
-                    </div>
-                    <h3>Orchestration</h3>
-                    <p>
-                        Agent handoffs, parallel <code>spawn</code>, workflow
-                        steps with retry and lifecycle hooks.
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        <div class="section-divider"></div>
+        <div class="divider"></div>
 
         <!-- Four Primitives -->
         <section class="fade-in">
+            <div class="section-label">Primitives</div>
             <h2 class="section-title">
-                Four primitives. Infinite possibilities.
+                Four keywords. Infinite possibilities.
             </h2>
             <p class="section-sub">
-                Everything in Haira builds on four agentic keywords.
+                Everything in Haira builds on four agentic keywords baked into
+                the language.
             </p>
             <div class="primitives">
                 <div class="prim">
-                    <div class="prim-name">Provider</div>
-                    <h3>LLM backend</h3>
+                    <div class="prim-label">Provider</div>
+                    <h3>LLM backend configuration</h3>
                     <pre><code><span class="kw">provider</span> <span class="fn">openai</span> {
     api_key: <span class="fn">env</span>(<span class="str">"OPENAI_API_KEY"</span>)
     model: <span class="str">"gpt-4o"</span>
 }</code></pre>
                 </div>
                 <div class="prim">
-                    <div class="prim-name">Tool</div>
-                    <h3>Agent capability</h3>
-                    <pre><code><span class="kw">tool</span> <span class="fn">search</span>(q: string) -> string {
+                    <div class="prim-label">Tool</div>
+                    <h3>Agent-callable function</h3>
+                    <pre><code><span class="kw">tool</span> <span class="fn">search</span>(q: <span class="type">string</span>) -> <span class="type">string</span> {
     <span class="str">"""Search the knowledge base"""</span>
     <span class="kw">return</span> http.get(<span class="str">"...?q=${q}"</span>).body
 }</code></pre>
                 </div>
                 <div class="prim">
-                    <div class="prim-name">Agent</div>
-                    <h3>LLM entity</h3>
+                    <div class="prim-label">Agent</div>
+                    <h3>LLM entity with memory</h3>
                     <pre><code><span class="kw">agent</span> <span class="fn">Bot</span> {
     model: openai
     tools: [search]
@@ -1066,10 +1405,10 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
 }</code></pre>
                 </div>
                 <div class="prim">
-                    <div class="prim-name">Workflow</div>
-                    <h3>HTTP endpoint</h3>
+                    <div class="prim-label">Workflow</div>
+                    <h3>HTTP endpoint &amp; orchestration</h3>
                     <pre><code><span class="dec">@post</span>(<span class="str">"/api/chat"</span>)
-<span class="kw">workflow</span> <span class="fn">Chat</span>(msg: string) {
+<span class="kw">workflow</span> <span class="fn">Chat</span>(msg: <span class="type">string</span>) {
     reply, err = Bot.ask(msg)
     <span class="kw">return</span> { reply: reply }
 }</code></pre>
@@ -1077,10 +1416,253 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
             </div>
         </section>
 
-        <div class="section-divider"></div>
+        <div class="divider"></div>
+
+        <!-- Features Grid -->
+        <section class="fade-in" id="features">
+            <div class="section-label">Features</div>
+            <h2 class="section-title">Everything you need</h2>
+            <p class="section-sub">
+                From language design to production deployment.
+            </p>
+            <div class="features">
+                <div class="feat">
+                    <h3>Streaming</h3>
+                    <p>
+                        SSE streaming with <code>-> stream</code>. Built-in chat
+                        UI for every streaming workflow.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Auto-generated UI</h3>
+                    <p>
+                        Every workflow gets a web form at <code>/_ui/</code>.
+                        File uploads, inputs &mdash; zero config.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Agent handoffs</h3>
+                    <p>
+                        Route between agents with <code>handoffs: [A, B]</code>.
+                        Front desk to billing to tech &mdash; automatic.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Agent memory</h3>
+                    <p>
+                        Built-in conversation and summary memory.
+                        <code>conversation(max_turns: N)</code> or
+                        <code>summary(max_tokens: N)</code>.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Parallel execution</h3>
+                    <p>
+                        Run tasks concurrently with
+                        <code>spawn { }</code> blocks. Fan-out across tools and
+                        agents.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Pattern matching</h3>
+                    <p>
+                        Full <code>match</code> with or-patterns, range
+                        patterns, and guards. Exhaustive checking on enums.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Pipe operator</h3>
+                    <p>
+                        Chain transformations with <code>|&gt;</code>. Readable,
+                        composable data pipelines.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Multi-provider</h3>
+                    <p>
+                        OpenAI, Azure OpenAI, Anthropic, and more. Switch models
+                        with a single line change.
+                    </p>
+                </div>
+                <div class="feat">
+                    <h3>Rich standard library</h3>
+                    <p>
+                        HTTP, JSON, Postgres, Excel, Slack, regex, time, env
+                        &mdash; batteries included.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- Use Cases -->
+        <section class="fade-in">
+            <div class="section-label">Use cases</div>
+            <h2 class="section-title">What you can build</h2>
+            <p class="section-sub">
+                Haira replaces entire stacks with a single language.
+            </p>
+            <div class="use-cases">
+                <div class="use-case">
+                    <div class="use-case-icon">&#x1F916;</div>
+                    <h3>AI Agents</h3>
+                    <p>
+                        Chatbots, assistants, and autonomous agents with memory
+                        and tools.
+                    </p>
+                    <span class="replaces">Replaces LangChain</span>
+                </div>
+                <div class="use-case">
+                    <div class="use-case-icon">&#x1F504;</div>
+                    <h3>Workflows</h3>
+                    <p>
+                        Multi-step automations with HTTP triggers, scheduling,
+                        and webhooks.
+                    </p>
+                    <span class="replaces">Replaces n8n / Zapier</span>
+                </div>
+                <div class="use-case">
+                    <div class="use-case-icon">&#x1F91D;</div>
+                    <h3>Multi-agent systems</h3>
+                    <p>
+                        Agent handoffs, parallel execution, and orchestrated
+                        collaboration.
+                    </p>
+                    <span class="replaces">Replaces CrewAI / AutoGen</span>
+                </div>
+                <div class="use-case">
+                    <div class="use-case-icon">&#x26A1;</div>
+                    <h3>Production APIs</h3>
+                    <p>
+                        Compiled binaries with built-in HTTP server. Deploy
+                        anywhere.
+                    </p>
+                    <span class="replaces">Replaces FastAPI + Docker</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- Code Showcase (tabbed) -->
+        <section class="fade-in" id="examples">
+            <div class="section-label">Examples</div>
+            <h2 class="section-title">See it in action</h2>
+            <p class="section-sub">Real patterns, not toy demos.</p>
+            <div class="showcase-tabs">
+                <button class="showcase-tab active" onclick="showTab(0)">
+                    Streaming Chat
+                </button>
+                <button class="showcase-tab" onclick="showTab(1)">
+                    Multi-Agent Handoff
+                </button>
+                <button class="showcase-tab" onclick="showTab(2)">
+                    File Upload
+                </button>
+            </div>
+            <div class="showcase-panel active" data-tab="0">
+                <pre><code><span class="kw">import</span> <span class="str">"io"</span>
+<span class="kw">import</span> <span class="str">"http"</span>
+
+<span class="kw">provider</span> <span class="fn">openai</span> {
+    api_key: <span class="fn">env</span>(<span class="str">"OPENAI_API_KEY"</span>)
+    model: <span class="str">"gpt-4o"</span>
+}
+
+<span class="kw">agent</span> <span class="fn">Writer</span> {
+    model: openai
+    system: <span class="str">"You are a creative writer."</span>
+    memory: <span class="fn">conversation</span>(max_turns: <span class="num">10</span>)
+    temperature: <span class="num">0.9</span>
+}
+
+<span class="dec">@post</span>(<span class="str">"/chat"</span>)
+<span class="kw">workflow</span> <span class="fn">Chat</span>(msg: <span class="type">string</span>, sid: <span class="type">string</span>) -> <span class="kw">stream</span> {
+    <span class="kw">return</span> Writer.stream(msg, session: sid)
+}
+
+<span class="kw">fn</span> <span class="fn">main</span>() {
+    http.Server([Chat]).listen(<span class="num">8080</span>)
+    <span class="cm">// SSE at POST /chat, Chat UI at /_ui/chat</span>
+}</code></pre>
+            </div>
+            <div class="showcase-panel" data-tab="1">
+                <pre><code><span class="kw">import</span> <span class="str">"io"</span>
+<span class="kw">import</span> <span class="str">"http"</span>
+
+<span class="kw">provider</span> <span class="fn">openai</span> {
+    api_key: <span class="fn">env</span>(<span class="str">"OPENAI_API_KEY"</span>)
+    model: <span class="str">"gpt-4o"</span>
+}
+
+<span class="kw">agent</span> <span class="fn">BillingAgent</span> {
+    model: openai
+    system: <span class="str">"Handle billing and payment questions."</span>
+    memory: <span class="fn">conversation</span>(max_turns: <span class="num">20</span>)
+}
+
+<span class="kw">agent</span> <span class="fn">TechAgent</span> {
+    model: openai
+    system: <span class="str">"Handle technical support questions."</span>
+    memory: <span class="fn">conversation</span>(max_turns: <span class="num">20</span>)
+}
+
+<span class="kw">agent</span> <span class="fn">FrontDesk</span> {
+    model: openai
+    system: <span class="str">"Greet users. Route billing to BillingAgent, tech to TechAgent."</span>
+    handoffs: [BillingAgent, TechAgent]
+    memory: <span class="fn">conversation</span>(max_turns: <span class="num">10</span>)
+}
+
+<span class="dec">@post</span>(<span class="str">"/support"</span>)
+<span class="kw">workflow</span> <span class="fn">Support</span>(msg: <span class="type">string</span>, sid: <span class="type">string</span>) {
+    reply, err = FrontDesk.ask(msg, session: sid)
+    <span class="kw">if</span> err != nil { <span class="kw">return</span> { reply: <span class="str">"Something went wrong."</span> } }
+    <span class="kw">return</span> { reply: reply }
+}
+
+<span class="kw">fn</span> <span class="fn">main</span>() { http.Server([Support]).listen(<span class="num">8080</span>) }</code></pre>
+            </div>
+            <div class="showcase-panel" data-tab="2">
+                <pre><code><span class="kw">import</span> <span class="str">"io"</span>
+<span class="kw">import</span> <span class="str">"http"</span>
+
+<span class="kw">provider</span> <span class="fn">openai</span> {
+    api_key: <span class="fn">env</span>(<span class="str">"OPENAI_API_KEY"</span>)
+    model: <span class="str">"gpt-4o"</span>
+}
+
+<span class="kw">agent</span> <span class="fn">Summarizer</span> {
+    model: openai
+    system: <span class="str">"Summarize the given text clearly and concisely."</span>
+    temperature: <span class="num">0.3</span>
+}
+
+<span class="dec">@webui</span>(title: <span class="str">"File Summarizer"</span>)
+<span class="dec">@post</span>(<span class="str">"/summarize"</span>)
+<span class="kw">workflow</span> <span class="fn">Summarize</span>(document: <span class="type">file</span>, context: <span class="type">string</span>) {
+    content, err = io.read_file(document)
+    <span class="kw">if</span> err != nil { <span class="kw">return</span> { summary: <span class="str">"Failed to read file."</span> } }
+
+    prompt = <span class="str">"Summarize this: ${context}\n\n${content}"</span>
+    reply, ai_err = Summarizer.ask(prompt)
+    <span class="kw">if</span> ai_err != nil { <span class="kw">return</span> { summary: <span class="str">"AI error."</span> } }
+    <span class="kw">return</span> { summary: reply }
+}
+
+<span class="kw">fn</span> <span class="fn">main</span>() {
+    http.Server([Summarize]).listen(<span class="num">8080</span>)
+    <span class="cm">// Upload UI at /_ui/summarize</span>
+}</code></pre>
+            </div>
+        </section>
+
+        <div class="divider"></div>
 
         <!-- How it works -->
         <section class="fade-in">
+            <div class="section-label">Getting started</div>
             <h2 class="section-title">How it works</h2>
             <p class="section-sub">From source to production in seconds.</p>
             <div class="steps">
@@ -1111,17 +1693,51 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
             </div>
         </section>
 
+        <div class="divider"></div>
+
+        <!-- Install -->
+        <section class="fade-in" id="install">
+            <div class="section-label">Install</div>
+            <h2 class="section-title">One command</h2>
+            <p class="section-sub">macOS and Linux. Requires Go 1.21+.</p>
+            <div class="install-box">
+                <code>curl -sSL https://haira.dev/install.sh | bash</code>
+                <button
+                    class="copy-btn"
+                    onclick="copyInstall(this)"
+                    title="Copy to clipboard"
+                >
+                    &#x2398;
+                </button>
+            </div>
+            <p class="install-alt">
+                Or download from
+                <a href="https://github.com/mrzdevcore/haira/releases"
+                    >GitHub Releases</a
+                >
+            </p>
+        </section>
+
         <!-- Footer -->
         <footer>
-            <p>
+            <div class="footer-links">
                 <a href="https://github.com/mrzdevcore/haira">GitHub</a>
-                &nbsp;&middot;&nbsp; Apache-2.0 License &nbsp;&middot;&nbsp;
-                Made with <span style="color: var(--gold)">Haira Gold</span>
+                <a href="https://github.com/mrzdevcore/haira/tree/main/examples"
+                    >Examples</a
+                >
+                <a href="https://github.com/mrzdevcore/haira/tree/main/spec"
+                    >Spec</a
+                >
+                <a href="https://github.com/mrzdevcore/haira/issues">Issues</a>
+            </div>
+            <p>
+                <span class="footer-haira">Haira</span> &mdash; Apache-2.0
+                License
             </p>
         </footer>
 
-        <!-- Scroll fade-in -->
         <script>
+            // Scroll fade-in
             const observer = new IntersectionObserver(
                 (entries) => {
                     entries.forEach((e) => {
@@ -1133,6 +1749,33 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
             document
                 .querySelectorAll(".fade-in")
                 .forEach((el) => observer.observe(el));
+
+            // Copy install command
+            function copyInstall(btn) {
+                navigator.clipboard.writeText(
+                    "curl -sSL https://haira.dev/install.sh | bash",
+                );
+                btn.textContent = "\u2713";
+                btn.classList.add("copied");
+                setTimeout(() => {
+                    btn.textContent = "\u2398";
+                    btn.classList.remove("copied");
+                }, 2000);
+            }
+
+            // Showcase tabs
+            function showTab(i) {
+                document
+                    .querySelectorAll(".showcase-tab")
+                    .forEach((t, idx) =>
+                        t.classList.toggle("active", idx === i),
+                    );
+                document
+                    .querySelectorAll(".showcase-panel")
+                    .forEach((p, idx) =>
+                        p.classList.toggle("active", idx === i),
+                    );
+            }
         </script>
     </body>
 </html>

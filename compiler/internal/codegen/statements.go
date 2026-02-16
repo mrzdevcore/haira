@@ -458,8 +458,8 @@ func emitErrDefer(em *GoEmitter, s ast.ErrDeferStmt) {
 	em.OpenBlock("if _haira_err != nil")
 	em.Line(ExprToGo(s.Value))
 	em.CloseBlock()
-	em.CloseBlock()
-	em.Line("()")
+	em.Dedent()
+	em.Line("}()")
 }
 
 // EmitBlockBody emits the body of a block (just the statements, no braces).

@@ -241,6 +241,11 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		}
 		if len(workflow.Hooks) > 0 {
 			emitWorkflowBodyWithHooks(em, workflow.Body, workflow.Hooks)
+		} else if hasRetrySteps(workflow.Body.Statements) {
+			// Retry steps need _wfResult for returns inside retry closures
+			em.Line("var _wfResult any")
+			em.Line("_ = _wfResult")
+			emitWorkflowBody(em, workflow.Body)
 		} else {
 			emitWorkflowBody(em, workflow.Body)
 		}
@@ -260,6 +265,20 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.CloseBlock()
 		em.Blank()
 	}
+}
+
+// hasRetrySteps returns true if any step in the workflow body has @retry.
+func hasRetrySteps(stmts []ast.Statement) bool {
+	for _, stmt := range stmts {
+		if step, ok := stmt.Node.(ast.StepStmt); ok {
+			for _, d := range step.Decorators {
+				if d.Name.Node == "retry" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func isStreamWorkflow(w ast.WorkflowDecl) bool {
@@ -318,7 +337,11 @@ func emitStreamFallbackBody(em *GoEmitter, block ast.Block) {
 
 func emitWorkflowBody(em *GoEmitter, block ast.Block) {
 	for _, stmt := range block.Statements {
-		emitWorkflowStatement(em, stmt)
+		if inCapturedContext {
+			emitWorkflowStatementCaptured(em, stmt)
+		} else {
+			emitWorkflowStatement(em, stmt)
+		}
 	}
 }
 
@@ -555,7 +578,9 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 		em.CloseBlock()
 		em.Dedent()
 		em.Line("}()")
+		inRetryContext = true
 		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
+		inRetryContext = false
 		em.Dedent()
 		em.Line("}()")
 		em.OpenBlock(fmt.Sprintf("if %s_err == nil", retryVar))
@@ -583,6 +608,14 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 			em.Line(fmt.Sprintf("return nil, %s_err", retryVar))
 		}
 		em.CloseBlock()
+		// If a return inside the retry closure set _wfResult, short-circuit
+		if inRetryContext || inCapturedContext {
+			// already handled by outer context
+		} else {
+			em.OpenBlock("if _wfResult != nil")
+			em.Line("return _wfResult, nil")
+			em.CloseBlock()
+		}
 	} else if onerrorHook != nil {
 		// No retry, but has onerror — wrap body in panic recovery
 		errVar := fmt.Sprintf("_stepErr%d", stepCounter)
@@ -642,7 +675,7 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 // emitStepReturn emits a return statement inside a step body, ensuring StepEnd is called first.
 func emitStepReturn(em *GoEmitter, s ast.ReturnStmt, wfName, stepName, timerVar string) {
 	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
-	if inCapturedContext {
+	if inCapturedContext || inRetryContext {
 		if len(s.Values) == 0 {
 			em.Line("return")
 		} else {
@@ -716,6 +749,10 @@ var stepCounter int
 // inCapturedContext is true when emitting inside a workflow-level onerror IIFE.
 // Returns become _wfResult assignments instead of actual returns.
 var inCapturedContext bool
+
+// inRetryContext is true when emitting inside a @retry step closure.
+// Returns become _wfResult assignments instead of actual returns.
+var inRetryContext bool
 
 func emitWorkflowIf(em *GoEmitter, ifStmt ast.IfStmt) {
 	cond := ExprToGo(ifStmt.Condition)

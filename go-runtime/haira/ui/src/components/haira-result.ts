@@ -16,83 +16,76 @@ export class HairaResult extends HTMLElement {
         :host { display: none; margin-top: 0.75rem; }
         :host([visible]) {
           display: block;
-          animation: fadeSlideUp 0.3s ease-out;
+          animation: fadeSlideUp 0.25s ease-out;
         }
         .card {
           background: var(--haira-bg-card);
           border: 1px solid var(--haira-border);
           border-radius: var(--haira-radius);
-          padding: 1rem;
-          position: relative;
+          overflow: hidden;
         }
         .header {
           display: flex;
           align-items: center;
+          justify-content: space-between;
+          padding: 0.6rem 0.85rem;
+          border-bottom: 1px solid var(--haira-border);
+        }
+        .header-left {
+          display: flex;
+          align-items: center;
           gap: 0.4rem;
           font-weight: 600;
-          font-size: 0.82rem;
+          font-size: 0.78rem;
           color: var(--haira-muted);
-          margin-bottom: 0.5rem;
         }
         .dot {
-          width: 7px;
-          height: 7px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           flex-shrink: 0;
         }
         .dot.success { background: var(--haira-success); }
         .dot.error { background: var(--haira-error); }
-        .body-wrap {
-          position: relative;
-        }
-        .body {
-          background: var(--haira-bg);
-          border: 1px solid var(--haira-border);
-          border-radius: 6px;
-          padding: 0.85rem;
-          font-family: var(--haira-mono);
-          font-size: 0.82rem;
-          line-height: 1.55;
-          white-space: pre-wrap;
-          word-break: break-word;
-          color: var(--haira-text-dim);
-          max-height: 500px;
-          overflow-y: auto;
-          ${scrollbarStyles}
-        }
-        .body.success { border-left: 3px solid var(--haira-success); }
-        .body.error { border-left: 3px solid var(--haira-error); }
         .copy-btn {
-          position: absolute;
-          top: 0.5rem;
-          right: 0.5rem;
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
+          background: none;
+          border: 1px solid transparent;
           border-radius: 4px;
-          padding: 0.3rem;
+          padding: 0.25rem;
           cursor: pointer;
           color: var(--haira-muted);
           display: flex;
           align-items: center;
           justify-content: center;
           transition: all 0.15s;
-          opacity: 0;
         }
-        .body-wrap:hover .copy-btn { opacity: 1; }
         .copy-btn:hover {
           color: var(--haira-gold);
-          border-color: var(--haira-gold);
+          border-color: var(--haira-border);
+          background: var(--haira-bg-elevated);
+        }
+        .body {
+          padding: 0.85rem;
+          font-family: var(--haira-mono);
+          font-size: 0.8rem;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          word-break: break-word;
+          color: var(--haira-text-dim);
+          max-height: 400px;
+          overflow-y: auto;
+          ${scrollbarStyles}
         }
       </style>
       <div class="card">
         <div class="header">
-          <span class="dot" id="dot"></span>
-          <span>Result</span>
-        </div>
-        <div class="body-wrap">
-          <div class="body" id="body"></div>
+          <div class="header-left">
+            <span class="dot" id="dot"></span>
+            <span id="label">Result</span>
+          </div>
           <button class="copy-btn" id="copy-btn" title="Copy to clipboard">${iconCopy}</button>
         </div>
+        <div class="body" id="body"></div>
       </div>
     `;
 
@@ -105,8 +98,9 @@ export class HairaResult extends HTMLElement {
     this.setAttribute("visible", "");
     const body = this.shadowRoot!.getElementById("body")!;
     const dot = this.shadowRoot!.getElementById("dot")!;
-    body.className = `body ${isError ? "error" : "success"}`;
+    const label = this.shadowRoot!.getElementById("label")!;
     dot.className = `dot ${isError ? "error" : "success"}`;
+    label.textContent = isError ? "Error" : "Result";
 
     if (typeof data === "string") {
       body.textContent = data;

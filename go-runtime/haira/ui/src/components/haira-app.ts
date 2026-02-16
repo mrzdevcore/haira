@@ -32,15 +32,12 @@ export class HairaApp extends HTMLElement {
           flex-direction: column;
         }
         header {
-          padding: 0.65rem 1.5rem;
+          padding: 0.6rem 1.25rem;
           border-bottom: 1px solid var(--haira-border);
-          border-image: linear-gradient(90deg, transparent, var(--haira-gold-dim), transparent) 1;
           display: flex;
           align-items: center;
           gap: 0.6rem;
-          background: rgba(10, 8, 6, 0.92);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
+          background: var(--haira-bg);
           position: sticky;
           top: 0;
           z-index: 100;
@@ -48,7 +45,7 @@ export class HairaApp extends HTMLElement {
         .logo {
           display: flex;
           align-items: center;
-          gap: 0.45rem;
+          gap: 0.4rem;
           text-decoration: none;
         }
         .logo-icon {
@@ -57,7 +54,7 @@ export class HairaApp extends HTMLElement {
         }
         .logo-text {
           font-weight: 700;
-          font-size: 0.95rem;
+          font-size: 0.92rem;
           color: var(--haira-text);
           letter-spacing: -0.01em;
         }
@@ -66,11 +63,12 @@ export class HairaApp extends HTMLElement {
         }
         .sep {
           color: var(--haira-muted);
-          font-size: 0.8rem;
+          font-size: 0.75rem;
+          opacity: 0.5;
         }
         .title {
           color: var(--haira-text-dim);
-          font-size: 0.88rem;
+          font-size: 0.85rem;
           font-weight: 500;
         }
         main {

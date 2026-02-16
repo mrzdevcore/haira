@@ -16,22 +16,22 @@ export class HairaPipeline extends HTMLElement {
         ${sharedKeyframes}
         :host {
           display: none;
-          margin-top: 0.75rem;
+          margin-top: 1.25rem;
         }
         :host([visible]) {
           display: block;
-          animation: fadeSlideUp 0.3s ease-out;
+          animation: fadeIn 0.2s ease-out;
         }
         .header {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          padding: 0.75rem 1rem 0.5rem;
-          font-size: 0.78rem;
+          padding: 0 0.25rem 0.6rem;
+          font-size: 0.72rem;
           font-weight: 600;
           color: var(--haira-muted);
           text-transform: uppercase;
-          letter-spacing: 0.04em;
+          letter-spacing: 0.06em;
         }
         .header-line {
           flex: 1;
@@ -41,17 +41,23 @@ export class HairaPipeline extends HTMLElement {
         .pipeline {
           display: flex;
           flex-direction: column;
-          gap: 6px;
-          padding: 0.5rem 0;
+          gap: 1px;
+          background: var(--haira-bg-card);
+          border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius);
+          padding: 0.35rem;
+          overflow: hidden;
         }
         .summary {
           display: none;
-          text-align: center;
-          padding: 0.65rem 1rem;
-          font-size: 0.8rem;
+          padding: 0.75rem 1rem;
+          font-size: 0.78rem;
           color: var(--haira-muted);
           border-top: 1px solid var(--haira-border);
-          margin-top: 0.25rem;
+          margin-top: 0.5rem;
+          border-radius: var(--haira-radius-sm);
+          background: var(--haira-bg-card);
+          text-align: center;
         }
         .summary.visible {
           display: block;
@@ -64,6 +70,10 @@ export class HairaPipeline extends HTMLElement {
         .summary .time {
           color: var(--haira-gold);
           font-family: var(--haira-mono);
+          font-weight: 600;
+        }
+        .summary .failed-count {
+          color: var(--haira-error);
         }
       </style>
       <div class="header">
@@ -93,7 +103,6 @@ export class HairaPipeline extends HTMLElement {
       const step = document.createElement("haira-step") as HairaStep;
       step.setAttribute("name", name);
       step.setAttribute("index", String(i));
-      step.style.animationDelay = `${i * 60}ms`;
       container.appendChild(step);
       this.stepElements.push(step);
     });
@@ -150,16 +159,16 @@ export class HairaPipeline extends HTMLElement {
     ).length;
     const totalSec = (this.totalDuration / 1000).toFixed(1);
 
-    let text = `<span class="count">${doneCount} step${doneCount !== 1 ? "s" : ""} completed`;
-    if (failedCount > 0) text += `, ${failedCount} failed`;
-    if (skippedCount > 0) text += `, ${skippedCount} skipped`;
-    text += `</span> in <span class="time">${totalSec}s</span>`;
+    let text = `<span class="count">${doneCount}/${this.steps.length} steps completed`;
+    if (failedCount > 0)
+      text += ` &middot; <span class="failed-count">${failedCount} failed</span>`;
+    if (skippedCount > 0) text += ` &middot; ${skippedCount} skipped`;
+    text += `</span> &middot; <span class="time">${totalSec}s total</span>`;
 
     summary.innerHTML = text;
     summary.classList.add("visible");
   }
 
-  /** Called when the workflow completes — finalize any steps still running or pending. */
   finalize() {
     for (let i = 0; i < this.stepStatuses.length; i++) {
       const s = this.stepStatuses[i];

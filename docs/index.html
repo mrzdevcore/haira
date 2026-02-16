@@ -18,14 +18,28 @@
         />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://haira.dev" />
+        <meta name="theme-color" content="#E8A317" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta
+            name="twitter:title"
+            content="Haira — The programming language for AI agents"
+        />
+        <meta
+            name="twitter:description"
+            content="Build agents and workflows, not boilerplate. Four keywords. One binary."
+        />
         <link
             rel="icon"
             type="image/svg+xml"
             href="https://raw.githubusercontent.com/mrzdevcore/haira/main/assets/icon.svg"
         />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
         <style>
-            @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
-
             *,
             *::before,
             *::after {
@@ -63,6 +77,7 @@
                 line-height: 1.7;
                 overflow-x: hidden;
                 -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
             }
             a {
                 color: var(--gold);
@@ -76,6 +91,19 @@
                 font-family: var(--mono);
             }
 
+            /* ===== HAIRA AI HIGHLIGHT ===== */
+            .haira-text .ai {
+                background: linear-gradient(
+                    135deg,
+                    var(--gold-light),
+                    var(--gold)
+                );
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                font-weight: inherit;
+            }
+
             /* ===== NAV ===== */
             nav {
                 position: fixed;
@@ -83,10 +111,16 @@
                 left: 0;
                 right: 0;
                 z-index: 100;
-                background: rgba(10, 8, 6, 0.85);
-                backdrop-filter: blur(16px);
-                -webkit-backdrop-filter: blur(16px);
-                border-bottom: 1px solid var(--border);
+                background: rgba(10, 8, 6, 0.7);
+                backdrop-filter: blur(20px) saturate(180%);
+                -webkit-backdrop-filter: blur(20px) saturate(180%);
+                border-bottom: 1px solid transparent;
+                transition: all 0.3s ease;
+            }
+            nav.scrolled {
+                background: rgba(10, 8, 6, 0.92);
+                border-bottom-color: var(--border);
+                box-shadow: 0 1px 24px rgba(0, 0, 0, 0.25);
             }
             .nav-inner {
                 max-width: var(--max-w);
@@ -95,15 +129,16 @@
                 align-items: center;
                 justify-content: space-between;
                 padding: 0 2rem;
-                height: 56px;
+                height: 60px;
             }
             .nav-brand {
                 display: flex;
                 align-items: center;
                 gap: 0.6rem;
                 font-weight: 700;
-                font-size: 1.1rem;
+                font-size: 1.15rem;
                 color: var(--text);
+                transition: all 0.2s;
             }
             .nav-brand:hover {
                 color: var(--gold);
@@ -111,6 +146,10 @@
             .nav-brand svg {
                 width: 28px;
                 height: 30px;
+                transition: transform 0.3s ease;
+            }
+            .nav-brand:hover svg {
+                transform: rotate(-5deg) scale(1.05);
             }
             .nav-links {
                 display: flex;
@@ -121,6 +160,21 @@
                 color: var(--text-dim);
                 font-size: 0.88rem;
                 font-weight: 500;
+                position: relative;
+                transition: color 0.2s;
+            }
+            .nav-links a:not(.nav-gh)::after {
+                content: "";
+                position: absolute;
+                bottom: -4px;
+                left: 0;
+                width: 0;
+                height: 1.5px;
+                background: var(--gold);
+                transition: width 0.25s ease;
+            }
+            .nav-links a:not(.nav-gh):hover::after {
+                width: 100%;
             }
             .nav-links a:hover {
                 color: var(--gold);
@@ -134,24 +188,99 @@
                 padding: 0.15rem 0.5rem;
                 border-radius: 20px;
                 margin-left: -0.5rem;
+                transition: all 0.2s;
             }
             .nav-gh {
                 display: flex;
                 align-items: center;
                 gap: 0.4rem;
                 color: var(--text-dim) !important;
+                padding: 0.4rem 0.75rem;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                transition: all 0.2s;
+            }
+            .nav-gh:hover {
+                border-color: var(--gold) !important;
+                background: rgba(232, 163, 23, 0.05);
             }
             .nav-gh svg {
                 width: 18px;
                 height: 18px;
                 fill: currentColor;
             }
+
+            /* Mobile menu */
+            .nav-toggle {
+                display: none;
+                flex-direction: column;
+                gap: 4px;
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 6px;
+                z-index: 110;
+            }
+            .nav-toggle span {
+                display: block;
+                width: 20px;
+                height: 2px;
+                background: var(--text-dim);
+                border-radius: 2px;
+                transition: all 0.3s ease;
+            }
+            .nav-toggle.active span:nth-child(1) {
+                transform: rotate(45deg) translate(4px, 4px);
+            }
+            .nav-toggle.active span:nth-child(2) {
+                opacity: 0;
+            }
+            .nav-toggle.active span:nth-child(3) {
+                transform: rotate(-45deg) translate(4px, -4px);
+            }
             @media (max-width: 640px) {
-                .nav-links a:not(.nav-gh) {
+                .nav-toggle {
+                    display: flex;
+                }
+                .nav-links {
+                    position: fixed;
+                    top: 0;
+                    right: -100%;
+                    width: 280px;
+                    height: 100vh;
+                    background: rgba(10, 8, 6, 0.98);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    flex-direction: column;
+                    justify-content: center;
+                    gap: 2rem;
+                    transition: right 0.35s ease;
+                    border-left: 1px solid var(--border);
+                }
+                .nav-links.open {
+                    right: 0;
+                }
+                .nav-links a {
+                    font-size: 1.05rem;
+                }
+                .nav-links a:not(.nav-gh)::after {
                     display: none;
                 }
                 .nav-tag {
-                    display: none;
+                    margin-left: 0;
+                }
+                .mobile-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    z-index: 99;
+                    opacity: 0;
+                    visibility: hidden;
+                    transition: all 0.3s;
+                }
+                .mobile-overlay.visible {
+                    opacity: 1;
+                    visibility: visible;
                 }
             }
 
@@ -160,7 +289,7 @@
                 position: relative;
                 max-width: var(--max-w);
                 margin: 0 auto;
-                padding: 8rem 2rem 5rem;
+                padding: 9rem 2rem 5rem;
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 4rem;
@@ -169,24 +298,35 @@
             @media (max-width: 900px) {
                 .hero {
                     grid-template-columns: 1fr;
-                    padding: 7rem 1.5rem 3rem;
+                    padding: 7.5rem 1.5rem 3rem;
                     gap: 2.5rem;
                     text-align: center;
                 }
             }
             .hero-glow {
                 position: absolute;
-                top: 0;
+                top: -50px;
                 left: 50%;
                 transform: translateX(-50%);
-                width: 800px;
-                height: 500px;
+                width: 900px;
+                height: 600px;
                 background: radial-gradient(
                     ellipse at center,
-                    rgba(232, 163, 23, 0.06) 0%,
+                    rgba(232, 163, 23, 0.08) 0%,
+                    rgba(232, 163, 23, 0.03) 30%,
                     transparent 70%
                 );
                 pointer-events: none;
+                animation: glowPulse 6s ease-in-out infinite;
+            }
+            @keyframes glowPulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.7;
+                }
             }
             .hero-text {
                 position: relative;
@@ -204,6 +344,11 @@
                 padding: 0.35rem 0.85rem;
                 border-radius: 20px;
                 margin-bottom: 1.5rem;
+                transition: all 0.3s;
+            }
+            .hero-badge:hover {
+                background: rgba(232, 163, 23, 0.12);
+                border-color: rgba(232, 163, 23, 0.3);
             }
             .hero-badge-dot {
                 width: 6px;
@@ -211,21 +356,24 @@
                 border-radius: 50%;
                 background: var(--gold);
                 animation: pulse 2s ease-in-out infinite;
+                box-shadow: 0 0 6px rgba(232, 163, 23, 0.5);
             }
             @keyframes pulse {
                 0%,
                 100% {
                     opacity: 1;
+                    box-shadow: 0 0 6px rgba(232, 163, 23, 0.5);
                 }
                 50% {
                     opacity: 0.4;
+                    box-shadow: 0 0 2px rgba(232, 163, 23, 0.2);
                 }
             }
             .hero h1 {
-                font-size: clamp(2.5rem, 5vw, 3.6rem);
+                font-size: clamp(2.5rem, 5vw, 3.8rem);
                 font-weight: 800;
                 letter-spacing: -1.5px;
-                line-height: 1.1;
+                line-height: 1.08;
                 margin-bottom: 1.25rem;
             }
             .hero h1 .gold {
@@ -274,14 +422,16 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 0.5rem;
-                padding: 0.7rem 1.75rem;
-                border-radius: 8px;
+                padding: 0.75rem 1.85rem;
+                border-radius: 10px;
                 font-weight: 600;
                 font-size: 0.9rem;
                 border: none;
                 cursor: pointer;
-                transition: all 0.2s;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
                 text-decoration: none;
+                position: relative;
+                overflow: hidden;
             }
             .btn-primary {
                 background: linear-gradient(
@@ -290,12 +440,20 @@
                     var(--gold-light)
                 );
                 color: #1a0e04;
-                box-shadow: 0 2px 16px rgba(232, 163, 23, 0.25);
+                box-shadow:
+                    0 2px 16px rgba(232, 163, 23, 0.25),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.15);
             }
             .btn-primary:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 24px rgba(232, 163, 23, 0.4);
+                transform: translateY(-2px);
+                box-shadow:
+                    0 6px 28px rgba(232, 163, 23, 0.45),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.15);
                 color: #1a0e04;
+            }
+            .btn-primary:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 12px rgba(232, 163, 23, 0.3);
             }
             .btn-ghost {
                 background: transparent;
@@ -305,6 +463,7 @@
             .btn-ghost:hover {
                 border-color: var(--gold);
                 color: var(--gold);
+                background: rgba(232, 163, 23, 0.04);
             }
 
             /* Hero code panel */
@@ -317,7 +476,16 @@
                 border: 1px solid var(--border);
                 border-radius: var(--radius);
                 overflow: hidden;
-                box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+                box-shadow:
+                    0 20px 60px rgba(0, 0, 0, 0.45),
+                    0 0 0 1px rgba(232, 163, 23, 0.05);
+                transition: all 0.3s ease;
+            }
+            .code-window:hover {
+                box-shadow:
+                    0 24px 64px rgba(0, 0, 0, 0.5),
+                    0 0 0 1px rgba(232, 163, 23, 0.1);
+                transform: translateY(-2px);
             }
             .code-bar {
                 display: flex;
@@ -331,6 +499,7 @@
                 width: 10px;
                 height: 10px;
                 border-radius: 50%;
+                transition: opacity 0.2s;
             }
             .code-dot.r {
                 background: #ff5f57;
@@ -413,7 +582,7 @@
                 font-size: 0.72rem;
                 font-weight: 700;
                 text-transform: uppercase;
-                letter-spacing: 2px;
+                letter-spacing: 2.5px;
                 color: var(--gold);
                 text-align: center;
                 margin-bottom: 0.75rem;
@@ -451,26 +620,56 @@
                 border: 1px solid var(--border);
                 border-radius: var(--radius);
                 padding: 2rem 1.75rem;
-                transition: all 0.25s;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
+            }
+            .pillar::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    var(--gold),
+                    transparent
+                );
+                opacity: 0;
+                transition: opacity 0.3s;
             }
             .pillar:hover {
                 border-color: var(--border-light);
-                transform: translateY(-2px);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            }
+            .pillar:hover::before {
+                opacity: 1;
             }
             .pillar-icon {
-                width: 40px;
-                height: 40px;
-                border-radius: 10px;
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
                 background: linear-gradient(
                     135deg,
-                    rgba(232, 163, 23, 0.12),
+                    rgba(232, 163, 23, 0.15),
                     rgba(232, 163, 23, 0.03)
                 );
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                margin-bottom: 1rem;
+                margin-bottom: 1.15rem;
+                transition: all 0.3s;
+            }
+            .pillar:hover .pillar-icon {
+                background: linear-gradient(
+                    135deg,
+                    rgba(232, 163, 23, 0.25),
+                    rgba(232, 163, 23, 0.08)
+                );
+                transform: scale(1.05);
             }
             .pillar-icon svg {
                 width: 20px;
@@ -503,13 +702,16 @@
                 overflow: hidden;
                 border: 1px solid var(--border);
                 background: var(--card-solid);
-                transition: all 0.2s;
+                transition: all 0.3s;
             }
             .compare-col:hover {
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             }
             .compare-col.hl {
                 border-color: rgba(232, 163, 23, 0.35);
+            }
+            .compare-col.hl:hover {
+                border-color: rgba(232, 163, 23, 0.5);
             }
             .compare-header {
                 display: flex;
@@ -563,11 +765,14 @@
                 border: 1px solid var(--border);
                 border-radius: var(--radius);
                 padding: 1.75rem;
-                transition: all 0.25s;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
             }
             .prim:hover {
                 border-color: var(--border-light);
-                transform: translateY(-2px);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
             }
             .prim-label {
                 font-size: 0.65rem;
@@ -612,11 +817,14 @@
                 border: 1px solid var(--border);
                 border-radius: var(--radius);
                 padding: 1.5rem 1.5rem;
-                transition: all 0.25s;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
             }
             .feat:hover {
                 border-color: var(--border-light);
-                transform: translateY(-2px);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
             }
             .feat h3 {
                 font-size: 0.95rem;
@@ -658,11 +866,12 @@
                 border-radius: var(--radius);
                 padding: 1.5rem;
                 text-align: center;
-                transition: all 0.25s;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }
             .use-case:hover {
                 border-color: var(--border-light);
-                transform: translateY(-2px);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
             }
             .use-case-icon {
                 font-size: 1.8rem;
@@ -688,6 +897,11 @@
                 border: 1px solid rgba(232, 163, 23, 0.12);
                 padding: 0.2rem 0.5rem;
                 border-radius: 4px;
+                transition: all 0.2s;
+            }
+            .use-case:hover .replaces {
+                background: rgba(232, 163, 23, 0.1);
+                border-color: rgba(232, 163, 23, 0.2);
             }
 
             /* ===== STEPS ===== */
@@ -741,6 +955,11 @@
                 justify-content: center;
                 margin: 0 auto 1rem;
                 box-shadow: 0 4px 16px rgba(232, 163, 23, 0.2);
+                transition: all 0.3s;
+            }
+            .step:hover .step-num {
+                transform: scale(1.08);
+                box-shadow: 0 6px 24px rgba(232, 163, 23, 0.35);
             }
             .step h3 {
                 font-size: 1rem;
@@ -767,13 +986,18 @@
                 margin: 0 auto;
                 background: var(--card-solid);
                 border: 1px solid var(--border);
-                border-radius: 8px;
+                border-radius: 10px;
                 padding: 0.9rem 3.5rem 0.9rem 1.25rem;
                 font-family: var(--mono);
                 font-size: 0.9rem;
                 color: var(--gold);
                 overflow-x: auto;
                 white-space: nowrap;
+                transition: all 0.3s;
+            }
+            .install-box:hover {
+                border-color: rgba(232, 163, 23, 0.3);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
             }
             .install-box .copy-btn {
                 position: absolute;
@@ -867,21 +1091,29 @@
                 }
             }
 
-            /* Browser chrome */
+            /* Browser chrome — Haira dark theme */
             .browser-frame {
-                border-radius: 10px;
+                border-radius: 12px;
                 overflow: hidden;
+                border: 1px solid var(--border);
                 box-shadow:
-                    0 20px 60px rgba(0, 0, 0, 0.45),
-                    0 0 0 1px rgba(0, 0, 0, 0.08);
+                    0 20px 60px rgba(0, 0, 0, 0.5),
+                    0 0 0 1px rgba(232, 163, 23, 0.05);
+                transition: all 0.3s;
+            }
+            .browser-frame:hover {
+                box-shadow:
+                    0 24px 68px rgba(0, 0, 0, 0.55),
+                    0 0 0 1px rgba(232, 163, 23, 0.1);
+                transform: translateY(-2px);
             }
             .browser-bar {
                 display: flex;
                 align-items: center;
                 gap: 0.4rem;
                 padding: 0.6rem 0.9rem;
-                background: #e2e2e2;
-                border-bottom: 1px solid #d0d0d0;
+                background: rgba(20, 15, 8, 0.9);
+                border-bottom: 1px solid var(--border);
             }
             .browser-bar .code-dot {
                 width: 10px;
@@ -890,18 +1122,17 @@
             .browser-url {
                 flex: 1;
                 margin-left: 0.5rem;
-                background: #fff;
-                border: 1px solid #ccc;
+                background: rgba(10, 8, 6, 0.6);
+                border: 1px solid var(--border);
                 border-radius: 6px;
                 padding: 0.3rem 0.7rem;
                 font-size: 0.72rem;
                 font-family: var(--mono);
-                color: #444;
+                color: var(--muted);
                 letter-spacing: -0.2px;
             }
-            /* The actual Haira form UI — faithfully reproduced */
             .browser-body {
-                background: #f5f5f5;
+                background: var(--dark);
                 min-height: 200px;
                 display: flex;
                 justify-content: center;
@@ -910,128 +1141,147 @@
             .haira-ui {
                 max-width: 600px;
                 width: 100%;
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    sans-serif;
-                color: #1a1a1a;
+                font-family: var(--sans);
+                color: var(--text);
             }
             .haira-ui h1 {
                 font-size: 1.35rem;
-                font-weight: 600;
+                font-weight: 700;
                 margin-bottom: 0.2rem;
                 display: flex;
                 align-items: center;
                 gap: 0.5rem;
-                color: #1a1a1a;
-                letter-spacing: 0;
+                color: var(--text);
+                letter-spacing: -0.3px;
                 background: none;
-                -webkit-text-fill-color: #1a1a1a;
+                -webkit-text-fill-color: var(--text);
             }
             .haira-ui .hbadge {
                 display: inline-block;
-                font-size: 0.65rem;
+                font-size: 0.62rem;
                 font-weight: 700;
-                padding: 0.12rem 0.5rem;
-                border-radius: 3px;
-                color: #fff;
-                background: #49cc90;
+                padding: 0.12rem 0.55rem;
+                border-radius: 4px;
+                color: #1a0e04;
+                background: linear-gradient(
+                    135deg,
+                    var(--gold),
+                    var(--gold-light)
+                );
                 vertical-align: middle;
+                letter-spacing: 0.5px;
             }
             .haira-ui .hdesc {
                 font-size: 0.85rem;
-                color: #666;
+                color: var(--muted);
                 margin-bottom: 0.2rem;
             }
             .haira-ui .hpath {
-                font-family: monospace;
-                font-size: 0.82rem;
-                color: #555;
+                font-family: var(--mono);
+                font-size: 0.78rem;
+                color: var(--gold);
+                background: rgba(232, 163, 23, 0.06);
+                display: inline-block;
+                padding: 0.15rem 0.5rem;
+                border-radius: 4px;
+                border: 1px solid rgba(232, 163, 23, 0.12);
                 margin-bottom: 1.25rem;
             }
             .haira-ui .hcard {
-                background: #fff;
-                border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                background: var(--card);
+                border-radius: 10px;
+                border: 1px solid var(--border);
                 padding: 1.5rem;
             }
             .haira-ui .hcard label {
                 display: block;
                 font-weight: 600;
-                font-size: 0.88rem;
+                font-size: 0.82rem;
                 margin-bottom: 0.3rem;
-                color: #1a1a1a;
+                color: var(--text-dim);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
             }
             .haira-ui .hcard input[type="text"],
             .haira-ui .hcard input[type="file"] {
                 width: 100%;
-                padding: 0.5rem 0.75rem;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                font-size: 0.88rem;
+                padding: 0.55rem 0.75rem;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-size: 0.85rem;
                 margin-bottom: 1rem;
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    sans-serif;
-                background: #fff;
-                color: #333;
+                font-family: var(--sans);
+                background: rgba(10, 8, 6, 0.5);
+                color: var(--text);
+                transition: all 0.2s;
             }
             .haira-ui .hcard input[type="file"] {
-                background: #fafafa;
-                color: #666;
-                font-size: 0.82rem;
+                background: rgba(10, 8, 6, 0.4);
+                color: var(--muted);
+                font-size: 0.8rem;
             }
             .haira-ui .hcard input:focus {
                 outline: none;
-                border-color: #4f8cff;
-                box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.15);
+                border-color: var(--gold);
+                box-shadow: 0 0 0 2px rgba(232, 163, 23, 0.15);
             }
             .haira-ui .hcard button {
                 width: 100%;
-                padding: 0.6rem 1.5rem;
+                padding: 0.65rem 1.5rem;
                 border: none;
-                background: #4f8cff;
-                color: #fff;
-                border-radius: 5px;
-                font-size: 0.92rem;
-                font-weight: 600;
+                background: linear-gradient(
+                    135deg,
+                    var(--gold),
+                    var(--gold-light)
+                );
+                color: #1a0e04;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-weight: 700;
                 cursor: default;
                 font-family: inherit;
+                box-shadow: 0 2px 12px rgba(232, 163, 23, 0.2);
+                letter-spacing: 0.2px;
             }
             .haira-ui .hresult {
                 margin-top: 1rem;
             }
             .haira-ui .hresult .hresult-card {
-                background: #fff;
-                border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                background: var(--card);
+                border-radius: 10px;
+                border: 1px solid var(--border);
                 padding: 1.25rem;
             }
             .haira-ui .hresult-header {
                 font-weight: 600;
-                font-size: 0.82rem;
-                color: #555;
-                margin-bottom: 0.4rem;
+                font-size: 0.75rem;
+                color: var(--muted);
+                margin-bottom: 0.5rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
             }
             .haira-ui .hresult-body {
-                background: #1e1e1e;
-                color: #d4d4d4;
+                background: rgba(10, 8, 6, 0.6);
+                color: var(--text-dim);
                 padding: 1rem;
-                border-radius: 5px;
-                font-family: monospace;
-                font-size: 0.82rem;
+                border-radius: 8px;
+                font-family: var(--mono);
+                font-size: 0.78rem;
                 white-space: pre-wrap;
                 word-break: break-word;
-                line-height: 1.55;
-                border-left: 3px solid #49cc90;
+                line-height: 1.6;
+                border-left: 3px solid var(--gold);
                 margin: 0;
+                border-top: 1px solid var(--border);
+                border-right: 1px solid var(--border);
+                border-bottom: 1px solid var(--border);
             }
             .haira-ui .hresult-body .jk {
-                color: #9cdcfe;
+                color: var(--gold-light);
             }
             .haira-ui .hresult-body .jv {
-                color: #ce9178;
+                color: var(--glow);
             }
-
             .autoui-label {
                 text-align: center;
                 margin-top: 0.75rem;
@@ -1059,6 +1309,7 @@
                 transition: all 0.2s;
                 border-radius: var(--radius) var(--radius) 0 0;
                 font-family: var(--sans);
+                position: relative;
             }
             .showcase-tab:hover {
                 color: var(--text-dim);
@@ -1067,6 +1318,15 @@
                 color: var(--gold);
                 background: var(--card-solid);
                 border-color: var(--border);
+            }
+            .showcase-tab.active::after {
+                content: "";
+                position: absolute;
+                bottom: -1px;
+                left: 0;
+                right: 0;
+                height: 1px;
+                background: var(--card-solid);
             }
             .showcase-panel {
                 display: none;
@@ -1077,6 +1337,17 @@
             }
             .showcase-panel.active {
                 display: block;
+                animation: fadeTab 0.3s ease;
+            }
+            @keyframes fadeTab {
+                from {
+                    opacity: 0;
+                    transform: translateY(4px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
             }
             .showcase-panel pre {
                 padding: 1.5rem;
@@ -1101,13 +1372,42 @@
             /* ===== FOOTER ===== */
             footer {
                 text-align: center;
-                padding: 3rem 2rem;
+                padding: 3.5rem 2rem;
                 border-top: 1px solid var(--border);
                 color: var(--muted);
                 font-size: 0.82rem;
+                background: rgba(10, 8, 6, 0.5);
+            }
+            .footer-inner {
+                max-width: var(--max-w);
+                margin: 0 auto;
+            }
+            .footer-brand {
+                margin-bottom: 1.5rem;
+            }
+            .footer-brand-name {
+                font-size: 1.3rem;
+                font-weight: 700;
+                color: var(--text);
+            }
+            .footer-brand-name .ai {
+                background: linear-gradient(
+                    135deg,
+                    var(--gold-light),
+                    var(--gold)
+                );
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .footer-tagline {
+                font-size: 0.82rem;
+                color: var(--muted);
+                margin-top: 0.3rem;
             }
             footer a {
-                color: var(--muted);
+                color: var(--text-dim);
+                transition: color 0.2s;
             }
             footer a:hover {
                 color: var(--gold);
@@ -1116,12 +1416,59 @@
                 display: flex;
                 gap: 1.5rem;
                 justify-content: center;
-                margin-bottom: 0.75rem;
+                margin-bottom: 1.5rem;
                 flex-wrap: wrap;
+            }
+            .footer-links a {
+                font-size: 0.85rem;
+                font-weight: 500;
+            }
+            .footer-divider {
+                width: 60px;
+                height: 1px;
+                background: var(--border);
+                margin: 1.25rem auto;
+            }
+            .footer-bottom {
+                font-size: 0.78rem;
+                color: var(--muted);
             }
             .footer-haira {
                 color: var(--gold);
                 font-weight: 600;
+            }
+
+            /* ===== SCROLL TO TOP ===== */
+            .scroll-top {
+                position: fixed;
+                bottom: 2rem;
+                right: 2rem;
+                width: 40px;
+                height: 40px;
+                border-radius: 10px;
+                background: var(--card-solid);
+                border: 1px solid var(--border);
+                color: var(--gold);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(8px);
+                transition: all 0.3s ease;
+                z-index: 50;
+                font-size: 1rem;
+            }
+            .scroll-top.visible {
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+            }
+            .scroll-top:hover {
+                background: rgba(232, 163, 23, 0.1);
+                border-color: var(--gold);
+                transform: translateY(-2px);
             }
 
             /* ===== PARTICLES ===== */
@@ -1174,16 +1521,26 @@
                 animation-delay: 5s;
                 animation-duration: 8s;
             }
+            .particles span:nth-child(7) {
+                left: 15%;
+                animation-delay: 6s;
+                animation-duration: 10s;
+            }
+            .particles span:nth-child(8) {
+                left: 55%;
+                animation-delay: 7s;
+                animation-duration: 9s;
+            }
             @keyframes particle {
                 0% {
                     transform: translateY(100vh);
                     opacity: 0;
                 }
                 10% {
-                    opacity: 0.1;
+                    opacity: 0.08;
                 }
                 90% {
-                    opacity: 0.1;
+                    opacity: 0.08;
                 }
                 100% {
                     transform: translateY(-10vh);
@@ -1194,27 +1551,57 @@
             /* ===== FADE IN ===== */
             .fade-in {
                 opacity: 0;
-                transform: translateY(16px);
+                transform: translateY(20px);
                 transition:
-                    opacity 0.5s ease,
-                    transform 0.5s ease;
+                    opacity 0.6s ease,
+                    transform 0.6s ease;
             }
             .fade-in.visible {
                 opacity: 1;
                 transform: translateY(0);
+            }
+
+            /* ===== SELECTION ===== */
+            ::selection {
+                background: rgba(232, 163, 23, 0.25);
+                color: var(--text);
+            }
+
+            /* ===== FOCUS VISIBLE ===== */
+            :focus-visible {
+                outline: 2px solid var(--gold);
+                outline-offset: 2px;
+            }
+
+            /* ===== REDUCED MOTION ===== */
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+                .fade-in {
+                    opacity: 1;
+                    transform: none;
+                }
             }
         </style>
     </head>
     <body>
         <div class="particles">
             <span></span><span></span><span></span><span></span><span></span
-            ><span></span>
+            ><span></span><span></span><span></span>
         </div>
 
+        <!-- Mobile overlay -->
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
         <!-- Nav -->
-        <nav>
+        <nav id="mainNav">
             <div class="nav-inner">
-                <a href="/" class="nav-brand">
+                <a href="/" class="nav-brand haira-text">
                     <svg
                         viewBox="0 0 64 68"
                         fill="none"
@@ -1360,11 +1747,21 @@
                             height="4"
                             rx="2"
                             fill="#5C3A1E"
-                        />
-                    </svg>
-                    Haira
-                </a>
-                <div class="nav-links">
+                        /></svg
+                    ><span class="haira-word"
+                        >H<span class="ai">ai</span>ra</span
+                    ></a
+                >
+                <button
+                    class="nav-toggle"
+                    id="navToggle"
+                    aria-label="Toggle menu"
+                >
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <div class="nav-links" id="navLinks">
                     <span class="nav-tag">v0.1</span>
                     <a href="#features">Features</a>
                     <a href="#examples">Examples</a>
@@ -1373,12 +1770,14 @@
                         href="https://github.com/mrzdevcore/haira"
                         class="nav-gh"
                         target="_blank"
+                        rel="noopener"
                     >
                         <svg viewBox="0 0 16 16">
                             <path
                                 d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
                             />
                         </svg>
+                        GitHub
                     </a>
                 </div>
             </div>
@@ -1396,7 +1795,20 @@
                     Build <span class="gold">agents</span>, not boilerplate.
                 </h1>
                 <p class="hero-sub">
-                    Haira is a compiled, type-safe programming language with
+                    H<span
+                        style="
+                            background: linear-gradient(
+                                135deg,
+                                var(--gold-light),
+                                var(--gold)
+                            );
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                            background-clip: text;
+                            font-weight: 700;
+                        "
+                        >ai</span
+                    >ra is a compiled, type-safe programming language with
                     first-class primitives for AI agents, tools, and workflows.
                     Four keywords. One binary.
                 </p>
@@ -1411,6 +1823,7 @@
                         href="https://github.com/mrzdevcore/haira"
                         class="btn btn-ghost"
                         target="_blank"
+                        rel="noopener"
                         >View on GitHub</a
                     >
                 </div>
@@ -1799,10 +2212,6 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                             <span class="code-title">summarizer.haira</span>
                         </div>
                         <div class="code-body" id="autoui-code"></div>
-                        <script>
-                            document.getElementById("autoui-code").innerHTML =
-                                '<pre><code><span class="kw">import<\/span> <span class="str">"io"<\/span>\n<span class="kw">import<\/span> <span class="str">"http"<\/span>\n\n<span class="kw">provider<\/span> <span class="fn">openai<\/span> {\n    api_key: <span class="fn">env<\/span>(<span class="str">"OPENAI_API_KEY"<\/span>)\n    model: <span class="str">"gpt-4o"<\/span>\n}\n\n<span class="kw">agent<\/span> <span class="fn">Summarizer<\/span> {\n    model: openai\n    system: <span class="str">"Summarize clearly."<\/span>\n    temperature: <span class="num">0.3<\/span>\n}\n\n<span class="dec">@webui<\/span>(title: <span class="str">"File Summarizer"<\/span>,\n       description: <span class="str">"Upload a text file and get an AI summary"<\/span>)\n<span class="dec">@post<\/span>(<span class="str">"/summarize"<\/span>)\n<span class="kw">workflow<\/span> <span class="fn">Summarize<\/span>(document: <span class="type">file<\/span>, context: <span class="type">string<\/span>, format: <span class="type">string<\/span>) -> { summary: <span class="type">string<\/span> } {\n    content, err = io.read_file(document)\n    <span class="kw">if<\/span> err != nil {\n        <span class="kw">return<\/span> { summary: <span class="str">"Failed."<\/span> }\n    }\n\n    prompt = <span class="str">"Summarize: ${content}"<\/span>\n    reply, _ = Summarizer.ask(prompt)\n    <span class="kw">return<\/span> { summary: reply }\n}\n\n<span class="kw">fn<\/span> <span class="fn">main<\/span>() {\n    http.Server([Summarize]).listen(<span class="num">8080<\/span>)\n}<\/code><\/pre>';
-                        </script>
                     </div>
                     <p class="autoui-label">Your Haira source code</p>
                 </div>
@@ -1813,7 +2222,7 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                     <span class="arrow-v">&#x2193;</span>
                 </div>
 
-                <!-- Right: Real HTML form UI (matches go-runtime/haira/ui/form.html) -->
+                <!-- Right: Real HTML form UI -->
                 <div class="ui-side">
                     <div class="browser-frame">
                         <div class="browser-bar">
@@ -1868,12 +2277,6 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                                             class="hresult-body"
                                             id="autoui-result"
                                         ></pre>
-                                        <script>
-                                            document.getElementById(
-                                                "autoui-result",
-                                            ).innerHTML =
-                                                '{\n  <span class="jk">"summary"<\/span>: <span class="jv">"Key findings from Q3:\\n- Revenue up 23% YoY\\n- Customer acquisition cost down 12%\\n- Three new enterprise contracts signed\\n- R&amp;D spending increased for AI initiatives"<\/span>\n}';
-                                        </script>
                                     </div>
                                 </div>
                             </div>
@@ -1893,18 +2296,33 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
             <div class="section-label">Examples</div>
             <h2 class="section-title">See it in action</h2>
             <p class="section-sub">Real patterns, not toy demos.</p>
-            <div class="showcase-tabs">
-                <button class="showcase-tab active" onclick="showTab(0)">
+            <div class="showcase-tabs" role="tablist">
+                <button
+                    class="showcase-tab active"
+                    onclick="showTab(0)"
+                    role="tab"
+                    aria-selected="true"
+                >
                     Streaming Chat
                 </button>
-                <button class="showcase-tab" onclick="showTab(1)">
+                <button
+                    class="showcase-tab"
+                    onclick="showTab(1)"
+                    role="tab"
+                    aria-selected="false"
+                >
                     Multi-Agent Handoff
                 </button>
-                <button class="showcase-tab" onclick="showTab(2)">
+                <button
+                    class="showcase-tab"
+                    onclick="showTab(2)"
+                    role="tab"
+                    aria-selected="false"
+                >
                     File Upload
                 </button>
             </div>
-            <div class="showcase-panel active" data-tab="0">
+            <div class="showcase-panel active" data-tab="0" role="tabpanel">
                 <pre><code><span class="kw">import</span> <span class="str">"io"</span>
 <span class="kw">import</span> <span class="str">"http"</span>
 
@@ -1930,7 +2348,7 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
     <span class="cm">// SSE at POST /chat, Chat UI at /_ui/chat</span>
 }</code></pre>
             </div>
-            <div class="showcase-panel" data-tab="1">
+            <div class="showcase-panel" data-tab="1" role="tabpanel">
                 <pre><code><span class="kw">import</span> <span class="str">"io"</span>
 <span class="kw">import</span> <span class="str">"http"</span>
 
@@ -1967,7 +2385,7 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
 
 <span class="kw">fn</span> <span class="fn">main</span>() { http.Server([Support]).listen(<span class="num">8080</span>) }</code></pre>
             </div>
-            <div class="showcase-panel" data-tab="2">
+            <div class="showcase-panel" data-tab="2" role="tabpanel">
                 <pre><code><span class="kw">import</span> <span class="str">"io"</span>
 <span class="kw">import</span> <span class="str">"http"</span>
 
@@ -2049,6 +2467,7 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                     class="copy-btn"
                     onclick="copyInstall(this)"
                     title="Copy to clipboard"
+                    aria-label="Copy install command"
                 >
                     &#x2398;
                 </button>
@@ -2063,21 +2482,46 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
 
         <!-- Footer -->
         <footer>
-            <div class="footer-links">
-                <a href="https://github.com/mrzdevcore/haira">GitHub</a>
-                <a href="https://github.com/mrzdevcore/haira/tree/main/examples"
-                    >Examples</a
-                >
-                <a href="https://github.com/mrzdevcore/haira/tree/main/spec"
-                    >Spec</a
-                >
-                <a href="https://github.com/mrzdevcore/haira/issues">Issues</a>
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <div class="footer-brand-name">
+                        H<span class="ai">ai</span>ra
+                    </div>
+                    <p class="footer-tagline">
+                        Build agents and workflows, not boilerplate.
+                    </p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/mrzdevcore/haira">GitHub</a>
+                    <a
+                        href="https://github.com/mrzdevcore/haira/tree/main/examples"
+                        >Examples</a
+                    >
+                    <a href="https://github.com/mrzdevcore/haira/tree/main/spec"
+                        >Spec</a
+                    >
+                    <a href="https://github.com/mrzdevcore/haira/tree/main/docs"
+                        >Docs</a
+                    >
+                    <a href="https://github.com/mrzdevcore/haira/issues"
+                        >Issues</a
+                    >
+                </div>
+                <div class="footer-divider"></div>
+                <p class="footer-bottom">
+                    <span class="footer-haira"
+                        >H<span style="color: var(--gold-light)">ai</span
+                        >ra</span
+                    >
+                    &mdash; Apache-2.0 License
+                </p>
             </div>
-            <p>
-                <span class="footer-haira">Haira</span> &mdash; Apache-2.0
-                License
-            </p>
         </footer>
+
+        <!-- Scroll to top -->
+        <button class="scroll-top" id="scrollTop" aria-label="Scroll to top">
+            &#x2191;
+        </button>
 
         <script>
             // Scroll fade-in
@@ -2087,11 +2531,60 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
                         if (e.isIntersecting) e.target.classList.add("visible");
                     });
                 },
-                { threshold: 0.1 },
+                { threshold: 0.08 },
             );
             document
                 .querySelectorAll(".fade-in")
                 .forEach((el) => observer.observe(el));
+
+            // Nav scroll effect
+            const mainNav = document.getElementById("mainNav");
+            const scrollTop = document.getElementById("scrollTop");
+            let lastScroll = 0;
+            window.addEventListener(
+                "scroll",
+                () => {
+                    const y = window.scrollY;
+                    mainNav.classList.toggle("scrolled", y > 20);
+                    scrollTop.classList.toggle("visible", y > 400);
+                    lastScroll = y;
+                },
+                { passive: true },
+            );
+
+            scrollTop.addEventListener("click", () => {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+
+            // Mobile menu
+            const navToggle = document.getElementById("navToggle");
+            const navLinks = document.getElementById("navLinks");
+            const mobileOverlay = document.getElementById("mobileOverlay");
+
+            function closeMenu() {
+                navToggle.classList.remove("active");
+                navLinks.classList.remove("open");
+                mobileOverlay.classList.remove("visible");
+                document.body.style.overflow = "";
+            }
+
+            navToggle.addEventListener("click", () => {
+                const isOpen = navLinks.classList.contains("open");
+                if (isOpen) {
+                    closeMenu();
+                } else {
+                    navToggle.classList.add("active");
+                    navLinks.classList.add("open");
+                    mobileOverlay.classList.add("visible");
+                    document.body.style.overflow = "hidden";
+                }
+            });
+
+            mobileOverlay.addEventListener("click", closeMenu);
+
+            navLinks.querySelectorAll("a").forEach((a) => {
+                a.addEventListener("click", closeMenu);
+            });
 
             // Copy install command
             function copyInstall(btn) {
@@ -2108,17 +2601,23 @@ uvicorn.run(app, port=<span class="num">8080</span>)</code></pre>
 
             // Showcase tabs
             function showTab(i) {
-                document
-                    .querySelectorAll(".showcase-tab")
-                    .forEach((t, idx) =>
-                        t.classList.toggle("active", idx === i),
-                    );
+                document.querySelectorAll(".showcase-tab").forEach((t, idx) => {
+                    t.classList.toggle("active", idx === i);
+                    t.setAttribute("aria-selected", idx === i);
+                });
                 document
                     .querySelectorAll(".showcase-panel")
                     .forEach((p, idx) =>
                         p.classList.toggle("active", idx === i),
                     );
             }
+
+            // Auto UI code inject (avoids escaping issues)
+            document.getElementById("autoui-code").innerHTML =
+                '<pre><code><span class="kw">import<\/span> <span class="str">"io"<\/span>\n<span class="kw">import<\/span> <span class="str">"http"<\/span>\n\n<span class="kw">provider<\/span> <span class="fn">openai<\/span> {\n    api_key: <span class="fn">env<\/span>(<span class="str">"OPENAI_API_KEY"<\/span>)\n    model: <span class="str">"gpt-4o"<\/span>\n}\n\n<span class="kw">agent<\/span> <span class="fn">Summarizer<\/span> {\n    model: openai\n    system: <span class="str">"Summarize clearly."<\/span>\n    temperature: <span class="num">0.3<\/span>\n}\n\n<span class="dec">@webui<\/span>(title: <span class="str">"File Summarizer"<\/span>,\n       description: <span class="str">"Upload a text file and get an AI summary"<\/span>)\n<span class="dec">@post<\/span>(<span class="str">"/summarize"<\/span>)\n<span class="kw">workflow<\/span> <span class="fn">Summarize<\/span>(document: <span class="type">file<\/span>, context: <span class="type">string<\/span>, format: <span class="type">string<\/span>) -> { summary: <span class="type">string<\/span> } {\n    content, err = io.read_file(document)\n    <span class="kw">if<\/span> err != nil {\n        <span class="kw">return<\/span> { summary: <span class="str">"Failed."<\/span> }\n    }\n\n    prompt = <span class="str">"Summarize: ${content}"<\/span>\n    reply, _ = Summarizer.ask(prompt)\n    <span class="kw">return<\/span> { summary: reply }\n}\n\n<span class="kw">fn<\/span> <span class="fn">main<\/span>() {\n    http.Server([Summarize]).listen(<span class="num">8080<\/span>)\n}<\/code><\/pre>';
+
+            document.getElementById("autoui-result").innerHTML =
+                '{\n  <span class="jk">"summary"<\/span>: <span class="jv">"Key findings from Q3:\\n- Revenue up 23% YoY\\n- Customer acquisition cost down 12%\\n- Three new enterprise contracts signed\\n- R&amp;D spending increased for AI initiatives"<\/span>\n}';
         </script>
     </body>
 </html>

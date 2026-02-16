@@ -21,12 +21,12 @@ export class HairaIndex extends HTMLElement {
         :host {
           display: flex;
           justify-content: center;
-          padding: 2rem 1rem;
+          padding: 2.5rem 1rem;
         }
-        .container { max-width: 600px; width: 100%; }
+        .container { max-width: 520px; width: 100%; }
         h1 {
-          font-size: 1.35rem;
-          font-weight: 600;
+          font-size: 1.3rem;
+          font-weight: 700;
           color: var(--haira-text);
           margin-bottom: 1.25rem;
         }
@@ -37,47 +37,57 @@ export class HairaIndex extends HTMLElement {
           background: var(--haira-bg-card);
           border: 1px solid var(--haira-border);
           border-radius: var(--haira-radius);
-          padding: 1rem 1.25rem;
-          margin-bottom: 0.6rem;
+          padding: 0.85rem 1rem;
+          margin-bottom: 0.5rem;
           text-decoration: none;
           color: var(--haira-text);
-          transition: all 0.2s;
+          transition: all 0.15s;
           animation: fadeSlideUp 0.3s ease-out both;
         }
         .wf:hover {
-          border-color: var(--haira-gold);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 20px rgba(232, 163, 23, 0.12);
+          border-color: rgba(232, 163, 23, 0.3);
+          background: var(--haira-bg-card-hover);
         }
+        .wf-left {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          min-width: 0;
+        }
+        .badge {
+          font-size: 0.6rem;
+          font-weight: 700;
+          padding: 0.12rem 0.4rem;
+          border-radius: 3px;
+          color: #fff;
+          flex-shrink: 0;
+          letter-spacing: 0.02em;
+        }
+        .wf-info { min-width: 0; }
         .wf-name {
           font-weight: 600;
-          font-size: 0.92rem;
+          font-size: 0.88rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .wf-path {
           font-family: var(--haira-mono);
-          font-size: 0.8rem;
+          font-size: 0.75rem;
           color: var(--haira-muted);
-          margin-top: 0.15rem;
-        }
-        .badge {
-          font-size: 0.65rem;
-          font-weight: 700;
-          padding: 0.12rem 0.5rem;
-          border-radius: 3px;
-          color: #fff;
-          margin-right: 0.5rem;
+          margin-top: 0.1rem;
         }
         .wf-right {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
           flex-shrink: 0;
+          margin-left: 0.75rem;
         }
         .type-pill {
-          font-size: 0.68rem;
+          font-size: 0.65rem;
           font-weight: 600;
-          padding: 0.15rem 0.55rem;
-          border-radius: 12px;
+          padding: 0.12rem 0.5rem;
+          border-radius: 10px;
           border: 1px solid;
           text-transform: lowercase;
         }
@@ -86,21 +96,15 @@ export class HairaIndex extends HTMLElement {
           padding: 3rem 1rem;
           animation: fadeIn 0.4s ease-out;
         }
-        .empty-icon {
-          font-size: 2.5rem;
-          color: var(--haira-gold);
-          opacity: 0.3;
-          margin-bottom: 0.75rem;
-        }
         .empty-title {
           color: var(--haira-text-dim);
-          font-size: 1rem;
+          font-size: 0.95rem;
           font-weight: 500;
-          margin-bottom: 0.3rem;
+          margin-bottom: 0.25rem;
         }
         .empty-sub {
           color: var(--haira-muted);
-          font-size: 0.85rem;
+          font-size: 0.82rem;
         }
       </style>
       <div class="container">
@@ -108,18 +112,19 @@ export class HairaIndex extends HTMLElement {
         ${
           workflows.length === 0
             ? `<div class="empty">
-              <div class="empty-icon">\u2699</div>
-              <div class="empty-title">No workflows registered yet</div>
+              <div class="empty-title">No workflows registered</div>
               <div class="empty-sub">Define a workflow in your .haira file to get started</div>
             </div>`
             : workflows
                 .map(
                   (wf, i) => `
-            <a class="wf" href="/_ui${wf.path}" style="animation-delay:${i * 60}ms">
-              <div>
+            <a class="wf" href="/_ui${wf.path}" style="animation-delay:${i * 50}ms">
+              <div class="wf-left">
                 <span class="badge" style="background:${methodColor(wf.method)}">${wf.method}</span>
-                <span class="wf-name">${this.esc(wf.title || wf.name)}</span>
-                <div class="wf-path">${this.esc(wf.path)}</div>
+                <div class="wf-info">
+                  <div class="wf-name">${this.esc(wf.title || wf.name)}</div>
+                  <div class="wf-path">${this.esc(wf.path)}</div>
+                </div>
               </div>
               <div class="wf-right">
                 <span class="type-pill" style="color:${uiTypeColor(wf.uiType)};border-color:${uiTypeColor(wf.uiType)}30">${wf.uiType}</span>

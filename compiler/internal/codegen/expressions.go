@@ -229,13 +229,53 @@ var propagateCounter int
 
 var orelseCounter int
 
+// orelseReturnType returns the concrete Go return type for known stdlib calls
+// that return (T, error). Falls back to "any" for unknown calls.
+func orelseReturnType(e ast.Expr) string {
+	mc, ok := e.Node.(ast.MethodCallExpr)
+	if !ok {
+		return "any"
+	}
+	recv, ok := mc.Receiver.Node.(ast.IdentExpr)
+	if !ok {
+		return "any"
+	}
+	// Module-level stdlib calls
+	key := recv.Name + "." + mc.Method.Node
+	switch key {
+	case "excel.open":
+		return "*haira.Workbook"
+	case "postgres.connect":
+		return "*haira.DB"
+	}
+	// HTTP module calls all return *haira.Response
+	if recv.Name == "http" {
+		switch mc.Method.Node {
+		case "get", "get_with_headers", "post", "post_with_headers",
+			"put", "put_with_headers", "delete", "delete_with_headers":
+			return "*haira.Response"
+		}
+	}
+	// Instance method calls: *.read_sheet, *.query return []map[string]any
+	switch mc.Method.Node {
+	case "read_sheet", "query":
+		return "[]map[string]any"
+	}
+	return "any"
+}
+
 func orelseExprToGo(e ast.OrelseExpr) string {
 	orelseCounter++
 	id := orelseCounter
 	left := ExprToGo(e.Left)
 	def := ExprToGo(e.Default)
-	return fmt.Sprintf("func() any { _r%d, _e%d := %s; if _e%d != nil { return %s }; return _r%d }()",
-		id, id, left, id, def, id)
+	retType := orelseReturnType(e.Left)
+	// When the return type is a concrete slice type, cast empty list defaults
+	if retType != "any" && def == "[]any{}" {
+		def = retType + "{}"
+	}
+	return fmt.Sprintf("func() %s { _r%d, _e%d := %s; if _e%d != nil { return %s }; return _r%d }()",
+		retType, id, id, left, id, def, id)
 }
 
 func propagateExprToGo(e ast.PropagateExpr) string {

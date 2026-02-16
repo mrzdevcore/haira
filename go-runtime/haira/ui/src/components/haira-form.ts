@@ -21,110 +21,124 @@ export class HairaForm extends HTMLElement {
         ${baseStyles}
         :host {
           display: block;
-          padding: 2rem 1rem;
+          padding: 2.5rem 1rem 3rem;
         }
-        .header-area {
-          max-width: 600px;
+        .layout {
+          max-width: 520px;
           margin: 0 auto;
         }
-        .card-area {
-          max-width: 600px;
-          margin: 0 auto;
-        }
-        .pipeline-area {
-          max-width: 600px;
-          margin: 0 auto;
+
+        /* Header */
+        .header {
+          margin-bottom: 1.5rem;
         }
         h1 {
-          font-size: 1.35rem;
-          font-weight: 600;
-          margin-bottom: 0.15rem;
+          font-size: 1.3rem;
+          font-weight: 700;
+          color: var(--haira-text);
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          color: var(--haira-text);
+          gap: 0.6rem;
+          margin-bottom: 0.25rem;
         }
-        .badge {
-          font-size: 0.65rem;
+        .method-badge {
+          font-size: 0.6rem;
           font-weight: 700;
-          padding: 0.12rem 0.5rem;
-          border-radius: 3px;
+          padding: 0.15rem 0.45rem;
+          border-radius: 4px;
           color: #fff;
+          letter-spacing: 0.02em;
+          flex-shrink: 0;
         }
         .desc {
           font-size: 0.85rem;
           color: var(--haira-muted);
-          margin-bottom: 0.2rem;
+          line-height: 1.45;
         }
         .path {
           font-family: var(--haira-mono);
-          font-size: 0.82rem;
+          font-size: 0.78rem;
           color: var(--haira-muted);
-          margin-bottom: 1.25rem;
+          opacity: 0.7;
+          margin-top: 0.15rem;
         }
+
+        /* Form card */
         .card {
           background: var(--haira-bg-card);
           border: 1px solid var(--haira-border);
           border-radius: var(--haira-radius);
-          padding: 1.5rem;
+          padding: 1.25rem;
           transition: opacity 0.2s;
         }
         .card.disabled {
-          opacity: 0.55;
+          opacity: 0.45;
           pointer-events: none;
         }
-        button[type="submit"] {
+
+        /* Submit button */
+        .submit-btn {
           width: 100%;
-          padding: 0.6rem 1.5rem;
+          padding: 0.65rem 1.5rem;
           border: none;
-          background: linear-gradient(135deg, var(--haira-gold), var(--haira-gold-light));
-          color: #1a0e04;
-          border-radius: var(--haira-radius);
-          font-size: 0.92rem;
+          background: var(--haira-gold);
+          color: #0a0a0a;
+          border-radius: var(--haira-radius-sm);
+          font-size: 0.88rem;
           font-weight: 600;
           cursor: pointer;
           font-family: var(--haira-font);
-          transition: all 0.2s;
+          transition: all 0.15s;
           margin-top: 0.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem;
         }
-        button[type="submit"]:hover {
-          box-shadow: 0 0 24px rgba(232, 163, 23, 0.3);
-          transform: translateY(-1px);
+        .submit-btn:hover:not(:disabled) {
+          background: var(--haira-gold-light);
+          box-shadow: 0 2px 16px rgba(232, 163, 23, 0.2);
         }
-        button[type="submit"]:disabled {
-          opacity: 0.6;
+        .submit-btn:active:not(:disabled) {
+          transform: scale(0.99);
+        }
+        .submit-btn:disabled {
+          opacity: 0.5;
           cursor: not-allowed;
-          transform: none;
-          box-shadow: none;
         }
         .spinner {
           display: inline-block;
-          width: 14px; height: 14px;
-          border: 2px solid #1a0e04;
+          width: 14px;
+          height: 14px;
+          border: 2px solid #0a0a0a;
           border-top-color: transparent;
           border-radius: 50%;
           animation: spin 0.6s linear infinite;
-          margin-right: 0.4rem;
-          vertical-align: middle;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Pipeline + result area */
+        .output-area {
+          margin-top: 0.5rem;
+        }
       </style>
-      <div class="header-area">
-        <h1>${this.esc(m.title || m.name)}
-          <span class="badge" style="background:${methodColor(m.method)}">${m.method}</span>
-        </h1>
-        ${m.description ? `<p class="desc">${this.esc(m.description)}</p>` : ""}
-        <p class="path">${this.esc(m.path)}</p>
-      </div>
-      <div class="card-area">
+      <div class="layout">
+        <div class="header">
+          <h1>
+            ${this.esc(m.title || m.name)}
+            <span class="method-badge" style="background:${methodColor(m.method)}">${m.method}</span>
+          </h1>
+          ${m.description ? `<p class="desc">${this.esc(m.description)}</p>` : ""}
+          <p class="path">${this.esc(m.path)}</p>
+        </div>
         <div class="card" id="card">
           <form id="wf-form">
             <div id="fields"></div>
-            <button type="submit" id="submit-btn">Run</button>
+            <button type="submit" class="submit-btn" id="submit-btn">Run</button>
           </form>
         </div>
+        <div class="output-area" id="output-area"></div>
       </div>
-      <div class="pipeline-area" id="after-card"></div>
     `;
 
     // Create fields
@@ -136,16 +150,16 @@ export class HairaForm extends HTMLElement {
       fieldsContainer.appendChild(field);
     }
 
-    // Create pipeline and result programmatically
-    const afterCard = shadow.getElementById("after-card")!;
+    // Create pipeline and result
+    const outputArea = shadow.getElementById("output-area")!;
     const pipeline = document.createElement("haira-pipeline") as HairaPipeline;
-    afterCard.appendChild(pipeline);
+    outputArea.appendChild(pipeline);
     if (m.steps && m.steps.length > 0) {
       pipeline.setSteps(m.steps);
     }
 
     const result = document.createElement("haira-result") as HairaResult;
-    afterCard.appendChild(result);
+    outputArea.appendChild(result);
 
     // Submit handler
     const form = shadow.getElementById("wf-form") as HTMLFormElement;
@@ -186,25 +200,39 @@ export class HairaForm extends HTMLElement {
       };
 
       // If workflow has steps, use SSE for live pipeline
-      if (m.steps && m.steps.length > 0 && !hasFile) {
+      if (m.steps && m.steps.length > 0) {
         pipeline.reset();
         pipeline.show();
 
-        await streamSSE(m.path, body, {
-          onStep: (event) => {
-            pipeline.updateStep(event);
+        // For file uploads, ensure all fields are in formData
+        let sseFormData: FormData | undefined;
+        if (hasFile && formData) {
+          for (const [k, v] of Object.entries(body)) {
+            if (!formData.has(k)) formData.append(k, String(v));
+          }
+          sseFormData = formData;
+        }
+
+        await streamSSE(
+          m.path,
+          body,
+          {
+            onStep: (event) => {
+              pipeline.updateStep(event);
+            },
+            onResult: (data) => {
+              result.show(data, false);
+            },
+            onError: (error) => {
+              result.show({ error }, true);
+            },
+            onDone: () => {
+              pipeline.finalize();
+              finish();
+            },
           },
-          onResult: (data) => {
-            result.show(data, false);
-          },
-          onError: (error) => {
-            result.show({ error }, true);
-          },
-          onDone: () => {
-            pipeline.finalize();
-            finish();
-          },
-        });
+          sseFormData,
+        );
       } else {
         // Simple fetch
         try {

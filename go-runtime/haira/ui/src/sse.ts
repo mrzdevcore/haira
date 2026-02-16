@@ -12,14 +12,22 @@ export async function streamSSE(
   url: string,
   body: unknown,
   callbacks: SSECallbacks,
+  formData?: FormData,
 ): Promise<void> {
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+  };
+  let reqBody: BodyInit;
+  if (formData) {
+    reqBody = formData;
+  } else {
+    headers["Content-Type"] = "application/json";
+    reqBody = JSON.stringify(body);
+  }
   const resp = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: reqBody,
   });
 
   if (!resp.ok) {

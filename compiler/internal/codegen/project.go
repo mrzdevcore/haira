@@ -137,11 +137,23 @@ func runGoBuild(dir, output string) error {
 	return nil
 }
 
+// isValidRuntime checks that the runtime directory contains the required
+// embedded assets (e.g. the built UI bundle) so go:embed won't fail.
+func isValidRuntime(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	// server.go embeds ui/dist/haira-ui.js — must exist
+	_, err = os.Stat(filepath.Join(path, "haira", "ui", "dist", "haira-ui.js"))
+	return err == nil
+}
+
 // FindRuntimePath locates the go-runtime directory.
 func FindRuntimePath() string {
 	// 1. Explicit override via environment variable
 	if envPath := os.Getenv("HAIRA_RUNTIME"); envPath != "" {
-		if info, err := os.Stat(envPath); err == nil && info.IsDir() {
+		if isValidRuntime(envPath) {
 			return envPath
 		}
 	}
@@ -149,7 +161,7 @@ func FindRuntimePath() string {
 	// 2. User install location (~/.haira/runtime/)
 	if home, err := os.UserHomeDir(); err == nil {
 		runtime := filepath.Join(home, ".haira", "runtime")
-		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+		if isValidRuntime(runtime) {
 			return runtime
 		}
 	}
@@ -160,19 +172,19 @@ func FindRuntimePath() string {
 
 		// <exe_dir>/../lib/haira/runtime (system install: /usr/local/lib/haira/runtime)
 		runtime := filepath.Join(exeDir, "..", "lib", "haira", "runtime")
-		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+		if isValidRuntime(runtime) {
 			return runtime
 		}
 
 		// <exe_dir>/runtime (same-directory install)
 		runtime = filepath.Join(exeDir, "runtime")
-		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+		if isValidRuntime(runtime) {
 			return runtime
 		}
 
 		// Dev: <exe_dir>/../../go-runtime (running from compiler/)
 		runtime = filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(exe))), "go-runtime")
-		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+		if isValidRuntime(runtime) {
 			return runtime
 		}
 	}
@@ -180,12 +192,12 @@ func FindRuntimePath() string {
 	// 4. Current working directory (development)
 	if cwd, err := os.Getwd(); err == nil {
 		runtime := filepath.Join(cwd, "go-runtime")
-		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+		if isValidRuntime(runtime) {
 			return runtime
 		}
 		// Parent directory (compiler is a subdirectory)
 		runtime = filepath.Join(filepath.Dir(cwd), "go-runtime")
-		if info, err := os.Stat(runtime); err == nil && info.IsDir() {
+		if isValidRuntime(runtime) {
 			return runtime
 		}
 	}

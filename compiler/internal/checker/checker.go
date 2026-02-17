@@ -24,6 +24,8 @@ func Check(file *ast.SourceFile) (*TypeInfo, []hairaerr.Diagnostic) {
 			ExprTypes: make(map[ast.Span]Type),
 			VarTypes:  make(map[ast.Span]Type),
 		},
+		agents:    make(map[string]bool),
+		providers: make(map[string]bool),
 	}
 
 	// Pass 1: register all global declarations
@@ -36,11 +38,14 @@ func Check(file *ast.SourceFile) (*TypeInfo, []hairaerr.Diagnostic) {
 }
 
 type checker struct {
-	env      *Env
-	info     *TypeInfo
-	diags    []hairaerr.Diagnostic
-	file     string
-	inMethod bool // true when checking a method body (self is protected)
+	env       *Env
+	info      *TypeInfo
+	diags     []hairaerr.Diagnostic
+	file      string
+	inMethod  bool            // true when checking a method body (self is protected)
+	returnTy  Type            // expected return type for current function/workflow/tool (nil = not set)
+	agents    map[string]bool // registered agent names
+	providers map[string]bool // registered provider names
 }
 
 func (c *checker) addError(msg string, span ast.Span) {
@@ -151,7 +156,106 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 				ret = c.resolveASTType(it.ReturnTy.Node)
 			}
 			c.env.DefineFunc(it.Name.Node, &FuncType{Params: params, Return: ret})
+
+		case ast.ProviderDecl:
+			c.providers[it.Name.Node] = true
+			c.checkProviderFields(it)
+
+		case ast.AgentDecl:
+			c.agents[it.Name.Node] = true
+			c.checkAgentFields(it)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Agent/Provider field validation
+// ---------------------------------------------------------------------------
+
+var validProviderFields = map[string]bool{
+	"api_key": true, "model": true, "endpoint": true, "api_version": true,
+	"backend": true, "host": true, "temperature": true, "max_tokens": true,
+	// MCP provider fields
+	"transport": true, "command": true, "args": true, "env": true, "headers": true,
+}
+
+var validAgentFields = map[string]bool{
+	"model": true, "system": true, "tools": true, "handoffs": true,
+	"mcp": true, "temperature": true, "max_tokens": true, "max_steps": true,
+	"memory": true, "output": true,
+}
+
+func (c *checker) checkProviderFields(provider ast.ProviderDecl) {
+	for _, field := range provider.Fields {
+		if !validProviderFields[field.Key.Node] {
+			c.addWarning(
+				fmt.Sprintf("unknown provider field %q", field.Key.Node),
+				field.Key.Span,
+				"valid fields: api_key, model, endpoint, api_version, backend, host, temperature, max_tokens",
+			)
+		}
+	}
+}
+
+func (c *checker) checkAgentFields(agent ast.AgentDecl) {
+	hasModel := false
+	for _, field := range agent.Fields {
+		if !validAgentFields[field.Key.Node] {
+			c.addWarning(
+				fmt.Sprintf("unknown agent field %q", field.Key.Node),
+				field.Key.Span,
+				"valid fields: model, system, tools, handoffs, mcp, temperature, max_tokens, max_steps, memory, output",
+			)
+		}
+		if field.Key.Node == "model" {
+			hasModel = true
+			// Verify model references a known provider
+			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
+				if !c.providers[ident.Name] {
+					c.addError(
+						fmt.Sprintf("agent %q references unknown provider %q", agent.Name.Node, ident.Name),
+						field.Value.Span,
+					)
+				}
+			}
+		}
+		if field.Key.Node == "tools" {
+			// Verify tool references are known functions
+			if list, ok := field.Value.Node.(ast.ListExpr); ok {
+				for _, item := range list.Elems {
+					if ident, ok := item.Node.(ast.IdentExpr); ok {
+						if _, ok := c.env.LookupFunc(ident.Name); !ok {
+							c.addError(
+								fmt.Sprintf("agent %q references unknown tool %q", agent.Name.Node, ident.Name),
+								item.Span,
+							)
+						}
+					}
+				}
+			}
+		}
+		if field.Key.Node == "handoffs" {
+			// Verify handoff references are known agents
+			if list, ok := field.Value.Node.(ast.ListExpr); ok {
+				for _, item := range list.Elems {
+					if ident, ok := item.Node.(ast.IdentExpr); ok {
+						if !c.agents[ident.Name] {
+							c.addWarning(
+								fmt.Sprintf("agent %q handoff target %q not yet declared", agent.Name.Node, ident.Name),
+								item.Span,
+								"ensure the agent is declared in this file",
+							)
+						}
+					}
+				}
+			}
+		}
+	}
+	if !hasModel {
+		c.addError(
+			fmt.Sprintf("agent %q is missing required field 'model'", agent.Name.Node),
+			agent.Name.Span,
+		)
 	}
 }
 
@@ -183,9 +287,16 @@ func (c *checker) checkFunction(fn ast.FunctionDef) {
 		env.DefineVar(p.Name.Node, ty)
 	}
 	saved := c.env
+	savedReturn := c.returnTy
 	c.env = env
+	if fn.ReturnTy != nil {
+		c.returnTy = c.resolveASTType(fn.ReturnTy.Node)
+	} else {
+		c.returnTy = nil
+	}
 	c.checkBlock(fn.Body)
 	c.env = saved
+	c.returnTy = savedReturn
 }
 
 func (c *checker) checkMethod(md ast.MethodDef) {
@@ -200,11 +311,18 @@ func (c *checker) checkMethod(md ast.MethodDef) {
 	}
 	saved := c.env
 	savedInMethod := c.inMethod
+	savedReturn := c.returnTy
 	c.env = env
 	c.inMethod = true
+	if md.ReturnTy != nil {
+		c.returnTy = c.resolveASTType(md.ReturnTy.Node)
+	} else {
+		c.returnTy = nil
+	}
 	c.checkBlock(md.Body)
 	c.env = saved
 	c.inMethod = savedInMethod
+	c.returnTy = savedReturn
 }
 
 func (c *checker) checkToolBody(tool ast.ToolDecl) {
@@ -214,9 +332,16 @@ func (c *checker) checkToolBody(tool ast.ToolDecl) {
 		env.DefineVar(p.Name.Node, ty)
 	}
 	saved := c.env
+	savedReturn := c.returnTy
 	c.env = env
+	if tool.ReturnTy != nil {
+		c.returnTy = c.resolveASTType(tool.ReturnTy.Node)
+	} else {
+		c.returnTy = nil
+	}
 	c.checkBlock(*tool.Body)
 	c.env = saved
+	c.returnTy = savedReturn
 }
 
 func (c *checker) checkWorkflow(wf ast.WorkflowDecl) {
@@ -226,7 +351,13 @@ func (c *checker) checkWorkflow(wf ast.WorkflowDecl) {
 		env.DefineVar(p.Name.Node, ty)
 	}
 	saved := c.env
+	savedReturn := c.returnTy
 	c.env = env
+	if wf.ReturnTy != nil {
+		c.returnTy = c.resolveASTType(wf.ReturnTy.Node)
+	} else {
+		c.returnTy = nil
+	}
 	c.checkBlock(wf.Body)
 	// Check workflow-level lifecycle hooks
 	for _, hook := range wf.Hooks {
@@ -243,6 +374,7 @@ func (c *checker) checkWorkflow(wf ast.WorkflowDecl) {
 		c.env = savedInner
 	}
 	c.env = saved
+	c.returnTy = savedReturn
 }
 
 // ---------------------------------------------------------------------------
@@ -322,8 +454,30 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 		c.checkBlock(s.Body)
 
 	case ast.ReturnStmt:
-		for _, v := range s.Values {
-			c.inferExpr(v)
+		if len(s.Values) > 0 {
+			retType := c.inferExpr(s.Values[0])
+			for _, v := range s.Values[1:] {
+				c.inferExpr(v)
+			}
+			// Check against declared return type
+			if c.returnTy != nil && !isAny(c.returnTy) && !isAny(retType) {
+				if !TypeEquals(c.returnTy, retType) {
+					c.addWarning(
+						"return type mismatch: expected "+c.returnTy.String()+", got "+retType.String(),
+						s.Values[0].Span,
+						"",
+					)
+				}
+			}
+		} else {
+			// Empty return in a function with declared return type
+			if c.returnTy != nil && !isAny(c.returnTy) && !TypeEquals(c.returnTy, VoidType{}) {
+				c.addWarning(
+					"empty return in function expecting "+c.returnTy.String(),
+					stmt.Span,
+					"",
+				)
+			}
 		}
 
 	case ast.TryStmt:
@@ -392,7 +546,16 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 	case ast.IdentExpr:
 		if t, ok := c.env.LookupVar(e.Name); ok {
 			ty = t
+		} else if _, ok := c.env.LookupFunc(e.Name); ok {
+			ty = AnyType{} // function reference (e.g. passed as callback)
+		} else if _, ok := c.env.LookupType(e.Name); ok {
+			ty = AnyType{} // type reference (e.g. enum variant prefix)
+		} else if c.agents[e.Name] || c.providers[e.Name] {
+			ty = AnyType{} // agent or provider reference
+		} else if isStdlibModule(e.Name) {
+			ty = AnyType{} // stdlib module qualifier (e.g. io.println)
 		} else {
+			c.addWarning("undefined variable '"+e.Name+"'", expr.Span, "")
 			ty = AnyType{}
 		}
 
@@ -624,6 +787,14 @@ func (c *checker) inferCall(call ast.CallExpr, span ast.Span) Type {
 			if fn, ok := c.env.LookupFunc(key); ok {
 				return fn.Return
 			}
+			// Don't warn for agent/provider method calls or stdlib modules
+			if !c.agents[ident.Name] && !c.providers[ident.Name] && !isStdlibModule(ident.Name) {
+				if _, isVar := c.env.LookupVar(ident.Name); !isVar {
+					if _, isType := c.env.LookupType(ident.Name); !isType {
+						c.addWarning("undefined function '"+key+"'", span, "")
+					}
+				}
+			}
 		}
 		return AnyType{}
 	}
@@ -631,12 +802,11 @@ func (c *checker) inferCall(call ast.CallExpr, span ast.Span) Type {
 	// Bare function call
 	if ident, ok := call.Callee.Node.(ast.IdentExpr); ok {
 		if fn, ok := c.env.LookupFunc(ident.Name); ok {
-			// Check argument count
-			if len(call.Args) != len(fn.Params) {
-				// Allow variadic-like flexibility for now — only warn on obvious mismatches
-				// Skip for stdlib that accepts varargs (println, etc.)
-			}
 			return fn.Return
+		}
+		// Don't warn for known types used as constructors
+		if _, ok := c.env.LookupType(ident.Name); !ok {
+			c.addWarning("undefined function '"+ident.Name+"'", span, "")
 		}
 		return AnyType{}
 	}
@@ -696,4 +866,15 @@ func (c *checker) resolveASTType(ty ast.Type) Type {
 func isAny(t Type) bool {
 	_, ok := t.(AnyType)
 	return ok
+}
+
+var stdlibModules = map[string]bool{
+	"io": true, "http": true, "json": true, "string": true, "regex": true,
+	"math": true, "conv": true, "array": true, "map": true, "time": true,
+	"env": true, "postgres": true, "slack": true, "excel": true, "log": true,
+	"mcp": true, "ui": true, "vector": true, "observe": true, "fs": true,
+}
+
+func isStdlibModule(name string) bool {
+	return stdlibModules[name]
 }

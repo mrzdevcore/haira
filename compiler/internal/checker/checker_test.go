@@ -851,6 +851,295 @@ fn main() {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 4A: Agent/provider field validation
+// ---------------------------------------------------------------------------
+
+func TestAgentMissingModel(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+}
+
+agent Writer {
+	system: "You are a writer."
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "missing required field") && contains(d.Message, "model") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'missing required field model' error for agent without model")
+	}
+}
+
+func TestAgentUnknownField(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+}
+
+agent Writer {
+	model: openai
+	system: "You are a writer."
+	foo: "bar"
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "unknown agent field") && contains(d.Message, "foo") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'unknown agent field foo' warning")
+	}
+}
+
+func TestProviderUnknownField(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+	baz: "qux"
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "unknown provider field") && contains(d.Message, "baz") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'unknown provider field baz' warning")
+	}
+}
+
+func TestAgentUnknownProvider(t *testing.T) {
+	file := parse(t, `
+agent Writer {
+	model: nonexistent
+	system: "You are a writer."
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "unknown provider") && contains(d.Message, "nonexistent") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'unknown provider' error for agent referencing nonexistent provider")
+	}
+}
+
+func TestAgentUnknownTool(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+}
+
+agent Assistant {
+	model: openai
+	tools: [nonexistent_tool]
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "unknown tool") && contains(d.Message, "nonexistent_tool") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'unknown tool' error for agent referencing nonexistent tool")
+	}
+}
+
+func TestAgentValidDecl(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+}
+
+tool get_time() -> string {
+	"""Get the time"""
+	return "now"
+}
+
+agent Assistant {
+	model: openai
+	system: "You are helpful."
+	tools: [get_time]
+	temperature: 0.7
+	max_tokens: 1000
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	for _, d := range diags {
+		if d.Level == 0 { // Error level
+			t.Errorf("unexpected error in valid agent decl: %s", d.Message)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4B: Undefined variable/function diagnostics
+// ---------------------------------------------------------------------------
+
+func TestUndefinedVariable(t *testing.T) {
+	file := parse(t, `
+fn main() {
+	x = y + 1
+}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "undefined variable") && contains(d.Message, "'y'") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'undefined variable y' warning")
+	}
+}
+
+func TestUndefinedFunction(t *testing.T) {
+	file := parse(t, `
+fn main() {
+	x = nonexistent(42)
+}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "undefined function") && contains(d.Message, "nonexistent") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'undefined function nonexistent' warning")
+	}
+}
+
+func TestDefinedVariableNoWarning(t *testing.T) {
+	file := parse(t, `
+fn main() {
+	x = 42
+	y = x + 1
+}
+`)
+	_, diags := Check(file)
+	for _, d := range diags {
+		if contains(d.Message, "undefined") {
+			t.Errorf("unexpected undefined warning: %s", d.Message)
+		}
+	}
+}
+
+func TestStdlibCallNoWarning(t *testing.T) {
+	file := parse(t, `
+import "io"
+import "string"
+
+fn main() {
+	x = string.len("hello")
+	io.println(x)
+}
+`)
+	_, diags := Check(file)
+	for _, d := range diags {
+		if contains(d.Message, "undefined") {
+			t.Errorf("unexpected undefined warning for stdlib: %s", d.Message)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4C: Return type checking
+// ---------------------------------------------------------------------------
+
+func TestReturnTypeMismatch(t *testing.T) {
+	file := parse(t, `
+fn add(a: int, b: int) -> int {
+	return "hello"
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "return type mismatch") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'return type mismatch' warning for returning string from int function")
+	}
+}
+
+func TestReturnTypeMatch(t *testing.T) {
+	file := parse(t, `
+fn add(a: int, b: int) -> int {
+	return a + b
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	for _, d := range diags {
+		if contains(d.Message, "return type mismatch") {
+			t.Errorf("unexpected return type mismatch: %s", d.Message)
+		}
+	}
+}
+
+func TestToolReturnTypeCheck(t *testing.T) {
+	file := parse(t, `
+tool get_name() -> string {
+	"""Get the name"""
+	return 42
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "return type mismatch") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected 'return type mismatch' warning for returning int from string tool")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

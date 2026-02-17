@@ -368,6 +368,16 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.TimeSleep(%s)", args), true
 		case "now":
 			return "haira.TimeNow()", true
+		case "format":
+			return fmt.Sprintf("haira.TimeFormat(%s)", args), true
+		case "parse":
+			return fmt.Sprintf("haira.TimeParse(%s)", args), true
+		case "since":
+			return fmt.Sprintf("haira.TimeSince(%s)", args), true
+		case "after":
+			return fmt.Sprintf("haira.TimeAfter(%s)", args), true
+		case "tick":
+			return fmt.Sprintf("haira.TimeTick(%s)", args), true
 		case "slug":
 			return "haira.TimeSlug()", true
 		}

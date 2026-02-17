@@ -35,6 +35,8 @@ func main() {
 		err = cmdLex(rest)
 	case "emit":
 		err = cmdEmit(rest)
+	case "fmt":
+		err = cmdFmt(rest)
 	case "lsp":
 		err = lsp.RunStdio()
 	case "version", "--version", "-v":
@@ -108,6 +110,18 @@ func cmdEmit(args []string) error {
 	return driver.EmitFile(args[0])
 }
 
+func cmdFmt(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haira fmt <file> [files...]")
+	}
+	for _, file := range args {
+		if err := driver.FormatFile(file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func printUsage() {
 	fmt.Print(`Haira — An agentic orchestration programming language
 
@@ -120,6 +134,7 @@ Commands:
   check <file> [files...]    Parse and report errors
   lex <file>                 Show tokens
   emit <file>                Show generated Go code
+  fmt <file> [files...]      Format source files in-place
   lsp                        Start the language server (LSP)
   version                    Show version
   help                       Show this help

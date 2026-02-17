@@ -40,7 +40,7 @@ workflow Ask(question: string, session_id: string) -> { answer: string } {
 }
 
 fn main() {
-    server = http.Server([Ask])
+    server =  http.Server([Ask])
     io.println("RAG server on :8080")
     server.listen(8080)
 }

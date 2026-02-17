@@ -11,6 +11,7 @@ import (
 	"github.com/haira-lang/haira/internal/checker"
 	"github.com/haira-lang/haira/internal/codegen"
 	hairaerr "github.com/haira-lang/haira/internal/errors"
+	"github.com/haira-lang/haira/internal/formatter"
 	"github.com/haira-lang/haira/internal/lexer"
 	"github.com/haira-lang/haira/internal/parser"
 	"github.com/haira-lang/haira/internal/resolver"
@@ -156,6 +157,33 @@ func LexFile(file string) error {
 		fmt.Println(tok)
 	}
 	return nil
+}
+
+// FormatFile formats a Haira source file in-place.
+func FormatFile(file string) error {
+	source, err := os.ReadFile(file)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+	src := string(source)
+
+	l := lexer.New(src)
+	tokens := l.AllTokens()
+
+	sf, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		diags := toDiagnostics(errs, file)
+		fmt.Fprint(os.Stderr, hairaerr.FormatAll(diags, src))
+		return fmt.Errorf("cannot format %s: %d parse error(s)", file, len(errs))
+	}
+
+	formatted := formatter.Format(src, tokens, sf)
+
+	if formatted == src {
+		return nil // already formatted
+	}
+
+	return os.WriteFile(file, []byte(formatted), 0o644)
 }
 
 // resolveAndParse resolves imports and parses all files into a merged SourceFile.

@@ -16,11 +16,12 @@ type WorkflowParam struct {
 	Type string // "string", "int", "float", "bool", "file"
 }
 
-// WorkflowDef defines a workflow that can be exposed as an HTTP endpoint.
+// WorkflowDef defines a workflow that can be exposed as an HTTP endpoint or MCP tool.
 type WorkflowDef struct {
 	Name          string
 	Method        string // HTTP method (GET, POST, etc.)
 	Path          string // URL path
+	Description   string // optional description (from triple-quoted string, used by MCP)
 	Params        []WorkflowParam
 	Steps         []string // step names in execution order (for pipeline UI)
 	IsStream      bool

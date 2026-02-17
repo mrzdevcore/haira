@@ -34,7 +34,7 @@ type Module struct {
 
 // stdlibModules are import paths that map to runtime support, not files.
 var stdlibModules = map[string]bool{
-	"io": true, "http": true, "env": true, "json": true,
+	"io": true, "http": true, "mcp": true, "env": true, "json": true,
 	"postgres": true, "slack": true, "excel": true, "time": true,
 	"string": true, "regex": true, "math": true, "conv": true,
 	"array": true, "map": true, "log": true,

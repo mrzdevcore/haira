@@ -2811,6 +2811,14 @@ func (p *Parser) parseWorkflowDecl(trigger *ast.Decorator) (ast.WorkflowDecl, bo
 		p.skipNewlines()
 	}
 
+	// Parse optional triple-quoted description (for MCP tool exposure)
+	var description string
+	if p.peek().Kind == token.TripleQuoteString {
+		description = p.peek().Value
+		p.advance()
+		p.skipNewlines()
+	}
+
 	// Parse body statements
 	var stmts []ast.Statement
 	for !p.check(token.RBrace) && !p.atEnd() {
@@ -2851,12 +2859,13 @@ func (p *Parser) parseWorkflowDecl(trigger *ast.Decorator) (ast.WorkflowDecl, bo
 	p.consume(token.RBrace, "}")
 
 	return ast.WorkflowDecl{
-		Name:     name,
-		Trigger:  trigger,
-		Params:   params,
-		ReturnTy: retTy,
-		Body:     ast.Block{Statements: stmts},
-		Hooks:    hooks,
+		Name:        name,
+		Trigger:     trigger,
+		Params:      params,
+		ReturnTy:    retTy,
+		Description: description,
+		Body:        ast.Block{Statements: stmts},
+		Hooks:       hooks,
 	}, true
 }
 

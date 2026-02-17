@@ -28,10 +28,8 @@ agent Assistant {
 }
 
 @webhook("/api/chat")
-workflow Chat(message: string, session_id: string) -> { reply: string } {
-    reply, err = Assistant.ask(message, session: session_id)
-    if err != nil { return { reply: "Something went wrong." } }
-    return { reply: reply }
+workflow Chat(message: string, session_id: string) -> stream {
+    return Assistant.stream(message, session: session_id)
 }
 
 fn main() {

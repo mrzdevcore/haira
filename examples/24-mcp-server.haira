@@ -1,0 +1,30 @@
+import "io"
+import "mcp"
+
+provider azure_openai {
+    api_key: env("AZURE_OPENAI_API_KEY")
+    endpoint: env("AZURE_OPENAI_ENDPOINT")
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+    api_version: env("AZURE_OPENAI_API_VERSION")
+}
+
+agent Summarizer {
+    model: azure_openai
+    system: "You summarize text concisely into key bullet points."
+}
+
+// MCP-only workflow — no HTTP decorator needed
+workflow Summarize(text: string) -> { summary: string } {
+    """Summarize the given text into key points."""
+    summary, err = Summarizer.ask(text)
+    if err != nil {
+        return { summary: "Error summarizing text." }
+    }
+    return { summary: summary }
+}
+
+fn main() {
+    mcp_server = mcp.Server([Summarize])
+    io.println("MCP server running on stdio...")
+    mcp_server.serve()
+}

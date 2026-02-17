@@ -89,6 +89,11 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "Server":
 			return resolveServerCall(call), true
 		}
+	case "mcp":
+		switch method {
+		case "Server":
+			return resolveMCPServerCall(call), true
+		}
 	case "json":
 		switch method {
 		case "marshal":
@@ -373,6 +378,24 @@ func resolveServerCall(call ast.CallExpr) string {
 	return fmt.Sprintf("haira.NewServer(%s)", args)
 }
 
+func resolveMCPServerCall(call ast.CallExpr) string {
+	if len(call.Args) == 1 {
+		if list, ok := call.Args[0].Value.Node.(ast.ListExpr); ok {
+			refs := make([]string, len(list.Elems))
+			for i, item := range list.Elems {
+				if ident, ok := item.Node.(ast.IdentExpr); ok {
+					refs[i] = "workflowDef" + SnakeToPascal(ident.Name)
+				} else {
+					refs[i] = ExprToGo(item)
+				}
+			}
+			return fmt.Sprintf("haira.NewMCPServer([]*haira.WorkflowDef{%s})", strings.Join(refs, ", "))
+		}
+	}
+	args := callArgsToGo(call.Args)
+	return fmt.Sprintf("haira.NewMCPServer(%s)", args)
+}
+
 func callArgsToGo(args []ast.Argument) string {
 	parts := make([]string, len(args))
 	for i, a := range args {
@@ -384,7 +407,7 @@ func callArgsToGo(args []ast.Argument) string {
 // IsStdlibImport returns whether a Haira import path maps to a stdlib module.
 func IsStdlibImport(path string) bool {
 	switch path {
-	case "io", "http", "env", "json", "postgres", "slack", "excel", "time",
+	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui":
 		return true
 	}

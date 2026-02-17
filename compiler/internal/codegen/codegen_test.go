@@ -506,6 +506,99 @@ func TestGoldenMCPProviderSSE(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Golden test: workflow with description
+// ---------------------------------------------------------------------------
+
+func TestGoldenWorkflowDescription(t *testing.T) {
+	src := `provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+}
+@post("/api/summarize")
+workflow Summarize(text: string) -> { summary: string } {
+    """Summarize the given text into key points."""
+    summary, err = Bot.ask(text)
+    return { summary: summary }
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, `Description: "Summarize the given text into key points."`) {
+		t.Errorf("missing Description field in WorkflowDef:\n%s", got)
+	}
+	if !strings.Contains(got, "workflowDefSummarize") {
+		t.Errorf("missing workflowDefSummarize variable:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: MCP server
+// ---------------------------------------------------------------------------
+
+func TestGoldenMCPServer(t *testing.T) {
+	src := `import "io"
+import "mcp"
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+}
+@post("/api/chat")
+workflow Chat(message: string) -> { reply: string } {
+    """Chat with the bot."""
+    reply, err = Bot.ask(message)
+    return { reply: reply }
+}
+fn main() {
+    mcp_server = mcp.Server([Chat])
+    mcp_server.serve()
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "haira.NewMCPServer") {
+		t.Errorf("missing haira.NewMCPServer call in output:\n%s", got)
+	}
+	if !strings.Contains(got, "workflowDefChat") {
+		t.Errorf("missing workflowDefChat reference in MCP server:\n%s", got)
+	}
+	if !strings.Contains(got, `Description: "Chat with the bot."`) {
+		t.Errorf("missing Description in WorkflowDef:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: workflow without description (no Description field emitted)
+// ---------------------------------------------------------------------------
+
+func TestGoldenWorkflowNoDescription(t *testing.T) {
+	src := `provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+}
+@post("/api/chat")
+workflow Chat(message: string) -> { reply: string } {
+    reply, err = Bot.ask(message)
+    return { reply: reply }
+}`
+	got := parseAndGenerate(t, src)
+
+	if strings.Contains(got, "Description:") {
+		t.Errorf("workflow without description should not emit Description field:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Type mapping
 // ---------------------------------------------------------------------------
 
@@ -585,7 +678,7 @@ func TestSnakeToPascal(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestIsStdlibImport(t *testing.T) {
-	stdlibs := []string{"io", "http", "env", "json", "postgres", "slack", "excel", "time"}
+	stdlibs := []string{"io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time"}
 	for _, s := range stdlibs {
 		if !IsStdlibImport(s) {
 			t.Errorf("expected %q to be stdlib import", s)

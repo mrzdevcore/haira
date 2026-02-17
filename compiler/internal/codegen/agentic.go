@@ -298,6 +298,7 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
 		em.Line(fmt.Sprintf("Method: %q,", method))
 		em.Line(fmt.Sprintf("Path: %q,", path))
+		emitWorkflowDescription(em, workflow.Description)
 		emitWorkflowParams(em, workflow.Params)
 		emitStepsField(em, workflow.Body.Statements)
 		em.Line("IsStream: true,")
@@ -339,12 +340,25 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 		em.Line(fmt.Sprintf("Name: %q,", workflow.Name.Node))
 		em.Line(fmt.Sprintf("Method: %q,", method))
 		em.Line(fmt.Sprintf("Path: %q,", path))
+		emitWorkflowDescription(em, workflow.Description)
 		emitWorkflowParams(em, workflow.Params)
 		emitStepsField(em, workflow.Body.Statements)
 		emitWorkflowUIMetadata(em, workflow.Decorators)
 		em.Line(fmt.Sprintf("Handler: %s,", handlerName))
 		em.CloseBlock()
 		em.Blank()
+	}
+}
+
+// emitWorkflowDescription emits the Description field if non-empty.
+func emitWorkflowDescription(em *GoEmitter, description string) {
+	if description == "" {
+		return
+	}
+	if strings.Contains(description, "\n") {
+		em.Line(fmt.Sprintf("Description: `%s`,", description))
+	} else {
+		em.Line(fmt.Sprintf("Description: %q,", description))
 	}
 }
 

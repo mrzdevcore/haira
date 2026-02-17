@@ -23,8 +23,8 @@ ui-dev:
 	@mkdir -p $(UI_DIST)
 	cd go-runtime/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
 
-# Build the compiler (depends on UI bundle)
-build: ui
+# Build the compiler (depends on UI bundle + runtime sync)
+build: ui sync-runtime
 	cd $(COMPILER_DIR) && go build $(LDFLAGS) -o haira .
 
 # Run Go tests

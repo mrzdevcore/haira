@@ -150,24 +150,18 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 	flusher.Flush()
 
 	for chunk := range ch {
-		// Emit any delta/error content before checking Done
-		if chunk.Delta != "" {
-			if chunk.Done && strings.HasPrefix(chunk.Delta, "error:") {
-				// Error with Done flag — send as error event
+		if chunk.Done {
+			// Error with delta — send as error event before [DONE]
+			if chunk.Delta != "" && strings.HasPrefix(chunk.Delta, "error:") {
 				errData, _ := json.Marshal(map[string]string{"error": strings.TrimPrefix(chunk.Delta, "error: ")})
 				fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
 				flusher.Flush()
-			} else if chunk.Type == "" {
-				data, _ := json.Marshal(map[string]string{"delta": chunk.Delta})
-				fmt.Fprintf(rw, "data: %s\n\n", data)
-				flusher.Flush()
 			}
-		}
-		if chunk.Done {
 			fmt.Fprintf(rw, "data: [DONE]\n\n")
 			flusher.Flush()
 			break
 		}
+
 		switch chunk.Type {
 		case "tool_start":
 			data, _ := json.Marshal(map[string]any{
@@ -189,8 +183,11 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 			})
 			fmt.Fprintf(rw, "event: tool_end\ndata: %s\n\n", data)
 		default:
-			data, _ := json.Marshal(map[string]string{"delta": chunk.Delta})
-			fmt.Fprintf(rw, "data: %s\n\n", data)
+			// Normal text delta (Type == "")
+			if chunk.Delta != "" {
+				data, _ := json.Marshal(map[string]string{"delta": chunk.Delta})
+				fmt.Fprintf(rw, "data: %s\n\n", data)
+			}
 		}
 		flusher.Flush()
 	}

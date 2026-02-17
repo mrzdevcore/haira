@@ -153,7 +153,7 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 
 	// Finally: main function
 	if mainFn != nil {
-		emitMainFunction(em, *mainFn, agents)
+		emitMainFunction(em, *mainFn, agents, hasMCPProviders(file))
 	}
 
 	return em.String()
@@ -297,14 +297,17 @@ func emitFunction(em *GoEmitter, fn ast.FunctionDef) {
 	em.Blank()
 }
 
-func emitMainFunction(em *GoEmitter, fn ast.FunctionDef, agents []ast.AgentDecl) {
+func emitMainFunction(em *GoEmitter, fn ast.FunctionDef, agents []ast.AgentDecl, hasMCP bool) {
 	em.ResetVars()
 	em.OpenBlock("func main()")
+	if hasMCP {
+		em.Line("defer haira.ShutdownMCP()")
+	}
 	sorted := topoSortAgents(agents)
 	for _, name := range sorted {
 		em.Line(fmt.Sprintf("initAgent%s()", name))
 	}
-	if len(sorted) > 0 {
+	if len(sorted) > 0 || hasMCP {
 		em.Blank()
 	}
 	EmitBlockBody(em, fn.Body)
@@ -353,6 +356,18 @@ func topoSortAgents(agents []ast.AgentDecl) []string {
 		visit(a.Name.Node)
 	}
 	return result
+}
+
+// hasMCPProviders checks if any provider in the source file uses transport: "mcp".
+func hasMCPProviders(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if p, ok := item.Node.(ast.ProviderDecl); ok {
+			if isMCPProvider(p) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Import detection helpers

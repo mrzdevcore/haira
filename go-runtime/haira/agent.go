@@ -19,6 +19,7 @@ type AgentConfig struct {
 	Handoffs    []*Agent
 	Temperature float64
 	Memory      MemoryConfig
+	MCPClients  []*MCPClient // MCP server connections for external tools
 }
 
 // AgentResult holds the full result of an agent call, including handoff info.
@@ -65,6 +66,26 @@ func NewAgent(config AgentConfig) *Agent {
 	maxTurns := 10
 	if config.Memory.MaxTurns > 0 {
 		maxTurns = config.Memory.MaxTurns
+	}
+
+	// Connect MCP servers and register their tools
+	for _, mcp := range config.MCPClients {
+		if err := mcp.Connect(); err != nil {
+			fmt.Fprintf(os.Stderr, "[haira] MCP connection failed for %q: %v\n", mcp.config.Name, err)
+			continue
+		}
+		RegisterMCPClient(mcp)
+		tools, err := mcp.ListTools()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[haira] MCP tool discovery failed for %q: %v\n", mcp.config.Name, err)
+			continue
+		}
+		if config.Tools == nil {
+			config.Tools = NewToolRegistry()
+		}
+		for _, t := range tools {
+			config.Tools.Register(t)
+		}
 	}
 
 	return &Agent{

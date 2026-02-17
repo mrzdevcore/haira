@@ -1,0 +1,41 @@
+import "io"
+import "http"
+
+provider azure_openai {
+    api_key: env("AZURE_OPENAI_API_KEY")
+    endpoint: env("AZURE_OPENAI_ENDPOINT")
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+    api_version: env("AZURE_OPENAI_API_VERSION")
+}
+
+provider filesystem {
+    transport: "mcp"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+}
+
+tool greet(name: string) -> string {
+    """Greet a user by name."""
+    return "Hello, ${name}!"
+}
+
+agent Assistant {
+    model: azure_openai
+    system: "You are a helpful assistant with file system access."
+    tools: [greet]
+    mcp: [filesystem]
+    memory: conversation(max_turns: 10)
+}
+
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> { reply: string } {
+    reply, err = Assistant.ask(message, session: session_id)
+    if err != nil { return { reply: "Something went wrong." } }
+    return { reply: reply }
+}
+
+fn main() {
+    server = http.Server([Chat])
+    io.println("MCP-enabled server running on :3000")
+    server.listen(3000)
+}

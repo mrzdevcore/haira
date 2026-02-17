@@ -421,6 +421,91 @@ func TestGoldenMap(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Golden test: MCP provider
+// ---------------------------------------------------------------------------
+
+func TestGoldenMCPProvider(t *testing.T) {
+	src := `provider filesystem {
+    transport: "mcp"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "mcpFilesystem") {
+		t.Errorf("missing MCP client variable 'mcpFilesystem' in output:\n%s", got)
+	}
+	if !strings.Contains(got, "haira.NewMCPClient") {
+		t.Errorf("missing haira.NewMCPClient call in output:\n%s", got)
+	}
+	if !strings.Contains(got, "haira.MCPConfig") {
+		t.Errorf("missing haira.MCPConfig in output:\n%s", got)
+	}
+	if !strings.Contains(got, `Command: "npx"`) {
+		t.Errorf("missing Command field in output:\n%s", got)
+	}
+	if !strings.Contains(got, `Args: []string{`) {
+		t.Errorf("missing Args field in output:\n%s", got)
+	}
+	// Should NOT contain haira.Provider (it's an MCP provider, not a regular one)
+	if strings.Contains(got, "haira.Provider") {
+		t.Errorf("MCP provider should not emit haira.Provider:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: agent with MCP
+// ---------------------------------------------------------------------------
+
+func TestGoldenAgentWithMCP(t *testing.T) {
+	src := `provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+provider filesystem {
+    transport: "mcp"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+    mcp: [filesystem]
+}
+fn main() {}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "mcpClients := []*haira.MCPClient{mcpFilesystem}") {
+		t.Errorf("missing mcpClients slice in output:\n%s", got)
+	}
+	if !strings.Contains(got, "MCPClients: mcpClients,") {
+		t.Errorf("missing MCPClients in AgentConfig:\n%s", got)
+	}
+	if !strings.Contains(got, "defer haira.ShutdownMCP()") {
+		t.Errorf("missing defer haira.ShutdownMCP() in main:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: MCP provider with SSE transport
+// ---------------------------------------------------------------------------
+
+func TestGoldenMCPProviderSSE(t *testing.T) {
+	src := `provider remote_tools {
+    transport: "mcp"
+    endpoint: "http://localhost:3001/sse"
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "mcpRemoteTools") {
+		t.Errorf("missing MCP client variable 'mcpRemoteTools' in output:\n%s", got)
+	}
+	if !strings.Contains(got, `Endpoint: "http://localhost:3001/sse"`) {
+		t.Errorf("missing Endpoint field in output:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Type mapping
 // ---------------------------------------------------------------------------
 

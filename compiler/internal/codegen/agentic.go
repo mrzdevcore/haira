@@ -9,6 +9,12 @@ import (
 
 // EmitProvider emits a provider declaration as a Go var.
 func EmitProvider(em *GoEmitter, provider ast.ProviderDecl) {
+	// Check if this is an MCP provider
+	if isMCPProvider(provider) {
+		emitMCPProvider(em, provider)
+		return
+	}
+
 	name := goVarName("provider", provider.Name.Node)
 	em.OpenBlock(fmt.Sprintf("var %s = &haira.Provider", name))
 	em.Line(fmt.Sprintf("Name: %q,", provider.Name.Node))
@@ -18,6 +24,69 @@ func EmitProvider(em *GoEmitter, provider ast.ProviderDecl) {
 		em.Line(fmt.Sprintf("%s: %s,", goKey, goVal))
 	}
 	em.CloseBlock()
+	em.Blank()
+}
+
+// isMCPProvider checks if a provider declaration has transport: "mcp".
+func isMCPProvider(provider ast.ProviderDecl) bool {
+	for _, field := range provider.Fields {
+		if field.Key.Node == "transport" {
+			if lit, ok := field.Value.Node.(ast.LiteralExpr); ok {
+				if str, ok := lit.Lit.(ast.StringLit); ok && str.Value == "mcp" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// emitMCPProvider emits an MCP provider as a haira.NewMCPClient call.
+func emitMCPProvider(em *GoEmitter, provider ast.ProviderDecl) {
+	name := goVarName("mcp", provider.Name.Node)
+	em.OpenBlock(fmt.Sprintf("var %s = haira.NewMCPClient(haira.MCPConfig", name))
+	em.Line(fmt.Sprintf("Name: %q,", provider.Name.Node))
+
+	for _, field := range provider.Fields {
+		switch field.Key.Node {
+		case "transport":
+			em.Line(fmt.Sprintf("Transport: %s,", ExprToGo(field.Value)))
+		case "command":
+			em.Line(fmt.Sprintf("Command: %s,", ExprToGo(field.Value)))
+		case "args":
+			if list, ok := field.Value.Node.(ast.ListExpr); ok {
+				elems := make([]string, len(list.Elems))
+				for i, el := range list.Elems {
+					elems[i] = ExprToGo(el)
+				}
+				em.Line(fmt.Sprintf("Args: []string{%s},", strings.Join(elems, ", ")))
+			}
+		case "endpoint":
+			em.Line(fmt.Sprintf("Endpoint: %s,", ExprToGo(field.Value)))
+		case "env":
+			if mapExpr, ok := field.Value.Node.(ast.MapExpr); ok {
+				em.Line("Env: map[string]string{")
+				em.Indent()
+				for _, entry := range mapExpr.Entries {
+					em.Line(fmt.Sprintf("%s: %s,", ExprToGo(entry.Key), ExprToGo(entry.Value)))
+				}
+				em.Dedent()
+				em.Line("},")
+			}
+		case "headers":
+			if mapExpr, ok := field.Value.Node.(ast.MapExpr); ok {
+				em.Line("Headers: map[string]string{")
+				em.Indent()
+				for _, entry := range mapExpr.Entries {
+					em.Line(fmt.Sprintf("%s: %s,", ExprToGo(entry.Key), ExprToGo(entry.Value)))
+				}
+				em.Dedent()
+				em.Line("},")
+			}
+		}
+	}
+	em.Dedent()
+	em.Line("})")
 	em.Blank()
 }
 
@@ -53,6 +122,16 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 				}
 				em.Line(fmt.Sprintf("handoffTargets := []*haira.Agent{%s}", strings.Join(refs, ", ")))
 			}
+		case "mcp":
+			if list, ok := field.Value.Node.(ast.ListExpr); ok {
+				var refs []string
+				for _, item := range list.Elems {
+					if ident, ok := item.Node.(ast.IdentExpr); ok {
+						refs = append(refs, goVarName("mcp", ident.Name))
+					}
+				}
+				em.Line(fmt.Sprintf("mcpClients := []*haira.MCPClient{%s}", strings.Join(refs, ", ")))
+			}
 		}
 	}
 	em.Blank()
@@ -72,6 +151,8 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 			em.Line("Tools: toolReg,")
 		case "handoffs":
 			em.Line("Handoffs: handoffTargets,")
+		case "mcp":
+			em.Line("MCPClients: mcpClients,")
 		case "temperature":
 			em.Line(fmt.Sprintf("Temperature: %s,", ExprToGo(field.Value)))
 		case "memory":

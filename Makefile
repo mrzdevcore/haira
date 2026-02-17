@@ -1,4 +1,4 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate ui ui-dev help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate ui ui-dev sync-runtime help
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
@@ -47,12 +47,12 @@ vet:
 	cd $(COMPILER_DIR) && go vet ./...
 
 # Install haira binary to $GOPATH/bin
-install: build
+install: build sync-runtime
 	cp $(BINARY) $(shell go env GOPATH)/bin/haira
 	@echo "Installed haira to $$(go env GOPATH)/bin/haira"
 
 # Install haira binary to ~/.local/bin
-install-local: build
+install-local: build sync-runtime
 	@mkdir -p ~/.local/bin
 	@cp $(BINARY) ~/.local/bin/haira
 	@echo "Installed haira to ~/.local/bin/haira"
@@ -64,6 +64,12 @@ install-local: build
 install-system: build
 	@sudo cp $(BINARY) /usr/local/bin/haira
 	@echo "Installed haira to /usr/local/bin/haira"
+
+# Sync go-runtime to ~/.haira/runtime (for installed haira)
+sync-runtime:
+	@mkdir -p ~/.haira/runtime
+	@rsync -a --delete go-runtime/ ~/.haira/runtime/
+	@echo "Synced go-runtime → ~/.haira/runtime"
 
 # Uninstall haira binary
 uninstall:
@@ -140,6 +146,7 @@ help:
 	@echo "  install          Install to GOPATH/bin"
 	@echo "  install-local    Install to ~/.local/bin"
 	@echo "  install-system   Install to /usr/local/bin (sudo)"
+	@echo "  sync-runtime     Sync go-runtime to ~/.haira/runtime"
 	@echo "  uninstall        Remove installed binary"
 	@echo "  run              Run haira (use ARGS=\"...\")"
 	@echo "  parse            Parse a file (use FILE=\"...\")"

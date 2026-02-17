@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -168,7 +169,9 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 				req.Tools = tools
 			}
 
+			callStart := time.Now()
 			resp, err := a.client.CreateChatCompletion(ctx, req)
+			callLatency := time.Since(callStart).Milliseconds()
 			if err != nil {
 				ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
 				return
@@ -180,6 +183,22 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 			}
 
 			choice := resp.Choices[0]
+
+			// Record LLM generation for observability
+			RecordGeneration(LLMGeneration{
+				AgentName:    a.config.Name,
+				Model:        a.config.Provider.Model,
+				Provider:     a.config.Provider.Name,
+				InputTokens:  resp.Usage.PromptTokens,
+				OutputTokens: resp.Usage.CompletionTokens,
+				TotalTokens:  resp.Usage.TotalTokens,
+				LatencyMs:    callLatency,
+				Temperature:  a.config.Temperature,
+				ToolCalls:    len(choice.Message.ToolCalls),
+				FinishReason: string(choice.FinishReason),
+				SessionID:    sessionID,
+				Timestamp:    callStart,
+			})
 
 			// No tool calls → this is the final response, stream it out
 			if len(choice.Message.ToolCalls) == 0 {
@@ -205,7 +224,7 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 				}
 
 				// Execute tool
-				toolResult, rawResult := a.executeTool(tc)
+				toolResult, rawResult := a.executeTool(tc, sessionID)
 				messages = append(messages, toolResult)
 
 				// Emit tool_render if the result is a UiNode
@@ -287,7 +306,9 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 			}
 		}
 
+		callStart := time.Now()
 		resp, err := a.client.CreateChatCompletion(ctx, req)
+		callLatency := time.Since(callStart).Milliseconds()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[haira] LLM API error: %v\n", err)
 			return nil, fmt.Errorf("LLM API error: %w", err)
@@ -298,6 +319,22 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 		}
 
 		choice := resp.Choices[0]
+
+		// Record LLM generation for observability
+		RecordGeneration(LLMGeneration{
+			AgentName:    a.config.Name,
+			Model:        a.config.Provider.Model,
+			Provider:     a.config.Provider.Name,
+			InputTokens:  resp.Usage.PromptTokens,
+			OutputTokens: resp.Usage.CompletionTokens,
+			TotalTokens:  resp.Usage.TotalTokens,
+			LatencyMs:    callLatency,
+			Temperature:  a.config.Temperature,
+			ToolCalls:    len(choice.Message.ToolCalls),
+			FinishReason: string(choice.FinishReason),
+			SessionID:    sessionID,
+			Timestamp:    callStart,
+		})
 
 		// No tool calls → final answer
 		if len(choice.Message.ToolCalls) == 0 {
@@ -327,7 +364,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 
 		// Execute each tool call (non-handoff tools)
 		for _, tc := range choice.Message.ToolCalls {
-			toolResult, _ := a.executeTool(tc)
+			toolResult, _ := a.executeTool(tc, sessionID)
 			messages = append(messages, toolResult)
 		}
 	}
@@ -345,7 +382,7 @@ func (a *Agent) findHandoffTarget(toolName string) *Agent {
 	return nil
 }
 
-func (a *Agent) executeTool(tc openai.ToolCall) (openai.ChatCompletionMessage, any) {
+func (a *Agent) executeTool(tc openai.ToolCall, sessionID string) (openai.ChatCompletionMessage, any) {
 	toolDef, ok := a.config.Tools.Get(tc.Function.Name)
 	if !ok {
 		return openai.ChatCompletionMessage{
@@ -355,7 +392,19 @@ func (a *Agent) executeTool(tc openai.ToolCall) (openai.ChatCompletionMessage, a
 		}, nil
 	}
 
+	toolStart := time.Now()
 	result, err := toolDef.Handler(json.RawMessage(tc.Function.Arguments))
+
+	// Record tool execution for observability
+	RecordToolExec(ToolExec{
+		AgentName: a.config.Name,
+		ToolName:  tc.Function.Name,
+		LatencyMs: time.Since(toolStart).Milliseconds(),
+		Success:   err == nil,
+		SessionID: sessionID,
+		Timestamp: toolStart,
+	})
+
 	var content string
 	if err != nil {
 		content = fmt.Sprintf("error: %s", err.Error())

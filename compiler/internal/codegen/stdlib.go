@@ -371,6 +371,25 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "slug":
 			return "haira.TimeSlug()", true
 		}
+	case "observe":
+		switch method {
+		case "usage":
+			return "haira.ObserveUsage()", true
+		case "agent_usage":
+			return fmt.Sprintf("haira.ObserveAgentUsage(%s)", args), true
+		case "session_usage":
+			return fmt.Sprintf("haira.ObserveSessionUsage(%s)", args), true
+		case "model_usage":
+			return fmt.Sprintf("haira.ObserveModelUsage(%s)", args), true
+		case "events":
+			return "haira.ObserveEvents()", true
+		case "agent_events":
+			return fmt.Sprintf("haira.ObserveAgentEvents(%s)", args), true
+		case "reset":
+			return "haira.ObserveReset()", true
+		case "start":
+			return fmt.Sprintf("haira.ObserveStart(%s)", args), true
+		}
 	}
 	return "", false
 }
@@ -471,7 +490,8 @@ func resolveProviderArg(expr ast.Expr) string {
 func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
-		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector":
+		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
+		"observe":
 		return true
 	}
 	return false

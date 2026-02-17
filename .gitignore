@@ -32,4 +32,5 @@ poc
 .env
 .env.local
 editors/zed-haira/extension.wasm
-editors/zed-haira/grammars/haira.wasm
+editors/zed-haira/grammars
+tree-sitter-haira/tree-sitter-haira.wasm

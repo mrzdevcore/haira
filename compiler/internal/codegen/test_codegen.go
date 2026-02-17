@@ -329,3 +329,13 @@ func HasTests(file *ast.SourceFile) bool {
 	}
 	return false
 }
+
+// hasMainFunction returns true if the source file contains a fn main() definition.
+func hasMainFunction(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if f, ok := item.Node.(ast.FunctionDef); ok && f.Name.Node == "main" {
+			return true
+		}
+	}
+	return false
+}

@@ -16,10 +16,19 @@ import (
 func CompileToBinary(file *ast.SourceFile, output, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
 
-	mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-
-	if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
-		return err
+	// Test-only files (no fn main) need the test codegen path which includes
+	// a stub main() and a test file so `go build` succeeds.
+	if HasTests(file) && !hasMainFunction(file) {
+		mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
+		testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
+		if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
+			return err
+		}
+	} else {
+		mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
+		if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
+			return err
+		}
 	}
 
 	if err := runGoModTidy(tmpDir); err != nil {

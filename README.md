@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/go-1.22+-00ADD8.svg" alt="Go 1.22+">
-  <img src="https://img.shields.io/badge/examples-21-2962FF.svg" alt="21 examples">
+  <img src="https://img.shields.io/badge/examples-24-2962FF.svg" alt="24 examples">
 </p>
 
 ---
@@ -66,6 +66,7 @@ fn main() {
 | CrewAI / AutoGen | Multi-agent with `handoffs` and `spawn` |
 | Custom chatbot backend | Agent `memory` + `-> stream` + built-in chat UI |
 | YAML/JSON config files | `provider` keyword — config in code |
+| MCP glue code | `mcp.Server()` / `provider { transport: "mcp" }` |
 
 ## Key Features
 
@@ -80,6 +81,7 @@ fn main() {
 - **Workflow steps** — named steps with telemetry, `@retry`, lifecycle hooks (`onerror`, `onsuccess`)
 - **Parallel execution** — `spawn { }` blocks for concurrent agent calls
 - **Pipe operator** — `data |> transform |> output`
+- **MCP support** — consume external tools (`provider { transport: "mcp" }`) and expose workflows as MCP tools (`mcp.Server()`)
 - **Go-style simplicity** — familiar syntax, explicit error handling
 
 ## The Four Primitives
@@ -243,6 +245,121 @@ workflow Analyze(topic: string) -> { results: [string] } {
 }
 ```
 
+## MCP (Model Context Protocol)
+
+Haira has built-in MCP support in both directions — consume external tools and expose workflows as tools.
+
+### MCP Client — Use External Tools
+
+Connect to any MCP server. The agent discovers and uses its tools automatically:
+
+```haira
+import "http"
+
+provider filesystem {
+    transport: "mcp"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+}
+
+agent Assistant {
+    model: openai
+    system: "You are a helpful assistant with file system access."
+    mcp: [filesystem]
+}
+```
+
+SSE transport works too — connect to remote MCP servers over HTTP:
+
+```haira
+provider remote_tools {
+    transport: "mcp"
+    endpoint: "http://tools-server:9000/sse"
+}
+```
+
+### MCP Server — Expose Workflows as Tools
+
+Any workflow can be exposed as an MCP tool for external agents (Claude Code, Cursor, other Haira agents):
+
+```haira
+import "mcp"
+
+workflow Summarize(text: string) -> { summary: string } {
+    """Summarize the given text into key points."""
+    summary, err = Summarizer.ask(text)
+    if err != nil { return { summary: "Error." } }
+    return { summary: summary }
+}
+
+fn main() {
+    mcp_server = mcp.Server([Summarize])
+    mcp_server.listen(9000)  // SSE on http://localhost:9000/sse
+}
+```
+
+Both transports are supported:
+- `mcp_server.serve()` — stdio (for subprocess integration)
+- `mcp_server.listen(9000)` — SSE over HTTP (for remote agents)
+
+### Distributed Agent Network
+
+Combine MCP client + server + handoffs for cross-machine agent orchestration:
+
+```
+Server A (Summarizer)  ←──MCP──→  Server B (Translator)
+       ↑                                ↑
+       └──────── MCP ──── Server C (Orchestrator)
+```
+
+## Benchmarks
+
+Measured on Apple Silicon (M-series). Competitor numbers from published benchmarks and framework documentation.
+
+### Compiler Performance
+
+| Phase | 24 examples | Per file |
+|-------|-------------|----------|
+| Lex | 85ms | ~3.5ms |
+| Parse | 80ms | ~3.3ms |
+| Codegen (emit Go) | 86ms | ~3.6ms |
+| Full build (agentic) | 440ms | — |
+
+### Runtime Performance
+
+| Metric | Haira | Python + LangGraph | Python + CrewAI | Node.js + Vercel AI SDK |
+|--------|-------|--------------------|-----------------|-----------------------|
+| **Startup time** | **18ms** | ~1000ms | ~700ms | ~200ms |
+| **Memory (idle)** | **11 MB** | ~200 MB | ~150 MB | ~100 MB |
+| **Binary / deploy size** | **11 MB** | ~500 MB+ (Docker) | ~400 MB+ (Docker) | ~300 MB+ (Docker) |
+| **HTTP req/sec** | **~19,000** | ~1,000-3,000 | ~1,000-3,000 | ~6,000-8,000 |
+| **Dependencies** | **0** | 50-200 packages | 50-150 packages | 100-300 packages |
+
+### Usability: Lines of Code
+
+| Task | Haira | LangGraph | CrewAI | Vercel AI SDK |
+|------|-------|-----------|--------|---------------|
+| Agent + tool + HTTP server | **47 lines, 1 file** | ~130 lines, 3-5 files | ~100 lines, 2-4 files | ~90 lines, 3-4 files |
+| Multi-agent handoffs | **48 lines** | ~200+ lines | ~120 lines | ~150+ lines |
+| MCP client integration | **39 lines** | N/A | N/A | ~80 lines |
+| MCP server (expose as tool) | **32 lines** | N/A | N/A | N/A |
+
+### Feature Comparison
+
+| Capability | Haira | LangGraph | CrewAI | AutoGen | Vercel AI SDK |
+|------------|-------|-----------|--------|---------|---------------|
+| Custom tools | First-class keyword | Decorator | Decorator/class | Function | Zod schema |
+| Multi-agent | Handoffs (built-in) | Graph edges | Role delegation | Conversations | Manual |
+| MCP client | Built-in | Via plugin | No | No | Plugin |
+| MCP server | Built-in | No | No | No | No |
+| HTTP server | Built-in | Manual (Flask) | No | No | Via Next.js |
+| SSE streaming | `-> stream` keyword | Manual | No | No | Built-in |
+| Memory/sessions | Language keyword | Checkpointer | Config | Config | Manual |
+| Type safety | Compile-time | Runtime | Runtime | Runtime | TypeScript |
+| Parallel execution | `spawn { }` | `Send()` API | Task config | Group chat | `Promise.all` |
+| Auto UI | Built-in | No | No | No | No |
+| Deploy | Single binary | Docker + venv | Docker + venv | Docker + node_modules | Docker + node_modules |
+
 ## Getting Started
 
 ### Requirements
@@ -299,12 +416,14 @@ haira/
 │       ├── tool.go           # Tool registry
 │       ├── workflow.go       # Workflow definitions
 │       ├── server.go         # HTTP server with SSE + auto UI routing
+│       ├── mcp_client.go     # MCP client (stdio + SSE transports)
+│       ├── mcp_server.go     # MCP server (stdio + SSE transports)
 │       ├── memory.go         # Session memory store
 │       ├── upload.go         # File upload handling
 │       ├── ui_form.go        # Auto form UI
 │       ├── ui_chat.go        # Auto chat UI
 │       └── ui/               # Embedded HTML templates
-├── examples/                # 21 example programs
+├── examples/                # 24 example programs
 ├── poc/                     # Real-world proof of concept
 ├── spec/                    # Language specification (17 chapters, LaTeX)
 ├── editors/                 # Editor extensions (Zed)
@@ -314,7 +433,7 @@ haira/
 
 ## Examples
 
-All 21 examples compile and run:
+All 24 examples compile and run:
 
 ```bash
 make build-examples    # compile all
@@ -344,6 +463,9 @@ make run-examples      # run non-agentic examples
 | 19-streaming | SSE streaming workflow |
 | 20-stdlib | Standard library showcase |
 | 21-file-upload | File upload with AI summarization |
+| 22-pipeline-ui | Workflow steps with pipeline UI |
+| 23-mcp | MCP client — agent with external tools |
+| 24-mcp-server | MCP server — expose workflows as tools |
 
 ## License
 

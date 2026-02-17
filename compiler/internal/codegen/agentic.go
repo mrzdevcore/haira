@@ -168,6 +168,11 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 					em.Line(fmt.Sprintf("Memory: %s,", config))
 				}
 			}
+		case "output":
+			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
+				schema := buildStructJSONSchema(ident.Name)
+				em.Line(fmt.Sprintf("OutputSchema: `%s`,", schema))
+			}
 		default:
 			goKey := goFieldName(field.Key.Node)
 			em.Line(fmt.Sprintf("%s: %s,", goKey, ExprToGo(field.Value)))
@@ -177,6 +182,39 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 	em.Line("})")
 	em.CloseBlock()
 	em.Blank()
+}
+
+// buildStructJSONSchema builds a JSON Schema string from a struct name found in activeSourceFile.
+func buildStructJSONSchema(structName string) string {
+	if activeSourceFile == nil {
+		return fmt.Sprintf(`{"type":"object","description":"%s"}`, structName)
+	}
+	for _, item := range activeSourceFile.Items {
+		td, ok := item.Node.(ast.TypeDef)
+		if !ok || td.Name.Node != structName {
+			continue
+		}
+		var props []string
+		var required []string
+		for _, f := range td.Fields {
+			jsonType := "string"
+			if f.Ty != nil {
+				switch HairaTypeToGo(f.Ty.Node) {
+				case "int", "float64":
+					jsonType = "number"
+				case "bool":
+					jsonType = "boolean"
+				case "[]any", "[]string", "[]int", "[]float64":
+					jsonType = "array"
+				}
+			}
+			props = append(props, fmt.Sprintf(`"%s":{"type":"%s"}`, f.Name.Node, jsonType))
+			required = append(required, fmt.Sprintf(`"%s"`, f.Name.Node))
+		}
+		return fmt.Sprintf(`{"type":"object","properties":{%s},"required":[%s]}`,
+			strings.Join(props, ","), strings.Join(required, ","))
+	}
+	return fmt.Sprintf(`{"type":"object","description":"%s"}`, structName)
 }
 
 // EmitTool emits a tool declaration as a Go handler function + ToolDef var.

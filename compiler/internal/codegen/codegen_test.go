@@ -730,6 +730,116 @@ func TestIsStdlibImport(t *testing.T) {
 // Agent topological sort
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Golden test: vector.embed codegen
+// ---------------------------------------------------------------------------
+
+func TestGoldenVectorEmbed(t *testing.T) {
+	src := `import "io"
+import "vector"
+
+provider openai_embed {
+    api_key: env("OPENAI_API_KEY")
+    model: "text-embedding-3-small"
+}
+
+fn main() {
+    embedding = vector.embed(openai_embed, "Hello world")
+    io.println(embedding)
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "haira.VectorEmbed(providerOpenaiEmbed,") {
+		t.Errorf("missing haira.VectorEmbed with resolved provider var in output:\n%s", got)
+	}
+	if !strings.Contains(got, `"Hello world"`) {
+		t.Errorf("missing text argument in output:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: vector.collection codegen
+// ---------------------------------------------------------------------------
+
+func TestGoldenVectorCollection(t *testing.T) {
+	src := `import "postgres"
+import "vector"
+
+provider openai_embed {
+    api_key: env("OPENAI_API_KEY")
+    model: "text-embedding-3-small"
+}
+
+fn main() {
+    db = postgres.connect(env("DATABASE_URL"))
+    docs = vector.collection(db, "documents", dimensions: 1536)
+    results = vector.search(docs, {query: vector.embed(openai_embed, "test"), limit: 5})
+    io.println(vector.format(results))
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "haira.VectorNewCollection(db, \"documents\", 1536)") {
+		t.Errorf("missing haira.VectorNewCollection with dimensions in output:\n%s", got)
+	}
+	if !strings.Contains(got, "haira.VectorSearch(") {
+		t.Errorf("missing haira.VectorSearch in output:\n%s", got)
+	}
+	if !strings.Contains(got, "haira.VectorFormat(") {
+		t.Errorf("missing haira.VectorFormat in output:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Golden test: structured output (agent with output: Struct)
+// ---------------------------------------------------------------------------
+
+func TestGoldenStructuredOutput(t *testing.T) {
+	src := `import "io"
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
+}
+
+struct Analysis {
+    sentiment: string
+    confidence: float
+    topics: [string]
+}
+
+agent Analyzer {
+    model: openai
+    system: "Analyze text."
+    output: Analysis
+}
+
+fn main() {
+    result, err = Analyzer.run("I love Haira!")
+    io.println(result)
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "OutputSchema:") {
+		t.Errorf("missing OutputSchema in agent config:\n%s", got)
+	}
+	if !strings.Contains(got, `"sentiment"`) {
+		t.Errorf("missing sentiment field in JSON schema:\n%s", got)
+	}
+	if !strings.Contains(got, `"confidence"`) {
+		t.Errorf("missing confidence field in JSON schema:\n%s", got)
+	}
+	if !strings.Contains(got, `"topics"`) {
+		t.Errorf("missing topics field in JSON schema:\n%s", got)
+	}
+	if !strings.Contains(got, `"type":"object"`) {
+		t.Errorf("missing type:object in JSON schema:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Agent topological sort
+// ---------------------------------------------------------------------------
+
 func TestAgentTopoSort(t *testing.T) {
 	src := `provider openai {
     api_key: env("KEY")

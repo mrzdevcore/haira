@@ -63,7 +63,7 @@ func ExprToGo(expr ast.Expr) string {
 							positional = append(positional, ExprToGo(arg.Value))
 						}
 					}
-					if m == "ask" {
+					if m == "ask" || m == "run" {
 						if hasSession {
 							positional = append(positional, sessionArg)
 						} else {

@@ -12,14 +12,15 @@ import (
 
 // AgentConfig holds the configuration for creating an agent.
 type AgentConfig struct {
-	Name        string
-	Provider    *Provider
-	System      string
-	Tools       *ToolRegistry
-	Handoffs    []*Agent
-	Temperature float64
-	Memory      MemoryConfig
-	MCPClients  []*MCPClient // MCP server connections for external tools
+	Name         string
+	Provider     *Provider
+	System       string
+	Tools        *ToolRegistry
+	Handoffs     []*Agent
+	Temperature  float64
+	Memory       MemoryConfig
+	MCPClients   []*MCPClient // MCP server connections for external tools
+	OutputSchema string       // JSON Schema for structured output (forces JSON mode)
 }
 
 // AgentResult holds the full result of an agent call, including handoff info.
@@ -37,31 +38,31 @@ type Agent struct {
 
 const handoffToolPrefix = "transfer_to_"
 
-// NewAgent creates a new agent from configuration.
-func NewAgent(config AgentConfig) *Agent {
-	var client *openai.Client
-
-	if config.Provider.Endpoint != "" && config.Provider.ApiVersion != "" {
+// CreateOpenAIClient creates an openai.Client from a Provider config.
+// Supports Azure OpenAI, OpenAI-compatible endpoints, and standard OpenAI.
+func CreateOpenAIClient(provider *Provider) *openai.Client {
+	if provider.Endpoint != "" && provider.ApiVersion != "" {
 		// Azure OpenAI
 		fmt.Fprintf(os.Stderr, "[haira] Using Azure OpenAI: endpoint=%s model=%s api_version=%s\n",
-			config.Provider.Endpoint, config.Provider.Model, config.Provider.ApiVersion)
-		azCfg := openai.DefaultAzureConfig(
-			config.Provider.ApiKey,
-			config.Provider.Endpoint,
-		)
-		azCfg.APIVersion = config.Provider.ApiVersion
-		client = openai.NewClientWithConfig(azCfg)
-	} else if config.Provider.Endpoint != "" {
+			provider.Endpoint, provider.Model, provider.ApiVersion)
+		azCfg := openai.DefaultAzureConfig(provider.ApiKey, provider.Endpoint)
+		azCfg.APIVersion = provider.ApiVersion
+		return openai.NewClientWithConfig(azCfg)
+	} else if provider.Endpoint != "" {
 		// OpenAI-compatible endpoint (Ollama, Groq, Mistral, etc.)
 		fmt.Fprintf(os.Stderr, "[haira] Using OpenAI-compatible: endpoint=%s model=%s\n",
-			config.Provider.Endpoint, config.Provider.Model)
-		cfg := openai.DefaultConfig(config.Provider.ApiKey)
-		cfg.BaseURL = config.Provider.Endpoint
-		client = openai.NewClientWithConfig(cfg)
-	} else {
-		// Standard OpenAI
-		client = openai.NewClient(config.Provider.ApiKey)
+			provider.Endpoint, provider.Model)
+		cfg := openai.DefaultConfig(provider.ApiKey)
+		cfg.BaseURL = provider.Endpoint
+		return openai.NewClientWithConfig(cfg)
 	}
+	// Standard OpenAI
+	return openai.NewClient(provider.ApiKey)
+}
+
+// NewAgent creates a new agent from configuration.
+func NewAgent(config AgentConfig) *Agent {
+	client := CreateOpenAIClient(config.Provider)
 
 	maxTurns := 10
 	if config.Memory.MaxTurns > 0 {
@@ -243,10 +244,15 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 	// Build messages: system + history + new user message
 	var messages []openai.ChatCompletionMessage
 
-	if a.config.System != "" {
+	systemPrompt := a.config.System
+	if a.config.OutputSchema != "" {
+		systemPrompt += "\n\nYou MUST respond with valid JSON matching this schema:\n" + a.config.OutputSchema
+	}
+
+	if systemPrompt != "" {
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleSystem,
-			Content: a.config.System,
+			Content: systemPrompt,
 		})
 	}
 
@@ -274,6 +280,11 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 		}
 		if len(tools) > 0 {
 			req.Tools = tools
+		}
+		if a.config.OutputSchema != "" {
+			req.ResponseFormat = &openai.ChatCompletionResponseFormat{
+				Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+			}
 		}
 
 		resp, err := a.client.CreateChatCompletion(ctx, req)

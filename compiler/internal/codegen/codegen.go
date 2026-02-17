@@ -20,6 +20,8 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 		activeTypeInfo = nil
 	}
 
+	activeSourceFile = file
+
 	em.Line("package main")
 	em.Blank()
 

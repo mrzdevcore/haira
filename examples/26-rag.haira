@@ -1,0 +1,46 @@
+import "io"
+import "http"
+import "postgres"
+import "vector"
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
+}
+
+provider openai_embed {
+    api_key: env("OPENAI_API_KEY")
+    model: "text-embedding-3-small"
+}
+
+db, _ = postgres.connect(env("DATABASE_URL"))
+knowledge = vector.collection(db, "knowledge", dimensions: 1536)
+
+tool search_docs(query: string) -> string {
+    """Search the knowledge base for relevant documents."""
+    results = vector.search(knowledge, {
+        query: vector.embed(openai_embed, query),
+        limit: 5
+    })
+    return vector.format(results)
+}
+
+agent RAGBot {
+    model: openai
+    system: "Answer questions using the knowledge base. Always search first."
+    tools: [search_docs]
+    memory: conversation(max_turns: 10)
+}
+
+@post("/api/ask")
+workflow Ask(question: string, session_id: string) -> { answer: string } {
+    answer, err = RAGBot.ask(question, session: session_id)
+    if err != nil { return { answer: "Error processing your question." } }
+    return { answer: answer }
+}
+
+fn main() {
+    server = http.Server([Ask])
+    io.println("RAG server on :8080")
+    server.listen(8080)
+}

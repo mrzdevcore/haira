@@ -1,0 +1,32 @@
+import "io"
+import "json"
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4o"
+}
+
+struct Analysis {
+    sentiment: string
+    confidence: float
+    topics: [string]
+    summary: string
+}
+
+agent Analyzer {
+    model: openai
+    system: "Analyze text and return structured analysis with sentiment, confidence, topics, and summary."
+    output: Analysis
+}
+
+fn main() {
+    result, err = Analyzer.run("I absolutely love programming in Haira! The compile times are incredible and the agent system is so intuitive.")
+    if err != nil {
+        io.println("Error: ${err}")
+        return
+    }
+
+    // The agent returns structured JSON (forced by output: Analysis)
+    io.println("Structured response:")
+    io.println(result)
+}

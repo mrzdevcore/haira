@@ -1,0 +1,49 @@
+import "io"
+import "postgres"
+import "vector"
+
+provider openai_embed {
+    api_key: env("OPENAI_API_KEY")
+    model: "text-embedding-3-small"
+}
+
+fn main() {
+    // Generate a single embedding
+    embedding = vector.embed(openai_embed, "Haira is an agentic programming language")
+    io.println("Embedding dimensions: ${len(embedding)}")
+
+    // Generate batch embeddings
+    texts = ["Hello world", "Haira compiles to Go", "Vector databases are useful"]
+    embeddings = vector.embed_batch(openai_embed, texts)
+    io.println("Generated ${len(embeddings)} embeddings")
+
+    // Connect to Postgres with pgvector
+    db, err = postgres.connect(env("DATABASE_URL"))
+    if err != nil {
+        io.println("DB error: ${err}")
+        return
+    }
+    docs = vector.collection(db, "documents", dimensions: 1536)
+
+    // Insert documents with embeddings
+    vector.insert(docs, {
+        content: "Haira is a compiled agentic programming language",
+        embedding: vector.embed(openai_embed, "Haira is a compiled agentic programming language"),
+        metadata: { source: "readme", category: "overview" }
+    })
+
+    vector.insert(docs, {
+        content: "Haira compiles to Go for maximum performance",
+        embedding: vector.embed(openai_embed, "Haira compiles to Go for maximum performance"),
+        metadata: { source: "readme", category: "performance" }
+    })
+
+    // Similarity search
+    results = vector.search(docs, {
+        query: vector.embed(openai_embed, "What language is Haira?"),
+        limit: 5
+    })
+
+    io.println("Search results:")
+    io.println(vector.format(results))
+}

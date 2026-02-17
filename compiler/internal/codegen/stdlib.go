@@ -94,6 +94,21 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "Server":
 			return resolveMCPServerCall(call), true
 		}
+	case "vector":
+		switch method {
+		case "embed":
+			return resolveVectorEmbed(call), true
+		case "embed_batch":
+			return resolveVectorEmbedBatch(call), true
+		case "collection":
+			return resolveVectorCollection(call), true
+		case "insert":
+			return fmt.Sprintf("haira.VectorInsert(%s)", args), true
+		case "search":
+			return fmt.Sprintf("haira.VectorSearch(%s)", args), true
+		case "format":
+			return fmt.Sprintf("haira.VectorFormat(%s)", args), true
+		}
 	case "json":
 		switch method {
 		case "marshal":
@@ -404,11 +419,59 @@ func callArgsToGo(args []ast.Argument) string {
 	return strings.Join(parts, ", ")
 }
 
+// resolveVectorEmbed converts vector.embed(provider, text) → haira.VectorEmbed(providerVar, text)
+func resolveVectorEmbed(call ast.CallExpr) string {
+	if len(call.Args) < 2 {
+		return "haira.VectorEmbed(nil, \"\")"
+	}
+	providerArg := resolveProviderArg(call.Args[0].Value)
+	textArg := ExprToGo(call.Args[1].Value)
+	return fmt.Sprintf("haira.VectorEmbed(%s, %s)", providerArg, textArg)
+}
+
+// resolveVectorEmbedBatch converts vector.embed_batch(provider, texts) → haira.VectorEmbedBatch(providerVar, texts)
+func resolveVectorEmbedBatch(call ast.CallExpr) string {
+	if len(call.Args) < 2 {
+		return "haira.VectorEmbedBatch(nil, nil)"
+	}
+	providerArg := resolveProviderArg(call.Args[0].Value)
+	textsArg := ExprToGo(call.Args[1].Value)
+	return fmt.Sprintf("haira.VectorEmbedBatch(%s, %s)", providerArg, textsArg)
+}
+
+// resolveVectorCollection converts vector.collection(db, "name", dimensions: N)
+// → haira.VectorNewCollection(db, "name", N)
+func resolveVectorCollection(call ast.CallExpr) string {
+	if len(call.Args) < 2 {
+		return "haira.VectorNewCollection(nil, \"\", 0)"
+	}
+	dbArg := ExprToGo(call.Args[0].Value)
+	nameArg := ExprToGo(call.Args[1].Value)
+	// Look for named arg "dimensions"
+	dimArg := "0"
+	for _, arg := range call.Args[2:] {
+		if arg.Name != nil && arg.Name.Node == "dimensions" {
+			dimArg = ExprToGo(arg.Value)
+			break
+		}
+	}
+	return fmt.Sprintf("haira.VectorNewCollection(%s, %s, %s)", dbArg, nameArg, dimArg)
+}
+
+// resolveProviderArg resolves a provider identifier to its Go variable name.
+// e.g., "openai_embed" → "providerOpenaiEmbed"
+func resolveProviderArg(expr ast.Expr) string {
+	if ident, ok := expr.Node.(ast.IdentExpr); ok {
+		return goVarName("provider", ident.Name)
+	}
+	return ExprToGo(expr)
+}
+
 // IsStdlibImport returns whether a Haira import path maps to a stdlib module.
 func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
-		"string", "regex", "math", "conv", "array", "map", "log", "ui":
+		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector":
 		return true
 	}
 	return false

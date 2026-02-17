@@ -11,6 +11,9 @@ import (
 // activeTypeInfo holds type info during code generation. Set by GenerateMainGo.
 var activeTypeInfo *checker.TypeInfo
 
+// activeSourceFile holds the source file being generated (for struct lookups).
+var activeSourceFile *ast.SourceFile
+
 // activeWorkflowName holds the current workflow name during codegen (for step telemetry).
 var activeWorkflowName string
 

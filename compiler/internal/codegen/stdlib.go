@@ -111,9 +111,9 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		}
 	case "json":
 		switch method {
-		case "marshal":
+		case "marshal", "encode":
 			return fmt.Sprintf("haira.JSONMarshal(%s)", args), true
-		case "unmarshal":
+		case "unmarshal", "decode":
 			return fmt.Sprintf("haira.JSONUnmarshal(%s)", args), true
 		case "marshal_pretty":
 			return fmt.Sprintf("haira.JSONMarshalPretty(%s)", args), true

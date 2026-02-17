@@ -246,9 +246,25 @@ func emitFor(em *GoEmitter, forStmt ast.ForStmt) {
 			em.OpenBlock(fmt.Sprintf("for %s, %s := range %s", p.First.Node, p.Second.Node, iter))
 		} else {
 			// SinglePattern (for item in list) — use haira.ToSlice() for safe slice iteration
-			switch forStmt.Iterator.Node.(type) {
+			isChannel := false
+			switch it := forStmt.Iterator.Node.(type) {
 			case ast.ListExpr, ast.MapExpr:
 				// Already typed, use directly
+			case ast.MethodCallExpr:
+				// agent.stream() returns a channel — don't wrap in ToSlice
+				if it.Method.Node == "stream" {
+					if ident, ok := it.Receiver.Node.(ast.IdentExpr); ok {
+						if len(ident.Name) > 0 && ident.Name[0] >= 'A' && ident.Name[0] <= 'Z' {
+							isChannel = true
+						}
+					}
+				}
+				if !isChannel {
+					if isTypedNonAny(forStmt.Iterator.Span) {
+					} else {
+						iter = fmt.Sprintf("haira.ToSlice(%s)", iter)
+					}
+				}
 			default:
 				if isTypedNonAny(forStmt.Iterator.Span) {
 					// Type checker knows this is a typed slice, use directly
@@ -257,7 +273,11 @@ func emitFor(em *GoEmitter, forStmt ast.ForStmt) {
 				}
 			}
 			p := forStmt.Pattern.(ast.SinglePattern)
-			em.OpenBlock(fmt.Sprintf("for _, %s := range %s", p.Name.Node, iter))
+			if isChannel {
+				em.OpenBlock(fmt.Sprintf("for %s := range %s", p.Name.Node, iter))
+			} else {
+				em.OpenBlock(fmt.Sprintf("for _, %s := range %s", p.Name.Node, iter))
+			}
 		}
 	}
 	EmitBlockBody(em, forStmt.Body)
@@ -436,6 +456,14 @@ func patternToCondition(subject string, pattern ast.Pattern) string {
 
 func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {
 	errName := tryStmt.ErrorName.Node
+
+	// Hoist variables assigned in the try body so they survive the IIFE scope.
+	for _, name := range collectAssignTargets(tryStmt.Body) {
+		if em.DeclareVar(name) {
+			em.Line(fmt.Sprintf("var %s any", name))
+		}
+	}
+
 	em.OpenBlock("func()")
 	em.OpenBlock("defer func()")
 	em.OpenBlock("if r := recover(); r != nil")
@@ -443,20 +471,58 @@ func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {
 	em.Line(fmt.Sprintf("_ = %s", errName))
 	EmitBlockBody(em, tryStmt.CatchBody)
 	em.CloseBlock()
-	em.CloseBlock()
-	em.Line("()")
+	em.Dedent()
+	em.Line("}()")
 	EmitBlockBody(em, tryStmt.Body)
-	em.CloseBlock()
-	em.Line("()")
+	em.Dedent()
+	em.Line("}()")
+}
+
+// collectAssignTargets returns all variable names assigned in a block, recursing into nested blocks.
+func collectAssignTargets(block ast.Block) []string {
+	var names []string
+	seen := map[string]bool{}
+	collectAssignTargetsRec(block, seen, &names)
+	return names
+}
+
+func collectAssignTargetsRec(block ast.Block, seen map[string]bool, names *[]string) {
+	for _, stmt := range block.Statements {
+		switch s := stmt.Node.(type) {
+		case ast.AssignStmt:
+			for _, t := range s.Targets {
+				if ident, ok := t.Path.(ast.IdentPath); ok {
+					name := ident.Name.Node
+					if !seen[name] {
+						seen[name] = true
+						*names = append(*names, name)
+					}
+				}
+			}
+		case ast.IfStmt:
+			collectAssignTargetsRec(s.ThenBranch, seen, names)
+			if s.ElseBranch != nil {
+				if eb, ok := s.ElseBranch.(*ast.ElseBlock); ok {
+					collectAssignTargetsRec(eb.Body, seen, names)
+				}
+			}
+		case ast.ForStmt:
+			collectAssignTargetsRec(s.Body, seen, names)
+		case ast.WhileStmt:
+			collectAssignTargetsRec(s.Body, seen, names)
+		}
+	}
 }
 
 // emitErrDefer emits an errdefer — a deferred call that only runs on error.
-// Implemented as: defer func() { if _haira_err != nil { <expr> } }()
-// The enclosing function must use a named error return (_haira_err).
+// Since Haira uses panic-based error propagation (?), errdefer checks for
+// panics via recover(). If a panic occurred, it runs the cleanup expression
+// then re-panics to preserve the error.
 func emitErrDefer(em *GoEmitter, s ast.ErrDeferStmt) {
 	em.OpenBlock("defer func()")
-	em.OpenBlock("if _haira_err != nil")
+	em.OpenBlock("if r := recover(); r != nil")
 	em.Line(ExprToGo(s.Value))
+	em.Line("panic(r)")
 	em.CloseBlock()
 	em.Dedent()
 	em.Line("}()")

@@ -19,9 +19,24 @@ func EmitProvider(em *GoEmitter, provider ast.ProviderDecl) {
 	em.OpenBlock(fmt.Sprintf("var %s = &haira.Provider", name))
 	em.Line(fmt.Sprintf("Name: %q,", provider.Name.Node))
 	for _, field := range provider.Fields {
-		goKey := goFieldName(field.Key.Node)
-		goVal := ExprToGo(field.Value)
-		em.Line(fmt.Sprintf("%s: %s,", goKey, goVal))
+		switch field.Key.Node {
+		case "api_key":
+			em.Line(fmt.Sprintf("ApiKey: %s,", ExprToGo(field.Value)))
+		case "model":
+			em.Line(fmt.Sprintf("Model: %s,", ExprToGo(field.Value)))
+		case "endpoint":
+			em.Line(fmt.Sprintf("Endpoint: %s,", ExprToGo(field.Value)))
+		case "api_version":
+			em.Line(fmt.Sprintf("ApiVersion: %s,", ExprToGo(field.Value)))
+		case "backend":
+			em.Line(fmt.Sprintf("Backend: %s,", ExprToGo(field.Value)))
+		case "host":
+			em.Line(fmt.Sprintf("Host: %s,", ExprToGo(field.Value)))
+		case "temperature":
+			em.Line(fmt.Sprintf("Temperature: %s,", ExprToGo(field.Value)))
+		case "max_tokens":
+			em.Line(fmt.Sprintf("MaxTokens: %s,", ExprToGo(field.Value)))
+		}
 	}
 	em.CloseBlock()
 	em.Blank()
@@ -155,6 +170,10 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 			em.Line("MCPClients: mcpClients,")
 		case "temperature":
 			em.Line(fmt.Sprintf("Temperature: %s,", ExprToGo(field.Value)))
+		case "max_tokens":
+			em.Line(fmt.Sprintf("MaxTokens: %s,", ExprToGo(field.Value)))
+		case "max_steps":
+			em.Line(fmt.Sprintf("MaxSteps: %s,", ExprToGo(field.Value)))
 		case "memory":
 			if call, ok := field.Value.Node.(ast.CallExpr); ok {
 				if ident, ok := call.Callee.Node.(ast.IdentExpr); ok {

@@ -34,6 +34,7 @@ type SessionStore struct {
 	mu       sync.RWMutex
 	sessions map[string][]Message
 	maxTurns int
+	disabled bool // when true (memory: none), no history is stored
 }
 
 // NewSessionStore creates a new session store with a max turn limit.
@@ -46,6 +47,9 @@ func NewSessionStore(maxTurns int) *SessionStore {
 
 // GetHistory returns the conversation history for a session.
 func (s *SessionStore) GetHistory(sessionID string) []Message {
+	if s.disabled {
+		return nil
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	msgs, ok := s.sessions[sessionID]
@@ -59,6 +63,9 @@ func (s *SessionStore) GetHistory(sessionID string) []Message {
 
 // AddMessage appends a message to a session's history, trimming if needed.
 func (s *SessionStore) AddMessage(sessionID string, msg Message) {
+	if s.disabled {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[sessionID] = append(s.sessions[sessionID], msg)

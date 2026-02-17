@@ -63,14 +63,12 @@ func ExprToGo(expr ast.Expr) string {
 							positional = append(positional, ExprToGo(arg.Value))
 						}
 					}
-					if m == "ask" || m == "run" {
+					if m == "ask" || m == "run" || m == "stream" {
 						if hasSession {
 							positional = append(positional, sessionArg)
 						} else {
 							positional = append(positional, `""`)
 						}
-					} else if hasSession {
-						positional = append(positional, sessionArg)
 					}
 					return fmt.Sprintf("%s.%s(%s)", agentVar, method, strings.Join(positional, ", "))
 				}
@@ -88,6 +86,23 @@ func ExprToGo(expr ast.Expr) string {
 		if ident, ok := e.Object.Node.(ast.IdentExpr); ok {
 			if len(ident.Name) > 0 && ident.Name[0] >= 'A' && ident.Name[0] <= 'Z' {
 				return ident.Name + e.Field.Node
+			}
+		}
+		// Map .message on error-typed variables to .Error()
+		// Go's error interface has no .Message field — only the .Error() method.
+		if e.Field.Node == "message" {
+			if activeTypeInfo != nil {
+				if objTy, ok := activeTypeInfo.ExprTypes[e.Object.Span]; ok {
+					if _, isErr := objTy.(checker.ErrorType); isErr {
+						return ExprToGo(e.Object) + ".Error()"
+					}
+				}
+			}
+			// Heuristic fallback: variables named "err" are errors
+			if ident, ok := e.Object.Node.(ast.IdentExpr); ok {
+				if ident.Name == "err" || strings.HasSuffix(ident.Name, "_err") {
+					return ExprToGo(e.Object) + ".Error()"
+				}
 			}
 		}
 		// If the object is a known struct, capitalize the field name

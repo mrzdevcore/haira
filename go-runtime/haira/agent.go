@@ -19,6 +19,8 @@ type AgentConfig struct {
 	Tools        *ToolRegistry
 	Handoffs     []*Agent
 	Temperature  float64
+	MaxTokens    int // Maximum tokens for LLM response (0 = provider default)
+	MaxSteps     int // Maximum tool-calling iterations (0 = default 10)
 	Memory       MemoryConfig
 	MCPClients   []*MCPClient // MCP server connections for external tools
 	OutputSchema string       // JSON Schema for structured output (forces JSON mode)
@@ -27,7 +29,7 @@ type AgentConfig struct {
 // AgentResult holds the full result of an agent call, including handoff info.
 type AgentResult struct {
 	Reply       string
-	HandedOffTo string // name of agent that handled the request, empty if no handoff
+	HandedOffTo *string // nil if no handoff, pointer to agent name if handoff occurred
 }
 
 // Agent is an LLM-powered agent that can use tools.
@@ -42,19 +44,25 @@ const handoffToolPrefix = "transfer_to_"
 // CreateOpenAIClient creates an openai.Client from a Provider config.
 // Supports Azure OpenAI, OpenAI-compatible endpoints, and standard OpenAI.
 func CreateOpenAIClient(provider *Provider) *openai.Client {
-	if provider.Endpoint != "" && provider.ApiVersion != "" {
+	// Resolve Host → Endpoint for local backends (e.g. Ollama, llama.cpp)
+	endpoint := provider.Endpoint
+	if endpoint == "" && provider.Host != "" {
+		endpoint = "http://" + provider.Host + "/v1"
+	}
+
+	if endpoint != "" && provider.ApiVersion != "" {
 		// Azure OpenAI
 		fmt.Fprintf(os.Stderr, "[haira] Using Azure OpenAI: endpoint=%s model=%s api_version=%s\n",
-			provider.Endpoint, provider.Model, provider.ApiVersion)
-		azCfg := openai.DefaultAzureConfig(provider.ApiKey, provider.Endpoint)
+			endpoint, provider.Model, provider.ApiVersion)
+		azCfg := openai.DefaultAzureConfig(provider.ApiKey, endpoint)
 		azCfg.APIVersion = provider.ApiVersion
 		return openai.NewClientWithConfig(azCfg)
-	} else if provider.Endpoint != "" {
-		// OpenAI-compatible endpoint (Ollama, Groq, Mistral, etc.)
+	} else if endpoint != "" {
+		// OpenAI-compatible endpoint (Ollama, Groq, Mistral, llama.cpp, etc.)
 		fmt.Fprintf(os.Stderr, "[haira] Using OpenAI-compatible: endpoint=%s model=%s\n",
-			provider.Endpoint, provider.Model)
+			endpoint, provider.Model)
 		cfg := openai.DefaultConfig(provider.ApiKey)
-		cfg.BaseURL = provider.Endpoint
+		cfg.BaseURL = endpoint
 		return openai.NewClientWithConfig(cfg)
 	}
 	// Standard OpenAI
@@ -90,10 +98,24 @@ func NewAgent(config AgentConfig) *Agent {
 		}
 	}
 
+	if config.MaxSteps <= 0 {
+		config.MaxSteps = 10
+	}
+
+	if config.Memory.Kind == "summary" {
+		fmt.Fprintf(os.Stderr, "[haira] Warning: agent %q uses summary memory which is not yet implemented — falling back to conversation memory\n", config.Name)
+		config.Memory.Kind = "conversation"
+	}
+
+	store := NewSessionStore(maxTurns)
+	if config.Memory.Kind == "none" {
+		store.disabled = true
+	}
+
 	return &Agent{
 		config: config,
 		client: client,
-		store:  NewSessionStore(maxTurns),
+		store:  store,
 	}
 }
 
@@ -159,11 +181,14 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 		tools := a.buildTools()
 
 		// Tool-calling loop: use non-streaming calls to handle tool iterations
-		for i := 0; i < 10; i++ {
+		for i := 0; i < a.config.MaxSteps; i++ {
 			req := openai.ChatCompletionRequest{
 				Model:       a.config.Provider.Model,
 				Messages:    messages,
 				Temperature: float32(a.config.Temperature),
+			}
+			if a.config.MaxTokens > 0 {
+				req.MaxTokens = a.config.MaxTokens
 			}
 			if len(tools) > 0 {
 				req.Tools = tools
@@ -290,12 +315,15 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 	// Build OpenAI tool definitions (includes handoff tools)
 	tools := a.buildTools()
 
-	// Tool-calling loop (max 10 iterations)
-	for i := 0; i < 10; i++ {
+	// Tool-calling loop
+	for i := 0; i < a.config.MaxSteps; i++ {
 		req := openai.ChatCompletionRequest{
 			Model:       a.config.Provider.Model,
 			Messages:    messages,
 			Temperature: float32(a.config.Temperature),
+		}
+		if a.config.MaxTokens > 0 {
+			req.MaxTokens = a.config.MaxTokens
 		}
 		if len(tools) > 0 {
 			req.Tools = tools
@@ -353,7 +381,8 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 					if err != nil {
 						return nil, fmt.Errorf("handoff to %s failed: %w", target.config.Name, err)
 					}
-					result.HandedOffTo = target.config.Name
+					name := target.config.Name
+					result.HandedOffTo = &name
 					return result, nil
 				}
 			}

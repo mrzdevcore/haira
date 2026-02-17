@@ -574,6 +574,40 @@ fn main() {
 }
 
 // ---------------------------------------------------------------------------
+// Golden test: MCP server with SSE (.listen)
+// ---------------------------------------------------------------------------
+
+func TestGoldenMCPServerListen(t *testing.T) {
+	src := `import "mcp"
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "You are helpful."
+}
+workflow Chat(message: string) -> { reply: string } {
+    """Chat with the bot."""
+    reply, err = Bot.ask(message)
+    return { reply: reply }
+}
+fn main() {
+    mcp_server = mcp.Server([Chat])
+    mcp_server.listen(9000)
+}`
+	got := parseAndGenerate(t, src)
+
+	if !strings.Contains(got, "haira.NewMCPServer") {
+		t.Errorf("missing haira.NewMCPServer call in output:\n%s", got)
+	}
+	if !strings.Contains(got, "mcp_server.Listen(9000)") {
+		t.Errorf("missing mcp_server.Listen(9000) in output:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Golden test: workflow without description (no Description field emitted)
 // ---------------------------------------------------------------------------
 

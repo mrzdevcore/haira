@@ -25,6 +25,8 @@ workflow Summarize(text: string) -> { summary: string } {
 
 fn main() {
     mcp_server = mcp.Server([Summarize])
-    io.println("MCP server running on stdio...")
-    mcp_server.serve()
+
+    // SSE transport — serve MCP over HTTP (for remote agents)
+    io.println("MCP server running on http://localhost:9000/sse")
+    mcp_server.listen(9000)
 }

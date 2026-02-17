@@ -1,6 +1,39 @@
 import { baseStyles, logoSvg } from "../theme";
 import type { WorkflowMeta } from "../types";
 
+const lightThemeVars = `
+  --haira-bg: #ffffff;
+  --haira-bg-card: #f7f7f8;
+  --haira-bg-card-hover: #eeeff1;
+  --haira-bg-elevated: #e8e8ec;
+  --haira-bg-input: #f2f2f4;
+  --haira-border: rgba(0, 0, 0, 0.1);
+  --haira-border-light: rgba(0, 0, 0, 0.06);
+  --haira-border-focus: rgba(0, 0, 0, 0.25);
+  --haira-text: #1a1a1a;
+  --haira-text-dim: #4a4a4a;
+  --haira-muted: #8a8a8a;
+`;
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = hex.match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return null;
+  return {
+    r: parseInt(m[1].substring(0, 2), 16),
+    g: parseInt(m[1].substring(2, 4), 16),
+    b: parseInt(m[1].substring(4, 6), 16),
+  };
+}
+
+function lighten(hex: string, amount: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const r = Math.min(255, rgb.r + Math.round((255 - rgb.r) * amount));
+  const g = Math.min(255, rgb.g + Math.round((255 - rgb.g) * amount));
+  const b = Math.min(255, rgb.b + Math.round((255 - rgb.b) * amount));
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
 export class HairaApp extends HTMLElement {
   private meta: WorkflowMeta | null = null;
 
@@ -14,6 +47,40 @@ export class HairaApp extends HTMLElement {
       }
     }
     this.render();
+  }
+
+  private applyTheme(host: HTMLElement) {
+    if (!this.meta) return;
+
+    // Light theme overrides
+    if (this.meta.theme === "light") {
+      for (const line of lightThemeVars.split("\n")) {
+        const match = line.match(/(--[\w-]+):\s*(.+);/);
+        if (match) host.style.setProperty(match[1], match[2].trim());
+      }
+    }
+
+    // Accent color overrides
+    const accent = this.meta.accent;
+    if (accent) {
+      host.style.setProperty("--haira-accent", accent);
+      host.style.setProperty("--haira-accent-light", lighten(accent, 0.25));
+      const rgb = hexToRgb(accent);
+      if (rgb) {
+        host.style.setProperty(
+          "--haira-accent-dim",
+          `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.06)`,
+        );
+        host.style.setProperty(
+          "--haira-border-light",
+          `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`,
+        );
+        host.style.setProperty(
+          "--haira-border-focus",
+          `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`,
+        );
+      }
+    }
   }
 
   private render() {
@@ -52,6 +119,11 @@ export class HairaApp extends HTMLElement {
           display: flex;
           align-items: center;
         }
+        .logo-icon img {
+          width: 22px;
+          height: 22px;
+          object-fit: contain;
+        }
         .logo-text {
           font-weight: 700;
           font-size: 0.92rem;
@@ -59,7 +131,7 @@ export class HairaApp extends HTMLElement {
           letter-spacing: -0.01em;
         }
         .logo-text .ai {
-          color: var(--haira-gold);
+          color: var(--haira-accent);
         }
         .sep {
           color: var(--haira-muted);
@@ -80,7 +152,7 @@ export class HairaApp extends HTMLElement {
       <div class="shell">
         <header>
           <a class="logo" href="/_ui/">
-            <span class="logo-icon">${logoSvg}</span>
+            <span class="logo-icon">${this.meta?.logo ? `<img src="${this.escapeHtml(this.meta.logo)}" alt="logo">` : logoSvg}</span>
             <span class="logo-text">h<span class="ai">ai</span>ra</span>
           </a>
           ${
@@ -95,6 +167,9 @@ export class HairaApp extends HTMLElement {
         <main id="content"></main>
       </div>
     `;
+
+    // Apply theme overrides to the shadow host
+    this.applyTheme(shadow.host as HTMLElement);
 
     const content = shadow.getElementById("content")!;
 

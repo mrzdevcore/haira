@@ -68,7 +68,7 @@ export class HairaPipeline extends HTMLElement {
           font-weight: 500;
         }
         .summary .time {
-          color: var(--haira-gold);
+          color: var(--haira-accent);
           font-family: var(--haira-mono);
           font-weight: 600;
         }

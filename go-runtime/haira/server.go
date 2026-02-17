@@ -252,10 +252,18 @@ func (s *Server) registerUIRoutes() {
 		wf := w
 		uiPath := "/_ui" + wf.Path
 		s.mux.HandleFunc(uiPath, func(rw http.ResponseWriter, r *http.Request) {
-			if wf.IsStream && (wf.ChatEnabled == nil || *wf.ChatEnabled) {
+			switch wf.UIMode {
+			case "chat":
 				s.serveChatUI(rw, wf)
-			} else {
+			case "form":
 				s.serveFormUI(rw, wf)
+			default:
+				// Auto-detect: stream workflows default to chat, sync to form
+				if wf.IsStream {
+					s.serveChatUI(rw, wf)
+				} else {
+					s.serveFormUI(rw, wf)
+				}
 			}
 		})
 	}
@@ -284,9 +292,18 @@ func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
 
 	var items []wfItem
 	for _, wf := range s.workflows {
-		uiType := "Form"
-		if wf.IsStream {
+		var uiType string
+		switch wf.UIMode {
+		case "chat":
 			uiType = "Chat"
+		case "form":
+			uiType = "Form"
+		default:
+			if wf.IsStream {
+				uiType = "Chat"
+			} else {
+				uiType = "Form"
+			}
 		}
 		items = append(items, wfItem{
 			Name:   wf.Name,

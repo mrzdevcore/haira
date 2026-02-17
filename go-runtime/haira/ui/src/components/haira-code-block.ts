@@ -59,7 +59,7 @@ export class HairaCodeBlock extends HTMLElement {
           border-radius: 4px;
           transition: all 0.15s;
         }
-        .copy-btn:hover { color: var(--haira-gold); background: var(--haira-gold-dim); }
+        .copy-btn:hover { color: var(--haira-accent); background: var(--haira-accent-dim); }
         .copy-btn.copied { color: var(--haira-success); }
         pre {
           margin: 0;
@@ -89,9 +89,12 @@ export class HairaCodeBlock extends HTMLElement {
       </div>
     `;
 
-    this.shadowRoot!.getElementById("copy-btn")!.addEventListener("click", () => {
-      this.copyCode();
-    });
+    this.shadowRoot!.getElementById("copy-btn")!.addEventListener(
+      "click",
+      () => {
+        this.copyCode();
+      },
+    );
   }
 
   setProps(props: Record<string, unknown>) {

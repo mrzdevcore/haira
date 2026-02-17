@@ -17,6 +17,12 @@ export interface WorkflowMeta {
   chatParam?: string;
   fileParam?: string;
   settingsParams?: WorkflowParam[];
+  suggestions?: string[];
+  // Theming
+  accent?: string;
+  logo?: string;
+  theme?: string;
+  avatar?: string;
   // Index-specific
   workflows?: WorkflowListItem[];
 }

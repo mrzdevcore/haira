@@ -78,8 +78,8 @@ export class HairaTable extends HTMLElement {
           transition: all 0.15s;
         }
         .show-more button:hover {
-          border-color: var(--haira-gold);
-          color: var(--haira-gold);
+          border-color: var(--haira-accent);
+          color: var(--haira-accent);
         }
       </style>
       <div class="card">
@@ -96,10 +96,13 @@ export class HairaTable extends HTMLElement {
       </div>
     `;
 
-    this.shadowRoot!.getElementById("show-more-btn")!.addEventListener("click", () => {
-      this.expanded = !this.expanded;
-      this.renderRows();
-    });
+    this.shadowRoot!.getElementById("show-more-btn")!.addEventListener(
+      "click",
+      () => {
+        this.expanded = !this.expanded;
+        this.renderRows();
+      },
+    );
   }
 
   setProps(props: Record<string, unknown>) {
@@ -128,7 +131,9 @@ export class HairaTable extends HTMLElement {
     const showMore = this.shadowRoot!.getElementById("show-more")!;
     const showMoreBtn = this.shadowRoot!.getElementById("show-more-btn")!;
 
-    const rows = this.expanded ? this.allRows : this.allRows.slice(0, ROW_LIMIT);
+    const rows = this.expanded
+      ? this.allRows
+      : this.allRows.slice(0, ROW_LIMIT);
     tbody.innerHTML = rows
       .map(
         (row, i) =>

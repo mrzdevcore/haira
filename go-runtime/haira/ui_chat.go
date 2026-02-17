@@ -35,6 +35,11 @@ func (s *Server) serveChatUI(rw http.ResponseWriter, wf *WorkflowDef) {
 		"settingsParams": settingsParams,
 		"hasFile":        hasFile,
 		"fileParam":      fileParam,
+		"suggestions":    wf.Suggestions,
+		"accent":         wf.UIAccent,
+		"logo":           wf.UILogo,
+		"theme":          wf.UITheme,
+		"avatar":         wf.UIAvatar,
 	}
 	metaJSON, _ := json.Marshal(meta)
 	html := strings.Replace(chatHTML, "{{META}}", string(metaJSON), 1)

@@ -2,13 +2,13 @@ import { baseStyles } from "../theme";
 import type { ToolRenderEvent } from "../types";
 
 const COMPONENT_MAP: Record<string, string> = {
-  "table": "haira-ui-table",
+  table: "haira-ui-table",
   "status-card": "haira-ui-status-card",
   "code-block": "haira-ui-code-block",
-  "diff": "haira-ui-diff",
+  diff: "haira-ui-diff",
   "key-value": "haira-ui-key-value",
-  "progress": "haira-ui-progress-view",
-  "form": "haira-ui-form-view",
+  progress: "haira-ui-progress-view",
+  form: "haira-ui-form-view",
 };
 
 const MAX_DEPTH = 3;
@@ -27,6 +27,12 @@ export class HairaUIRenderer extends HTMLElement {
           display: block;
           margin-left: 2.25rem;
           max-width: 560px;
+        }
+        @media (max-width: 640px) {
+          :host {
+            margin-left: 0;
+            max-width: 100%;
+          }
         }
         .group {
           display: flex;

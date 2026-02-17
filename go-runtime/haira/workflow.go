@@ -25,9 +25,14 @@ type WorkflowDef struct {
 	Params        []WorkflowParam
 	Steps         []string // step names in execution order (for pipeline UI)
 	IsStream      bool
-	UITitle       string // from @webui(title: "...")
-	UIDescription string // from @webui(description: "...")
-	ChatEnabled   *bool  // nil = default (on for stream), false = disabled
+	UITitle       string   // from @webui(title: "...")
+	UIDescription string   // from @webui(description: "...")
+	UIMode        string   // "chat" or "form" — explicit UI mode (auto-detect if empty)
+	Suggestions   []string // suggested prompts for chat UI welcome screen
+	UIAccent      string   // primary accent color (e.g. "#e8a317")
+	UILogo        string   // URL to custom logo
+	UITheme       string   // "dark" (default) or "light"
+	UIAvatar      string   // assistant avatar — URL or single character/emoji
 	Handler       func(params map[string]any) (any, error)
 	StreamHandler func(params map[string]any) (<-chan StreamChunk, error)
 }

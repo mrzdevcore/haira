@@ -7,9 +7,9 @@ export const themeVars = `
   --haira-border: rgba(63, 63, 70, 0.5);
   --haira-border-light: rgba(232, 163, 23, 0.12);
   --haira-border-focus: rgba(232, 163, 23, 0.4);
-  --haira-gold: #e8a317;
-  --haira-gold-light: #f0bd4f;
-  --haira-gold-dim: rgba(232, 163, 23, 0.06);
+  --haira-accent: #e8a317;
+  --haira-accent-light: #f0bd4f;
+  --haira-accent-dim: rgba(232, 163, 23, 0.06);
   --haira-glow: #fde68a;
   --haira-text: #fafaf9;
   --haira-text-dim: #a1a1aa;
@@ -38,7 +38,7 @@ export const scrollbarStyles = `
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--haira-muted); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--haira-gold); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--haira-accent); }
   scrollbar-width: thin;
   scrollbar-color: var(--haira-muted) transparent;
 `;

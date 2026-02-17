@@ -89,7 +89,7 @@ type AgentField struct {
 type WorkflowDecl struct {
 	Name        Spanned[string]
 	Trigger     *Decorator
-	Decorators  []Decorator // @webui, @chatui, etc.
+	Decorators  []Decorator // @webui, etc.
 	Params      []Param
 	ReturnTy    *Spanned[Type]
 	Description string // optional triple-quoted description (for MCP)

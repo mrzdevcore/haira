@@ -64,6 +64,12 @@ export class HairaChat extends HTMLElement {
         .welcome-icon {
           opacity: 0.15;
         }
+        .welcome-icon img {
+          width: 56px;
+          height: 56px;
+          object-fit: contain;
+          opacity: 1;
+        }
         .welcome h2 {
           font-size: 1.1rem;
           font-weight: 600;
@@ -96,9 +102,9 @@ export class HairaChat extends HTMLElement {
           transition: all 0.15s;
         }
         .suggestion:hover {
-          border-color: var(--haira-gold);
-          color: var(--haira-gold);
-          background: var(--haira-gold-dim);
+          border-color: var(--haira-accent);
+          color: var(--haira-accent);
+          background: var(--haira-accent-dim);
         }
 
         /* Messages area */
@@ -143,7 +149,7 @@ export class HairaChat extends HTMLElement {
           width: 5px;
           height: 5px;
           border-radius: 50%;
-          background: var(--haira-gold);
+          background: var(--haira-accent);
           animation: bounce 1.4s ease-in-out infinite;
         }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -160,7 +166,7 @@ export class HairaChat extends HTMLElement {
           justify-content: center;
           flex-direction: column;
           gap: 0.75rem;
-          border: 2px dashed var(--haira-gold);
+          border: 2px dashed var(--haira-accent);
           border-radius: var(--haira-radius);
           margin: 0.5rem;
         }
@@ -168,11 +174,11 @@ export class HairaChat extends HTMLElement {
           display: flex;
         }
         .drop-overlay-icon {
-          color: var(--haira-gold);
+          color: var(--haira-accent);
           opacity: 0.7;
         }
         .drop-overlay-text {
-          color: var(--haira-gold);
+          color: var(--haira-accent);
           font-size: 0.9rem;
           font-weight: 600;
         }
@@ -217,7 +223,7 @@ export class HairaChat extends HTMLElement {
           font-size: 0.75rem;
           color: var(--haira-text-dim);
         }
-        .file-chip-icon { color: var(--haira-gold); display: flex; }
+        .file-chip-icon { color: var(--haira-accent); display: flex; }
         .file-chip-name {
           max-width: 200px;
           overflow: hidden;
@@ -263,8 +269,8 @@ export class HairaChat extends HTMLElement {
           flex-shrink: 0;
         }
         .attach-btn:hover {
-          color: var(--haira-gold);
-          background: var(--haira-gold-dim);
+          color: var(--haira-accent);
+          background: var(--haira-accent-dim);
         }
         textarea {
           flex: 1;
@@ -284,7 +290,7 @@ export class HairaChat extends HTMLElement {
           color: var(--haira-muted);
         }
         .send-btn {
-          background: var(--haira-gold);
+          background: var(--haira-accent);
           color: #1a0e04;
           border: none;
           width: 34px;
@@ -298,7 +304,7 @@ export class HairaChat extends HTMLElement {
           flex-shrink: 0;
         }
         .send-btn:hover {
-          background: var(--haira-gold-light);
+          background: var(--haira-accent-light);
           box-shadow: 0 2px 12px rgba(232, 163, 23, 0.25);
         }
         .send-btn:disabled {
@@ -313,10 +319,27 @@ export class HairaChat extends HTMLElement {
           opacity: 0.5;
           padding-top: 0.35rem;
         }
+
+        /* Mobile */
+        @media (max-width: 640px) {
+          .messages-inner {
+            padding: 1rem 0.75rem;
+          }
+          .input-area {
+            padding: 0.5rem 0.5rem 0.75rem;
+            padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+          }
+          .welcome {
+            padding: 1.5rem 1rem;
+          }
+          .suggestions {
+            max-width: 100%;
+          }
+        }
       </style>
 
       <div class="welcome" id="welcome">
-        <span class="welcome-icon">${logoSvg.replace(/width="22" height="22"/, 'width="56" height="56"')}</span>
+        <span class="welcome-icon">${m.logo ? `<img src="${this.esc(m.logo)}" alt="">` : logoSvg.replace(/width="22" height="22"/, 'width="56" height="56"')}</span>
         <h2>${this.esc(m.title || m.name || "Chat")}</h2>
         ${m.description ? `<p>${this.esc(m.description)}</p>` : ""}
         <div class="suggestions" id="suggestions"></div>
@@ -452,6 +475,8 @@ export class HairaChat extends HTMLElement {
 
     const self = this;
 
+    const avatarValue = m.avatar || "H";
+
     function addMessage(
       role: string,
       content: string,
@@ -461,6 +486,7 @@ export class HairaChat extends HTMLElement {
       msg.setAttribute("role", role);
       msg.setAttribute("content", content);
       if (file) msg.setAttribute("file", file);
+      if (role === "assistant") msg.setAttribute("avatar", avatarValue);
       messagesInner.insertBefore(msg, typing);
       messagesOuter.scrollTop = messagesOuter.scrollHeight;
       return msg;
@@ -598,17 +624,8 @@ export class HairaChat extends HTMLElement {
   }
 
   private getSuggestions(): string[] {
-    const title = (this.meta.title || "").toLowerCase();
-    if (
-      title.includes("maltimize") ||
-      title.includes("config") ||
-      title.includes("migration")
-    ) {
-      return [
-        "What can you help me with?",
-        "Dry-run my config file",
-        "Deploy a configuration",
-      ];
+    if (this.meta.suggestions && this.meta.suggestions.length > 0) {
+      return this.meta.suggestions;
     }
     return ["What can you help me with?", "Hello!"];
   }

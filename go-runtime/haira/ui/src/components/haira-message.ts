@@ -11,6 +11,7 @@ export class HairaMessage extends HTMLElement {
     const role = this.getAttribute("role") || "user";
     const content = this.getAttribute("content") || "";
     const file = this.getAttribute("file") || "";
+    const avatar = this.getAttribute("avatar") || "H";
 
     const shadow = this.attachShadow({ mode: "open" });
     shadow.innerHTML = `
@@ -47,9 +48,15 @@ export class HairaMessage extends HTMLElement {
           margin-top: 2px;
         }
         .avatar.assistant {
-          background: var(--haira-gold-dim);
+          background: var(--haira-accent-dim);
           border: 1px solid rgba(232, 163, 23, 0.2);
-          color: var(--haira-gold);
+          color: var(--haira-accent);
+        }
+        .avatar.assistant img {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          object-fit: cover;
         }
         .avatar.user {
           display: none;
@@ -115,7 +122,7 @@ export class HairaMessage extends HTMLElement {
           border-radius: 3px;
           font-size: 0.8rem;
           font-family: var(--haira-mono);
-          color: var(--haira-gold-light);
+          color: var(--haira-accent-light);
         }
         .bubble.assistant pre code {
           background: none;
@@ -154,15 +161,44 @@ export class HairaMessage extends HTMLElement {
           margin: 0.5rem 0;
         }
         .bubble.assistant a {
-          color: var(--haira-gold);
+          color: var(--haira-accent);
           text-decoration: none;
         }
         .bubble.assistant a:hover { text-decoration: underline; }
         .bubble.assistant blockquote {
-          border-left: 3px solid var(--haira-gold);
+          border-left: 3px solid var(--haira-accent);
           margin: 0.4rem 0;
           padding: 0.2rem 0.6rem;
           color: var(--haira-text-dim);
+        }
+        .bubble.assistant table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 0.5rem 0;
+          font-size: 0.82rem;
+        }
+        .bubble.assistant th {
+          text-align: left;
+          padding: 0.4rem 0.6rem;
+          border-bottom: 2px solid var(--haira-border);
+          font-weight: 600;
+          color: var(--haira-text);
+          font-size: 0.78rem;
+        }
+        .bubble.assistant td {
+          padding: 0.35rem 0.6rem;
+          border-bottom: 1px solid var(--haira-border);
+          color: var(--haira-text-dim);
+        }
+        .bubble.assistant tr:last-child td {
+          border-bottom: none;
+        }
+        .bubble.assistant ol {
+          margin: 0.35rem 0;
+          padding-left: 1.3rem;
+        }
+        .bubble.assistant ol li {
+          margin: 0.2rem 0;
         }
 
         /* Copy button on code blocks */
@@ -183,12 +219,12 @@ export class HairaMessage extends HTMLElement {
         }
         .code-wrapper:hover .copy-code { opacity: 1; }
         .copy-code:hover {
-          color: var(--haira-gold);
-          border-color: var(--haira-gold);
+          color: var(--haira-accent);
+          border-color: var(--haira-accent);
         }
       </style>
       <div class="row ${role}">
-        ${role === "assistant" ? `<div class="avatar assistant">H</div>` : ""}
+        ${role === "assistant" ? `<div class="avatar assistant">${avatar.startsWith("http") ? `<img src="${this.esc(avatar)}" alt="">` : this.esc(avatar)}</div>` : ""}
         <div class="bubble ${role}" id="bubble"></div>
       </div>
     `;
@@ -246,6 +282,29 @@ export class HairaMessage extends HTMLElement {
         `<div class="code-wrapper"><pre><code>${code.trim()}</code></pre><button class="copy-code" title="Copy code">${iconCopy}</button></div>`,
     );
 
+    // Tables: | header | header | \n |---|---| \n | cell | cell |
+    t = t.replace(
+      /((?:^|\n)\|.+\|(?:\n\|[-:| ]+\|)(?:\n\|.+\|)+)/g,
+      (_match: string) => {
+        const rows = _match.trim().split("\n");
+        if (rows.length < 2) return _match;
+        const headers = rows[0].split("|").filter((c) => c.trim());
+        // Skip separator row (row[1])
+        const dataRows = rows.slice(2);
+        let html = "<table><thead><tr>";
+        for (const h of headers) html += `<th>${h.trim()}</th>`;
+        html += "</tr></thead><tbody>";
+        for (const row of dataRows) {
+          const cells = row.split("|").filter((c) => c.trim());
+          html += "<tr>";
+          for (const c of cells) html += `<td>${c.trim()}</td>`;
+          html += "</tr>";
+        }
+        html += "</tbody></table>";
+        return html;
+      },
+    );
+
     // Inline code
     t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
 
@@ -263,21 +322,33 @@ export class HairaMessage extends HTMLElement {
     // Italic
     t = t.replace(/(?<!\w)\*(.+?)\*(?!\w)/g, "<em>$1</em>");
 
-    // Numbered lists
+    // Links: [text](url)
     t = t.replace(
-      /(^|\n)(\d+)\. (.+?)(?=\n|$)/g,
-      (_: string, pre: string, _n: string, item: string) =>
-        `${pre}<li>${item}</li>`,
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>',
     );
 
-    // Bulleted lists
-    t = t.replace(
-      /(^|\n)- (.+?)(?=\n|$)/g,
-      (_: string, pre: string, item: string) => `${pre}<li>${item}</li>`,
-    );
+    // Numbered lists — wrap consecutive numbered items in <ol>
+    t = t.replace(/((?:^|\n)\d+\. .+(?:\n\d+\. .+)*)/g, (_match: string) => {
+      const items = _match.trim().split("\n");
+      let html = "<ol>";
+      for (const item of items) {
+        html += `<li>${item.replace(/^\d+\.\s+/, "")}</li>`;
+      }
+      html += "</ol>";
+      return html;
+    });
 
-    // Wrap consecutive <li> in <ul>
-    t = t.replace(/((?:<li>.*?<\/li>\n?)+)/g, "<ul>$1</ul>");
+    // Bulleted lists — wrap consecutive bullet items in <ul>
+    t = t.replace(/((?:^|\n)- .+(?:\n- .+)*)/g, (_match: string) => {
+      const items = _match.trim().split("\n");
+      let html = "<ul>";
+      for (const item of items) {
+        html += `<li>${item.replace(/^-\s+/, "")}</li>`;
+      }
+      html += "</ul>";
+      return html;
+    });
 
     // Paragraphs: double newlines
     t = t.replace(/\n\n/g, "</p><p>");

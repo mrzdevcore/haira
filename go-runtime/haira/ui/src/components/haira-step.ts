@@ -89,8 +89,8 @@ export class HairaStep extends HTMLElement {
           color: var(--haira-muted);
         }
         .running .status-icon {
-          border: 1.5px solid var(--haira-gold);
-          color: var(--haira-gold);
+          border: 1.5px solid var(--haira-accent);
+          color: var(--haira-accent);
           background: rgba(232, 163, 23, 0.1);
         }
         .done .status-icon {
@@ -102,8 +102,8 @@ export class HairaStep extends HTMLElement {
           color: #fff;
         }
         .retrying .status-icon {
-          border: 1.5px solid var(--haira-gold);
-          color: var(--haira-gold);
+          border: 1.5px solid var(--haira-accent);
+          color: var(--haira-accent);
           background: rgba(232, 163, 23, 0.1);
           animation: pulse 1.5s ease-in-out infinite;
         }
@@ -160,7 +160,7 @@ export class HairaStep extends HTMLElement {
           text-align: right;
           transition: color 0.2s;
         }
-        .running .timer { color: var(--haira-gold-light); }
+        .running .timer { color: var(--haira-accent-light); }
         .done .timer { color: var(--haira-success); }
         .failed .timer { color: var(--haira-error); }
 

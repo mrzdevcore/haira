@@ -46,7 +46,7 @@ export class HairaToolCard extends HTMLElement {
         }
         .icon.running {
           background: rgba(232, 163, 23, 0.1);
-          color: var(--haira-gold);
+          color: var(--haira-accent);
         }
         .icon.done {
           background: rgba(34, 197, 94, 0.1);
@@ -80,6 +80,12 @@ export class HairaToolCard extends HTMLElement {
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @media (max-width: 640px) {
+          .card {
+            margin-left: 0;
+            max-width: 100%;
+          }
         }
       </style>
       <div class="card" id="card">

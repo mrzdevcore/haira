@@ -7,7 +7,7 @@ const stepIcons: Record<string, { icon: string; color: string }> = {
   },
   active: {
     icon: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="28 10" style="animation:spin 0.7s linear infinite;transform-origin:center"/></svg>`,
-    color: "var(--haira-gold)",
+    color: "var(--haira-accent)",
   },
   pending: {
     icon: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/></svg>`,

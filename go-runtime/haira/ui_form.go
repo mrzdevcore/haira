@@ -28,6 +28,9 @@ func (s *Server) serveFormUI(rw http.ResponseWriter, wf *WorkflowDef) {
 		"title":       wf.UITitle,
 		"description": wf.UIDescription,
 		"hasFile":     hasFile,
+		"accent":      wf.UIAccent,
+		"logo":        wf.UILogo,
+		"theme":       wf.UITheme,
 	}
 	metaJSON, _ := json.Marshal(meta)
 	html := strings.Replace(formHTML, "{{META}}", string(metaJSON), 1)

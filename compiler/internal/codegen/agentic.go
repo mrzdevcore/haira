@@ -1011,23 +1011,62 @@ func extractDecoratorBoolArg(dec ast.Decorator, key string) *bool {
 	return nil
 }
 
-// emitWorkflowUIMetadata emits @webui and @chatui decorator fields into a WorkflowDef.
-func emitWorkflowUIMetadata(em *GoEmitter, decorators []ast.Decorator) {
-	for _, dec := range decorators {
-		switch dec.Name.Node {
-		case "webui":
-			if title := extractDecoratorStringArg(dec, "title"); title != "" {
-				em.Line(fmt.Sprintf("UITitle: %q,", title))
-			}
-			if desc := extractDecoratorStringArg(dec, "description"); desc != "" {
-				em.Line(fmt.Sprintf("UIDescription: %q,", desc))
-			}
-		case "chatui":
-			if enabled := extractDecoratorBoolArg(dec, "enabled"); enabled != nil {
-				if !*enabled {
-					em.Line("ChatEnabled: func() *bool { v := false; return &v }(),")
+// extractDecoratorStringListArg extracts a named string list argument from a decorator.
+func extractDecoratorStringListArg(dec ast.Decorator, key string) []string {
+	for _, arg := range dec.Args {
+		if mapExpr, ok := arg.Node.(ast.MapExpr); ok && len(mapExpr.Entries) == 1 {
+			entry := mapExpr.Entries[0]
+			if keyIdent, ok := entry.Key.Node.(ast.IdentExpr); ok && keyIdent.Name == key {
+				if listExpr, ok := entry.Value.Node.(ast.ListExpr); ok {
+					var result []string
+					for _, elem := range listExpr.Elems {
+						if lit, ok := elem.Node.(ast.LiteralExpr); ok {
+							if strLit, ok := lit.Lit.(ast.StringLit); ok {
+								result = append(result, strLit.Value)
+							}
+						}
+					}
+					return result
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// emitWorkflowUIMetadata emits @webui decorator fields into a WorkflowDef.
+func emitWorkflowUIMetadata(em *GoEmitter, decorators []ast.Decorator) {
+	for _, dec := range decorators {
+		if dec.Name.Node != "webui" {
+			continue
+		}
+		if title := extractDecoratorStringArg(dec, "title"); title != "" {
+			em.Line(fmt.Sprintf("UITitle: %q,", title))
+		}
+		if desc := extractDecoratorStringArg(dec, "description"); desc != "" {
+			em.Line(fmt.Sprintf("UIDescription: %q,", desc))
+		}
+		if mode := extractDecoratorStringArg(dec, "mode"); mode != "" {
+			em.Line(fmt.Sprintf("UIMode: %q,", mode))
+		}
+		if suggestions := extractDecoratorStringListArg(dec, "suggestions"); len(suggestions) > 0 {
+			quoted := make([]string, len(suggestions))
+			for i, s := range suggestions {
+				quoted[i] = fmt.Sprintf("%q", s)
+			}
+			em.Line(fmt.Sprintf("Suggestions: []string{%s},", strings.Join(quoted, ", ")))
+		}
+		if accent := extractDecoratorStringArg(dec, "accent"); accent != "" {
+			em.Line(fmt.Sprintf("UIAccent: %q,", accent))
+		}
+		if logo := extractDecoratorStringArg(dec, "logo"); logo != "" {
+			em.Line(fmt.Sprintf("UILogo: %q,", logo))
+		}
+		if theme := extractDecoratorStringArg(dec, "theme"); theme != "" {
+			em.Line(fmt.Sprintf("UITheme: %q,", theme))
+		}
+		if avatar := extractDecoratorStringArg(dec, "avatar"); avatar != "" {
+			em.Line(fmt.Sprintf("UIAvatar: %q,", avatar))
 		}
 	}
 }

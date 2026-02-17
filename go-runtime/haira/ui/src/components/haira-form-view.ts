@@ -70,7 +70,7 @@ export class HairaFormView extends HTMLElement {
           border-top: 1px solid var(--haira-border);
         }
         .submit-btn {
-          background: var(--haira-gold);
+          background: var(--haira-accent);
           color: #1a0e04;
           border: none;
           padding: 0.5rem 1.2rem;
@@ -82,7 +82,7 @@ export class HairaFormView extends HTMLElement {
           transition: all 0.15s;
         }
         .submit-btn:hover {
-          background: var(--haira-gold-light);
+          background: var(--haira-accent-light);
           box-shadow: 0 2px 12px rgba(232, 163, 23, 0.25);
         }
       </style>
@@ -160,6 +160,10 @@ export class HairaFormView extends HTMLElement {
   }
 
   private esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 }

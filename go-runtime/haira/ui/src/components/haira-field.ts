@@ -43,7 +43,7 @@ export class HairaField extends HTMLElement {
         }
         input[type="text"]:focus,
         input[type="number"]:focus {
-          border-color: var(--haira-gold);
+          border-color: var(--haira-accent);
           box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.08);
         }
         input[type="text"]::placeholder,
@@ -98,11 +98,11 @@ export class HairaField extends HTMLElement {
         }
         .toggle input:checked + .toggle-track {
           background: rgba(232, 163, 23, 0.15);
-          border-color: var(--haira-gold);
+          border-color: var(--haira-accent);
         }
         .toggle input:checked + .toggle-track::after {
           transform: translateX(18px);
-          background: var(--haira-gold);
+          background: var(--haira-accent);
         }
         .toggle input:focus-visible + .toggle-track {
           box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.15);
@@ -121,7 +121,7 @@ export class HairaField extends HTMLElement {
         }
         .drop-zone:hover,
         .drop-zone.dragover {
-          border-color: var(--haira-gold);
+          border-color: var(--haira-accent);
           background: rgba(232, 163, 23, 0.03);
         }
         .drop-zone.has-file {
@@ -140,7 +140,7 @@ export class HairaField extends HTMLElement {
           line-height: 1.4;
         }
         .drop-text strong {
-          color: var(--haira-gold);
+          color: var(--haira-accent);
           cursor: pointer;
         }
         .drop-zone.has-file .drop-text { color: var(--haira-text-dim); }

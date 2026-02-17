@@ -87,7 +87,7 @@ export class HairaForm extends HTMLElement {
           width: 100%;
           padding: 0.65rem 1.5rem;
           border: none;
-          background: var(--haira-gold);
+          background: var(--haira-accent);
           color: #0a0a0a;
           border-radius: var(--haira-radius-sm);
           font-size: 0.88rem;
@@ -102,7 +102,7 @@ export class HairaForm extends HTMLElement {
           gap: 0.4rem;
         }
         .submit-btn:hover:not(:disabled) {
-          background: var(--haira-gold-light);
+          background: var(--haira-accent-light);
           box-shadow: 0 2px 16px rgba(232, 163, 23, 0.2);
         }
         .submit-btn:active:not(:disabled) {

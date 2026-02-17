@@ -302,6 +302,26 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.ArraySort(%s)", args), true
 		case "join":
 			return fmt.Sprintf("haira.ArrayJoin(%s)", args), true
+		case "map":
+			return fmt.Sprintf("haira.ArrayMap(%s)", args), true
+		case "filter":
+			return fmt.Sprintf("haira.ArrayFilter(%s)", args), true
+		case "reduce":
+			return fmt.Sprintf("haira.ArrayReduce(%s)", args), true
+		case "find":
+			return fmt.Sprintf("haira.ArrayFind(%s)", args), true
+		case "find_index":
+			return fmt.Sprintf("haira.ArrayFindIndex(%s)", args), true
+		case "sort_by":
+			return fmt.Sprintf("haira.ArraySortBy(%s)", args), true
+		case "every":
+			return fmt.Sprintf("haira.ArrayEvery(%s)", args), true
+		case "some":
+			return fmt.Sprintf("haira.ArraySome(%s)", args), true
+		case "for_each":
+			return fmt.Sprintf("haira.ArrayForEach(%s)", args), true
+		case "flat_map":
+			return fmt.Sprintf("haira.ArrayFlatMap(%s)", args), true
 		}
 	case "map":
 		switch method {
@@ -380,6 +400,33 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.TimeTick(%s)", args), true
 		case "slug":
 			return "haira.TimeSlug()", true
+		}
+	case "fs":
+		switch method {
+		case "read_file":
+			return fmt.Sprintf("haira.FsReadFile(%s)", args), true
+		case "write_file":
+			return fmt.Sprintf("haira.FsWriteFile(%s)", args), true
+		case "append_file":
+			return fmt.Sprintf("haira.FsAppendFile(%s)", args), true
+		case "exists":
+			return fmt.Sprintf("haira.FsExists(%s)", args), true
+		case "remove":
+			return fmt.Sprintf("haira.FsRemove(%s)", args), true
+		case "remove_all":
+			return fmt.Sprintf("haira.FsRemoveAll(%s)", args), true
+		case "rename":
+			return fmt.Sprintf("haira.FsRename(%s)", args), true
+		case "copy":
+			return fmt.Sprintf("haira.FsCopy(%s)", args), true
+		case "mkdir":
+			return fmt.Sprintf("haira.FsMkdir(%s)", args), true
+		case "mkdir_all":
+			return fmt.Sprintf("haira.FsMkdirAll(%s)", args), true
+		case "read_dir":
+			return fmt.Sprintf("haira.FsReadDir(%s)", args), true
+		case "stat":
+			return fmt.Sprintf("haira.FsStat(%s)", args), true
 		}
 	case "observe":
 		switch method {
@@ -501,7 +548,7 @@ func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
-		"observe":
+		"observe", "fs":
 		return true
 	}
 	return false

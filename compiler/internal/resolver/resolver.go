@@ -38,7 +38,7 @@ var stdlibModules = map[string]bool{
 	"postgres": true, "slack": true, "excel": true, "time": true,
 	"string": true, "regex": true, "math": true, "conv": true,
 	"array": true, "map": true, "log": true,
-	"ui": true, "vector": true, "observe": true,
+	"ui": true, "vector": true, "observe": true, "fs": true,
 }
 
 // Resolve parses the main file and all its transitive project-local imports.

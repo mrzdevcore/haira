@@ -214,3 +214,140 @@ func ArraySort(arr any) []any {
 func ArrayJoin(arr any, sep string) string {
 	return Join(arr, sep)
 }
+
+// ArrayMap applies a function to each element and returns a new array.
+func ArrayMap(arr any, fn func(any) any) []any {
+	s := ToSlice(arr)
+	result := make([]any, len(s))
+	for i, item := range s {
+		result[i] = fn(item)
+	}
+	return result
+}
+
+// ArrayFilter returns elements for which fn returns a truthy value.
+func ArrayFilter(arr any, fn func(any) any) []any {
+	s := ToSlice(arr)
+	var result []any
+	for _, item := range s {
+		if isTruthy(fn(item)) {
+			result = append(result, item)
+		}
+	}
+	if result == nil {
+		return []any{}
+	}
+	return result
+}
+
+// ArrayReduce reduces an array to a single value using an accumulator function.
+func ArrayReduce(arr any, fn func(any, any) any, initial any) any {
+	s := ToSlice(arr)
+	acc := initial
+	for _, item := range s {
+		acc = fn(acc, item)
+	}
+	return acc
+}
+
+// ArrayFind returns the first element for which fn returns truthy, or nil.
+func ArrayFind(arr any, fn func(any) any) any {
+	s := ToSlice(arr)
+	for _, item := range s {
+		if isTruthy(fn(item)) {
+			return item
+		}
+	}
+	return nil
+}
+
+// ArrayFindIndex returns the index of the first element for which fn returns truthy, or -1.
+func ArrayFindIndex(arr any, fn func(any) any) int {
+	s := ToSlice(arr)
+	for i, item := range s {
+		if isTruthy(fn(item)) {
+			return i
+		}
+	}
+	return -1
+}
+
+// ArraySortBy sorts by a key function. The key function should return a comparable value.
+func ArraySortBy(arr any, fn func(any) any) []any {
+	s := ToSlice(arr)
+	result := make([]any, len(s))
+	copy(result, s)
+	sort.SliceStable(result, func(i, j int) bool {
+		ki := fmt.Sprintf("%v", fn(result[i]))
+		kj := fmt.Sprintf("%v", fn(result[j]))
+		return ki < kj
+	})
+	return result
+}
+
+// ArrayEvery returns true if fn returns truthy for every element.
+func ArrayEvery(arr any, fn func(any) any) bool {
+	s := ToSlice(arr)
+	for _, item := range s {
+		if !isTruthy(fn(item)) {
+			return false
+		}
+	}
+	return true
+}
+
+// ArraySome returns true if fn returns truthy for at least one element.
+func ArraySome(arr any, fn func(any) any) bool {
+	s := ToSlice(arr)
+	for _, item := range s {
+		if isTruthy(fn(item)) {
+			return true
+		}
+	}
+	return false
+}
+
+// ArrayForEach calls fn for each element (side-effects only).
+func ArrayForEach(arr any, fn func(any) any) {
+	s := ToSlice(arr)
+	for _, item := range s {
+		fn(item)
+	}
+}
+
+// ArrayFlatMap applies fn to each element and flattens the result by one level.
+func ArrayFlatMap(arr any, fn func(any) any) []any {
+	s := ToSlice(arr)
+	var result []any
+	for _, item := range s {
+		mapped := fn(item)
+		if inner := ToSlice(mapped); inner != nil {
+			result = append(result, inner...)
+		} else {
+			result = append(result, mapped)
+		}
+	}
+	if result == nil {
+		return []any{}
+	}
+	return result
+}
+
+// isTruthy converts a value to a boolean for filter/find/every/some.
+func isTruthy(v any) bool {
+	if v == nil {
+		return false
+	}
+	switch val := v.(type) {
+	case bool:
+		return val
+	case int:
+		return val != 0
+	case float64:
+		return val != 0
+	case string:
+		return val != ""
+	default:
+		return true
+	}
+}

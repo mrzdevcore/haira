@@ -157,6 +157,17 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 			}
 			c.env.DefineFunc(it.Name.Node, &FuncType{Params: params, Return: ret})
 
+		case ast.ItemStatement:
+			// Top-level variable declarations (e.g. `x = 42` at module level)
+			if assign, ok := it.Stmt.Node.(ast.AssignStmt); ok {
+				rhsType := c.inferExpr(assign.Value)
+				for _, target := range assign.Targets {
+					if ident, ok := target.Path.(ast.IdentPath); ok {
+						c.env.DefineVar(ident.Name.Node, rhsType)
+					}
+				}
+			}
+
 		case ast.ProviderDecl:
 			c.providers[it.Name.Node] = true
 			c.checkProviderFields(it)
@@ -554,6 +565,8 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 			ty = AnyType{} // agent or provider reference
 		} else if isStdlibModule(e.Name) {
 			ty = AnyType{} // stdlib module qualifier (e.g. io.println)
+		} else if e.Name == "nil" || e.Name == "true" || e.Name == "false" {
+			ty = AnyType{} // language builtins
 		} else {
 			c.addWarning("undefined variable '"+e.Name+"'", expr.Span, "")
 			ty = AnyType{}
@@ -639,10 +652,10 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 			ty = MapType{Key: StringType{}, Value: AnyType{}}
 		} else {
 			valType := c.inferExpr(e.Entries[0].Value)
-			c.inferExpr(e.Entries[0].Key)
+			c.inferMapKey(e.Entries[0].Key)
 			allSame := true
 			for _, entry := range e.Entries[1:] {
-				c.inferExpr(entry.Key)
+				c.inferMapKey(entry.Key)
 				vt := c.inferExpr(entry.Value)
 				if !TypeEquals(valType, vt) {
 					allSame = false
@@ -861,6 +874,17 @@ func (c *checker) resolveASTType(ty ast.Type) Type {
 		return FuncType{Params: params, Return: c.resolveASTType(t.Ret.Node)}
 	}
 	return AnyType{}
+}
+
+// inferMapKey infers the type of a map key without triggering undefined variable
+// warnings for bare identifiers (which are implicitly string keys in Haira).
+func (c *checker) inferMapKey(key ast.Expr) Type {
+	if _, ok := key.Node.(ast.IdentExpr); ok {
+		// Bare identifier used as map key — treat as string, no warning
+		c.info.ExprTypes[key.Span] = StringType{}
+		return StringType{}
+	}
+	return c.inferExpr(key)
 }
 
 func isAny(t Type) bool {

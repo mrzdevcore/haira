@@ -205,6 +205,16 @@ func (e *Env) registerStdlib() {
 	e.funcs["array.unique"] = &FuncType{Params: []Type{any}, Return: anyList}
 	e.funcs["array.sort"] = &FuncType{Params: []Type{any}, Return: anyList}
 	e.funcs["array.join"] = &FuncType{Params: []Type{any, str}, Return: str}
+	e.funcs["array.map"] = &FuncType{Params: []Type{any, any}, Return: anyList}
+	e.funcs["array.filter"] = &FuncType{Params: []Type{any, any}, Return: anyList}
+	e.funcs["array.reduce"] = &FuncType{Params: []Type{any, any, any}, Return: any}
+	e.funcs["array.find"] = &FuncType{Params: []Type{any, any}, Return: any}
+	e.funcs["array.find_index"] = &FuncType{Params: []Type{any, any}, Return: integer}
+	e.funcs["array.sort_by"] = &FuncType{Params: []Type{any, any}, Return: anyList}
+	e.funcs["array.every"] = &FuncType{Params: []Type{any, any}, Return: boolean}
+	e.funcs["array.some"] = &FuncType{Params: []Type{any, any}, Return: boolean}
+	e.funcs["array.for_each"] = &FuncType{Params: []Type{any, any}, Return: void}
+	e.funcs["array.flat_map"] = &FuncType{Params: []Type{any, any}, Return: anyList}
 
 	// map module functions
 	e.funcs["map.len"] = &FuncType{Params: []Type{any}, Return: integer}
@@ -232,6 +242,20 @@ func (e *Env) registerStdlib() {
 	e.funcs["time.sleep"] = &FuncType{Params: []Type{any}, Return: void}
 	e.funcs["time.now"] = &FuncType{Params: nil, Return: str}
 	e.funcs["time.slug"] = &FuncType{Params: nil, Return: str}
+
+	// fs module functions
+	e.funcs["fs.read_file"] = &FuncType{Params: []Type{str}, Return: any}
+	e.funcs["fs.write_file"] = &FuncType{Params: []Type{str, str}, Return: any}
+	e.funcs["fs.append_file"] = &FuncType{Params: []Type{str, str}, Return: any}
+	e.funcs["fs.exists"] = &FuncType{Params: []Type{str}, Return: boolean}
+	e.funcs["fs.remove"] = &FuncType{Params: []Type{str}, Return: any}
+	e.funcs["fs.remove_all"] = &FuncType{Params: []Type{str}, Return: any}
+	e.funcs["fs.rename"] = &FuncType{Params: []Type{str, str}, Return: any}
+	e.funcs["fs.copy"] = &FuncType{Params: []Type{str, str}, Return: any}
+	e.funcs["fs.mkdir"] = &FuncType{Params: []Type{str}, Return: any}
+	e.funcs["fs.mkdir_all"] = &FuncType{Params: []Type{str}, Return: any}
+	e.funcs["fs.read_dir"] = &FuncType{Params: []Type{str}, Return: anyList}
+	e.funcs["fs.stat"] = &FuncType{Params: []Type{str}, Return: any}
 
 	// Built-in functions
 	e.funcs["env"] = &FuncType{Params: []Type{str}, Return: str}

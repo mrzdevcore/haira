@@ -3,7 +3,9 @@ package haira
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -180,7 +182,14 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 
 		tools := a.buildTools()
 
-		// Tool-calling loop: use non-streaming calls to handle tool iterations
+		// Fast path: no tools at all → stream directly without non-streaming probe
+		if len(tools) == 0 {
+			a.streamFinalResponse(ctx, ch, messages, sessionID)
+			return
+		}
+
+		// Tool-calling loop: use non-streaming calls during tool iterations,
+		// then switch to real streaming for the final text response.
 		for i := 0; i < a.config.MaxSteps; i++ {
 			req := openai.ChatCompletionRequest{
 				Model:       a.config.Provider.Model,
@@ -225,15 +234,10 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 				Timestamp:    callStart,
 			})
 
-			// No tool calls → this is the final response, stream it out
+			// No tool calls → final response. Re-request with streaming API
+			// for real token-by-token delivery.
 			if len(choice.Message.ToolCalls) == 0 {
-				reply := choice.Message.Content
-				a.store.AddMessage(sessionID, Message{Role: "assistant", Content: reply})
-				// Emit the full reply as a single delta (already complete)
-				if reply != "" {
-					ch <- StreamChunk{Delta: reply, Done: false}
-				}
-				ch <- StreamChunk{Delta: "", Done: true}
+				a.streamFinalResponse(ctx, ch, messages, sessionID)
 				return
 			}
 
@@ -279,6 +283,83 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 		ch <- StreamChunk{Delta: "error: max tool iterations reached", Done: true}
 	}()
 	return ch
+}
+
+// streamFinalResponse makes a streaming API call and emits deltas token-by-token.
+// Called after tool iterations are complete (no more tool calls expected).
+func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, messages []openai.ChatCompletionMessage, sessionID string) {
+	req := openai.ChatCompletionRequest{
+		Model:       a.config.Provider.Model,
+		Messages:    messages,
+		Temperature: float32(a.config.Temperature),
+		StreamOptions: &openai.StreamOptions{
+			IncludeUsage: true,
+		},
+	}
+	if a.config.MaxTokens > 0 {
+		req.MaxTokens = a.config.MaxTokens
+	}
+	// No tools — this is the final text generation
+	callStart := time.Now()
+	stream, err := a.client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
+		return
+	}
+	defer stream.Close()
+
+	var fullReply strings.Builder
+	var usage *openai.Usage
+	var finishReason string
+
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
+			return
+		}
+
+		// Capture usage from the final chunk (only present when StreamOptions.IncludeUsage is true)
+		if resp.Usage != nil {
+			usage = resp.Usage
+		}
+
+		if len(resp.Choices) > 0 {
+			delta := resp.Choices[0].Delta.Content
+			if delta != "" {
+				fullReply.WriteString(delta)
+				ch <- StreamChunk{Delta: delta, Done: false}
+			}
+			if resp.Choices[0].FinishReason != "" {
+				finishReason = string(resp.Choices[0].FinishReason)
+			}
+		}
+	}
+
+	// Record generation for observability
+	gen := LLMGeneration{
+		AgentName:    a.config.Name,
+		Model:        a.config.Provider.Model,
+		Provider:     a.config.Provider.Name,
+		LatencyMs:    time.Since(callStart).Milliseconds(),
+		Temperature:  a.config.Temperature,
+		FinishReason: finishReason,
+		SessionID:    sessionID,
+		Timestamp:    callStart,
+	}
+	if usage != nil {
+		gen.InputTokens = usage.PromptTokens
+		gen.OutputTokens = usage.CompletionTokens
+		gen.TotalTokens = usage.TotalTokens
+	}
+	RecordGeneration(gen)
+
+	// Store in memory
+	a.store.AddMessage(sessionID, Message{Role: "assistant", Content: fullReply.String()})
+	ch <- StreamChunk{Delta: "", Done: true}
 }
 
 // run is the internal implementation shared by Ask and Run.

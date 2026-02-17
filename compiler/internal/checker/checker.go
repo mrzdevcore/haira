@@ -43,6 +43,7 @@ type checker struct {
 	diags     []hairaerr.Diagnostic
 	file      string
 	inMethod  bool            // true when checking a method body (self is protected)
+	inTest    bool            // true when checking a test body (assert is allowed)
 	returnTy  Type            // expected return type for current function/workflow/tool (nil = not set)
 	agents    map[string]bool // registered agent names
 	providers map[string]bool // registered provider names
@@ -287,6 +288,8 @@ func (c *checker) checkBodies(file *ast.SourceFile) {
 			}
 		case ast.WorkflowDecl:
 			c.checkWorkflow(it)
+		case ast.TestDecl:
+			c.checkTestBody(it)
 		}
 	}
 }
@@ -353,6 +356,20 @@ func (c *checker) checkToolBody(tool ast.ToolDecl) {
 	c.checkBlock(*tool.Body)
 	c.env = saved
 	c.returnTy = savedReturn
+}
+
+func (c *checker) checkTestBody(td ast.TestDecl) {
+	env := c.env.Child()
+	saved := c.env
+	savedReturn := c.returnTy
+	savedInTest := c.inTest
+	c.env = env
+	c.returnTy = nil
+	c.inTest = true
+	c.checkBlock(td.Body)
+	c.env = saved
+	c.returnTy = savedReturn
+	c.inTest = savedInTest
 }
 
 func (c *checker) checkWorkflow(wf ast.WorkflowDecl) {
@@ -540,6 +557,18 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 
 	case ast.ErrDeferStmt:
 		c.inferExpr(s.Value)
+
+	case ast.AssertStmt:
+		if !c.inTest {
+			c.addError("assert can only be used inside test blocks", stmt.Span)
+		}
+		condType := c.inferExpr(s.Condition)
+		if !isAny(condType) && !TypeEquals(condType, BoolType{}) {
+			c.addWarning("assert condition should be bool, got "+condType.String(), s.Condition.Span, "")
+		}
+		if s.Message != nil {
+			c.inferExpr(*s.Message)
+		}
 	}
 }
 

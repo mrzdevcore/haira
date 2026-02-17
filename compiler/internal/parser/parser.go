@@ -321,6 +321,14 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 		}
 		return ast.Item{Node: wf, Span: p.span(start)}, true
 
+	case token.Test:
+		p.advance()
+		td, ok := p.parseTestDecl()
+		if !ok {
+			return ast.Item{}, false
+		}
+		return ast.Item{Node: td, Span: p.span(start)}, true
+
 	case token.Fn:
 		p.advance()
 		fd, ok := p.parseFnDecl(isPublic)
@@ -974,6 +982,14 @@ func (p *Parser) parseStatement() (ast.Statement, bool) {
 			return ast.Statement{}, false
 		}
 		return ast.Statement{Node: ss, Span: p.span(start)}, true
+
+	case token.Assert:
+		p.advance()
+		as, ok := p.parseAssertStmt()
+		if !ok {
+			return ast.Statement{}, false
+		}
+		return ast.Statement{Node: as, Span: p.span(start)}, true
 
 	case token.Break:
 		p.advance()
@@ -2746,6 +2762,42 @@ func (p *Parser) parseToolDecl() (ast.ToolDecl, bool) {
 		Description: description,
 		Body:        body,
 	}, true
+}
+
+func (p *Parser) parseTestDecl() (ast.TestDecl, bool) {
+	// Expect a string literal name: test "name" { ... }
+	if p.peek().Kind != token.String {
+		tok := p.peek()
+		p.addError("expected test name string", ast.Span{Start: tok.Start, End: tok.End})
+		return ast.TestDecl{}, false
+	}
+	nameTok := p.peek()
+	name := ast.Spanned[string]{Node: nameTok.Value, Span: ast.Span{Start: nameTok.Start, End: nameTok.End}}
+	p.advance()
+
+	body, ok := p.parseBlock()
+	if !ok {
+		return ast.TestDecl{}, false
+	}
+	return ast.TestDecl{Name: name, Body: body}, true
+}
+
+func (p *Parser) parseAssertStmt() (ast.AssertStmt, bool) {
+	cond, ok := p.parseExpr()
+	if !ok {
+		return ast.AssertStmt{}, false
+	}
+
+	var msg *ast.Expr
+	if p.check(token.Comma) {
+		p.advance()
+		m, ok := p.parseExpr()
+		if !ok {
+			return ast.AssertStmt{}, false
+		}
+		msg = &m
+	}
+	return ast.AssertStmt{Condition: cond, Message: msg}, true
 }
 
 func (p *Parser) parseAgentDecl() (ast.AgentDecl, bool) {

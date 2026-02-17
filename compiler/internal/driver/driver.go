@@ -159,6 +159,28 @@ func LexFile(file string) error {
 	return nil
 }
 
+// Test reads a Haira source file and runs its test blocks.
+func Test(file string, testArgs []string) error {
+	sf, src, err := resolveAndParse(file)
+	if err != nil {
+		return err
+	}
+
+	// Type check
+	typeInfo, typeDiags := checker.Check(sf)
+	if hairaerr.HasErrors(typeDiags) {
+		return reportErrors(typeDiags, src)
+	}
+	reportWarnings(typeDiags, src)
+
+	runtimePath := codegen.FindRuntimePath()
+	if runtimePath == "" {
+		return fmt.Errorf("could not find go-runtime directory")
+	}
+
+	return codegen.RunTests(sf, runtimePath, file, src, testArgs, typeInfo)
+}
+
 // FormatFile formats a Haira source file in-place.
 func FormatFile(file string) error {
 	source, err := os.ReadFile(file)
@@ -284,6 +306,8 @@ func printItem(item ast.Item) {
 			trigger = "@" + it.Trigger.Name.Node + " "
 		}
 		fmt.Printf("  WorkflowDecl: %s%s (%d params)\n", trigger, it.Name.Node, len(it.Params))
+	case ast.TestDecl:
+		fmt.Printf("  TestDecl: %q\n", it.Name.Node)
 	case ast.ItemStatement:
 		fmt.Printf("  Statement: %T\n", it.Stmt.Node)
 	default:

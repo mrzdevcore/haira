@@ -1,0 +1,46 @@
+// Example 29: Testing
+// Demonstrates the test and assert keywords for unit testing.
+
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn multiply(a: int, b: int) -> int {
+    return a * b
+}
+
+fn is_even(n: int) -> bool {
+    return n % 2 == 0
+}
+
+// Basic equality assertions
+test "add returns correct sum" {
+    assert add(1, 2) == 3, "1+2 should equal 3"
+    assert add(0, 0) == 0, "0+0 should equal 0"
+    assert add(-1, 1) == 0, "-1+1 should equal 0"
+}
+
+// Testing multiple functions
+test "multiply works" {
+    result = multiply(3, 4)
+    assert result == 12
+    assert multiply(0, 100) == 0
+}
+
+// Custom failure messages
+test "custom message on failure" {
+    x = add(2, 2)
+    assert x == 4, "2+2 should equal 4"
+}
+
+// Boolean assertions
+test "is_even checks parity" {
+    assert is_even(4)
+    assert is_even(0)
+    assert not is_even(3)
+}
+
+// Not-equal assertions
+test "results differ" {
+    assert add(1, 2) != add(1, 3)
+}

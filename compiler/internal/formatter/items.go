@@ -53,6 +53,8 @@ func (f *Formatter) formatItem(item ast.Item) {
 		f.formatTool(it)
 	case ast.WorkflowDecl:
 		f.formatWorkflow(it)
+	case ast.TestDecl:
+		f.formatTest(it)
 	case ast.ItemStatement:
 		f.formatStatement(it.Stmt)
 	}
@@ -342,6 +344,16 @@ func (f *Formatter) formatWorkflow(wd ast.WorkflowDecl) {
 	f.formatBlockStatements(wd.Body.Statements)
 	f.decIndent()
 	f.writeln("}")
+}
+
+func (f *Formatter) formatTest(td ast.TestDecl) {
+	f.write("test ")
+	f.write(`"`)
+	f.write(td.Name.Node)
+	f.write(`"`)
+	f.write(" ")
+	f.formatBlock(td.Body)
+	f.newline()
 }
 
 // trimIndent removes leading whitespace from a string.

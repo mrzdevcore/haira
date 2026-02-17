@@ -122,6 +122,11 @@ type ItemStatement struct {
 	Stmt Statement
 }
 
+type TestDecl struct {
+	Name Spanned[string]
+	Body Block
+}
+
 func (TypeDef) itemKind()       {}
 func (EnumDef) itemKind()       {}
 func (TypeAlias) itemKind()     {}
@@ -134,6 +139,7 @@ func (WorkflowDecl) itemKind()  {}
 func (FunctionDef) itemKind()   {}
 func (MethodDef) itemKind()     {}
 func (ItemStatement) itemKind() {}
+func (TestDecl) itemKind()      {}
 
 // --- Type expressions ---
 
@@ -330,6 +336,11 @@ type ErrDeferStmt struct {
 	Value Expr
 }
 
+type AssertStmt struct {
+	Condition Expr
+	Message   *Expr // optional custom message
+}
+
 func (AssignStmt) stmtKind()   {}
 func (IfStmt) stmtKind()       {}
 func (ForStmt) stmtKind()      {}
@@ -343,6 +354,7 @@ func (BreakStmt) stmtKind()    {}
 func (ContinueStmt) stmtKind() {}
 func (ExprStmt) stmtKind()     {}
 func (StepStmt) stmtKind()     {}
+func (AssertStmt) stmtKind()   {}
 
 // --- Expressions ---
 

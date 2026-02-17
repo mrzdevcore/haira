@@ -53,6 +53,8 @@ const (
 	Onsuccess
 	Oncancel
 	Errdefer
+	Test
+	Assert
 
 	// Operators
 	Plus      // +
@@ -170,6 +172,8 @@ var Keywords = map[string]TokenKind{
 	"onsuccess": Onsuccess,
 	"oncancel":  Oncancel,
 	"errdefer":  Errdefer,
+	"test":      Test,
+	"assert":    Assert,
 }
 
 // Token represents a lexical token with its kind, literal value, and position.
@@ -279,6 +283,10 @@ func (k TokenKind) String() string {
 		return "oncancel"
 	case Errdefer:
 		return "errdefer"
+	case Test:
+		return "test"
+	case Assert:
+		return "assert"
 	case Plus:
 		return "+"
 	case Minus:
@@ -398,7 +406,7 @@ func (k TokenKind) String() string {
 
 // IsKeyword returns true if the token kind is a keyword.
 func (k TokenKind) IsKeyword() bool {
-	return k >= If && k <= Errdefer
+	return k >= If && k <= Assert
 }
 
 // IsLiteral returns true if the token kind is a literal value.

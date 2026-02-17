@@ -68,6 +68,95 @@ func RunProgram(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string
 	return err
 }
 
+// RunTests generates Go source and runs go test.
+func RunTests(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, testArgs []string, typeInfo ...*checker.TypeInfo) error {
+	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-test-%d", os.Getpid()))
+
+	mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
+	testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
+
+	if testGo == "" {
+		return fmt.Errorf("no test blocks found in %s", hairaFile)
+	}
+
+	if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
+		return err
+	}
+
+	if err := runGoModTidy(tmpDir); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w", err)
+	}
+
+	args := append([]string{"test", "-v", "."}, normalizeTestArgs(testArgs)...)
+	cmd := exec.Command("go", args...)
+	cmd.Dir = tmpDir
+	cmd.Stdout = os.Stdout
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if stderr.Len() > 0 {
+		if err != nil {
+			fmt.Fprint(os.Stderr, cleanGoErrors(stderr.String()))
+		} else {
+			fmt.Fprint(os.Stderr, stderr.String())
+		}
+	}
+
+	os.RemoveAll(tmpDir)
+	return err
+}
+
+func writeTestProject(dir, mainGo, testGo, runtimePath string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create dir: %w", err)
+	}
+
+	absRuntime, err := filepath.Abs(runtimePath)
+	if err != nil {
+		return fmt.Errorf("resolve runtime path: %w", err)
+	}
+
+	goMod := fmt.Sprintf("module haira-generated\n\ngo 1.22\n\nrequire haira-go-runtime v0.0.0\n\nreplace haira-go-runtime => %s\n", absRuntime)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		return fmt.Errorf("write go.mod: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {
+		return fmt.Errorf("write main.go: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(testGo), 0o644); err != nil {
+		return fmt.Errorf("write main_test.go: %w", err)
+	}
+
+	return nil
+}
+
+// normalizeTestArgs translates user-facing test flags to Go's format.
+// Go's t.Run replaces spaces with underscores, so -run "multiply works"
+// needs to become -run "TestHaira/multiply_works" for go test.
+func normalizeTestArgs(args []string) []string {
+	out := make([]string, len(args))
+	for i, arg := range args {
+		out[i] = arg
+	}
+	for i := 0; i < len(out); i++ {
+		if (out[i] == "-run" || out[i] == "--run") && i+1 < len(out) {
+			filter := out[i+1]
+			// Replace spaces with underscores (Go's t.Run behavior)
+			filter = strings.ReplaceAll(filter, " ", "_")
+			// Prefix with TestHaira/ so users just write the test name
+			if !strings.HasPrefix(filter, "TestHaira") {
+				filter = "TestHaira/" + filter
+			}
+			out[i+1] = filter
+			i++ // skip the value
+		}
+	}
+	return out
+}
+
 // cleanGoErrors strips Go module/build noise from error output,
 // since //line directives already point to the Haira source file.
 func cleanGoErrors(output string) string {

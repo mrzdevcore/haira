@@ -35,6 +35,8 @@ func main() {
 		err = cmdLex(rest)
 	case "emit":
 		err = cmdEmit(rest)
+	case "test":
+		err = cmdTest(rest)
 	case "fmt":
 		err = cmdFmt(rest)
 	case "lsp":
@@ -110,6 +112,13 @@ func cmdEmit(args []string) error {
 	return driver.EmitFile(args[0])
 }
 
+func cmdTest(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haira test <file> [flags...]")
+	}
+	return driver.Test(args[0], args[1:])
+}
+
 func cmdFmt(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: haira fmt <file> [files...]")
@@ -134,6 +143,7 @@ Commands:
   check <file> [files...]    Parse and report errors
   lex <file>                 Show tokens
   emit <file>                Show generated Go code
+  test <file> [flags...]     Run test blocks
   fmt <file> [files...]      Format source files in-place
   lsp                        Start the language server (LSP)
   version                    Show version

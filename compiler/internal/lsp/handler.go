@@ -321,6 +321,14 @@ func (h *Handler) Completion(params json.RawMessage) *CompletionList {
 						Detail: "provider " + it.Name.Node,
 					})
 				}
+			case ast.TestDecl:
+				if strings.HasPrefix(it.Name.Node, prefix) {
+					items = append(items, CompletionItem{
+						Label:  it.Name.Node,
+						Kind:   12, // Value
+						Detail: "test " + it.Name.Node,
+					})
+				}
 			}
 		}
 	}
@@ -381,6 +389,10 @@ func (h *Handler) Definition(params json.RawMessage) *Location {
 				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
 			}
 		case ast.MethodDef:
+			if it.Name.Node == name {
+				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+			}
+		case ast.TestDecl:
 			if it.Name.Node == name {
 				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
 			}
@@ -562,6 +574,8 @@ func itemHoverInfo(item ast.Item) string {
 		return fmt.Sprintf("```haira\nworkflow %s\n```", workflowSignature(it))
 	case ast.ProviderDecl:
 		return fmt.Sprintf("```haira\nprovider %s\n```", it.Name.Node)
+	case ast.TestDecl:
+		return fmt.Sprintf("```haira\ntest %q\n```", it.Name.Node)
 	}
 	return ""
 }

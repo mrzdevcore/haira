@@ -883,3 +883,209 @@ fn main() {
 		t.Error("Tech should be initialized before FrontDesk in main()")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Test codegen: test + assert keywords
+// ---------------------------------------------------------------------------
+
+func parseAndGenerateTest(t *testing.T, src string) string {
+	t.Helper()
+	sf, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("parse error: %s", e.Message)
+		}
+		t.FailNow()
+	}
+	return GenerateTestGo(sf, "", "")
+}
+
+func parseAndGenerateMainForTest(t *testing.T, src string) string {
+	t.Helper()
+	sf, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("parse error: %s", e.Message)
+		}
+		t.FailNow()
+	}
+	return GenerateMainGoForTest(sf, "", "")
+}
+
+func TestGoldenTestBasic(t *testing.T) {
+	src := `
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+test "add works" {
+    assert add(1, 2) == 3
+}
+`
+	got := parseAndGenerateTest(t, src)
+
+	if !strings.Contains(got, "package main") {
+		t.Errorf("missing package main:\n%s", got)
+	}
+	if !strings.Contains(got, `"testing"`) {
+		t.Errorf("missing testing import:\n%s", got)
+	}
+	if !strings.Contains(got, "func TestHaira(t *testing.T)") {
+		t.Errorf("missing TestHaira function:\n%s", got)
+	}
+	if !strings.Contains(got, `t.Run("add works"`) {
+		t.Errorf("missing t.Run sub-test:\n%s", got)
+	}
+	if !strings.Contains(got, "Add(1, 2)") {
+		t.Errorf("missing function call in assertion:\n%s", got)
+	}
+	if !strings.Contains(got, "t.Errorf") {
+		t.Errorf("missing t.Errorf for equality assertion:\n%s", got)
+	}
+}
+
+func TestGoldenTestCustomMessage(t *testing.T) {
+	src := `
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+test "with message" {
+    x = add(2, 2)
+    assert x == 4, "2+2 should equal 4"
+}
+`
+	got := parseAndGenerateTest(t, src)
+
+	if !strings.Contains(got, `"2+2 should equal 4"`) {
+		t.Errorf("missing custom message in assertion:\n%s", got)
+	}
+	if !strings.Contains(got, "t.Errorf") {
+		t.Errorf("missing t.Errorf for equality assertion:\n%s", got)
+	}
+}
+
+func TestGoldenTestBooleanAssert(t *testing.T) {
+	src := `
+fn is_even(n: int) -> bool {
+    return n % 2 == 0
+}
+
+test "bool check" {
+    assert is_even(4)
+}
+`
+	got := parseAndGenerateTest(t, src)
+
+	if !strings.Contains(got, "t.Fatalf") {
+		t.Errorf("missing t.Fatalf for boolean assertion:\n%s", got)
+	}
+	if !strings.Contains(got, "IsEven(4)") {
+		t.Errorf("missing function call:\n%s", got)
+	}
+}
+
+func TestGoldenTestNotEqual(t *testing.T) {
+	src := `
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+test "not equal" {
+    assert add(1, 2) != add(1, 3)
+}
+`
+	got := parseAndGenerateTest(t, src)
+
+	if !strings.Contains(got, "expected not equal") {
+		t.Errorf("missing not-equal message:\n%s", got)
+	}
+}
+
+func TestGoldenTestMainStub(t *testing.T) {
+	src := `
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn main() {
+    io.println(add(1, 2))
+}
+
+test "add works" {
+    assert add(1, 2) == 3
+}
+`
+	got := parseAndGenerateMainForTest(t, src)
+
+	if !strings.Contains(got, "func main()") {
+		t.Errorf("missing stub main:\n%s", got)
+	}
+	if !strings.Contains(got, "func Add(") {
+		t.Errorf("missing Add function:\n%s", got)
+	}
+	// The main body should be empty (stub)
+	mainIdx := strings.Index(got, "func main()")
+	if mainIdx < 0 {
+		t.Fatalf("missing func main()")
+	}
+	mainBody := got[mainIdx:]
+	// Should NOT contain the user's main body (println)
+	if strings.Contains(mainBody, "Println") {
+		t.Errorf("stub main should not contain user code:\n%s", mainBody)
+	}
+}
+
+func TestGoldenTestMultiple(t *testing.T) {
+	src := `
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+test "first" {
+    assert add(1, 1) == 2
+}
+
+test "second" {
+    assert add(2, 3) == 5
+}
+`
+	got := parseAndGenerateTest(t, src)
+
+	if !strings.Contains(got, `t.Run("first"`) {
+		t.Errorf("missing first sub-test:\n%s", got)
+	}
+	if !strings.Contains(got, `t.Run("second"`) {
+		t.Errorf("missing second sub-test:\n%s", got)
+	}
+}
+
+func TestNoTestsReturnsEmpty(t *testing.T) {
+	src := `
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+`
+	got := parseAndGenerateTest(t, src)
+	if got != "" {
+		t.Errorf("expected empty output for file with no tests, got:\n%s", got)
+	}
+}
+
+func TestHasTests(t *testing.T) {
+	withTests := `
+fn add(a: int, b: int) -> int { return a + b }
+test "x" { assert add(1,2) == 3 }
+`
+	withoutTests := `
+fn add(a: int, b: int) -> int { return a + b }
+`
+	sf1, _ := parser.Parse(withTests)
+	if !HasTests(sf1) {
+		t.Error("expected HasTests to return true")
+	}
+	sf2, _ := parser.Parse(withoutTests)
+	if HasTests(sf2) {
+		t.Error("expected HasTests to return false")
+	}
+}

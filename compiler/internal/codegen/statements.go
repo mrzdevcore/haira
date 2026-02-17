@@ -37,6 +37,10 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 		emitStep(em, s)
 	case ast.ErrDeferStmt:
 		emitErrDefer(em, s)
+	case ast.AssertStmt:
+		// assert is only valid inside test blocks; emitTestBody handles it directly.
+		// If we reach here, it means assert was used outside a test (checker should catch this).
+		em.Line("// assert outside test block (should not reach codegen)")
 	}
 }
 

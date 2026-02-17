@@ -77,6 +77,15 @@ func (f *Formatter) formatStatement(stmt ast.Statement) {
 		f.writeIndent()
 		f.formatStepStmt(s)
 		f.newline()
+	case ast.AssertStmt:
+		f.writeIndent()
+		f.write("assert ")
+		f.formatExpr(s.Condition)
+		if s.Message != nil {
+			f.write(", ")
+			f.formatExpr(*s.Message)
+		}
+		f.newline()
 	}
 }
 

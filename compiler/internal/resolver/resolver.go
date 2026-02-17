@@ -289,6 +289,8 @@ func isItemPublic(item ast.Item) bool {
 		return true // methods follow their type's visibility
 	case ast.ProviderDecl, ast.ToolDecl, ast.AgentDecl, ast.WorkflowDecl:
 		return true // agentic declarations are always public
+	case ast.TestDecl:
+		return false // tests are never exported
 	case ast.TypeAlias:
 		return true // type aliases are always public for now
 	case ast.ItemStatement:
@@ -318,6 +320,8 @@ func itemName(item ast.Item) string {
 	case ast.AgentDecl:
 		return it.Name.Node
 	case ast.WorkflowDecl:
+		return it.Name.Node
+	case ast.TestDecl:
 		return it.Name.Node
 	default:
 		return ""

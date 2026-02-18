@@ -34,50 +34,67 @@ export class HairaStatusCard extends HTMLElement {
         .header {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
+          gap: 0.4rem;
+          padding: 0.45rem 0.75rem;
         }
         .icon { display: flex; align-items: center; flex-shrink: 0; }
-        .title { font-size: 0.85rem; font-weight: 600; }
+        .icon svg { width: 14px; height: 14px; }
+        .title { font-size: 0.78rem; font-weight: 600; }
         .message {
-          font-size: 0.8rem;
+          font-size: 0.75rem;
           color: var(--haira-text-dim);
-          padding: 0 1rem 0.75rem 2.4rem;
-          line-height: 1.5;
+          padding: 0 0.75rem 0.45rem 2rem;
+          line-height: 1.4;
         }
         .sections {
           border-top: 1px solid var(--haira-border);
         }
         .section {
-          padding: 0.6rem 1rem;
+          padding: 0.4rem 0.75rem;
           border-bottom: 1px solid var(--haira-border);
         }
         .section:last-child { border-bottom: none; }
         .section-label {
-          font-size: 0.72rem;
+          font-size: 0.68rem;
           font-weight: 600;
           color: var(--haira-muted);
           text-transform: uppercase;
           letter-spacing: 0.04em;
-          margin-bottom: 0.35rem;
+          margin-bottom: 0.2rem;
         }
         .section-content {
-          font-size: 0.8rem;
+          font-size: 0.75rem;
           color: var(--haira-text-dim);
-          line-height: 1.5;
+          line-height: 1.4;
           white-space: pre-wrap;
         }
         .section-content.code {
           font-family: var(--haira-mono);
-          font-size: 0.75rem;
+          font-size: 0.72rem;
           background: var(--haira-bg);
-          padding: 0.5rem 0.75rem;
+          padding: 0.35rem 0.6rem;
           border-radius: var(--haira-radius-sm);
           overflow-x: auto;
         }
+        /* Inline variant: title + message on one line, no sections */
+        .card.inline .header {
+          padding: 0.35rem 0.65rem;
+        }
+        .card.inline .message {
+          display: inline;
+          padding: 0;
+          margin-left: 0.15rem;
+          font-weight: 400;
+        }
+        .card.inline .header-row {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          flex-wrap: wrap;
+        }
       </style>
       <div class="card" id="card">
-        <div class="header">
+        <div class="header" id="header">
           <span class="icon" id="icon"></span>
           <span class="title" id="title"></span>
         </div>
@@ -91,6 +108,39 @@ export class HairaStatusCard extends HTMLElement {
     try {
       const status = (props.status as string) || "info";
       const color = statusColors[status] || statusColors.info;
+      const sections = props.sections as
+        | Array<Record<string, string>>
+        | undefined;
+      const hasSections = sections && sections.length > 0;
+      const hasMessage = !!props.message;
+
+      const card = this.shadowRoot!.getElementById("card")!;
+      const header = this.shadowRoot!.getElementById("header")!;
+
+      // Inline variant: simple status with title + message, no sections
+      if (!hasSections && hasMessage) {
+        card.classList.add("inline");
+        header.innerHTML = `
+          <div class="header-row">
+            <span class="icon" id="icon"></span>
+            <span class="title" id="title"></span>
+            <span class="message" id="message"></span>
+          </div>`;
+        const icon = header.querySelector("#icon")! as HTMLElement;
+        icon.innerHTML = icons[status] || icons.info;
+        icon.style.color = color;
+        const titleEl = header.querySelector("#title")! as HTMLElement;
+        titleEl.textContent = (props.title as string) || "";
+        titleEl.style.color = color;
+        (header.querySelector("#message")! as HTMLElement).textContent =
+          props.message as string;
+        this.shadowRoot!.getElementById("message")!.style.display = "none";
+        this.shadowRoot!.getElementById("sections")!.style.display = "none";
+        card.style.borderLeft = `3px solid ${color.includes("var(") ? color : color}`;
+        return;
+      }
+
+      card.classList.remove("inline");
 
       const icon = this.shadowRoot!.getElementById("icon")!;
       icon.innerHTML = icons[status] || icons.info;
@@ -101,21 +151,17 @@ export class HairaStatusCard extends HTMLElement {
       title.style.color = color;
 
       const message = this.shadowRoot!.getElementById("message")!;
-      if (props.message) {
+      if (hasMessage) {
         message.textContent = props.message as string;
         message.style.display = "";
       } else {
         message.style.display = "none";
       }
 
-      const card = this.shadowRoot!.getElementById("card")!;
-      card.style.borderColor = color.replace(")", ", 0.3)").replace("var(", "");
-      // Use a subtle left border accent
       card.style.borderLeft = `3px solid ${color.includes("var(") ? color : color}`;
 
       const sectionsEl = this.shadowRoot!.getElementById("sections")!;
-      const sections = props.sections as Array<Record<string, string>> | undefined;
-      if (sections && sections.length > 0) {
+      if (hasSections) {
         sectionsEl.style.display = "";
         sectionsEl.innerHTML = sections
           .map(

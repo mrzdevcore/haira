@@ -32,8 +32,6 @@ export class HairaToolCard extends HTMLElement {
           background: var(--haira-bg-card);
           border: 1px solid var(--haira-border);
           border-radius: 8px;
-          margin-left: 2.25rem;
-          max-width: 320px;
         }
         .icon {
           display: flex;
@@ -80,12 +78,6 @@ export class HairaToolCard extends HTMLElement {
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-        @media (max-width: 640px) {
-          .card {
-            margin-left: 0;
-            max-width: 100%;
-          }
         }
       </style>
       <div class="card" id="card">

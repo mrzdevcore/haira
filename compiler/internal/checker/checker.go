@@ -194,7 +194,12 @@ var validProviderFields = map[string]bool{
 var validAgentFields = map[string]bool{
 	"model": true, "system": true, "tools": true, "handoffs": true,
 	"mcp": true, "temperature": true, "max_tokens": true, "max_steps": true,
-	"memory": true, "output": true,
+	"memory": true, "output": true, "ui": true,
+}
+
+var validUIComponents = map[string]bool{
+	"StatusCard": true, "Confirm": true, "Choices": true, "Table": true,
+	"CodeBlock": true, "Diff": true, "KeyValue": true, "Progress": true,
 }
 
 func (c *checker) checkProviderFields(provider ast.ProviderDecl) {
@@ -216,7 +221,7 @@ func (c *checker) checkAgentFields(agent ast.AgentDecl) {
 			c.addWarning(
 				fmt.Sprintf("unknown agent field %q", field.Key.Node),
 				field.Key.Span,
-				"valid fields: model, system, tools, handoffs, mcp, temperature, max_tokens, max_steps, memory, output",
+				"valid fields: model, system, tools, handoffs, ui, mcp, temperature, max_tokens, max_steps, memory, output",
 			)
 		}
 		if field.Key.Node == "model" {
@@ -244,6 +249,34 @@ func (c *checker) checkAgentFields(agent ast.AgentDecl) {
 						}
 					}
 				}
+			}
+		}
+		if field.Key.Node == "ui" {
+			// ui: ui (all built-in) or ui: [ui.Confirm, ui.Choices, ...]
+			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
+				if ident.Name != "ui" {
+					c.addError(
+						fmt.Sprintf("agent %q ui field must be 'ui' (all components) or a list like [ui.Confirm, ...]", agent.Name.Node),
+						field.Value.Span,
+					)
+				}
+			} else if list, ok := field.Value.Node.(ast.ListExpr); ok {
+				for _, item := range list.Elems {
+					if fe, ok := item.Node.(ast.FieldExpr); ok {
+						if !validUIComponents[fe.Field.Node] {
+							c.addWarning(
+								fmt.Sprintf("unknown UI component %q", fe.Field.Node),
+								fe.Field.Span,
+								"built-in: StatusCard, Confirm, Choices, Table, CodeBlock, Diff, KeyValue, Progress",
+							)
+						}
+					}
+				}
+			} else {
+				c.addError(
+					fmt.Sprintf("agent %q ui field must be 'ui' or a list like [ui.Confirm, ...]", agent.Name.Node),
+					field.Value.Span,
+				)
 			}
 		}
 		if field.Key.Node == "handoffs" {

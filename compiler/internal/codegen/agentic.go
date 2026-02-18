@@ -114,17 +114,47 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 	initName := fmt.Sprintf("initAgent%s", agent.Name.Node)
 	em.OpenBlock(fmt.Sprintf("func %s()", initName))
 
-	// Pre-config setup
+	// Pre-config setup: check if toolReg is needed (tools: or ui: present)
+	hasTools := false
+	hasUI := false
+	for _, field := range agent.Fields {
+		if field.Key.Node == "tools" {
+			hasTools = true
+		}
+		if field.Key.Node == "ui" {
+			hasUI = true
+		}
+	}
+	if hasTools || hasUI {
+		em.Line("toolReg := haira.NewToolRegistry()")
+	}
+
 	for _, field := range agent.Fields {
 		switch field.Key.Node {
 		case "tools":
-			em.Line("toolReg := haira.NewToolRegistry()")
 			if list, ok := field.Value.Node.(ast.ListExpr); ok {
 				for _, item := range list.Elems {
 					if ident, ok := item.Node.(ast.IdentExpr); ok {
 						defName := goVarName("toolDef", ident.Name)
 						em.Line(fmt.Sprintf("toolReg.Register(%s)", defName))
 					}
+				}
+			}
+		case "ui":
+			// ui: ui → register all built-in UI tools
+			if ident, ok := field.Value.Node.(ast.IdentExpr); ok && ident.Name == "ui" {
+				em.Line("haira.RegisterUITools(toolReg)")
+			}
+			// ui: [ui.Confirm, ui.Choices, ...] → register specific UI tools
+			if list, ok := field.Value.Node.(ast.ListExpr); ok {
+				var names []string
+				for _, item := range list.Elems {
+					if fe, ok := item.Node.(ast.FieldExpr); ok {
+						names = append(names, fmt.Sprintf("%q", fe.Field.Node))
+					}
+				}
+				if len(names) > 0 {
+					em.Line(fmt.Sprintf("haira.RegisterUIToolsByName(toolReg, []string{%s})", strings.Join(names, ", ")))
 				}
 			}
 		case "handoffs":
@@ -164,6 +194,11 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 			em.Line(fmt.Sprintf("System: %s,", ExprToGo(field.Value)))
 		case "tools":
 			em.Line("Tools: toolReg,")
+		case "ui":
+			// If ui: is present but tools: is not, still set Tools
+			if !hasTools {
+				em.Line("Tools: toolReg,")
+			}
 		case "handoffs":
 			em.Line("Handoffs: handoffTargets,")
 		case "mcp":

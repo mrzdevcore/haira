@@ -108,6 +108,27 @@ type UiField struct {
 	Required  bool   `json:"required"`
 }
 
+// --- Confirm (yes/no approval) ---
+
+type UiConfirm struct {
+	Title        string `json:"title"`
+	Message      string `json:"message,omitempty"`
+	ConfirmLabel string `json:"confirm_label"`
+	DenyLabel    string `json:"deny_label"`
+}
+
+func (UiConfirm) UiComponentName() string { return "confirm" }
+
+// --- Choices (option picker) ---
+
+type UiChoices struct {
+	Title   string `json:"title"`
+	Options []any  `json:"options"`
+	Style   string `json:"style,omitempty"`
+}
+
+func (UiChoices) UiComponentName() string { return "choices" }
+
 // --- Group (composition) ---
 
 type UiGroup struct {

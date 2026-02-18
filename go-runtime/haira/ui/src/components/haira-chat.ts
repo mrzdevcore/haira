@@ -18,6 +18,12 @@ const iconFile = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 
 const iconX = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 5L11 11M11 5L5 11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
+const iconActivity = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+
+const iconChevronRight = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+const iconChevronLeft = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
+
 export class HairaChat extends HTMLElement {
   private meta!: WorkflowMeta;
   private sessionId = "";
@@ -44,6 +50,18 @@ export class HairaChat extends HTMLElement {
           flex-direction: column;
           flex: 1;
           overflow: hidden;
+          position: relative;
+        }
+
+        /* ---- Chat main column ---- */
+        .chat-main {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          position: relative;
+          min-width: 0;
+          height: 100%;
         }
 
         /* Welcome screen */
@@ -110,6 +128,7 @@ export class HairaChat extends HTMLElement {
         /* Messages area */
         .messages {
           flex: 1;
+          min-height: 0;
           overflow-y: auto;
           display: none;
           flex-direction: column;
@@ -183,11 +202,12 @@ export class HairaChat extends HTMLElement {
           font-weight: 600;
         }
 
-        /* Input area — sticky bottom */
+        /* Input area — pinned to bottom by flex layout */
         .input-area {
           padding: 0.75rem 1rem 1rem;
           flex-shrink: 0;
           background: var(--haira-bg);
+          border-top: 1px solid var(--haira-border);
         }
         .input-card {
           display: flex;
@@ -277,14 +297,14 @@ export class HairaChat extends HTMLElement {
           background: transparent;
           border: none;
           color: var(--haira-text);
-          padding: 0.45rem 0.25rem;
-          font-size: 0.88rem;
+          padding: 0.5rem 0.35rem;
+          font-size: 0.9rem;
           font-family: var(--haira-font);
           resize: none;
-          min-height: 24px;
-          max-height: 140px;
+          min-height: 44px;
+          max-height: 200px;
           outline: none;
-          line-height: 1.45;
+          line-height: 1.5;
         }
         textarea::placeholder {
           color: var(--haira-muted);
@@ -320,6 +340,122 @@ export class HairaChat extends HTMLElement {
           padding-top: 0.35rem;
         }
 
+        /* ---- Activity panel (floating overlay) ---- */
+        .activity-panel {
+          position: absolute;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          width: 280px;
+          z-index: 50;
+          display: flex;
+          flex-direction: column;
+          border-left: 1px solid var(--haira-border);
+          background: var(--haira-bg);
+          overflow: hidden;
+          box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
+        }
+        .activity-panel.collapsed {
+          display: none;
+        }
+        .panel-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.55rem 0.75rem;
+          border-bottom: 1px solid var(--haira-border);
+          flex-shrink: 0;
+        }
+        .panel-header-icon {
+          display: flex;
+          color: var(--haira-muted);
+        }
+        .panel-title {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: var(--haira-text-dim);
+          flex: 1;
+        }
+        .panel-count {
+          font-size: 0.68rem;
+          color: var(--haira-muted);
+          font-family: var(--haira-mono);
+        }
+        .panel-close {
+          background: none;
+          border: none;
+          color: var(--haira-muted);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.2rem;
+          border-radius: 4px;
+          transition: all 0.15s;
+        }
+        .panel-close:hover {
+          color: var(--haira-text);
+          background: var(--haira-bg-elevated);
+        }
+        .panel-body {
+          flex: 1;
+          overflow-y: auto;
+          padding: 0.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+          ${scrollbarStyles}
+        }
+        .panel-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex: 1;
+          font-size: 0.75rem;
+          color: var(--haira-muted);
+          opacity: 0.5;
+        }
+
+        /* Toggle button (floating in chat-main) */
+        .activity-toggle {
+          position: absolute;
+          top: 0.5rem;
+          right: 0.5rem;
+          z-index: 10;
+          background: var(--haira-bg-card);
+          border: 1px solid var(--haira-border);
+          color: var(--haira-muted);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.35rem;
+          border-radius: 6px;
+          transition: all 0.15s;
+          gap: 0.3rem;
+        }
+        .activity-toggle:hover {
+          color: var(--haira-accent);
+          border-color: var(--haira-accent);
+          background: var(--haira-accent-dim);
+        }
+        .activity-toggle .badge {
+          display: none;
+          min-width: 16px;
+          height: 16px;
+          padding: 0 4px;
+          border-radius: 8px;
+          background: var(--haira-accent);
+          color: #1a0e04;
+          font-size: 0.62rem;
+          font-weight: 700;
+          line-height: 16px;
+          text-align: center;
+        }
+        .activity-toggle .badge.visible {
+          display: inline-block;
+        }
+
         /* Mobile */
         @media (max-width: 640px) {
           .messages-inner {
@@ -338,49 +474,68 @@ export class HairaChat extends HTMLElement {
         }
       </style>
 
-      <div class="welcome" id="welcome">
-        <span class="welcome-icon">${m.logo ? `<img src="${this.esc(m.logo)}" alt="">` : logoSvg.replace(/width="22" height="22"/, 'width="56" height="56"')}</span>
-        <h2>${this.esc(m.title || m.name || "Chat")}</h2>
-        ${m.description ? `<p>${this.esc(m.description)}</p>` : ""}
-        <div class="suggestions" id="suggestions"></div>
-      </div>
+      <div class="chat-main">
+        <div class="welcome" id="welcome">
+          <span class="welcome-icon">${m.logo ? `<img src="${this.esc(m.logo)}" alt="">` : logoSvg.replace(/width="22" height="22"/, 'width="56" height="56"')}</span>
+          <h2>${this.esc(m.title || m.name || "Chat")}</h2>
+          ${m.description ? `<p>${this.esc(m.description)}</p>` : ""}
+          <div class="suggestions" id="suggestions"></div>
+        </div>
 
-      <div class="messages" id="messages">
-        <div class="messages-inner" id="messages-inner">
-          <div class="typing" id="typing">
-            <div class="typing-dots">
-              <span class="typing-dot"></span>
-              <span class="typing-dot"></span>
-              <span class="typing-dot"></span>
+        <div class="messages" id="messages">
+          <div class="messages-inner" id="messages-inner">
+            <div class="typing" id="typing">
+              <div class="typing-dots">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+              </div>
+              <span>Thinking...</span>
             </div>
-            <span>Thinking...</span>
           </div>
+        </div>
+
+        <div class="drop-overlay" id="drop-overlay">
+          <span class="drop-overlay-icon">${iconAttach}</span>
+          <span class="drop-overlay-text">Drop file to attach</span>
+        </div>
+
+        <button class="activity-toggle" id="activity-toggle" title="Toggle activity panel">
+          ${iconActivity}
+          <span class="badge" id="toggle-badge">0</span>
+        </button>
+
+        <div class="input-area">
+          <div class="input-card" id="input-card">
+            <div class="file-chip" id="file-chip">
+              <div class="file-chip-inner">
+                <span class="file-chip-icon">${iconFile}</span>
+                <span class="file-chip-name" id="file-name"></span>
+                <span class="file-chip-size" id="file-size"></span>
+                <button class="file-chip-remove" id="file-remove" title="Remove file">${iconX}</button>
+              </div>
+            </div>
+            <div class="input-row">
+              ${m.hasFile ? `<button class="attach-btn" id="attach-btn" title="Attach file">${iconAttach}</button>` : ""}
+              <textarea id="chat-input" placeholder="${m.hasFile ? "Type a message or drop a file..." : "Type a message..."}" rows="1"></textarea>
+              <button class="send-btn" id="send-btn" title="Send">${iconSend}</button>
+            </div>
+          </div>
+          ${m.hasFile ? `<input type="file" id="file-input" style="display:none" />` : ""}
+          <div class="input-hint">Enter to send, Shift+Enter for new line</div>
         </div>
       </div>
 
-      <div class="drop-overlay" id="drop-overlay">
-        <span class="drop-overlay-icon">${iconAttach}</span>
-        <span class="drop-overlay-text">Drop file to attach</span>
-      </div>
-
-      <div class="input-area">
-        <div class="input-card" id="input-card">
-          <div class="file-chip" id="file-chip">
-            <div class="file-chip-inner">
-              <span class="file-chip-icon">${iconFile}</span>
-              <span class="file-chip-name" id="file-name"></span>
-              <span class="file-chip-size" id="file-size"></span>
-              <button class="file-chip-remove" id="file-remove" title="Remove file">${iconX}</button>
-            </div>
-          </div>
-          <div class="input-row">
-            ${m.hasFile ? `<button class="attach-btn" id="attach-btn" title="Attach file">${iconAttach}</button>` : ""}
-            <textarea id="chat-input" placeholder="${m.hasFile ? "Type a message or drop a file..." : "Type a message..."}" rows="1"></textarea>
-            <button class="send-btn" id="send-btn" title="Send">${iconSend}</button>
-          </div>
+      <div class="activity-panel collapsed" id="activity-panel">
+        <div class="panel-header">
+          <span class="panel-header-icon">${iconActivity}</span>
+          <span class="panel-title">Activity</span>
+          <span class="panel-count" id="panel-count"></span>
+          <button class="panel-close" id="panel-close" title="Close panel">${iconX}</button>
         </div>
-        ${m.hasFile ? `<input type="file" id="file-input" style="display:none" />` : ""}
-        <div class="input-hint">Enter to send, Shift+Enter for new line</div>
+        <div class="panel-body" id="panel-body">
+          <div class="panel-empty" id="panel-empty">No activity yet</div>
+        </div>
       </div>
     `;
 
@@ -400,6 +555,38 @@ export class HairaChat extends HTMLElement {
     const fileInput = m.hasFile
       ? (shadow.getElementById("file-input") as HTMLInputElement)
       : null;
+
+    // Activity panel elements
+    const activityPanel = shadow.getElementById("activity-panel")!;
+    const panelBody = shadow.getElementById("panel-body")!;
+    const panelEmpty = shadow.getElementById("panel-empty")!;
+    const panelCount = shadow.getElementById("panel-count")!;
+    const panelClose = shadow.getElementById("panel-close")!;
+    const activityToggle = shadow.getElementById("activity-toggle")!;
+    const toggleBadge = shadow.getElementById("toggle-badge")!;
+
+    // Panel state
+    let panelOpen = false;
+    let runningCount = 0;
+    let totalCount = 0;
+
+    function togglePanel(open?: boolean) {
+      panelOpen = open !== undefined ? open : !panelOpen;
+      activityPanel.classList.toggle("collapsed", !panelOpen);
+    }
+
+    function updateBadge() {
+      if (runningCount > 0) {
+        toggleBadge.textContent = String(runningCount);
+        toggleBadge.classList.add("visible");
+      } else {
+        toggleBadge.classList.remove("visible");
+      }
+      panelCount.textContent = totalCount > 0 ? String(totalCount) : "";
+    }
+
+    activityToggle.addEventListener("click", () => togglePanel());
+    panelClose.addEventListener("click", () => togglePanel(false));
 
     // Suggestions
     const defaultSuggestions = this.getSuggestions();
@@ -459,7 +646,7 @@ export class HairaChat extends HTMLElement {
     // Textarea auto-resize
     input.addEventListener("input", () => {
       input.style.height = "auto";
-      input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+      input.style.height = `${Math.min(input.scrollHeight, 200)}px`;
     });
 
     input.addEventListener("keydown", (e) => {
@@ -470,6 +657,15 @@ export class HairaChat extends HTMLElement {
     });
 
     sendBtn.addEventListener("click", send);
+
+    // Listen for interactive UI components (confirm, choices) that auto-send
+    shadow.addEventListener("haira-chat-input", (e: Event) => {
+      const text = (e as CustomEvent).detail?.text;
+      if (text && !sendBtn.disabled) {
+        input.value = text;
+        send();
+      }
+    });
 
     requestAnimationFrame(() => input.focus());
 
@@ -541,10 +737,21 @@ export class HairaChat extends HTMLElement {
             const card = document.createElement(
               "haira-tool-card",
             ) as HairaToolCard;
-            messagesInner.insertBefore(card, typing);
+            // Add tool card to activity panel instead of chat
+            panelEmpty.style.display = "none";
+            panelBody.appendChild(card);
             card.setTool(event.tool);
             activeTools.set(event.tool, card);
-            messagesOuter.scrollTop = messagesOuter.scrollHeight;
+            panelBody.scrollTop = panelBody.scrollHeight;
+
+            runningCount++;
+            totalCount++;
+            updateBadge();
+
+            // Auto-open panel on first tool activity
+            if (!panelOpen) {
+              togglePanel(true);
+            }
           },
           onToolRender: (event: ToolRenderEvent) => {
             const renderer = document.createElement(
@@ -561,7 +768,9 @@ export class HairaChat extends HTMLElement {
               activeTools.delete(event.tool);
             }
             typing.classList.add("visible");
-            messagesOuter.scrollTop = messagesOuter.scrollHeight;
+
+            runningCount = Math.max(0, runningCount - 1);
+            updateBadge();
           },
           onDelta: (delta) => {
             typing.classList.remove("visible");

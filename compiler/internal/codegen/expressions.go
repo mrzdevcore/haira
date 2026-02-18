@@ -471,14 +471,22 @@ func blockLastExpr(block ast.Block) string {
 func instanceToGo(inst ast.InstanceExpr) string {
 	typeName := inst.TypeName.Node
 	// Map qualified stdlib types: ui.StatusCard → haira.UIStatusCard
+	isRuntime := false
 	if goType, ok := qualifiedTypeToGo(typeName); ok {
 		typeName = goType
+		isRuntime = true
 	}
 	fields := make([]string, len(inst.Fields))
 	for i, f := range inst.Fields {
 		val := ExprToGo(f.Value)
 		if f.Name != nil {
-			fields[i] = Capitalize(f.Name.Node) + ": " + val
+			// Runtime types use SnakeToPascal (e.g. confirm_label → ConfirmLabel)
+			// User types use Capitalize (e.g. name → Name)
+			key := Capitalize(f.Name.Node)
+			if isRuntime {
+				key = SnakeToPascal(f.Name.Node)
+			}
+			fields[i] = key + ": " + val
 		} else {
 			fields[i] = val
 		}

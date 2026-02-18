@@ -1,10 +1,13 @@
 import { baseStyles, sharedKeyframes, scrollbarStyles } from "../theme";
 
-const ROW_LIMIT = 50;
+const SCROLL_THRESHOLD = 15;
 
 export class HairaTable extends HTMLElement {
   private allRows: string[][] = [];
-  private expanded = false;
+  private filteredRows: { row: string[]; idx: number }[] = [];
+  private headers: string[] = [];
+  private highlight: Set<number> = new Set();
+  private searchTerm = "";
 
   connectedCallback() {
     this.attachShadow({ mode: "open" });
@@ -22,85 +25,140 @@ export class HairaTable extends HTMLElement {
           border-radius: var(--haira-radius);
           overflow: hidden;
         }
-        .title-bar {
-          padding: 0.6rem 1rem;
-          font-size: 0.8rem;
+        .toolbar {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          border-bottom: 1px solid var(--haira-border);
+        }
+        .toolbar-title {
+          font-size: 0.78rem;
           font-weight: 600;
           color: var(--haira-text);
-          border-bottom: 1px solid var(--haira-border);
-          display: none;
+          white-space: nowrap;
         }
-        .table-wrap {
-          overflow-x: auto;
+        .row-count {
+          font-size: 0.68rem;
+          color: var(--haira-muted);
+          background: var(--haira-bg);
+          padding: 0.15rem 0.45rem;
+          border-radius: 9px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .search-wrap {
+          margin-left: auto;
+          position: relative;
+          flex-shrink: 0;
+        }
+        .search-wrap svg {
+          position: absolute;
+          left: 0.45rem;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--haira-muted);
+          pointer-events: none;
+        }
+        .search {
+          background: var(--haira-bg);
+          border: 1px solid var(--haira-border);
+          color: var(--haira-text);
+          font-size: 0.72rem;
+          font-family: var(--haira-font);
+          padding: 0.28rem 0.5rem 0.28rem 1.6rem;
+          border-radius: 6px;
+          width: 160px;
+          outline: none;
+          transition: border-color 0.15s;
+        }
+        .search:focus { border-color: var(--haira-accent); }
+        .search::placeholder { color: var(--haira-muted); }
+        .table-scroll {
+          overflow: auto;
           ${scrollbarStyles}
+        }
+        .table-scroll.capped {
+          max-height: 420px;
         }
         table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 0.78rem;
+          font-size: 0.74rem;
         }
         th {
           text-align: left;
-          padding: 0.5rem 0.75rem;
+          padding: 0.35rem 0.65rem;
           font-weight: 600;
-          font-size: 0.72rem;
+          font-size: 0.68rem;
           color: var(--haira-muted);
           text-transform: uppercase;
           letter-spacing: 0.04em;
           background: var(--haira-bg);
           border-bottom: 1px solid var(--haira-border);
           white-space: nowrap;
+          position: sticky;
+          top: 0;
+          z-index: 1;
         }
         td {
-          padding: 0.45rem 0.75rem;
+          padding: 0.28rem 0.65rem;
           color: var(--haira-text-dim);
           border-bottom: 1px solid var(--haira-border);
-          line-height: 1.4;
+          line-height: 1.35;
+          max-width: 320px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
+        td:hover { white-space: normal; word-break: break-all; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: var(--haira-bg-card-hover); }
         tr.highlight td { background: rgba(232, 163, 23, 0.06); }
-        .show-more {
-          display: none;
+        .no-results {
+          padding: 1.5rem;
           text-align: center;
-          padding: 0.5rem;
-          border-top: 1px solid var(--haira-border);
-        }
-        .show-more button {
-          background: none;
-          border: 1px solid var(--haira-border);
-          color: var(--haira-text-dim);
+          color: var(--haira-muted);
           font-size: 0.75rem;
-          font-family: var(--haira-font);
-          padding: 0.3rem 0.8rem;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.15s;
         }
-        .show-more button:hover {
-          border-color: var(--haira-accent);
-          color: var(--haira-accent);
+        .footer {
+          padding: 0.3rem 0.75rem;
+          border-top: 1px solid var(--haira-border);
+          font-size: 0.68rem;
+          color: var(--haira-muted);
+          text-align: right;
+        }
+        @media (max-width: 640px) {
+          .toolbar { flex-wrap: wrap; }
+          .search-wrap { margin-left: 0; width: 100%; }
+          .search { width: 100%; }
+          td { max-width: 200px; }
         }
       </style>
       <div class="card">
-        <div class="title-bar" id="title"></div>
-        <div class="table-wrap">
+        <div class="toolbar" id="toolbar" style="display:none">
+          <span class="toolbar-title" id="title"></span>
+          <span class="row-count" id="row-count"></span>
+          <div class="search-wrap" id="search-wrap" style="display:none">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14.5 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input class="search" id="search" type="text" placeholder="Filter rows..." />
+          </div>
+        </div>
+        <div class="table-scroll" id="scroll">
           <table>
             <thead id="thead"></thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
-        <div class="show-more" id="show-more">
-          <button id="show-more-btn"></button>
-        </div>
+        <div class="footer" id="footer" style="display:none"></div>
       </div>
     `;
 
-    this.shadowRoot!.getElementById("show-more-btn")!.addEventListener(
-      "click",
-      () => {
-        this.expanded = !this.expanded;
-        this.renderRows();
+    this.shadowRoot!.getElementById("search")!.addEventListener(
+      "input",
+      (e) => {
+        this.searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
+        this.applyFilter();
       },
     );
   }
@@ -108,50 +166,97 @@ export class HairaTable extends HTMLElement {
   setProps(props: Record<string, unknown>) {
     try {
       const title = props.title as string | undefined;
+      this.headers = (props.headers as string[]) || [];
+      this.allRows = (props.rows as string[][]) || [];
+      this.highlight = new Set((props.highlight as number[]) || []);
+
+      // Toolbar: show if title or enough rows
+      const toolbar = this.shadowRoot!.getElementById("toolbar")!;
       const titleEl = this.shadowRoot!.getElementById("title")!;
-      if (title) {
-        titleEl.textContent = title;
-        titleEl.style.display = "";
+      const countEl = this.shadowRoot!.getElementById("row-count")!;
+      const searchWrap = this.shadowRoot!.getElementById("search-wrap")!;
+
+      const hasTitle = !!title;
+      const hasMany = this.allRows.length >= SCROLL_THRESHOLD;
+
+      if (hasTitle || hasMany) {
+        toolbar.style.display = "";
+        titleEl.textContent = title || "Table";
+        countEl.textContent = `${this.allRows.length} rows`;
       }
 
-      const headers = (props.headers as string[]) || [];
-      const thead = this.shadowRoot!.getElementById("thead")!;
-      thead.innerHTML = `<tr>${headers.map((h) => `<th>${this.esc(h)}</th>`).join("")}</tr>`;
+      if (hasMany) {
+        searchWrap.style.display = "";
+      }
 
-      this.allRows = (props.rows as string[][]) || [];
-      const highlight = new Set((props.highlight as number[]) || []);
-      this.renderRows(highlight);
+      // Sticky scroll container
+      const scroll = this.shadowRoot!.getElementById("scroll")!;
+      if (hasMany) {
+        scroll.classList.add("capped");
+      } else {
+        scroll.classList.remove("capped");
+      }
+
+      // Render headers
+      const thead = this.shadowRoot!.getElementById("thead")!;
+      thead.innerHTML = `<tr>${this.headers.map((h) => `<th>${this.esc(h)}</th>`).join("")}</tr>`;
+
+      this.searchTerm = "";
+      (this.shadowRoot!.getElementById("search") as HTMLInputElement).value =
+        "";
+      this.applyFilter();
     } catch {
       // Graceful fallback
     }
   }
 
-  private renderRows(highlight?: Set<number>) {
-    const tbody = this.shadowRoot!.getElementById("tbody")!;
-    const showMore = this.shadowRoot!.getElementById("show-more")!;
-    const showMoreBtn = this.shadowRoot!.getElementById("show-more-btn")!;
-
-    const rows = this.expanded
-      ? this.allRows
-      : this.allRows.slice(0, ROW_LIMIT);
-    tbody.innerHTML = rows
-      .map(
-        (row, i) =>
-          `<tr class="${highlight?.has(i) ? "highlight" : ""}">${row.map((c) => `<td>${this.esc(String(c))}</td>`).join("")}</tr>`,
-      )
-      .join("");
-
-    if (this.allRows.length > ROW_LIMIT) {
-      showMore.style.display = "";
-      showMoreBtn.textContent = this.expanded
-        ? "Show less"
-        : `Show all ${this.allRows.length} rows`;
+  private applyFilter() {
+    if (this.searchTerm) {
+      this.filteredRows = this.allRows
+        .map((row, idx) => ({ row, idx }))
+        .filter(({ row }) =>
+          row.some((cell) =>
+            String(cell).toLowerCase().includes(this.searchTerm),
+          ),
+        );
     } else {
-      showMore.style.display = "none";
+      this.filteredRows = this.allRows.map((row, idx) => ({ row, idx }));
+    }
+    this.renderRows();
+  }
+
+  private renderRows() {
+    const tbody = this.shadowRoot!.getElementById("tbody")!;
+    const footer = this.shadowRoot!.getElementById("footer")!;
+    const countEl = this.shadowRoot!.getElementById("row-count")!;
+
+    if (this.filteredRows.length === 0 && this.searchTerm) {
+      tbody.innerHTML = `<tr><td colspan="${this.headers.length || 1}" class="no-results">No matching rows</td></tr>`;
+    } else {
+      tbody.innerHTML = this.filteredRows
+        .map(
+          ({ row, idx }) =>
+            `<tr class="${this.highlight.has(idx) ? "highlight" : ""}">${row.map((c) => `<td title="${this.esc(String(c))}">${this.esc(String(c))}</td>`).join("")}</tr>`,
+        )
+        .join("");
+    }
+
+    // Update count badge
+    if (this.searchTerm) {
+      countEl.textContent = `${this.filteredRows.length} / ${this.allRows.length} rows`;
+      footer.style.display = "";
+      footer.textContent = `Showing ${this.filteredRows.length} of ${this.allRows.length} rows`;
+    } else {
+      countEl.textContent = `${this.allRows.length} rows`;
+      footer.style.display = "none";
     }
   }
 
   private esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 }

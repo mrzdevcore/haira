@@ -15,6 +15,8 @@ import { HairaDiff } from "./components/haira-diff";
 import { HairaKeyValue } from "./components/haira-key-value";
 import { HairaProgressView } from "./components/haira-progress-view";
 import { HairaFormView } from "./components/haira-form-view";
+import { HairaConfirm } from "./components/haira-confirm";
+import { HairaChoices } from "./components/haira-choices";
 import { HairaUIRenderer } from "./components/haira-ui-renderer";
 
 // Register leaf components first — container components may create children
@@ -32,6 +34,8 @@ customElements.define("haira-ui-diff", HairaDiff);
 customElements.define("haira-ui-key-value", HairaKeyValue);
 customElements.define("haira-ui-progress-view", HairaProgressView);
 customElements.define("haira-ui-form-view", HairaFormView);
+customElements.define("haira-ui-confirm", HairaConfirm);
+customElements.define("haira-ui-choices", HairaChoices);
 customElements.define("haira-ui-renderer", HairaUIRenderer);
 customElements.define("haira-form", HairaForm);
 customElements.define("haira-index", HairaIndex);

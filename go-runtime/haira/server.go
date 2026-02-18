@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 //go:embed ui/index.html
@@ -32,6 +33,9 @@ func NewServer(workflows []*WorkflowDef) *Server {
 	if os.Getenv("HAIRA_DISABLE_UI") == "" {
 		s.registerUIRoutes()
 	}
+
+	// Cleanup stale session upload directories in the background
+	StartSessionCleanup(1*time.Hour, 24*time.Hour)
 
 	for _, w := range workflows {
 		wf := w // capture for closure
@@ -60,16 +64,32 @@ func NewServer(workflows []*WorkflowDef) *Server {
 
 				if hasFileParams && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 					r.ParseMultipartForm(32 << 20) // 32MB max
+
+					// Stream/chat workflows use session-scoped storage (files persist across requests)
+					isSessionScoped := wf.IsStream || wf.StreamHandler != nil
+					sessionID := ""
+					if isSessionScoped {
+						sessionID = r.FormValue("session_id")
+					}
+
 					var tempFiles []string
 					for _, p := range wf.Params {
 						if p.Type == "file" {
 							file, header, err := r.FormFile(p.Name)
 							if err == nil {
-								tmpPath, saveErr := saveTempFile(file, header.Filename)
-								file.Close()
-								if saveErr == nil {
-									params[p.Name] = tmpPath
-									tempFiles = append(tempFiles, tmpPath)
+								if isSessionScoped && sessionID != "" {
+									path, saveErr := saveSessionFile(file, header.Filename, sessionID)
+									file.Close()
+									if saveErr == nil {
+										params[p.Name] = path
+									}
+								} else {
+									path, saveErr := saveTempFile(file, header.Filename)
+									file.Close()
+									if saveErr == nil {
+										params[p.Name] = path
+										tempFiles = append(tempFiles, path)
+									}
 								}
 							}
 						} else {
@@ -78,12 +98,14 @@ func NewServer(workflows []*WorkflowDef) *Server {
 							}
 						}
 					}
-					// Cleanup temp files after handler returns
-					defer func() {
-						for _, f := range tempFiles {
-							os.Remove(f)
-						}
-					}()
+					// Only cleanup non-session temp files
+					if len(tempFiles) > 0 {
+						defer func() {
+							for _, f := range tempFiles {
+								os.Remove(f)
+							}
+						}()
+					}
 				} else {
 					if r.Body != nil {
 						defer r.Body.Close()

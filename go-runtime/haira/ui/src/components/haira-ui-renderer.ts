@@ -9,6 +9,8 @@ const COMPONENT_MAP: Record<string, string> = {
   "key-value": "haira-ui-key-value",
   progress: "haira-ui-progress-view",
   form: "haira-ui-form-view",
+  confirm: "haira-ui-confirm",
+  choices: "haira-ui-choices",
 };
 
 const MAX_DEPTH = 3;

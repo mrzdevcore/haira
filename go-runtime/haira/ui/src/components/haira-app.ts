@@ -90,13 +90,15 @@ export class HairaApp extends HTMLElement {
         ${baseStyles}
         :host {
           display: block;
-          min-height: 100vh;
+          height: 100vh;
+          overflow: hidden;
           background: var(--haira-bg);
         }
         .shell {
-          min-height: 100vh;
+          height: 100%;
           display: flex;
           flex-direction: column;
+          overflow: hidden;
         }
         header {
           padding: 0.6rem 1.25rem;
@@ -147,6 +149,8 @@ export class HairaApp extends HTMLElement {
           flex: 1;
           display: flex;
           flex-direction: column;
+          overflow: hidden;
+          min-height: 0;
         }
       </style>
       <div class="shell">

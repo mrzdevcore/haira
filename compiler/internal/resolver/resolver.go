@@ -224,18 +224,28 @@ func (r *resolver) parseModule(importPath, filePath string) *Module {
 //   - Glob imports (import * from "m") include all pub items.
 //   - Basic imports (import "m") include all pub items (accessed as m.X).
 func (p *Program) MergedItems() []ast.Item {
-	// Build a map of import path → ImportDecl from main file
+	// Build an ordered list of import paths from the main file to ensure
+	// deterministic merge order. Go maps iterate in random order, so we
+	// must follow the source order of import declarations.
+	var importOrder []string
 	importMap := make(map[string]ast.ImportDecl)
 	for _, item := range p.Main.Items {
 		if imp, ok := item.Node.(ast.ImportDecl); ok {
 			importMap[imp.Path] = imp
+			if _, exists := p.Modules[imp.Path]; exists {
+				importOrder = append(importOrder, imp.Path)
+			}
 		}
 	}
 
 	var items []ast.Item
 
 	// Add imported module items first (types, functions — skip their imports)
-	for _, mod := range p.Modules {
+	// Iterate in source order so that tools are registered before agents that reference them.
+	merged := make(map[string]bool, len(importOrder))
+	for _, path := range importOrder {
+		merged[path] = true
+		mod := p.Modules[path]
 		imp := importMap[mod.Path]
 		// Build a set of selectively imported names (if any)
 		var selectiveNames map[string]bool
@@ -265,6 +275,23 @@ func (p *Program) MergedItems() []ast.Item {
 				}
 			}
 
+			items = append(items, item)
+		}
+	}
+
+	// Add any transitive modules not directly imported by main
+	for path, mod := range p.Modules {
+		if merged[path] {
+			continue
+		}
+		for _, item := range mod.File.Items {
+			switch item.Node.(type) {
+			case ast.ImportDecl, ast.ExportDecl:
+				continue
+			}
+			if !isItemPublic(item) {
+				continue
+			}
 			items = append(items, item)
 		}
 	}

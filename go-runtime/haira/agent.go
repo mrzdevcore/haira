@@ -184,9 +184,12 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 
 		// Fast path: no tools at all → stream directly without non-streaming probe
 		if len(tools) == 0 {
-			a.streamFinalResponse(ctx, ch, messages, sessionID)
+			a.streamFinalResponse(ctx, ch, messages, sessionID, nil)
 			return
 		}
+
+		// Track tool calls for session history
+		var toolLog []string
 
 		// Tool-calling loop: use non-streaming calls during tool iterations,
 		// then switch to real streaming for the final text response.
@@ -237,7 +240,7 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 			// No tool calls → final response. Re-request with streaming API
 			// for real token-by-token delivery.
 			if len(choice.Message.ToolCalls) == 0 {
-				a.streamFinalResponse(ctx, ch, messages, sessionID)
+				a.streamFinalResponse(ctx, ch, messages, sessionID, toolLog)
 				return
 			}
 
@@ -255,6 +258,9 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 				// Execute tool
 				toolResult, rawResult := a.executeTool(tc, sessionID)
 				messages = append(messages, toolResult)
+
+				// Track for session history
+				toolLog = append(toolLog, tc.Function.Name+" → "+toolResult.Content)
 
 				// Emit tool_render if the result is a UiNode
 				isOK := !strings.HasPrefix(toolResult.Content, "error:")
@@ -287,7 +293,8 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 
 // streamFinalResponse makes a streaming API call and emits deltas token-by-token.
 // Called after tool iterations are complete (no more tool calls expected).
-func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, messages []openai.ChatCompletionMessage, sessionID string) {
+// toolLog contains compact summaries of tool calls made during this turn.
+func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, messages []openai.ChatCompletionMessage, sessionID string, toolLog []string) {
 	req := openai.ChatCompletionRequest{
 		Model:       a.config.Provider.Model,
 		Messages:    messages,
@@ -357,8 +364,15 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 	}
 	RecordGeneration(gen)
 
-	// Store in memory
-	a.store.AddMessage(sessionID, Message{Role: "assistant", Content: fullReply.String()})
+	// Store in memory — include tool activity log so the LLM remembers
+	// which tools it already called on subsequent turns.
+	replyText := fullReply.String()
+	if len(toolLog) > 0 {
+		prefix := "[Completed: " + strings.Join(toolLog, ", ") + "]\n"
+		a.store.AddMessage(sessionID, Message{Role: "assistant", Content: prefix + replyText})
+	} else {
+		a.store.AddMessage(sessionID, Message{Role: "assistant", Content: replyText})
+	}
 	ch <- StreamChunk{Delta: "", Done: true}
 }
 
@@ -395,6 +409,9 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 
 	// Build OpenAI tool definitions (includes handoff tools)
 	tools := a.buildTools()
+
+	// Track tool calls for session history
+	var toolLog []string
 
 	// Tool-calling loop
 	for i := 0; i < a.config.MaxSteps; i++ {
@@ -448,7 +465,12 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 		// No tool calls → final answer
 		if len(choice.Message.ToolCalls) == 0 {
 			reply := choice.Message.Content
-			a.store.AddMessage(sessionID, Message{Role: "assistant", Content: reply})
+			if len(toolLog) > 0 {
+				prefix := "[Completed: " + strings.Join(toolLog, ", ") + "]\n"
+				a.store.AddMessage(sessionID, Message{Role: "assistant", Content: prefix + reply})
+			} else {
+				a.store.AddMessage(sessionID, Message{Role: "assistant", Content: reply})
+			}
 			return &AgentResult{Reply: reply}, nil
 		}
 
@@ -476,6 +498,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 		for _, tc := range choice.Message.ToolCalls {
 			toolResult, _ := a.executeTool(tc, sessionID)
 			messages = append(messages, toolResult)
+			toolLog = append(toolLog, tc.Function.Name+" → "+toolResult.Content)
 		}
 	}
 
@@ -518,6 +541,10 @@ func (a *Agent) executeTool(tc openai.ToolCall, sessionID string) (openai.ChatCo
 	var content string
 	if err != nil {
 		content = fmt.Sprintf("error: %s", err.Error())
+	} else if node, ok := result.(UiNode); ok {
+		// Send a compact summary to the LLM instead of the full UI payload.
+		// The full data is already sent to the frontend via tool_render.
+		content = uiNodeSummary(node, result)
 	} else {
 		resultJSON, _ := json.Marshal(result)
 		content = string(resultJSON)

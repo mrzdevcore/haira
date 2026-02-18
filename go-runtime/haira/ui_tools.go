@@ -74,13 +74,18 @@ var uiToolSpecs = []uiToolSpec{
 	{
 		component:   "Table",
 		toolName:    "render_table",
-		description: "Display data in a searchable, scrollable table with sticky headers. Use for presenting structured data, lists of items, or query results.",
-		schema:      `{"type":"object","properties":{"title":{"type":"string","description":"Table title"},"headers":{"type":"array","items":{"type":"string"},"description":"Column header names"},"rows":{"type":"array","items":{"type":"array","items":{"type":"string"}},"description":"Table rows, each row is an array of cell values"}},"required":["title","headers","rows"]}`,
+		description: "Display data in a searchable, scrollable table with sticky headers. Use for presenting structured data, lists of items, or query results. Supports optional tabs for multi-dataset display.",
+		schema:      `{"type":"object","properties":{"title":{"type":"string","description":"Table title"},"headers":{"type":"array","items":{"type":"string"},"description":"Column header names"},"rows":{"type":"array","items":{"type":"array","items":{"type":"string"}},"description":"Table rows, each row is an array of cell values"},"tabs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"headers":{"type":"array","items":{"type":"string"}},"rows":{"type":"array","items":{"type":"array","items":{"type":"string"}}}},"required":["name","headers","rows"]},"description":"Optional named tabs, each with its own headers and rows. When provided, renders as a tabbed table."}},"required":["title"]}`,
 		handler: func(args json.RawMessage) (any, error) {
 			var p struct {
 				Title   string     `json:"title"`
 				Headers []string   `json:"headers"`
 				Rows    [][]string `json:"rows"`
+				Tabs    []struct {
+					Name    string     `json:"name"`
+					Headers []string   `json:"headers"`
+					Rows    [][]string `json:"rows"`
+				} `json:"tabs"`
 			}
 			json.Unmarshal(args, &p)
 			hdrs := make([]any, len(p.Headers))
@@ -95,22 +100,47 @@ var uiToolSpecs = []uiToolSpec{
 				}
 				rows[i] = cells
 			}
-			return UiTable{Title: p.Title, Headers: hdrs, Rows: rows}, nil
+			var tabs []any
+			for _, t := range p.Tabs {
+				th := make([]any, len(t.Headers))
+				for i, h := range t.Headers {
+					th[i] = h
+				}
+				tr := make([]any, len(t.Rows))
+				for i, r := range t.Rows {
+					cells := make([]any, len(r))
+					for j, c := range r {
+						cells[j] = c
+					}
+					tr[i] = cells
+				}
+				tabs = append(tabs, UiTab{Name: t.Name, Headers: th, Rows: tr})
+			}
+			return UiTable{Title: p.Title, Headers: hdrs, Rows: rows, Tabs: tabs}, nil
 		},
 	},
 	{
 		component:   "CodeBlock",
 		toolName:    "render_codeblock",
-		description: "Display code with syntax highlighting. Use for showing code snippets, SQL queries, configuration files, or any formatted text.",
-		schema:      `{"type":"object","properties":{"title":{"type":"string","description":"Title above the code block"},"language":{"type":"string","description":"Programming language for syntax highlighting (e.g. sql, go, python, json)"},"code":{"type":"string","description":"The code content to display"}},"required":["title","code"]}`,
+		description: "Display code with syntax highlighting. Use for showing code snippets, SQL queries, configuration files, or any formatted text. Supports optional tabs for multiple code sections.",
+		schema:      `{"type":"object","properties":{"title":{"type":"string","description":"Title above the code block"},"language":{"type":"string","description":"Programming language for syntax highlighting (e.g. sql, go, python, json)"},"code":{"type":"string","description":"The code content to display"},"tabs":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"language":{"type":"string"},"code":{"type":"string"}},"required":["name","code"]},"description":"Optional named tabs, each with its own code content. When provided, renders as a tabbed code block."}},"required":["title"]}`,
 		handler: func(args json.RawMessage) (any, error) {
 			var p struct {
 				Title    string `json:"title"`
 				Language string `json:"language"`
 				Code     string `json:"code"`
+				Tabs     []struct {
+					Name     string `json:"name"`
+					Language string `json:"language"`
+					Code     string `json:"code"`
+				} `json:"tabs"`
 			}
 			json.Unmarshal(args, &p)
-			return UiCodeBlock{Title: p.Title, Language: p.Language, Code: p.Code}, nil
+			var tabs []any
+			for _, t := range p.Tabs {
+				tabs = append(tabs, UiCodeTab{Name: t.Name, Language: t.Language, Code: t.Code})
+			}
+			return UiCodeBlock{Title: p.Title, Language: p.Language, Code: p.Code, Tabs: tabs}, nil
 		},
 	},
 	{

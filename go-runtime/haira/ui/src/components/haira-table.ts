@@ -2,12 +2,21 @@ import { baseStyles, sharedKeyframes, scrollbarStyles } from "../theme";
 
 const SCROLL_THRESHOLD = 15;
 
+interface TabData {
+  name: string;
+  headers: string[];
+  rows: string[][];
+  highlight?: number[];
+}
+
 export class HairaTable extends HTMLElement {
   private allRows: string[][] = [];
   private filteredRows: { row: string[]; idx: number }[] = [];
   private headers: string[] = [];
   private highlight: Set<number> = new Set();
   private searchTerm = "";
+  private tabs: TabData[] = [];
+  private activeTab = 0;
 
   connectedCallback() {
     this.attachShadow({ mode: "open" });
@@ -74,6 +83,34 @@ export class HairaTable extends HTMLElement {
         }
         .search:focus { border-color: var(--haira-accent); }
         .search::placeholder { color: var(--haira-muted); }
+        .tab-bar {
+          display: flex;
+          gap: 0;
+          border-bottom: 1px solid var(--haira-border);
+          background: var(--haira-bg);
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .tab-bar::-webkit-scrollbar { display: none; }
+        .tab {
+          padding: 0.4rem 0.75rem;
+          font-size: 0.72rem;
+          font-family: var(--haira-font);
+          color: var(--haira-muted);
+          background: none;
+          border: none;
+          border-bottom: 2px solid transparent;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: color 0.15s, border-color 0.15s;
+          flex-shrink: 0;
+        }
+        .tab:hover { color: var(--haira-text); }
+        .tab.active {
+          color: var(--haira-accent);
+          border-bottom-color: var(--haira-accent);
+          font-weight: 600;
+        }
         .table-scroll {
           overflow: auto;
           ${scrollbarStyles}
@@ -144,6 +181,7 @@ export class HairaTable extends HTMLElement {
             <input class="search" id="search" type="text" placeholder="Filter rows..." />
           </div>
         </div>
+        <div class="tab-bar" id="tab-bar" style="display:none"></div>
         <div class="table-scroll" id="scroll">
           <table>
             <thead id="thead"></thead>
@@ -166,48 +204,124 @@ export class HairaTable extends HTMLElement {
   setProps(props: Record<string, unknown>) {
     try {
       const title = props.title as string | undefined;
-      this.headers = (props.headers as string[]) || [];
-      this.allRows = (props.rows as string[][]) || [];
-      this.highlight = new Set((props.highlight as number[]) || []);
+      const tabs = props.tabs as TabData[] | undefined;
 
-      // Toolbar: show if title or enough rows
+      // Always show toolbar with title
       const toolbar = this.shadowRoot!.getElementById("toolbar")!;
       const titleEl = this.shadowRoot!.getElementById("title")!;
-      const countEl = this.shadowRoot!.getElementById("row-count")!;
-      const searchWrap = this.shadowRoot!.getElementById("search-wrap")!;
 
-      const hasTitle = !!title;
-      const hasMany = this.allRows.length >= SCROLL_THRESHOLD;
+      if (tabs && tabs.length > 0) {
+        // Multi-tab mode
+        this.tabs = tabs;
+        this.activeTab = 0;
 
-      if (hasTitle || hasMany) {
         toolbar.style.display = "";
         titleEl.textContent = title || "Table";
-        countEl.textContent = `${this.allRows.length} rows`;
-      }
 
-      if (hasMany) {
-        searchWrap.style.display = "";
-      }
-
-      // Sticky scroll container
-      const scroll = this.shadowRoot!.getElementById("scroll")!;
-      if (hasMany) {
-        scroll.classList.add("capped");
+        this.renderTabBar();
+        this.loadTab(0);
       } else {
-        scroll.classList.remove("capped");
+        // Single table mode (original behavior)
+        this.tabs = [];
+        this.loadSingleTable(props);
       }
-
-      // Render headers
-      const thead = this.shadowRoot!.getElementById("thead")!;
-      thead.innerHTML = `<tr>${this.headers.map((h) => `<th>${this.esc(h)}</th>`).join("")}</tr>`;
-
-      this.searchTerm = "";
-      (this.shadowRoot!.getElementById("search") as HTMLInputElement).value =
-        "";
-      this.applyFilter();
     } catch {
       // Graceful fallback
     }
+  }
+
+  private loadSingleTable(props: Record<string, unknown>) {
+    const title = props.title as string | undefined;
+    this.headers = (props.headers as string[]) || [];
+    this.allRows = (props.rows as string[][]) || [];
+    this.highlight = new Set((props.highlight as number[]) || []);
+
+    const toolbar = this.shadowRoot!.getElementById("toolbar")!;
+    const titleEl = this.shadowRoot!.getElementById("title")!;
+    const countEl = this.shadowRoot!.getElementById("row-count")!;
+    const searchWrap = this.shadowRoot!.getElementById("search-wrap")!;
+
+    const hasTitle = !!title;
+    const hasMany = this.allRows.length >= SCROLL_THRESHOLD;
+
+    if (hasTitle || hasMany) {
+      toolbar.style.display = "";
+      titleEl.textContent = title || "Table";
+      countEl.textContent = `${this.allRows.length} rows`;
+    }
+
+    if (hasMany) {
+      searchWrap.style.display = "";
+    }
+
+    const scroll = this.shadowRoot!.getElementById("scroll")!;
+    if (hasMany) {
+      scroll.classList.add("capped");
+    } else {
+      scroll.classList.remove("capped");
+    }
+
+    const thead = this.shadowRoot!.getElementById("thead")!;
+    thead.innerHTML = `<tr>${this.headers.map((h) => `<th>${this.esc(h)}</th>`).join("")}</tr>`;
+
+    this.searchTerm = "";
+    (this.shadowRoot!.getElementById("search") as HTMLInputElement).value = "";
+    this.applyFilter();
+  }
+
+  private renderTabBar() {
+    const tabBar = this.shadowRoot!.getElementById("tab-bar")!;
+    tabBar.style.display = "flex";
+    tabBar.innerHTML = "";
+
+    for (let i = 0; i < this.tabs.length; i++) {
+      const tab = this.tabs[i];
+      const btn = document.createElement("button");
+      btn.className = `tab${i === this.activeTab ? " active" : ""}`;
+      btn.textContent = `${tab.name} (${tab.rows.length})`;
+      btn.addEventListener("click", () => this.loadTab(i));
+      tabBar.appendChild(btn);
+    }
+  }
+
+  private loadTab(index: number) {
+    this.activeTab = index;
+    const tab = this.tabs[index];
+
+    this.headers = tab.headers || [];
+    this.allRows = tab.rows || [];
+    this.highlight = new Set((tab.highlight as number[]) || []);
+
+    // Update active class on tab buttons
+    const tabBar = this.shadowRoot!.getElementById("tab-bar")!;
+    const buttons = tabBar.querySelectorAll(".tab");
+    buttons.forEach((btn, i) => {
+      btn.classList.toggle("active", i === index);
+    });
+
+    // Update toolbar
+    const countEl = this.shadowRoot!.getElementById("row-count")!;
+    const searchWrap = this.shadowRoot!.getElementById("search-wrap")!;
+    countEl.textContent = `${this.allRows.length} rows`;
+
+    const hasMany = this.allRows.length >= SCROLL_THRESHOLD;
+    searchWrap.style.display = hasMany ? "" : "none";
+
+    const scroll = this.shadowRoot!.getElementById("scroll")!;
+    if (hasMany) {
+      scroll.classList.add("capped");
+    } else {
+      scroll.classList.remove("capped");
+    }
+
+    // Render headers
+    const thead = this.shadowRoot!.getElementById("thead")!;
+    thead.innerHTML = `<tr>${this.headers.map((h) => `<th>${this.esc(h)}</th>`).join("")}</tr>`;
+
+    // Reset search and render
+    this.searchTerm = "";
+    (this.shadowRoot!.getElementById("search") as HTMLInputElement).value = "";
+    this.applyFilter();
   }
 
   private applyFilter() {
@@ -241,7 +355,6 @@ export class HairaTable extends HTMLElement {
         .join("");
     }
 
-    // Update count badge
     if (this.searchTerm) {
       countEl.textContent = `${this.filteredRows.length} / ${this.allRows.length} rows`;
       footer.style.display = "";

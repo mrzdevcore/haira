@@ -1,23 +1,12 @@
 import "io"
 import "http"
+import "observe"
 
 provider azure_openai {
     api_key: env("AZURE_OPENAI_API_KEY")
     endpoint: env("AZURE_OPENAI_ENDPOINT")
     model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
     api_version: env("AZURE_OPENAI_API_VERSION")
-}
-
-agent FrontDesk {
-    model: azure_openai
-    system: """
-        You are a front desk agent. Greet users and help with general questions.
-        If they have a billing question, hand off to BillingAgent.
-        If they have a technical issue, hand off to TechAgent.
-    """
-    handoffs: [BillingAgent, TechAgent]
-    memory: conversation(max_turns: 10)
-    temperature: 0.7
 }
 
 agent BillingAgent {
@@ -34,15 +23,36 @@ agent TechAgent {
     temperature: 0.5
 }
 
+agent FrontDesk {
+    model: azure_openai
+    system: """
+        You are a front desk agent. Greet users and help with general questions.
+        If they have a billing question, hand off to BillingAgent.
+        If they have a technical issue, hand off to TechAgent.
+    """
+    handoffs: [BillingAgent, TechAgent]
+    memory: conversation(max_turns: 10)
+    temperature: 0.3
+}
+
+
+
 @webhook("/api/chat")
-workflow Chat(message: string, session_id: string) -> { reply: string } {
+workflow Ask(message: string, session_id: string) -> { reply: string } {
     reply, err = FrontDesk.ask(message, session: session_id)
     if err != nil { return { reply: "Something went wrong." } }
     return { reply: reply }
 }
 
+
+@webhook("/api/stream")
+workflow Chat(message: string, session_id: string) -> stream {
+    return  FrontDesk.stream(message, session: session_id)
+}
+
 fn main() {
-    server = http.Server([Chat])
+    server = http.Server([Chat, Ask])
+    observe.start(server)
     io.println("Handoff demo running on :8080")
     server.listen(8080)
 }

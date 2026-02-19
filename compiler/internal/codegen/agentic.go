@@ -36,6 +36,10 @@ func EmitProvider(em *GoEmitter, provider ast.ProviderDecl) {
 			em.Line(fmt.Sprintf("Temperature: %s,", ExprToGo(field.Value)))
 		case "max_tokens":
 			em.Line(fmt.Sprintf("MaxTokens: %s,", ExprToGo(field.Value)))
+		case "input_token_cost":
+			em.Line(fmt.Sprintf("InputTokenCost: %s,", ExprToGo(field.Value)))
+		case "output_token_cost":
+			em.Line(fmt.Sprintf("OutputTokenCost: %s,", ExprToGo(field.Value)))
 		}
 	}
 	em.CloseBlock()

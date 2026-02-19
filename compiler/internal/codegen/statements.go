@@ -541,10 +541,20 @@ func EmitBlockBody(em *GoEmitter, block ast.Block) {
 
 // EmitToolBody emits tool body — wraps `return X` → `return X, nil`.
 func EmitToolBody(em *GoEmitter, block ast.Block) {
+	emitToolBodyErr(em, block, false)
+}
+
+// emitToolBodyErr is the inner implementation. When inErrBlock is true,
+// `return "msg"` becomes `return nil, fmt.Errorf("msg")` so the agent runtime
+// sees it as a tool failure (red status in UI, error prefix in LLM context).
+func emitToolBodyErr(em *GoEmitter, block ast.Block, inErrBlock bool) {
 	for _, stmt := range block.Statements {
 		switch s := stmt.Node.(type) {
 		case ast.ReturnStmt:
-			if len(s.Values) == 0 {
+			if inErrBlock && len(s.Values) == 1 {
+				// Inside `if err != nil` → return as error
+				em.Line(fmt.Sprintf("return nil, fmt.Errorf(\"%%v\", %s)", ExprToGo(s.Values[0])))
+			} else if len(s.Values) == 0 {
 				em.Line("return nil, nil")
 			} else {
 				vals := make([]string, len(s.Values))
@@ -554,32 +564,55 @@ func EmitToolBody(em *GoEmitter, block ast.Block) {
 				em.Line(fmt.Sprintf("return %s, nil", strings.Join(vals, ", ")))
 			}
 		case ast.IfStmt:
-			emitToolIf(em, s)
+			emitToolIf(em, s, inErrBlock)
 		default:
 			EmitStatement(em, stmt)
 		}
 	}
 }
 
-func emitToolIf(em *GoEmitter, ifStmt ast.IfStmt) {
+// isErrNilCheck returns true if the expression is `err != nil` or `err != none`.
+func isErrNilCheck(expr ast.Expr) bool {
+	bin, ok := expr.Node.(ast.BinaryExpr)
+	if !ok || bin.Op.Node != ast.OpNe {
+		return false
+	}
+	ident, ok := bin.Left.Node.(ast.IdentExpr)
+	if !ok || !strings.HasPrefix(ident.Name, "err") {
+		return false
+	}
+	// `none` keyword → NoneExpr
+	if _, isNone := bin.Right.Node.(ast.NoneExpr); isNone {
+		return true
+	}
+	// `nil` identifier (not a keyword in Haira, but commonly used)
+	if right, ok := bin.Right.Node.(ast.IdentExpr); ok && right.Name == "nil" {
+		return true
+	}
+	return false
+}
+
+func emitToolIf(em *GoEmitter, ifStmt ast.IfStmt, parentErrBlock bool) {
 	cond := ExprToGo(ifStmt.Condition)
+	errBlock := parentErrBlock || isErrNilCheck(ifStmt.Condition)
 	em.OpenBlock(fmt.Sprintf("if %s", cond))
-	EmitToolBody(em, ifStmt.ThenBranch)
+	emitToolBodyErr(em, ifStmt.ThenBranch, errBlock)
 	if ifStmt.ElseBranch != nil {
 		switch eb := ifStmt.ElseBranch.(type) {
 		case *ast.ElseBlock:
 			em.Dedent()
 			em.Line("} else {")
 			em.Indent()
-			EmitToolBody(em, eb.Body)
+			emitToolBodyErr(em, eb.Body, parentErrBlock)
 			em.CloseBlock()
 			return
 		case *ast.ElseIf:
 			em.Dedent()
 			cond := ExprToGo(eb.If.Node.Condition)
+			errBlockElseIf := parentErrBlock || isErrNilCheck(eb.If.Node.Condition)
 			em.Line(fmt.Sprintf("} else if %s {", cond))
 			em.Indent()
-			EmitToolBody(em, eb.If.Node.ThenBranch)
+			emitToolBodyErr(em, eb.If.Node.ThenBranch, errBlockElseIf)
 			em.CloseBlock()
 			return
 		}

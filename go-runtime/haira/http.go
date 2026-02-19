@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 )
@@ -23,6 +24,13 @@ func (r *Response) Json() map[string]any {
 	if result == nil {
 		result = map[string]any{}
 	}
+	return result
+}
+
+// JsonArray parses the response body as a JSON array and returns the result.
+func (r *Response) JsonArray() []any {
+	var result []any
+	json.Unmarshal([]byte(r.Body), &result)
 	return result
 }
 
@@ -231,6 +239,11 @@ func HttpDelete(url string) (*Response, error) {
 // HttpDeleteWithHeaders performs an HTTP DELETE request with custom headers.
 func HttpDeleteWithHeaders(url string, headers map[string]any) (*Response, error) {
 	return httpRequest("DELETE", url, nil, headers)
+}
+
+// HttpEncodeURI percent-encodes a string for use in URL query parameters.
+func HttpEncodeURI(s string) string {
+	return url.QueryEscape(s)
 }
 
 // httpRequest is the internal helper for all HTTP methods.

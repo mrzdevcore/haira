@@ -1,0 +1,57 @@
+// tools/weather.haira — Weather tools using wttr.in (free, no API key).
+
+import "http"
+
+tool get_weather(city: string) -> string {
+    """
+    Get the current weather for a city.
+    Returns temperature, humidity, wind speed, and conditions.
+    """
+    resp, err = http.get("https://wttr.in/${city}?format=j1")
+    if err != nil {
+        return "Failed to fetch weather for ${city}."
+    }
+
+    data = resp.json()
+    current = data["current_condition"]
+    if current == nil {
+        return "No weather data available for ${city}."
+    }
+
+    c = current[0]
+    temp = c["temp_C"]
+    feels = c["FeelsLikeC"]
+    humidity = c["humidity"]
+    wind = c["windspeedKmph"]
+    desc = c["weatherDesc"][0]["value"]
+
+    return "${city}: ${temp}C (feels ${feels}C), ${desc}, humidity ${humidity}%, wind ${wind} km/h"
+}
+
+tool get_forecast(city: string) -> string {
+    """
+    Get a 3-day weather forecast for a city.
+    Returns daily high/low temperatures and conditions for each day.
+    """
+    resp, err = http.get("https://wttr.in/${city}?format=j1")
+    if err != nil {
+        return "Failed to fetch forecast for ${city}."
+    }
+
+    data = resp.json()
+    weather = data["weather"]
+    if weather == nil {
+        return "No forecast data available for ${city}."
+    }
+
+    result = "3-day forecast for ${city}:\n"
+    for day in weather {
+        date = day["date"]
+        max = day["maxtempC"]
+        min = day["mintempC"]
+        desc = day["hourly"][4]["weatherDesc"][0]["value"]
+        result += "  ${date}: ${min}C - ${max}C, ${desc}\n"
+    }
+
+    return result
+}

@@ -187,6 +187,7 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 var validProviderFields = map[string]bool{
 	"api_key": true, "model": true, "endpoint": true, "api_version": true,
 	"backend": true, "host": true, "temperature": true, "max_tokens": true,
+	"input_token_cost": true, "output_token_cost": true,
 	// MCP provider fields
 	"transport": true, "command": true, "args": true, "env": true, "headers": true,
 }
@@ -208,7 +209,7 @@ func (c *checker) checkProviderFields(provider ast.ProviderDecl) {
 			c.addWarning(
 				fmt.Sprintf("unknown provider field %q", field.Key.Node),
 				field.Key.Span,
-				"valid fields: api_key, model, endpoint, api_version, backend, host, temperature, max_tokens",
+				"valid fields: api_key, model, endpoint, api_version, backend, host, temperature, max_tokens, input_token_cost, output_token_cost",
 			)
 		}
 	}

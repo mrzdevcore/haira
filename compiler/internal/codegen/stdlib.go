@@ -86,6 +86,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.HttpDelete(%s)", args), true
 		case "delete_with_headers":
 			return fmt.Sprintf("haira.HttpDeleteWithHeaders(%s)", args), true
+		case "encode_uri":
+			return fmt.Sprintf("haira.HttpEncodeURI(%s)", args), true
 		case "Server":
 			return resolveServerCall(call), true
 		}
@@ -259,6 +261,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.ConvIntToOctal(%s)", args), true
 		case "hex_to_int":
 			return fmt.Sprintf("haira.ConvHexToInt(%s)", args), true
+		case "to_string":
+			return fmt.Sprintf("haira.ConvToString(%s)", args), true
 		}
 	case "array":
 		switch method {
@@ -446,6 +450,12 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return "haira.ObserveReset()", true
 		case "start":
 			return fmt.Sprintf("haira.ObserveStart(%s)", args), true
+		case "cost":
+			return "haira.ObserveCost()", true
+		case "agent_cost":
+			return fmt.Sprintf("haira.ObserveAgentCost(%s)", args), true
+		case "langfuse":
+			return fmt.Sprintf("haira.ObserveLangfuse(%s)", args), true
 		}
 	}
 	return "", false

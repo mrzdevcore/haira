@@ -1,0 +1,85 @@
+// Travel Assistant — Multi-agent example with handoffs, real API tools, and observability.
+//
+// Architecture:
+//   Concierge (router) → WeatherAgent, FlightAgent, TransitAgent, CountryAgent
+//   Each agent has its own tools calling free public APIs (no API keys needed).
+//
+// Requires: AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT,
+//           AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_VERSION
+//
+// Run: haira run examples/travel-assistant/main.haira
+
+import "io"
+import "http"
+import "observe"
+import "agents/agents"
+
+@webui(
+    title: "Travel Assistant",
+    description: "Multi-agent travel concierge with weather, flights, Paris transit, and country info",
+    mode: "chat",
+    suggestions: [
+        "What's the weather in Tokyo?",
+        "Are there flights from France right now?",
+        "Next metro at Bastille on line 1?",
+        "Tell me about Japan"
+    ],
+    avatar: "T"
+)
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> stream {
+    return Concierge.stream(message, session: session_id)
+}
+
+@webui(
+    title: "Travel Assistant (Sync)",
+    description: "Non-streaming version of the travel concierge",
+    mode: "form",
+    suggestions: [
+        "What's the weather in London?",
+        "Tell me about Madagascar",
+        "Is there traffic on metro line 1?"
+    ],
+    avatar: "T"
+)
+@webhook("/api/ask")
+workflow Ask(message: string, session_id: string) -> { reply: string } {
+    reply, err = Concierge.ask(message, session: session_id)
+    if err != nil {
+        return { reply: "Sorry, something went wrong: " + err }
+    }
+    return { reply: reply }
+}
+
+@get("/api/stats")
+workflow Stats() -> { total_cost: float, concierge_cost: float, weather_cost: float, flight_cost: float, transit_cost: float, country_cost: float, summary: map } {
+    return {
+        total_cost: observe.cost(),
+        concierge_cost: observe.agent_cost("Concierge"),
+        weather_cost: observe.agent_cost("WeatherAgent"),
+        flight_cost: observe.agent_cost("FlightAgent"),
+        transit_cost: observe.agent_cost("TransitAgent"),
+        country_cost: observe.agent_cost("CountryAgent"),
+        summary: observe.usage()
+    }
+}
+
+fn main() {
+    // Optional: enable Langfuse export (auto-detects env vars)
+    observe.langfuse("", "", "")
+
+    server = http.Server([Chat, Ask, Stats])
+    observe.start(server)
+
+    io.println("Travel Assistant running on :8080")
+    io.println("")
+    io.println("  Agents:")
+    io.println("    Concierge → WeatherAgent, FlightAgent, TransitAgent, CountryAgent")
+    io.println("")
+    io.println("  Chat (stream): http://localhost:8080/_ui/api/chat")
+    io.println("  Chat (sync):   http://localhost:8080/_ui/api/ask")
+    io.println("  Stats:         http://localhost:8080/api/stats")
+    io.println("  Dashboard:     http://localhost:8080/_observe")
+
+    server.listen(8080)
+}

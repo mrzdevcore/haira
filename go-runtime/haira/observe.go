@@ -9,23 +9,35 @@ import (
 	"time"
 )
 
+// ── Cost computation (prices come from provider declaration) ──
+
+func computeCost(inputTokens, outputTokens int, inputCostPerMillion, outputCostPerMillion float64) float64 {
+	if inputCostPerMillion == 0 && outputCostPerMillion == 0 {
+		return 0
+	}
+	return (float64(inputTokens)*inputCostPerMillion + float64(outputTokens)*outputCostPerMillion) / 1_000_000
+}
+
 // ── Event types (OTel-aligned naming) ──
 
 // LLMGeneration records a single LLM API call.
 type LLMGeneration struct {
-	ID           string    `json:"id"`
-	AgentName    string    `json:"agent_name"`
-	Model        string    `json:"model"`
-	Provider     string    `json:"provider"`
-	InputTokens  int       `json:"input_tokens"`
-	OutputTokens int       `json:"output_tokens"`
-	TotalTokens  int       `json:"total_tokens"`
-	LatencyMs    int64     `json:"latency_ms"`
-	Temperature  float64   `json:"temperature"`
-	ToolCalls    int       `json:"tool_calls"`
-	FinishReason string    `json:"finish_reason"`
-	Timestamp    time.Time `json:"timestamp"`
-	SessionID    string    `json:"session_id"`
+	ID              string    `json:"id"`
+	AgentName       string    `json:"agent_name"`
+	Model           string    `json:"model"`
+	Provider        string    `json:"provider"`
+	InputTokens     int       `json:"input_tokens"`
+	OutputTokens    int       `json:"output_tokens"`
+	TotalTokens     int       `json:"total_tokens"`
+	CostUSD         float64   `json:"cost_usd"`
+	LatencyMs       int64     `json:"latency_ms"`
+	Temperature     float64   `json:"temperature"`
+	ToolCalls       int       `json:"tool_calls"`
+	FinishReason    string    `json:"finish_reason"`
+	Timestamp       time.Time `json:"timestamp"`
+	SessionID       string    `json:"session_id"`
+	InputTokenCost  float64   `json:"-"` // USD per 1M input tokens (from provider, not serialized)
+	OutputTokenCost float64   `json:"-"` // USD per 1M output tokens (from provider, not serialized)
 }
 
 // ToolExec records a single tool execution.
@@ -60,9 +72,11 @@ func (o *observer) nextID(prefix string) string {
 // RecordGeneration records an LLM generation event.
 func RecordGeneration(gen LLMGeneration) {
 	gen.ID = globalObserver.nextID("gen")
+	gen.CostUSD = computeCost(gen.InputTokens, gen.OutputTokens, gen.InputTokenCost, gen.OutputTokenCost)
 	globalObserver.mu.Lock()
 	globalObserver.generations = append(globalObserver.generations, gen)
 	globalObserver.mu.Unlock()
+	langfuseEnqueue(gen)
 }
 
 // RecordToolExec records a tool execution event.
@@ -78,22 +92,25 @@ func RecordToolExec(exec ToolExec) {
 func buildSummary(gens []LLMGeneration, tools []ToolExec) map[string]any {
 	var inputTokens, outputTokens, totalTokens int
 	var totalLatencyMs int64
+	var estimatedCostUSD float64
 	for _, g := range gens {
 		inputTokens += g.InputTokens
 		outputTokens += g.OutputTokens
 		totalTokens += g.TotalTokens
 		totalLatencyMs += g.LatencyMs
+		estimatedCostUSD += g.CostUSD
 	}
 	for _, t := range tools {
 		totalLatencyMs += t.LatencyMs
 	}
 	return map[string]any{
-		"input_tokens":     inputTokens,
-		"output_tokens":    outputTokens,
-		"total_tokens":     totalTokens,
-		"llm_calls":        len(gens),
-		"tool_calls":       len(tools),
-		"total_latency_ms": totalLatencyMs,
+		"input_tokens":       inputTokens,
+		"output_tokens":      outputTokens,
+		"total_tokens":       totalTokens,
+		"llm_calls":          len(gens),
+		"tool_calls":         len(tools),
+		"total_latency_ms":   totalLatencyMs,
+		"estimated_cost_usd": estimatedCostUSD,
 	}
 }
 
@@ -155,6 +172,30 @@ func ObserveModelUsage(model string) map[string]any {
 		}
 	}
 	return buildSummary(gens, nil)
+}
+
+// ObserveCost returns total estimated cost in USD across all agents.
+func ObserveCost() float64 {
+	globalObserver.mu.RLock()
+	defer globalObserver.mu.RUnlock()
+	var total float64
+	for _, g := range globalObserver.generations {
+		total += g.CostUSD
+	}
+	return total
+}
+
+// ObserveAgentCost returns estimated cost in USD for a specific agent.
+func ObserveAgentCost(name string) float64 {
+	globalObserver.mu.RLock()
+	defer globalObserver.mu.RUnlock()
+	var total float64
+	for _, g := range globalObserver.generations {
+		if g.AgentName == name {
+			total += g.CostUSD
+		}
+	}
+	return total
 }
 
 // ObserveEvents returns all recorded events as a list of maps.

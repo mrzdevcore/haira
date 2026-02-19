@@ -1,0 +1,10 @@
+// providers/openai.haira — Azure OpenAI provider with cost tracking.
+
+provider azure_openai {
+    api_key: env("AZURE_OPENAI_API_KEY")
+    endpoint: env("AZURE_OPENAI_ENDPOINT")
+    model: env("AZURE_OPENAI_DEPLOYMENT_NAME")
+    api_version: env("AZURE_OPENAI_API_VERSION")
+    input_token_cost: 0.15
+    output_token_cost: 0.60
+}

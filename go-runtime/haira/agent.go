@@ -223,18 +223,20 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 
 			// Record LLM generation for observability
 			RecordGeneration(LLMGeneration{
-				AgentName:    a.config.Name,
-				Model:        a.config.Provider.Model,
-				Provider:     a.config.Provider.Name,
-				InputTokens:  resp.Usage.PromptTokens,
-				OutputTokens: resp.Usage.CompletionTokens,
-				TotalTokens:  resp.Usage.TotalTokens,
-				LatencyMs:    callLatency,
-				Temperature:  a.config.Temperature,
-				ToolCalls:    len(choice.Message.ToolCalls),
-				FinishReason: string(choice.FinishReason),
-				SessionID:    sessionID,
-				Timestamp:    callStart,
+				AgentName:       a.config.Name,
+				Model:           a.config.Provider.Model,
+				Provider:        a.config.Provider.Name,
+				InputTokens:     resp.Usage.PromptTokens,
+				OutputTokens:    resp.Usage.CompletionTokens,
+				TotalTokens:     resp.Usage.TotalTokens,
+				LatencyMs:       callLatency,
+				Temperature:     a.config.Temperature,
+				ToolCalls:       len(choice.Message.ToolCalls),
+				FinishReason:    string(choice.FinishReason),
+				SessionID:       sessionID,
+				Timestamp:       callStart,
+				InputTokenCost:  a.config.Provider.InputTokenCost,
+				OutputTokenCost: a.config.Provider.OutputTokenCost,
 			})
 
 			// No tool calls → final response. Re-request with streaming API
@@ -244,7 +246,39 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 				return
 			}
 
-			// Has tool calls — execute them with events
+			// Has tool calls — check for handoffs first, then execute tools
+			// Check for handoff tool calls
+			handedOff := false
+			for _, tc := range choice.Message.ToolCalls {
+				if target := a.findHandoffTarget(tc.Function.Name); target != nil {
+					fmt.Fprintf(os.Stderr, "[haira] Handoff: %s → %s\n", a.config.Name, target.config.Name)
+					// Delegate to target agent's stream and pipe chunks through.
+					// Collect the response so we can store it in our session.
+					var handoffReply strings.Builder
+					targetCh := target.Stream(message, sessionID)
+					for chunk := range targetCh {
+						ch <- chunk
+						if chunk.Delta != "" {
+							handoffReply.WriteString(chunk.Delta)
+						}
+					}
+					// Store the target agent's reply in our session so context is complete for follow-ups
+					reply := handoffReply.String()
+					if reply == "" {
+						reply = fmt.Sprintf("(Routed to %s)", target.config.Name)
+					}
+					a.store.AddMessage(sessionID, Message{
+						Role:    "assistant",
+						Content: reply,
+					})
+					handedOff = true
+					break
+				}
+			}
+			if handedOff {
+				return
+			}
+
 			messages = append(messages, choice.Message)
 
 			for _, tc := range choice.Message.ToolCalls {
@@ -348,14 +382,16 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 
 	// Record generation for observability
 	gen := LLMGeneration{
-		AgentName:    a.config.Name,
-		Model:        a.config.Provider.Model,
-		Provider:     a.config.Provider.Name,
-		LatencyMs:    time.Since(callStart).Milliseconds(),
-		Temperature:  a.config.Temperature,
-		FinishReason: finishReason,
-		SessionID:    sessionID,
-		Timestamp:    callStart,
+		AgentName:       a.config.Name,
+		Model:           a.config.Provider.Model,
+		Provider:        a.config.Provider.Name,
+		LatencyMs:       time.Since(callStart).Milliseconds(),
+		Temperature:     a.config.Temperature,
+		FinishReason:    finishReason,
+		SessionID:       sessionID,
+		Timestamp:       callStart,
+		InputTokenCost:  a.config.Provider.InputTokenCost,
+		OutputTokenCost: a.config.Provider.OutputTokenCost,
 	}
 	if usage != nil {
 		gen.InputTokens = usage.PromptTokens
@@ -448,18 +484,20 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 
 		// Record LLM generation for observability
 		RecordGeneration(LLMGeneration{
-			AgentName:    a.config.Name,
-			Model:        a.config.Provider.Model,
-			Provider:     a.config.Provider.Name,
-			InputTokens:  resp.Usage.PromptTokens,
-			OutputTokens: resp.Usage.CompletionTokens,
-			TotalTokens:  resp.Usage.TotalTokens,
-			LatencyMs:    callLatency,
-			Temperature:  a.config.Temperature,
-			ToolCalls:    len(choice.Message.ToolCalls),
-			FinishReason: string(choice.FinishReason),
-			SessionID:    sessionID,
-			Timestamp:    callStart,
+			AgentName:       a.config.Name,
+			Model:           a.config.Provider.Model,
+			Provider:        a.config.Provider.Name,
+			InputTokens:     resp.Usage.PromptTokens,
+			OutputTokens:    resp.Usage.CompletionTokens,
+			TotalTokens:     resp.Usage.TotalTokens,
+			LatencyMs:       callLatency,
+			Temperature:     a.config.Temperature,
+			ToolCalls:       len(choice.Message.ToolCalls),
+			FinishReason:    string(choice.FinishReason),
+			SessionID:       sessionID,
+			Timestamp:       callStart,
+			InputTokenCost:  a.config.Provider.InputTokenCost,
+			OutputTokenCost: a.config.Provider.OutputTokenCost,
 		})
 
 		// No tool calls → final answer
@@ -484,6 +522,15 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 					if err != nil {
 						return nil, fmt.Errorf("handoff to %s failed: %w", target.config.Name, err)
 					}
+					// Store the target agent's reply in our session so context is complete for follow-ups
+					reply := result.Reply
+					if reply == "" {
+						reply = fmt.Sprintf("(Routed to %s)", target.config.Name)
+					}
+					a.store.AddMessage(sessionID, Message{
+						Role:    "assistant",
+						Content: reply,
+					})
 					name := target.config.Name
 					result.HandedOffTo = &name
 					return result, nil

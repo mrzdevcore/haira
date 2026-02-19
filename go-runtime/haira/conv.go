@@ -92,6 +92,11 @@ func ConvIntToOctal(v any) string {
 	return strconv.FormatInt(int64(toFloat64(v)), 8)
 }
 
+// ConvToString converts any value to its string representation.
+func ConvToString(v any) string {
+	return Str(v)
+}
+
 // ConvHexToInt converts a hexadecimal string to an int.
 func ConvHexToInt(s string) (int, error) {
 	s = strings.TrimSpace(s)

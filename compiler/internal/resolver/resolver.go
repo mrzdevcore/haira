@@ -240,11 +240,34 @@ func (p *Program) MergedItems() []ast.Item {
 
 	var items []ast.Item
 
-	// Add imported module items first (types, functions — skip their imports)
-	// Iterate in source order so that tools are registered before agents that reference them.
-	merged := make(map[string]bool, len(importOrder))
+	// Track which modules are directly imported by main
+	directImports := make(map[string]bool, len(importOrder))
 	for _, path := range importOrder {
-		merged[path] = true
+		directImports[path] = true
+	}
+
+	// Add transitive modules first (not directly imported by main).
+	// These are dependencies of dependencies — e.g. tools and providers imported
+	// by an agents file. They must come before the direct imports so that
+	// providers and tools are registered before agents that reference them.
+	for _, mod := range p.Modules {
+		if directImports[mod.Path] {
+			continue
+		}
+		for _, item := range mod.File.Items {
+			switch item.Node.(type) {
+			case ast.ImportDecl, ast.ExportDecl:
+				continue
+			}
+			if !isItemPublic(item) {
+				continue
+			}
+			items = append(items, item)
+		}
+	}
+
+	// Add directly imported module items in source order.
+	for _, path := range importOrder {
 		mod := p.Modules[path]
 		imp := importMap[mod.Path]
 		// Build a set of selectively imported names (if any)
@@ -275,23 +298,6 @@ func (p *Program) MergedItems() []ast.Item {
 				}
 			}
 
-			items = append(items, item)
-		}
-	}
-
-	// Add any transitive modules not directly imported by main
-	for path, mod := range p.Modules {
-		if merged[path] {
-			continue
-		}
-		for _, item := range mod.File.Items {
-			switch item.Node.(type) {
-			case ast.ImportDecl, ast.ExportDecl:
-				continue
-			}
-			if !isItemPublic(item) {
-				continue
-			}
 			items = append(items, item)
 		}
 	}

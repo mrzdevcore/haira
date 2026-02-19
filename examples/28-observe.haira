@@ -1,5 +1,7 @@
-// Observability showcase — demonstrates token usage monitoring and the observe dashboard.
+// Observability showcase — demonstrates token usage, cost monitoring,
+// optional Langfuse export, and the observe dashboard.
 // Requires: OPENAI_API_KEY environment variable.
+// Optional Langfuse: set LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 // Run: haira run examples/28-observe.haira
 
 import "io"
@@ -10,6 +12,8 @@ import "conv"
 provider openai {
     api_key: env("OPENAI_API_KEY")
     model: "gpt-4o-mini"
+    input_token_cost: 0.15
+    output_token_cost: 0.60
 }
 
 agent Writer {
@@ -48,13 +52,29 @@ workflow Chat(message: string, session_id: string) -> { reply: string } {
     return { reply: reply }
 }
 
+@get("/api/stats")
+workflow Stats() -> { total_cost: float, writer_cost: float, summary: map } {
+    total_cost = observe.cost()
+    writer_cost = observe.agent_cost("Writer")
+    summary = observe.usage()
+    return {
+        total_cost: total_cost,
+        writer_cost: writer_cost,
+        summary: summary
+    }
+}
+
 fn main() {
-    server = http.Server([Write, Chat])
+    // Enable Langfuse export (auto-detects env vars, no-op if not set)
+    observe.langfuse("", "", "")
+
+    server = http.Server([Write, Chat, Stats])
     observe.start(server)
 
     io.println("Server running on :8080")
     io.println("  POST /api/write")
     io.println("  POST /api/chat")
+    io.println("  GET  /api/stats  (cost breakdown)")
     io.println("  UI:        http://localhost:8080/_ui/")
     io.println("  Dashboard: http://localhost:8080/_observe")
     server.listen(8080)

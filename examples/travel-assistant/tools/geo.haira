@@ -1,0 +1,54 @@
+// tools/geo.haira — Geocoding tools using Nominatim / OpenStreetMap (free, no API key).
+
+import "http"
+import "conv"
+
+tool geocode(query: string) -> string {
+    """
+    Look up coordinates and address details for a place name.
+    Returns latitude, longitude, and full address.
+    Use this to find the exact location of a city, address, or landmark.
+    """
+    encoded = http.encode_uri(query)
+    resp, err = http.get_with_headers(
+        "https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&addressdetails=1&limit=1",
+        {"User-Agent": "HairaTravelAssistant/1.0"}
+    )
+    if err != nil {
+        return "Failed to geocode '${query}'."
+    }
+
+    results = resp.json_array()
+    if len(results) == 0 {
+        return "No results found for '${query}'."
+    }
+
+    data = results[0]
+    name = data["display_name"]
+    lat = data["lat"]
+    lon = data["lon"]
+
+    return "${name} — coordinates: ${lat}, ${lon}"
+}
+
+tool reverse_geocode(lat: string, lon: string) -> string {
+    """
+    Look up the address for given latitude and longitude coordinates.
+    Returns the full address for the location.
+    """
+    resp, err = http.get_with_headers(
+        "https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json",
+        {"User-Agent": "HairaTravelAssistant/1.0"}
+    )
+    if err != nil {
+        return "Failed to reverse geocode ${lat}, ${lon}."
+    }
+
+    data = resp.json()
+    name = data["display_name"]
+    if name == nil {
+        return "No address found for ${lat}, ${lon}."
+    }
+
+    return conv.to_string(name)
+}

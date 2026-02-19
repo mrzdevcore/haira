@@ -1,0 +1,98 @@
+// tools/flights.haira — Flight tracking tools using OpenSky Network (free, no API key).
+
+import "http"
+import "string"
+import "conv"
+
+tool search_flights(country: string) -> string {
+    """
+    Search for live flights originating from a specific country.
+    Returns up to 5 active flights with callsign, altitude, speed, and position.
+    Country should be a full name like "France", "Germany", "United States".
+    """
+    resp, err = http.get("https://opensky-network.org/api/states/all")
+    if err != nil {
+        return "Failed to fetch flight data. The OpenSky API may be temporarily unavailable."
+    }
+
+    data = resp.json()
+    states = data["states"]
+    if states == nil {
+        return "No flight data available."
+    }
+
+    result = "Live flights from ${country}:\n"
+    count = 0
+    for flight in states {
+        if count >= 5 {
+            break
+        }
+        origin = flight[2]
+        if origin == country {
+            callsign = flight[1]
+            lat = flight[6]
+            lon = flight[5]
+            alt = flight[7]
+            speed = flight[9]
+            on_ground = flight[8]
+
+            if on_ground == true {
+                result += "  ${callsign} — on ground\n"
+            } else {
+                result += "  ${callsign} — alt: ${alt}m, speed: ${speed} m/s, pos: ${lat}, ${lon}\n"
+            }
+            count += 1
+        }
+    }
+
+    if count == 0 {
+        return "No active flights found from ${country}."
+    }
+
+    return result
+}
+
+tool track_flight(callsign: string) -> string {
+    """
+    Track a specific flight by its callsign (e.g. "AFR1234", "BAW256").
+    Returns current position, altitude, speed, and origin country.
+    """
+    resp, err = http.get("https://opensky-network.org/api/states/all")
+    if err != nil {
+        return "Failed to fetch flight data."
+    }
+
+    data = resp.json()
+    states = data["states"]
+    if states == nil {
+        return "No flight data available."
+    }
+
+    found = ""
+    for flight in states {
+        cs = flight[1]
+        if cs != nil {
+            if string.contains(conv.to_string(cs), callsign) {
+                origin = flight[2]
+                lat = flight[6]
+                lon = flight[5]
+                alt = flight[7]
+                speed = flight[9]
+                heading = flight[10]
+                on_ground = flight[8]
+
+                if on_ground == true {
+                    found = "Flight ${callsign} from ${origin} — currently on ground at ${lat}, ${lon}"
+                } else {
+                    found = "Flight ${callsign} from ${origin} — alt: ${alt}m, speed: ${speed} m/s, heading: ${heading} deg, pos: ${lat}, ${lon}"
+                }
+                break
+            }
+        }
+    }
+
+    if found != "" {
+        return found
+    }
+    return "Flight ${callsign} not found. It may have landed or the callsign may be incorrect."
+}

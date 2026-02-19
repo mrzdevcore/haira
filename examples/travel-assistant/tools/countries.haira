@@ -1,0 +1,93 @@
+// tools/countries.haira — Country info tools using REST Countries API (free, no API key).
+
+import "http"
+import "conv"
+
+tool get_country_info(name: string) -> string {
+    """
+    Get detailed information about a country: capital, population, languages,
+    currencies, region, and timezone.
+    Use the common English name like "France", "Japan", "Brazil".
+    """
+    encoded = http.encode_uri(name)
+    resp, err = http.get("https://restcountries.com/v3.1/name/${encoded}?fullText=true")
+    if err != nil {
+        return "Failed to fetch country info for ${name}."
+    }
+
+    results = resp.json_array()
+    if len(results) == 0 {
+        return "Country '${name}' not found."
+    }
+
+    country = results[0]
+    names = country["name"]
+    official = names["official"]
+    capital_list = country["capital"]
+    capital = "N/A"
+    if capital_list != nil {
+        capital = conv.to_string(capital_list[0])
+    }
+    pop = country["population"]
+    region = country["region"]
+    subregion = country["subregion"]
+    timezones = country["timezones"]
+    tz = ""
+    if timezones != nil {
+        tz = conv.to_string(timezones[0])
+    }
+
+    langs = country["languages"]
+    lang_str = ""
+    if langs != nil {
+        lang_str = conv.to_string(langs)
+    }
+
+    currencies = country["currencies"]
+    curr_str = ""
+    if currencies != nil {
+        curr_str = conv.to_string(currencies)
+    }
+
+    return "${name} (${official})\n  Capital: ${capital}\n  Population: ${pop}\n  Region: ${region}, ${subregion}\n  Timezone: ${tz}\n  Languages: ${lang_str}\n  Currencies: ${curr_str}"
+}
+
+tool compare_countries(country1: string, country2: string) -> string {
+    """
+    Compare two countries side by side: population, region, capital, and timezone.
+    Use common English names like "France" and "Germany".
+    """
+    enc1 = http.encode_uri(country1)
+    enc2 = http.encode_uri(country2)
+    info1, err1 = http.get("https://restcountries.com/v3.1/name/${enc1}?fullText=true")
+    info2, err2 = http.get("https://restcountries.com/v3.1/name/${enc2}?fullText=true")
+
+    if err1 != nil {
+        return "Failed to fetch info for ${country1}."
+    }
+    if err2 != nil {
+        return "Failed to fetch info for ${country2}."
+    }
+
+    r1 = info1.json_array()
+    r2 = info2.json_array()
+
+    if len(r1) == 0 {
+        return "Country '${country1}' not found."
+    }
+    if len(r2) == 0 {
+        return "Country '${country2}' not found."
+    }
+
+    d1 = r1[0]
+    d2 = r2[0]
+
+    cap1 = d1["capital"]
+    cap2 = d2["capital"]
+    c1 = "N/A"
+    c2 = "N/A"
+    if cap1 != nil { c1 = conv.to_string(cap1[0]) }
+    if cap2 != nil { c2 = conv.to_string(cap2[0]) }
+
+    return "Comparison:\n  ${country1}: capital ${c1}, population ${d1["population"]}, region ${d1["region"]}\n  ${country2}: capital ${c2}, population ${d2["population"]}, region ${d2["region"]}"
+}

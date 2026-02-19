@@ -1,392 +1,605 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Haira Observe</title>
-<style>
-  :root {
-    --haira-bg: #09090b;
-    --haira-bg-card: #0f0f12;
-    --haira-bg-card-hover: #18181b;
-    --haira-bg-elevated: #1c1c20;
-    --haira-border: rgba(63, 63, 70, 0.5);
-    --haira-border-light: rgba(232, 163, 23, 0.12);
-    --haira-gold: #e8a317;
-    --haira-gold-light: #f0bd4f;
-    --haira-glow: #fde68a;
-    --haira-text: #fafaf9;
-    --haira-text-dim: #a1a1aa;
-    --haira-muted: #71717a;
-    --haira-success: #22c55e;
-    --haira-error: #ef4444;
-    --haira-info: #3b82f6;
-    --haira-radius: 10px;
-    --haira-radius-sm: 6px;
-    --haira-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --haira-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--haira-bg);
-    color: var(--haira-text);
-    font-family: var(--haira-font);
-    -webkit-font-smoothing: antialiased;
-    padding: 2rem 1rem;
-  }
-  @media (min-width: 768px) { body { padding: 2rem; } }
-  .container { max-width: 1100px; margin: 0 auto; }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Haira Observe</title>
+        <style>
+            :root {
+                --haira-bg: #09090b;
+                --haira-bg-card: #0f0f12;
+                --haira-bg-card-hover: #18181b;
+                --haira-bg-elevated: #1c1c20;
+                --haira-border: rgba(63, 63, 70, 0.5);
+                --haira-border-light: rgba(232, 163, 23, 0.12);
+                --haira-gold: #e8a317;
+                --haira-gold-light: #f0bd4f;
+                --haira-glow: #fde68a;
+                --haira-text: #fafaf9;
+                --haira-text-dim: #a1a1aa;
+                --haira-muted: #71717a;
+                --haira-success: #22c55e;
+                --haira-error: #ef4444;
+                --haira-info: #3b82f6;
+                --haira-radius: 10px;
+                --haira-radius-sm: 6px;
+                --haira-font:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    sans-serif;
+                --haira-mono:
+                    "SF Mono", "Fira Code", "JetBrains Mono", "Cascadia Code",
+                    monospace;
+            }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: var(--haira-bg);
+                color: var(--haira-text);
+                font-family: var(--haira-font);
+                -webkit-font-smoothing: antialiased;
+                padding: 2rem 1rem;
+            }
+            @media (min-width: 768px) {
+                body {
+                    padding: 2rem;
+                }
+            }
+            .container {
+                max-width: 1100px;
+                margin: 0 auto;
+            }
 
-  /* Header */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
-  }
-  .header-left { display: flex; align-items: center; gap: 0.6rem; }
-  .header h1 {
-    font-size: 1.3rem;
-    font-weight: 700;
-  }
-  .refresh-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.72rem;
-    color: var(--haira-muted);
-  }
-  .refresh-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--haira-success);
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-  @keyframes fadeSlideUp {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+            /* Header */
+            .header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 1.5rem;
+            }
+            .header-left {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+            }
+            .header h1 {
+                font-size: 1.3rem;
+                font-weight: 700;
+            }
+            .refresh-indicator {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                font-size: 0.72rem;
+                color: var(--haira-muted);
+            }
+            .refresh-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--haira-success);
+                animation: pulse 2s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.4;
+                }
+            }
+            @keyframes fadeSlideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(6px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
 
-  /* Summary cards */
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-  }
-  .card {
-    background: var(--haira-bg-card);
-    border: 1px solid var(--haira-border);
-    border-radius: var(--haira-radius);
-    padding: 1rem;
-    animation: fadeSlideUp 0.3s ease-out both;
-  }
-  .card-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--haira-muted);
-    margin-bottom: 0.35rem;
-  }
-  .card-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    font-family: var(--haira-mono);
-    color: var(--haira-text);
-  }
-  .card-value.gold { color: var(--haira-gold); }
+            /* Summary cards */
+            .cards {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 0.75rem;
+                margin-bottom: 1.5rem;
+            }
+            .card {
+                background: var(--haira-bg-card);
+                border: 1px solid var(--haira-border);
+                border-radius: var(--haira-radius);
+                padding: 1rem;
+                animation: fadeSlideUp 0.3s ease-out both;
+            }
+            .card-label {
+                font-size: 0.7rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: var(--haira-muted);
+                margin-bottom: 0.35rem;
+            }
+            .card-value {
+                font-size: 1.5rem;
+                font-weight: 700;
+                font-family: var(--haira-mono);
+                color: var(--haira-text);
+            }
+            .card-value.gold {
+                color: var(--haira-gold);
+            }
 
-  /* Filters */
-  .filters {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-  }
-  .filter-select, .filter-input {
-    background: var(--haira-bg-card);
-    border: 1px solid var(--haira-border);
-    border-radius: var(--haira-radius-sm);
-    color: var(--haira-text);
-    font-family: var(--haira-font);
-    font-size: 0.78rem;
-    padding: 0.4rem 0.65rem;
-    outline: none;
-  }
-  .filter-select:focus, .filter-input:focus {
-    border-color: rgba(232, 163, 23, 0.4);
-  }
-  .filter-select option { background: var(--haira-bg-card); }
+            /* Filters */
+            .filters {
+                display: flex;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+                flex-wrap: wrap;
+            }
+            .filter-select,
+            .filter-input {
+                background: var(--haira-bg-card);
+                border: 1px solid var(--haira-border);
+                border-radius: var(--haira-radius-sm);
+                color: var(--haira-text);
+                font-family: var(--haira-font);
+                font-size: 0.78rem;
+                padding: 0.4rem 0.65rem;
+                outline: none;
+            }
+            .filter-select:focus,
+            .filter-input:focus {
+                border-color: rgba(232, 163, 23, 0.4);
+            }
+            .filter-select option {
+                background: var(--haira-bg-card);
+            }
 
-  /* Sections */
-  .section {
-    margin-bottom: 1.5rem;
-  }
-  .section-title {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--haira-text-dim);
-    margin-bottom: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
+            /* Sections */
+            .section {
+                margin-bottom: 1.5rem;
+            }
+            .section-title {
+                font-size: 0.82rem;
+                font-weight: 600;
+                color: var(--haira-text-dim);
+                margin-bottom: 0.6rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+            }
 
-  /* Agent table */
-  .table-wrap {
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-  }
-  th {
-    text-align: left;
-    font-weight: 600;
-    color: var(--haira-muted);
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--haira-border);
-  }
-  td {
-    padding: 0.6rem 0.75rem;
-    border-bottom: 1px solid rgba(63, 63, 70, 0.25);
-    font-family: var(--haira-mono);
-    font-size: 0.78rem;
-  }
-  tr:hover td { background: var(--haira-bg-card-hover); }
-  .agent-name {
-    font-family: var(--haira-font);
-    font-weight: 600;
-    color: var(--haira-gold-light);
-  }
+            /* Agent table */
+            .table-wrap {
+                overflow-x: auto;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.8rem;
+            }
+            th {
+                text-align: left;
+                font-weight: 600;
+                color: var(--haira-muted);
+                font-size: 0.68rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                padding: 0.5rem 0.75rem;
+                border-bottom: 1px solid var(--haira-border);
+            }
+            td {
+                padding: 0.6rem 0.75rem;
+                border-bottom: 1px solid rgba(63, 63, 70, 0.25);
+                font-family: var(--haira-mono);
+                font-size: 0.78rem;
+            }
+            tr:hover td {
+                background: var(--haira-bg-card-hover);
+            }
+            .agent-name {
+                font-family: var(--haira-font);
+                font-weight: 600;
+                color: var(--haira-gold-light);
+            }
 
-  /* Event timeline */
-  .timeline {
-    max-height: 400px;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--haira-muted) transparent;
-  }
-  .timeline::-webkit-scrollbar { width: 5px; }
-  .timeline::-webkit-scrollbar-track { background: transparent; }
-  .timeline::-webkit-scrollbar-thumb { background: var(--haira-muted); border-radius: 3px; }
-  .event {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    padding: 0.55rem 0.75rem;
-    border-bottom: 1px solid rgba(63, 63, 70, 0.2);
-    animation: fadeSlideUp 0.2s ease-out both;
-  }
-  .event:hover { background: var(--haira-bg-card); }
-  .event-badge {
-    font-size: 0.6rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    color: #fff;
-    flex-shrink: 0;
-    margin-top: 0.1rem;
-  }
-  .event-badge.gen { background: var(--haira-info); }
-  .event-badge.tool { background: var(--haira-success); }
-  .event-badge.tool-fail { background: var(--haira-error); }
-  .event-info { flex: 1; min-width: 0; }
-  .event-main {
-    font-size: 0.78rem;
-    font-weight: 500;
-  }
-  .event-detail {
-    font-size: 0.7rem;
-    color: var(--haira-muted);
-    font-family: var(--haira-mono);
-    margin-top: 0.15rem;
-  }
-  .event-time {
-    font-size: 0.65rem;
-    color: var(--haira-muted);
-    font-family: var(--haira-mono);
-    flex-shrink: 0;
-    margin-top: 0.15rem;
-  }
+            /* Event timeline */
+            .timeline {
+                max-height: 400px;
+                overflow-y: auto;
+                scrollbar-width: thin;
+                scrollbar-color: var(--haira-muted) transparent;
+            }
+            .timeline::-webkit-scrollbar {
+                width: 5px;
+            }
+            .timeline::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .timeline::-webkit-scrollbar-thumb {
+                background: var(--haira-muted);
+                border-radius: 3px;
+            }
+            .event {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.6rem;
+                padding: 0.55rem 0.75rem;
+                border-bottom: 1px solid rgba(63, 63, 70, 0.2);
+                animation: fadeSlideUp 0.2s ease-out both;
+            }
+            .event:hover {
+                background: var(--haira-bg-card);
+            }
+            .event-badge {
+                font-size: 0.6rem;
+                font-weight: 700;
+                padding: 0.1rem 0.4rem;
+                border-radius: 3px;
+                color: #fff;
+                flex-shrink: 0;
+                margin-top: 0.1rem;
+            }
+            .event-badge.gen {
+                background: var(--haira-info);
+            }
+            .event-badge.tool {
+                background: var(--haira-success);
+            }
+            .event-badge.tool-fail {
+                background: var(--haira-error);
+            }
+            .event-info {
+                flex: 1;
+                min-width: 0;
+            }
+            .event-main {
+                font-size: 0.78rem;
+                font-weight: 500;
+            }
+            .event-detail {
+                font-size: 0.7rem;
+                color: var(--haira-muted);
+                font-family: var(--haira-mono);
+                margin-top: 0.15rem;
+            }
+            .event-time {
+                font-size: 0.65rem;
+                color: var(--haira-muted);
+                font-family: var(--haira-mono);
+                flex-shrink: 0;
+                margin-top: 0.15rem;
+            }
 
-  /* Empty state */
-  .empty {
-    text-align: center;
-    padding: 2.5rem 1rem;
-    color: var(--haira-muted);
-    font-size: 0.85rem;
-  }
-  .empty-sub {
-    font-size: 0.75rem;
-    margin-top: 0.25rem;
-    color: rgba(113, 113, 122, 0.7);
-  }
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="header">
-    <div class="header-left">
-      <svg width="22" height="22" viewBox="0 0 64 52" fill="none"><rect x="17" y="11" width="30" height="20" rx="6" fill="#F0BD4F"/><rect x="21" y="15" width="22" height="9" rx="4" fill="#3D2B1F"/><circle cx="27" cy="19.5" r="3.5" fill="#FDE68A"/><circle cx="27" cy="19.5" r="1.5" fill="#fff"/><circle cx="37" cy="19.5" r="3.5" fill="#FDE68A"/><circle cx="37" cy="19.5" r="1.5" fill="#fff"/><ellipse cx="32" cy="12" rx="25" ry="4" fill="#C4A265"/><ellipse cx="32" cy="11.5" rx="23" ry="3" fill="#D4B87A"/><rect x="18" y="2" width="28" height="10" rx="5" fill="#C4A265"/><rect x="20" y="1" width="24" height="5" rx="3" fill="#D4B87A"/><rect x="18" y="8" width="28" height="3.5" rx="1.5" fill="#5C3A1E"/><rect x="20" y="31" width="24" height="14" rx="4" fill="#E8A317"/><rect x="25" y="34" width="14" height="8" rx="3" fill="#3D2B1F"/><circle cx="32" cy="38" r="3" fill="#FDE68A"/><rect x="10" y="34" width="10" height="4" rx="2" fill="#E8A317"/><rect x="44" y="34" width="10" height="4" rx="2" fill="#E8A317"/></svg>
-      <h1>Observe</h1>
-    </div>
-    <div class="refresh-indicator">
-      <span class="refresh-dot"></span>
-      <span>auto-refresh 5s</span>
-    </div>
-  </div>
+            /* Empty state */
+            .empty {
+                text-align: center;
+                padding: 2.5rem 1rem;
+                color: var(--haira-muted);
+                font-size: 0.85rem;
+            }
+            .empty-sub {
+                font-size: 0.75rem;
+                margin-top: 0.25rem;
+                color: rgba(113, 113, 122, 0.7);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="header-left">
+                    <svg width="22" height="22" viewBox="0 0 64 52" fill="none">
+                        <rect
+                            x="17"
+                            y="11"
+                            width="30"
+                            height="20"
+                            rx="6"
+                            fill="#F0BD4F"
+                        />
+                        <rect
+                            x="21"
+                            y="15"
+                            width="22"
+                            height="9"
+                            rx="4"
+                            fill="#3D2B1F"
+                        />
+                        <circle cx="27" cy="19.5" r="3.5" fill="#FDE68A" />
+                        <circle cx="27" cy="19.5" r="1.5" fill="#fff" />
+                        <circle cx="37" cy="19.5" r="3.5" fill="#FDE68A" />
+                        <circle cx="37" cy="19.5" r="1.5" fill="#fff" />
+                        <ellipse
+                            cx="32"
+                            cy="12"
+                            rx="25"
+                            ry="4"
+                            fill="#C4A265"
+                        />
+                        <ellipse
+                            cx="32"
+                            cy="11.5"
+                            rx="23"
+                            ry="3"
+                            fill="#D4B87A"
+                        />
+                        <rect
+                            x="18"
+                            y="2"
+                            width="28"
+                            height="10"
+                            rx="5"
+                            fill="#C4A265"
+                        />
+                        <rect
+                            x="20"
+                            y="1"
+                            width="24"
+                            height="5"
+                            rx="3"
+                            fill="#D4B87A"
+                        />
+                        <rect
+                            x="18"
+                            y="8"
+                            width="28"
+                            height="3.5"
+                            rx="1.5"
+                            fill="#5C3A1E"
+                        />
+                        <rect
+                            x="20"
+                            y="31"
+                            width="24"
+                            height="14"
+                            rx="4"
+                            fill="#E8A317"
+                        />
+                        <rect
+                            x="25"
+                            y="34"
+                            width="14"
+                            height="8"
+                            rx="3"
+                            fill="#3D2B1F"
+                        />
+                        <circle cx="32" cy="38" r="3" fill="#FDE68A" />
+                        <rect
+                            x="10"
+                            y="34"
+                            width="10"
+                            height="4"
+                            rx="2"
+                            fill="#E8A317"
+                        />
+                        <rect
+                            x="44"
+                            y="34"
+                            width="10"
+                            height="4"
+                            rx="2"
+                            fill="#E8A317"
+                        />
+                    </svg>
+                    <h1>Observe</h1>
+                </div>
+                <div class="refresh-indicator">
+                    <span class="refresh-dot"></span>
+                    <span>auto-refresh 5s</span>
+                </div>
+            </div>
 
-  <div class="cards" id="cards">
-    <div class="card"><div class="card-label">Total Tokens</div><div class="card-value gold" id="v-tokens">—</div></div>
-    <div class="card"><div class="card-label">Input Tokens</div><div class="card-value" id="v-input">—</div></div>
-    <div class="card"><div class="card-label">Output Tokens</div><div class="card-value" id="v-output">—</div></div>
-    <div class="card"><div class="card-label">LLM Calls</div><div class="card-value" id="v-llm">—</div></div>
-    <div class="card"><div class="card-label">Tool Calls</div><div class="card-value" id="v-tools">—</div></div>
-    <div class="card"><div class="card-label">Total Latency</div><div class="card-value" id="v-latency">—</div></div>
-  </div>
+            <div class="cards" id="cards">
+                <div class="card">
+                    <div class="card-label">Total Tokens</div>
+                    <div class="card-value gold" id="v-tokens">—</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Input Tokens</div>
+                    <div class="card-value" id="v-input">—</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Output Tokens</div>
+                    <div class="card-value" id="v-output">—</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">LLM Calls</div>
+                    <div class="card-value" id="v-llm">—</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Tool Calls</div>
+                    <div class="card-value" id="v-tools">—</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Total Latency</div>
+                    <div class="card-value" id="v-latency">—</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Est. Cost</div>
+                    <div class="card-value gold" id="v-cost">—</div>
+                </div>
+            </div>
 
-  <div class="filters">
-    <select class="filter-select" id="filter-agent">
-      <option value="">All agents</option>
-    </select>
-    <input class="filter-input" id="filter-session" type="text" placeholder="Filter by session ID...">
-  </div>
+            <div class="filters">
+                <select class="filter-select" id="filter-agent">
+                    <option value="">All agents</option>
+                </select>
+                <input
+                    class="filter-input"
+                    id="filter-session"
+                    type="text"
+                    placeholder="Filter by session ID..."
+                />
+            </div>
 
-  <div class="section">
-    <div class="section-title">Agents</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Agent</th>
-            <th>Input</th>
-            <th>Output</th>
-            <th>Total</th>
-            <th>LLM Calls</th>
-            <th>Tool Calls</th>
-            <th>Avg Latency</th>
-          </tr>
-        </thead>
-        <tbody id="agent-rows"></tbody>
-      </table>
-    </div>
-    <div class="empty" id="agents-empty" style="display:none">
-      <div>No agent activity yet</div>
-      <div class="empty-sub">Make an agent call to see data here</div>
-    </div>
-  </div>
+            <div class="section">
+                <div class="section-title">Agents</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Agent</th>
+                                <th>Input</th>
+                                <th>Output</th>
+                                <th>Total</th>
+                                <th>LLM Calls</th>
+                                <th>Tool Calls</th>
+                                <th>Avg Latency</th>
+                                <th>Cost (USD)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agent-rows"></tbody>
+                    </table>
+                </div>
+                <div class="empty" id="agents-empty" style="display: none">
+                    <div>No agent activity yet</div>
+                    <div class="empty-sub">
+                        Make an agent call to see data here
+                    </div>
+                </div>
+            </div>
 
-  <div class="section">
-    <div class="section-title">Event Timeline</div>
-    <div class="timeline" id="timeline"></div>
-    <div class="empty" id="events-empty" style="display:none">
-      <div>No events recorded</div>
-      <div class="empty-sub">Events will appear as agents make LLM calls</div>
-    </div>
-  </div>
-</div>
+            <div class="section">
+                <div class="section-title">Event Timeline</div>
+                <div class="timeline" id="timeline"></div>
+                <div class="empty" id="events-empty" style="display: none">
+                    <div>No events recorded</div>
+                    <div class="empty-sub">
+                        Events will appear as agents make LLM calls
+                    </div>
+                </div>
+            </div>
+        </div>
 
-<script>
-(function() {
-  const $ = id => document.getElementById(id);
-  const filterAgent = $('filter-agent');
-  const filterSession = $('filter-session');
-  let knownAgents = new Set();
+        <script>
+            (function () {
+                const $ = (id) => document.getElementById(id);
+                const filterAgent = $("filter-agent");
+                const filterSession = $("filter-session");
+                let knownAgents = new Set();
 
-  function fmt(n) {
-    if (n == null) return '—';
-    return Number(n).toLocaleString();
-  }
+                function fmt(n) {
+                    if (n == null) return "—";
+                    return Number(n).toLocaleString();
+                }
 
-  function fmtMs(ms) {
-    if (ms == null) return '—';
-    if (ms < 1000) return ms + 'ms';
-    return (ms / 1000).toFixed(1) + 's';
-  }
+                function fmtMs(ms) {
+                    if (ms == null) return "—";
+                    if (ms < 1000) return ms + "ms";
+                    return (ms / 1000).toFixed(1) + "s";
+                }
 
-  function fmtTime(ts) {
-    if (!ts) return '';
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
+                function fmtCost(usd) {
+                    if (usd == null || usd === 0) return "$0.0000";
+                    if (usd < 0.00005) return "<$0.0001";
+                    return "$" + usd.toFixed(4);
+                }
 
-  function buildQuery() {
-    const params = new URLSearchParams();
-    if (filterAgent.value) params.set('agent', filterAgent.value);
-    if (filterSession.value.trim()) params.set('session', filterSession.value.trim());
-    const q = params.toString();
-    return q ? '?' + q : '';
-  }
+                function fmtTime(ts) {
+                    if (!ts) return "";
+                    const d = new Date(ts);
+                    return d.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                    });
+                }
 
-  async function refresh() {
-    try {
-      const q = buildQuery();
-      const [usageRes, eventsRes, agentsRes] = await Promise.all([
-        fetch('/_observe/api/usage' + q),
-        fetch('/_observe/api/events' + q),
-        fetch('/_observe/api/agents'),
-      ]);
-      const usage = await usageRes.json();
-      const events = await eventsRes.json();
-      const agents = await agentsRes.json();
+                function buildQuery() {
+                    const params = new URLSearchParams();
+                    if (filterAgent.value)
+                        params.set("agent", filterAgent.value);
+                    if (filterSession.value.trim())
+                        params.set("session", filterSession.value.trim());
+                    const q = params.toString();
+                    return q ? "?" + q : "";
+                }
 
-      // Update summary cards
-      $('v-tokens').textContent = fmt(usage.total_tokens);
-      $('v-input').textContent = fmt(usage.input_tokens);
-      $('v-output').textContent = fmt(usage.output_tokens);
-      $('v-llm').textContent = fmt(usage.llm_calls);
-      $('v-tools').textContent = fmt(usage.tool_calls);
-      $('v-latency').textContent = fmtMs(usage.total_latency_ms);
+                async function refresh() {
+                    try {
+                        const q = buildQuery();
+                        const [usageRes, eventsRes, agentsRes] =
+                            await Promise.all([
+                                fetch("/_observe/api/usage" + q),
+                                fetch("/_observe/api/events" + q),
+                                fetch("/_observe/api/agents"),
+                            ]);
+                        const usage = await usageRes.json();
+                        const events = await eventsRes.json();
+                        const agents = await agentsRes.json();
 
-      // Update agent filter dropdown
-      for (const a of agents) {
-        if (!knownAgents.has(a)) {
-          knownAgents.add(a);
-          const opt = document.createElement('option');
-          opt.value = a;
-          opt.textContent = a;
-          filterAgent.appendChild(opt);
-        }
-      }
+                        // Update summary cards
+                        $("v-tokens").textContent = fmt(usage.total_tokens);
+                        $("v-input").textContent = fmt(usage.input_tokens);
+                        $("v-output").textContent = fmt(usage.output_tokens);
+                        $("v-llm").textContent = fmt(usage.llm_calls);
+                        $("v-tools").textContent = fmt(usage.tool_calls);
+                        $("v-latency").textContent = fmtMs(
+                            usage.total_latency_ms,
+                        );
+                        $("v-cost").textContent = fmtCost(
+                            usage.estimated_cost_usd,
+                        );
 
-      // Build per-agent table
-      await buildAgentTable(agents);
+                        // Update agent filter dropdown
+                        for (const a of agents) {
+                            if (!knownAgents.has(a)) {
+                                knownAgents.add(a);
+                                const opt = document.createElement("option");
+                                opt.value = a;
+                                opt.textContent = a;
+                                filterAgent.appendChild(opt);
+                            }
+                        }
 
-      // Build event timeline
-      buildTimeline(events);
-    } catch (e) {
-      // Silently retry on next interval
-    }
-  }
+                        // Build per-agent table
+                        await buildAgentTable(agents);
 
-  async function buildAgentTable(agents) {
-    const tbody = $('agent-rows');
-    const empty = $('agents-empty');
-    if (!agents || agents.length === 0) {
-      tbody.innerHTML = '';
-      empty.style.display = 'block';
-      return;
-    }
-    empty.style.display = 'none';
+                        // Build event timeline
+                        buildTimeline(events);
+                    } catch (e) {
+                        // Silently retry on next interval
+                    }
+                }
 
-    // Fetch per-agent stats
-    const rows = await Promise.all(agents.map(async name => {
-      const res = await fetch('/_observe/api/usage?agent=' + encodeURIComponent(name));
-      const s = await res.json();
-      const avgLatency = s.llm_calls > 0 ? Math.round(s.total_latency_ms / s.llm_calls) : 0;
-      return { name, ...s, avgLatency };
-    }));
+                async function buildAgentTable(agents) {
+                    const tbody = $("agent-rows");
+                    const empty = $("agents-empty");
+                    if (!agents || agents.length === 0) {
+                        tbody.innerHTML = "";
+                        empty.style.display = "block";
+                        return;
+                    }
+                    empty.style.display = "none";
 
-    tbody.innerHTML = rows.map(r => `
+                    // Fetch per-agent stats
+                    const rows = await Promise.all(
+                        agents.map(async (name) => {
+                            const res = await fetch(
+                                "/_observe/api/usage?agent=" +
+                                    encodeURIComponent(name),
+                            );
+                            const s = await res.json();
+                            const avgLatency =
+                                s.llm_calls > 0
+                                    ? Math.round(
+                                          s.total_latency_ms / s.llm_calls,
+                                      )
+                                    : 0;
+                            return { name, ...s, avgLatency };
+                        }),
+                    );
+
+                    tbody.innerHTML = rows
+                        .map(
+                            (r) => `
       <tr>
         <td class="agent-name">${esc(r.name)}</td>
         <td>${fmt(r.input_tokens)}</td>
@@ -395,70 +608,83 @@
         <td>${fmt(r.llm_calls)}</td>
         <td>${fmt(r.tool_calls)}</td>
         <td>${fmtMs(r.avgLatency)}</td>
+        <td>${fmtCost(r.estimated_cost_usd)}</td>
       </tr>
-    `).join('');
-  }
+    `,
+                        )
+                        .join("");
+                }
 
-  function buildTimeline(events) {
-    const timeline = $('timeline');
-    const empty = $('events-empty');
-    if (!events || events.length === 0) {
-      timeline.innerHTML = '';
-      empty.style.display = 'block';
-      return;
-    }
-    empty.style.display = 'none';
+                function buildTimeline(events) {
+                    const timeline = $("timeline");
+                    const empty = $("events-empty");
+                    if (!events || events.length === 0) {
+                        timeline.innerHTML = "";
+                        empty.style.display = "block";
+                        return;
+                    }
+                    empty.style.display = "none";
 
-    // Sort by timestamp descending (most recent first)
-    events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    // Sort by timestamp descending (most recent first)
+                    events.sort(
+                        (a, b) => new Date(b.timestamp) - new Date(a.timestamp),
+                    );
 
-    // Limit to 100 most recent
-    const shown = events.slice(0, 100);
+                    // Limit to 100 most recent
+                    const shown = events.slice(0, 100);
 
-    timeline.innerHTML = shown.map((e, i) => {
-      if (e.type === 'generation') {
-        return `
+                    timeline.innerHTML = shown
+                        .map((e, i) => {
+                            if (e.type === "generation") {
+                                return `
           <div class="event" style="animation-delay:${Math.min(i * 30, 300)}ms">
             <span class="event-badge gen">LLM</span>
             <div class="event-info">
-              <div class="event-main">${esc(e.agent_name)} &rarr; ${esc(e.model || '')}</div>
-              <div class="event-detail">${fmt(e.input_tokens)} in &middot; ${fmt(e.output_tokens)} out &middot; ${fmtMs(e.latency_ms)}${e.tool_calls > 0 ? ' &middot; ' + e.tool_calls + ' tool calls' : ''}${e.session_id ? ' &middot; ' + esc(e.session_id) : ''}</div>
+              <div class="event-main">${esc(e.agent_name)} &rarr; ${esc(e.model || "")}</div>
+              <div class="event-detail">${fmt(e.input_tokens)} in &middot; ${fmt(e.output_tokens)} out &middot; ${fmtMs(e.latency_ms)}${e.cost_usd > 0 ? " &middot; " + fmtCost(e.cost_usd) : ""}${e.tool_calls > 0 ? " &middot; " + e.tool_calls + " tool calls" : ""}${e.session_id ? " &middot; " + esc(e.session_id) : ""}</div>
             </div>
             <div class="event-time">${fmtTime(e.timestamp)}</div>
           </div>`;
-      } else {
-        const ok = e.success !== false;
-        return `
+                            } else {
+                                const ok = e.success !== false;
+                                return `
           <div class="event" style="animation-delay:${Math.min(i * 30, 300)}ms">
-            <span class="event-badge ${ok ? 'tool' : 'tool-fail'}">${ok ? 'TOOL' : 'FAIL'}</span>
+            <span class="event-badge ${ok ? "tool" : "tool-fail"}">${ok ? "TOOL" : "FAIL"}</span>
             <div class="event-info">
-              <div class="event-main">${esc(e.agent_name)} &rarr; ${esc(e.tool_name || '')}</div>
-              <div class="event-detail">${fmtMs(e.latency_ms)}${e.session_id ? ' &middot; ' + esc(e.session_id) : ''}</div>
+              <div class="event-main">${esc(e.agent_name)} &rarr; ${esc(e.tool_name || "")}</div>
+              <div class="event-detail">${fmtMs(e.latency_ms)}${e.session_id ? " &middot; " + esc(e.session_id) : ""}</div>
             </div>
             <div class="event-time">${fmtTime(e.timestamp)}</div>
           </div>`;
-      }
-    }).join('');
-  }
+                            }
+                        })
+                        .join("");
+                }
 
-  function esc(s) {
-    if (!s) return '';
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
+                function esc(s) {
+                    if (!s) return "";
+                    return s
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;");
+                }
 
-  // Initial load + auto-refresh
-  refresh();
-  setInterval(refresh, 5000);
+                // Initial load + auto-refresh
+                refresh();
+                setInterval(refresh, 5000);
 
-  // Refresh on filter change
-  filterAgent.addEventListener('change', refresh);
-  filterSession.addEventListener('input', debounce(refresh, 400));
+                // Refresh on filter change
+                filterAgent.addEventListener("change", refresh);
+                filterSession.addEventListener("input", debounce(refresh, 400));
 
-  function debounce(fn, ms) {
-    let t;
-    return function() { clearTimeout(t); t = setTimeout(fn, ms); };
-  }
-})();
-</script>
-</body>
+                function debounce(fn, ms) {
+                    let t;
+                    return function () {
+                        clearTimeout(t);
+                        t = setTimeout(fn, ms);
+                    };
+                }
+            })();
+        </script>
+    </body>
 </html>

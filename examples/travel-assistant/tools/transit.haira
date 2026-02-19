@@ -1,0 +1,94 @@
+// tools/transit.haira — Paris public transport tools using RATP API (free, no API key).
+
+import "http"
+
+tool get_metro_schedule(line: string, station: string) -> string {
+    """
+    Get the next metro arrivals for a Paris Metro station.
+    Line should be a number like "1", "4", "8", "14".
+    Station should be lowercase with hyphens, e.g. "chatelet", "gare-de-lyon", "bastille".
+    Returns upcoming train times and destinations.
+    """
+    resp, err = http.get("https://api-ratp.pierre-grimaud.fr/v4/schedules/metros/${line}/${station}/A+R")
+    if err != nil {
+        return "Failed to fetch metro schedule. The RATP API may be unavailable."
+    }
+
+    data = resp.json()
+    schedules_data = data["result"]
+    if schedules_data == nil {
+        return "No schedule data for Metro ${line} at ${station}."
+    }
+
+    schedules = schedules_data["schedules"]
+    if schedules == nil {
+        return "No upcoming trains for Metro ${line} at ${station}."
+    }
+
+    result = "Metro ${line} at ${station}:\n"
+    count = 0
+    for s in schedules {
+        if count >= 6 {
+            break
+        }
+        dest = s["destination"]
+        time = s["message"]
+        result += "  ${dest} — ${time}\n"
+        count += 1
+    }
+
+    return result
+}
+
+tool get_traffic_status() -> string {
+    """
+    Get the current traffic status for all Paris Metro, RER, and Tramway lines.
+    Shows which lines have disruptions or are running normally.
+    """
+    resp, err = http.get("https://api-ratp.pierre-grimaud.fr/v4/traffic")
+    if err != nil {
+        return "Failed to fetch traffic status."
+    }
+
+    data = resp.json()
+    result_data = data["result"]
+    if result_data == nil {
+        return "No traffic data available."
+    }
+
+    result = "Paris transit status:\n"
+
+    // Metro lines
+    metros = result_data["metros"]
+    if metros != nil {
+        result += "\nMetro:\n"
+        for line in metros {
+            name = line["line"]
+            title = line["title"]
+            message = line["message"]
+            if title == "normal" {
+                result += "  Line ${name}: OK\n"
+            } else {
+                result += "  Line ${name}: ${title} — ${message}\n"
+            }
+        }
+    }
+
+    // RER lines
+    rers = result_data["rers"]
+    if rers != nil {
+        result += "\nRER:\n"
+        for rer in rers {
+            rer_name = rer["line"]
+            rer_title = rer["title"]
+            rer_msg = rer["message"]
+            if rer_title == "normal" {
+                result += "  Line ${rer_name}: OK\n"
+            } else {
+                result += "  Line ${rer_name}: ${rer_title} — ${rer_msg}\n"
+            }
+        }
+    }
+
+    return result
+}

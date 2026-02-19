@@ -327,7 +327,8 @@ func literalToGo(lit ast.Literal) string {
 		for _, part := range l.Parts {
 			switch p := part.(type) {
 			case ast.LiteralPart:
-				fmtStr.WriteString(p.Value)
+				// Escape % as %% so fmt.Sprintf treats them as literal percent signs
+				fmtStr.WriteString(strings.ReplaceAll(p.Value, "%", "%%"))
 			case ast.ExprPart:
 				fmtStr.WriteString("%v")
 				args = append(args, ExprToGo(p.Value))

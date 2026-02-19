@@ -58,6 +58,31 @@ export type StepStatus =
   | "retrying"
   | "skipped";
 
+// Run history types
+
+export interface RunSummary {
+  id: string;
+  workflow_name: string;
+  workflow_path: string;
+  status: "running" | "completed" | "failed";
+  started_at: string;
+  finished_at?: string;
+  step_count: number;
+}
+
+export interface RunDetail {
+  id: string;
+  workflow_name: string;
+  workflow_path: string;
+  status: "running" | "completed" | "failed";
+  params?: Record<string, unknown>;
+  steps: StepEvent[];
+  result?: unknown;
+  error?: string;
+  started_at: string;
+  finished_at?: string;
+}
+
 // Generative UI types
 
 export interface ToolRenderEvent {

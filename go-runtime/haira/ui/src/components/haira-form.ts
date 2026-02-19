@@ -1,6 +1,6 @@
 import { baseStyles, methodColor } from "../theme";
-import { submitForm, streamSSE } from "../sse";
-import type { WorkflowMeta } from "../types";
+import { submitForm, streamSSE, connectSSE } from "../sse";
+import type { WorkflowMeta, RunDetail } from "../types";
 import type { HairaField } from "./haira-field";
 import type { HairaResult } from "./haira-result";
 import type { HairaPipeline } from "./haira-pipeline";
@@ -172,6 +172,12 @@ export class HairaForm extends HTMLElement {
     const btn = shadow.getElementById("submit-btn") as HTMLButtonElement;
     const card = shadow.getElementById("card")!;
 
+    // Check if we're viewing a past run
+    const runId = new URLSearchParams(window.location.search).get("run");
+    if (runId) {
+      this.loadRun(runId, pipeline, result, card, btn);
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       btn.disabled = true;
@@ -203,6 +209,8 @@ export class HairaForm extends HTMLElement {
         btn.disabled = false;
         btn.textContent = "Run";
         card.classList.remove("disabled");
+        // Clear run param so next submit creates a fresh run
+        history.replaceState(null, "", window.location.pathname);
       };
 
       // If workflow has steps, use SSE for live pipeline
@@ -223,6 +231,9 @@ export class HairaForm extends HTMLElement {
           m.path,
           body,
           {
+            onRunId: (id) => {
+              history.replaceState(null, "", `${window.location.pathname}?run=${id}`);
+            },
             onStep: (event) => {
               pipeline.updateStep(event);
             },
@@ -256,6 +267,64 @@ export class HairaForm extends HTMLElement {
         finish();
       }
     });
+  }
+
+  private async loadRun(
+    runId: string,
+    pipeline: HairaPipeline,
+    result: HairaResult,
+    card: HTMLElement,
+    btn: HTMLButtonElement,
+  ) {
+    let run: RunDetail;
+    try {
+      const resp = await fetch(`/_api/runs/${runId}`);
+      if (!resp.ok) return;
+      run = await resp.json();
+    } catch {
+      return;
+    }
+
+    // Show pipeline and replay buffered events
+    pipeline.show();
+    for (const event of run.steps) {
+      pipeline.updateStep(event);
+    }
+
+    // Show result if completed/failed
+    if (run.status === "completed" && run.result) {
+      result.show(run.result, false);
+      pipeline.finalize();
+    } else if (run.status === "failed") {
+      if (run.error) {
+        result.show({ error: run.error }, true);
+      }
+      pipeline.finalize();
+    } else if (run.status === "running") {
+      // Still in progress — connect to live stream
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Running...';
+      card.classList.add("disabled");
+
+      await connectSSE(`/_api/runs/stream/${runId}`, {
+        onStep: (event) => {
+          pipeline.updateStep(event);
+        },
+        onResult: (data) => {
+          result.show(data, false);
+        },
+        onError: (error) => {
+          result.show({ error }, true);
+        },
+        onDone: () => {
+          pipeline.finalize();
+          btn.disabled = false;
+          btn.textContent = "Run";
+          card.classList.remove("disabled");
+          history.replaceState(null, "", window.location.pathname);
+        },
+      });
+    }
   }
 
   private esc(s: string): string {

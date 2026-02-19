@@ -4,7 +4,7 @@ import {
   methodColor,
   uiTypeColor,
 } from "../theme";
-import type { WorkflowMeta } from "../types";
+import type { WorkflowMeta, RunSummary } from "../types";
 
 export class HairaIndex extends HTMLElement {
   connectedCallback() {
@@ -111,6 +111,83 @@ export class HairaIndex extends HTMLElement {
           color: var(--haira-muted);
           font-size: 0.82rem;
         }
+
+        /* Recent Runs */
+        .section-title {
+          font-size: 1rem;
+          font-weight: 700;
+          color: var(--haira-text);
+          margin: 2rem 0 0.75rem;
+        }
+        .run {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: var(--haira-bg-card);
+          border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius-sm);
+          padding: 0.6rem 0.85rem;
+          margin-bottom: 0.35rem;
+          text-decoration: none;
+          color: var(--haira-text);
+          transition: all 0.15s;
+          animation: fadeIn 0.25s ease-out both;
+        }
+        .run:hover {
+          border-color: rgba(232, 163, 23, 0.3);
+          background: var(--haira-bg-card-hover);
+        }
+        .run-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .run-dot.completed { background: var(--haira-success); }
+        .run-dot.failed { background: var(--haira-error); }
+        .run-dot.running {
+          background: var(--haira-accent);
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        .run-name {
+          flex: 1;
+          font-size: 0.82rem;
+          font-weight: 500;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .run-time {
+          font-size: 0.72rem;
+          font-family: var(--haira-mono);
+          color: var(--haira-muted);
+          flex-shrink: 0;
+        }
+        .run-status {
+          font-size: 0.62rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          flex-shrink: 0;
+          padding: 0.08rem 0.35rem;
+          border-radius: 3px;
+        }
+        .run-status.completed {
+          color: var(--haira-success);
+          background: rgba(34, 197, 94, 0.1);
+        }
+        .run-status.failed {
+          color: var(--haira-error);
+          background: rgba(239, 68, 68, 0.1);
+        }
+        .run-status.running {
+          color: var(--haira-accent);
+          background: rgba(232, 163, 23, 0.1);
+        }
       </style>
       <div class="container">
         <h1>Workflows</h1>
@@ -139,8 +216,56 @@ export class HairaIndex extends HTMLElement {
                 )
                 .join("")
         }
+        <div id="runs-section"></div>
       </div>
     `;
+
+    // Fetch recent runs asynchronously
+    this.loadRuns(shadow);
+  }
+
+  private async loadRuns(shadow: ShadowRoot) {
+    const section = shadow.getElementById("runs-section");
+    if (!section) return;
+
+    try {
+      const resp = await fetch("/_api/runs");
+      if (!resp.ok) return;
+      const runs: RunSummary[] = await resp.json();
+      if (!runs || runs.length === 0) return;
+
+      section.innerHTML = `
+        <h2 class="section-title">Recent Runs</h2>
+        ${runs
+          .map(
+            (run, i) => `
+          <a class="run" href="/_ui${this.esc(run.workflow_path)}?run=${this.esc(run.id)}" style="animation-delay:${i * 30}ms">
+            <span class="run-dot ${run.status}"></span>
+            <span class="run-name">${this.esc(run.workflow_name)}</span>
+            <span class="run-time">${this.relativeTime(run.started_at)}</span>
+            <span class="run-status ${run.status}">${run.status}</span>
+          </a>
+        `,
+          )
+          .join("")}
+      `;
+    } catch {
+      // Silently fail — runs are optional
+    }
+  }
+
+  private relativeTime(iso: string): string {
+    const now = Date.now();
+    const then = new Date(iso).getTime();
+    const diffMs = now - then;
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return "just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    return `${diffDay}d ago`;
   }
 
   private esc(s: string): string {

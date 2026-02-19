@@ -7,6 +7,7 @@ export interface ToolEvent {
 }
 
 export interface SSECallbacks {
+  onRunId?: (id: string) => void;
   onStep?: (event: StepEvent) => void;
   onDelta?: (delta: string) => void;
   onResult?: (data: unknown) => void;
@@ -79,6 +80,9 @@ export async function streamSSE(
         const parsed = JSON.parse(data);
 
         switch (currentEvent) {
+          case "run_id":
+            callbacks.onRunId?.(parsed.run_id);
+            break;
           case "step":
             callbacks.onStep?.(parsed as StepEvent);
             break;
@@ -111,6 +115,77 @@ export async function streamSSE(
         // Non-JSON data line, ignore
       }
 
+      currentEvent = "";
+    }
+  }
+
+  callbacks.onDone?.();
+}
+
+// connectSSE opens a GET-based SSE connection (for reconnecting to an in-progress run).
+export async function connectSSE(
+  url: string,
+  callbacks: SSECallbacks,
+): Promise<void> {
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "text/event-stream" },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    callbacks.onError?.(text || `HTTP ${resp.status}`);
+    callbacks.onDone?.();
+    return;
+  }
+
+  const reader = resp.body!.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let currentEvent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop()!;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith("event:")) {
+        currentEvent = trimmed.slice(6).trim();
+        continue;
+      }
+
+      if (!trimmed.startsWith("data:")) continue;
+
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]") {
+        callbacks.onDone?.();
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(data);
+        switch (currentEvent) {
+          case "step":
+            callbacks.onStep?.(parsed as StepEvent);
+            break;
+          case "result":
+            callbacks.onResult?.(parsed);
+            break;
+          case "error":
+            callbacks.onError?.(parsed.error || "Unknown error");
+            break;
+          default:
+            break;
+        }
+      } catch {
+        // Non-JSON data line, ignore
+      }
       currentEvent = "";
     }
   }

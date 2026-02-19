@@ -29,6 +29,9 @@ func NewServer(workflows []*WorkflowDef) *Server {
 		workflows: workflows,
 	}
 
+	// Load persisted run history
+	globalRunStore.load()
+
 	// Register auto-UI routes (unless disabled)
 	if os.Getenv("HAIRA_DISABLE_UI") == "" {
 		s.registerUIRoutes()
@@ -229,6 +232,12 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 	rw.Header().Set("Connection", "keep-alive")
 	flusher.Flush()
 
+	// Create a run in the store and send the run ID to the client
+	runID := globalRunStore.CreateRun(wf.Name, wf.Path, sanitizeParams(params))
+	idData, _ := json.Marshal(map[string]string{"run_id": runID})
+	fmt.Fprintf(rw, "event: run_id\ndata: %s\n\n", idData)
+	flusher.Flush()
+
 	stepCh := make(chan StepEvent, 16)
 	type handlerResult struct {
 		data any
@@ -247,6 +256,7 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 
 	// Stream step events until the handler completes
 	for event := range stepCh {
+		globalRunStore.RecordStepEvent(runID, event)
 		data, _ := json.Marshal(event)
 		fmt.Fprintf(rw, "event: step\ndata: %s\n\n", data)
 		flusher.Flush()
@@ -255,9 +265,11 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 	// Send final result
 	res := <-resultCh
 	if res.err != nil {
+		globalRunStore.FailRun(runID, res.err.Error())
 		errData, _ := json.Marshal(map[string]string{"error": res.err.Error()})
 		fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
 	} else {
+		globalRunStore.CompleteRun(runID, res.data)
 		resultData, _ := json.Marshal(res.data)
 		fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
 	}
@@ -265,10 +277,29 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 	flusher.Flush()
 }
 
+// sanitizeParams creates a copy of params with file paths replaced by filenames only.
+func sanitizeParams(params map[string]any) map[string]any {
+	clean := make(map[string]any, len(params))
+	for k, v := range params {
+		if s, ok := v.(string); ok && strings.HasPrefix(s, "/tmp/") {
+			// Replace temp file paths with just the filename
+			parts := strings.Split(s, "/")
+			clean[k] = parts[len(parts)-1]
+		} else {
+			clean[k] = v
+		}
+	}
+	return clean
+}
+
 // registerUIRoutes sets up /_ui/ index, per-workflow UI pages, and JS assets.
 func (s *Server) registerUIRoutes() {
 	s.mux.HandleFunc("/_ui/assets/haira-ui.js", s.serveUIJS)
 	s.mux.HandleFunc("/_ui/", s.handleUIIndex)
+
+	// Run history API
+	s.mux.HandleFunc("/_api/runs", s.handleListRuns)
+	s.mux.HandleFunc("/_api/runs/", s.handleRunRoute)
 
 	for _, w := range s.workflows {
 		wf := w
@@ -344,6 +375,124 @@ func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
 	html := strings.Replace(indexHTML, "{{META}}", string(metaJSON), 1)
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.Write([]byte(html))
+}
+
+// --- Run History API ---
+
+func (s *Server) handleListRuns(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wfPath := r.URL.Query().Get("workflow")
+	runs := globalRunStore.ListRuns(wfPath)
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(runs)
+}
+
+func (s *Server) handleRunRoute(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/_api/runs/")
+
+	// /_api/runs/stream/{id} — live SSE reconnection
+	if strings.HasPrefix(path, "stream/") {
+		runID := strings.TrimPrefix(path, "stream/")
+		s.handleRunStream(rw, r, runID)
+		return
+	}
+
+	// /_api/runs/{id} — get full run
+	run := globalRunStore.GetRun(path)
+	if run == nil {
+		http.NotFound(rw, r)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(run)
+}
+
+// handleRunStream replays buffered events and streams live events for in-progress runs.
+func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID string) {
+	run := globalRunStore.GetRun(runID)
+	if run == nil {
+		http.NotFound(rw, r)
+		return
+	}
+
+	flusher, ok := rw.(http.Flusher)
+	if !ok {
+		http.Error(rw, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "text/event-stream")
+	rw.Header().Set("Cache-Control", "no-cache")
+	rw.Header().Set("Connection", "keep-alive")
+
+	// Replay all buffered events
+	globalRunStore.mu.RLock()
+	buffered := make([]StepEvent, len(run.Steps))
+	copy(buffered, run.Steps)
+	status := run.Status
+	globalRunStore.mu.RUnlock()
+
+	for _, event := range buffered {
+		data, _ := json.Marshal(event)
+		fmt.Fprintf(rw, "event: step\ndata: %s\n\n", data)
+	}
+	flusher.Flush()
+
+	// If already finished, send result and done
+	if status != RunStatusRunning {
+		if run.Error != "" {
+			errData, _ := json.Marshal(map[string]string{"error": run.Error})
+			fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
+		} else if run.Result != nil {
+			resultData, _ := json.Marshal(run.Result)
+			fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
+		}
+		fmt.Fprintf(rw, "data: [DONE]\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Subscribe to live updates for in-progress run
+	ch := globalRunStore.Subscribe(runID)
+	defer globalRunStore.Unsubscribe(runID, ch)
+
+	// Detect client disconnect
+	ctx := r.Context()
+
+	for {
+		select {
+		case event, ok := <-ch:
+			if !ok {
+				// Channel closed — run completed. Fetch final state.
+				finalRun := globalRunStore.GetRun(runID)
+				if finalRun != nil {
+					if finalRun.Error != "" {
+						errData, _ := json.Marshal(map[string]string{"error": finalRun.Error})
+						fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
+					} else if finalRun.Result != nil {
+						resultData, _ := json.Marshal(finalRun.Result)
+						fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
+					}
+				}
+				fmt.Fprintf(rw, "data: [DONE]\n\n")
+				flusher.Flush()
+				return
+			}
+			data, _ := json.Marshal(event)
+			fmt.Fprintf(rw, "event: step\ndata: %s\n\n", data)
+			flusher.Flush()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // Listen starts the HTTP server on the given port.

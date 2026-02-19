@@ -105,16 +105,16 @@ func ExprToGo(expr ast.Expr) string {
 				}
 			}
 		}
-		// If the object is a known struct, capitalize the field name
+		// If the object is a known struct, convert field name to PascalCase
 		if activeTypeInfo != nil {
 			if objTy, ok := activeTypeInfo.ExprTypes[e.Object.Span]; ok {
 				if _, isSt := objTy.(checker.StructType); isSt {
-					return ExprToGo(e.Object) + "." + Capitalize(e.Field.Node)
+					return ExprToGo(e.Object) + "." + SnakeToPascal(e.Field.Node)
 				}
 			}
 		}
-		// Default: capitalize field name for Go struct field access (e.g., resp.body → resp.Body)
-		return ExprToGo(e.Object) + "." + Capitalize(e.Field.Node)
+		// Default: convert field name to PascalCase for Go struct field access (e.g., resp.status_code → resp.StatusCode)
+		return ExprToGo(e.Object) + "." + SnakeToPascal(e.Field.Node)
 	case ast.IndexExpr:
 		obj := ExprToGo(e.Object)
 		index := ExprToGo(e.Index)

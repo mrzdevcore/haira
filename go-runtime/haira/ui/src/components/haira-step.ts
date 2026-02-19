@@ -365,9 +365,13 @@ export class HairaStep extends HTMLElement {
       this.toggleLogs(true);
     }
 
+    // Truncate very long log messages (full content goes in the result card)
+    const maxLen = 200;
+    const display = message.length > maxLen ? message.slice(0, maxLen) + "..." : message;
+
     const entry = document.createElement("div");
     entry.className = "log-entry";
-    entry.innerHTML = `<span class="log-badge ${level}">${level}</span><span class="log-msg ${level}">${this.esc(message)}</span>`;
+    entry.innerHTML = `<span class="log-badge ${level}">${level}</span><span class="log-msg ${level}">${this.esc(display)}</span>`;
     logsContainer.appendChild(entry);
 
     // Auto-expand while running

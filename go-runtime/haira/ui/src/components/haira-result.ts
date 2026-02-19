@@ -68,15 +68,93 @@ export class HairaResult extends HTMLElement {
         }
         .body {
           padding: 0.85rem;
-          font-family: var(--haira-mono);
-          font-size: 0.8rem;
+          font-size: 0.82rem;
           line-height: 1.6;
-          white-space: pre-wrap;
-          word-break: break-word;
           color: var(--haira-text-dim);
-          max-height: 500px;
+          max-height: 600px;
           overflow-y: auto;
           ${scrollbarStyles}
+        }
+        /* Rich result styles */
+        .body.rich {
+          white-space: normal;
+          word-break: break-word;
+          font-family: var(--haira-font);
+        }
+        .body.raw {
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-family: var(--haira-mono);
+          font-size: 0.8rem;
+        }
+        .result-section {
+          margin-bottom: 0.75rem;
+        }
+        .result-section:last-child {
+          margin-bottom: 0;
+        }
+        .section-label {
+          font-size: 0.68rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--haira-muted);
+          margin-bottom: 0.3rem;
+        }
+        .section-label.error {
+          color: var(--haira-error);
+        }
+        .section-value {
+          color: var(--haira-text);
+          line-height: 1.55;
+        }
+        .section-value ul {
+          margin: 0.25rem 0 0 0;
+          padding-left: 1.25rem;
+        }
+        .section-value li {
+          margin-bottom: 0.15rem;
+          font-family: var(--haira-mono);
+          font-size: 0.78rem;
+          color: var(--haira-text-dim);
+        }
+        .code-block {
+          background: var(--haira-bg);
+          border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius-sm);
+          padding: 0.65rem 0.85rem;
+          margin-top: 0.35rem;
+          font-family: var(--haira-mono);
+          font-size: 0.75rem;
+          line-height: 1.5;
+          white-space: pre-wrap;
+          word-break: break-all;
+          overflow-x: auto;
+          color: var(--haira-text);
+        }
+        .code-lang {
+          font-size: 0.62rem;
+          text-transform: uppercase;
+          color: var(--haira-muted);
+          letter-spacing: 0.04em;
+          margin-bottom: 0.2rem;
+          font-weight: 600;
+        }
+        .result-kv {
+          display: flex;
+          gap: 0.5rem;
+          padding: 0.2rem 0;
+        }
+        .result-kv .kv-key {
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: var(--haira-muted);
+          min-width: 60px;
+          flex-shrink: 0;
+        }
+        .result-kv .kv-val {
+          color: var(--haira-text);
+          font-size: 0.82rem;
         }
       </style>
       <div class="card">
@@ -87,7 +165,7 @@ export class HairaResult extends HTMLElement {
           </div>
           <button class="copy-btn" id="copy-btn" title="Copy to clipboard">${iconCopy}</button>
         </div>
-        <div class="body" id="body"></div>
+        <div class="body raw" id="body"></div>
       </div>
     `;
 
@@ -104,19 +182,177 @@ export class HairaResult extends HTMLElement {
     dot.className = `dot ${isError ? "error" : "success"}`;
     label.textContent = isError ? "Error" : "Result";
 
+    // Try to extract a displayable message from structured responses
+    const obj = data as Record<string, unknown>;
+    if (
+      typeof data === "object" &&
+      data !== null &&
+      typeof obj.message === "string" &&
+      obj.message.length > 0
+    ) {
+      // Structured response with message field — render it nicely
+      this.rawText = obj.message as string;
+      body.className = "body rich";
+      body.innerHTML = this.renderMessage(
+        obj.message as string,
+        obj.status as string | undefined,
+      );
+      return;
+    }
+
+    // Simple key-value object (few keys, all scalar values)
+    if (
+      typeof data === "object" &&
+      data !== null &&
+      !Array.isArray(data)
+    ) {
+      const keys = Object.keys(obj);
+      if (keys.length > 0 && keys.length <= 10 && keys.every((k) => typeof obj[k] !== "object" || obj[k] === null)) {
+        this.rawText = JSON.stringify(data, null, 2);
+        body.className = "body rich";
+        body.innerHTML = keys
+          .map(
+            (k) =>
+              `<div class="result-kv"><span class="kv-key">${this.esc(k)}</span><span class="kv-val">${this.esc(String(obj[k] ?? ""))}</span></div>`,
+          )
+          .join("");
+        return;
+      }
+    }
+
+    // Fallback: raw JSON
     let text: string;
     if (typeof data === "string") {
       text = data;
     } else {
       text = JSON.stringify(data, null, 2);
     }
-
     this.rawText = text;
+    body.className = "body raw";
     body.textContent = text;
   }
 
   hide() {
     this.removeAttribute("visible");
+  }
+
+  private renderMessage(message: string, status?: string): string {
+    // Parse the message into sections based on common patterns:
+    // HEADER: content  or  ```lang\ncode\n```
+    const lines = message.split("\n");
+    const sections: Array<{
+      type: "heading" | "text" | "list" | "code";
+      label?: string;
+      lang?: string;
+      content: string;
+    }> = [];
+
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Code block: ```lang ... ```
+      const codeMatch = line.match(/^```(\w*)$/);
+      if (codeMatch) {
+        const lang = codeMatch[1] || "";
+        const codeLines: string[] = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith("```")) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        i++; // skip closing ```
+        sections.push({
+          type: "code",
+          lang,
+          content: codeLines.join("\n"),
+        });
+        continue;
+      }
+
+      // Section heading: ALL_CAPS_LABEL: rest
+      // e.g. "ROOT CAUSE: Something" or "AFFECTED:" or "FIX:"
+      const headingMatch = line.match(
+        /^([A-Z][A-Z _]{2,}):(.*)$/,
+      );
+      if (headingMatch) {
+        const label = headingMatch[1].trim();
+        const rest = headingMatch[2].trim();
+        // Collect subsequent lines until next heading or code block
+        const contentLines: string[] = rest ? [rest] : [];
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i];
+          if (
+            nextLine.match(/^[A-Z][A-Z _]{2,}:/) ||
+            nextLine.startsWith("```")
+          ) {
+            break;
+          }
+          contentLines.push(nextLine);
+          i++;
+        }
+        const content = contentLines.join("\n").trim();
+
+        // Check if content is a list (lines starting with -)
+        const contentLinesArr = content.split("\n");
+        const isList = contentLinesArr.length > 1 && contentLinesArr.every((l) => l.startsWith("- ") || l.trim() === "");
+        if (isList) {
+          sections.push({ type: "list", label, content });
+        } else {
+          sections.push({ type: "heading", label, content });
+        }
+        continue;
+      }
+
+      // Plain text line
+      if (line.trim()) {
+        sections.push({ type: "text", content: line });
+      }
+      i++;
+    }
+
+    // If no sections were parsed (plain text), just show as-is
+    if (sections.length === 0) {
+      return `<div class="section-value">${this.esc(message)}</div>`;
+    }
+
+    return sections
+      .map((s) => {
+        switch (s.type) {
+          case "heading":
+            return `<div class="result-section">
+              <div class="section-label${status === "error" && s.label?.includes("CAUSE") ? " error" : ""}">${this.esc(s.label || "")}</div>
+              <div class="section-value">${this.esc(s.content)}</div>
+            </div>`;
+          case "list":
+            return `<div class="result-section">
+              <div class="section-label">${this.esc(s.label || "")}</div>
+              <div class="section-value"><ul>${s.content
+                .split("\n")
+                .filter((l) => l.startsWith("- "))
+                .map((l) => `<li>${this.esc(l.slice(2))}</li>`)
+                .join("")}</ul></div>
+            </div>`;
+          case "code":
+            return `<div class="result-section">
+              ${s.lang ? `<div class="code-lang">${this.esc(s.lang)}</div>` : ""}
+              <div class="code-block">${this.esc(s.content)}</div>
+            </div>`;
+          case "text":
+            return `<div class="section-value">${this.esc(s.content)}</div>`;
+          default:
+            return "";
+        }
+      })
+      .join("");
+  }
+
+  private esc(s: string): string {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   }
 
   private async copyResult() {

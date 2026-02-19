@@ -152,12 +152,15 @@ export class HairaApp extends HTMLElement {
           overflow: hidden;
           min-height: 0;
         }
+        main.scrollable {
+          overflow-y: auto;
+        }
       </style>
       <div class="shell">
         <header>
           <a class="logo" href="/_ui/">
             <span class="logo-icon">${this.meta?.logo ? `<img src="${this.escapeHtml(this.meta.logo)}" alt="logo">` : logoSvg}</span>
-            <span class="logo-text">h<span class="ai">ai</span>ra</span>
+            <span class="logo-text">home</span>
           </a>
           ${
             this.meta && this.meta.mode !== "index"
@@ -168,7 +171,7 @@ export class HairaApp extends HTMLElement {
               : ""
           }
         </header>
-        <main id="content"></main>
+        <main id="content" class="${this.meta?.mode !== "chat" ? "scrollable" : ""}"></main>
       </div>
     `;
 

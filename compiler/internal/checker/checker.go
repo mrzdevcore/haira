@@ -878,6 +878,17 @@ func (c *checker) inferCall(call ast.CallExpr, span ast.Span) Type {
 	// Bare function call
 	if ident, ok := call.Callee.Node.(ast.IdentExpr); ok {
 		if fn, ok := c.env.LookupFunc(ident.Name); ok {
+			// env("KEY", float) → FloatType, env("KEY", int) → IntType
+			if ident.Name == "env" && len(call.Args) >= 2 {
+				if hint, ok := call.Args[1].Value.Node.(ast.IdentExpr); ok {
+					switch hint.Name {
+					case "float":
+						return FloatType{}
+					case "int":
+						return IntType{}
+					}
+				}
+			}
 			return fn.Return
 		}
 		// Don't warn for known types used as constructors

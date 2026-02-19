@@ -864,8 +864,9 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 }
 
 // emitStepReturn emits a return statement inside a step body, ensuring StepEnd is called first.
+// Early returns from a step indicate the step did not complete normally, so we mark it as failed.
 func emitStepReturn(em *GoEmitter, s ast.ReturnStmt, wfName, stepName, timerVar string) {
-	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, nil)", wfName, stepName, timerVar))
+	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, fmt.Errorf(\"step exited early\"))", wfName, stepName, timerVar))
 	if inCapturedContext || inRetryContext {
 		if len(s.Values) == 0 {
 			em.Line("return")

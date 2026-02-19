@@ -25,6 +25,20 @@ func ResolveStdlibCall(call ast.CallExpr) (string, bool) {
 		args := callArgsToGo(call.Args)
 		switch ident.Name {
 		case "env":
+			// env("KEY") → haira.Env("KEY")
+			// env("KEY", float) → haira.EnvFloat("KEY")
+			// env("KEY", int) → haira.EnvInt("KEY")
+			if len(call.Args) >= 2 {
+				if hint, ok := call.Args[1].Value.Node.(ast.IdentExpr); ok {
+					keyArg := ExprToGo(call.Args[0].Value)
+					switch hint.Name {
+					case "float":
+						return fmt.Sprintf("haira.EnvFloat(%s)", keyArg), true
+					case "int":
+						return fmt.Sprintf("haira.EnvInt(%s)", keyArg), true
+					}
+				}
+			}
 			return fmt.Sprintf("haira.Env(%s)", args), true
 		case "len":
 			return fmt.Sprintf("haira.Len(%s)", args), true

@@ -113,8 +113,14 @@ export class HairaConfirm extends HTMLElement {
       confirmBtn.textContent = confirmLabel;
       denyBtn.textContent = denyLabel;
 
-      confirmBtn.onclick = () => this.select(confirmLabel, confirmBtn, denyBtn);
-      denyBtn.onclick = () => this.select(denyLabel, denyBtn, confirmBtn);
+      if (props._restored) {
+        this.answered = true;
+        confirmBtn.disabled = true;
+        denyBtn.disabled = true;
+      } else {
+        confirmBtn.onclick = () => this.select(confirmLabel, confirmBtn, denyBtn);
+        denyBtn.onclick = () => this.select(denyLabel, denyBtn, confirmBtn);
+      }
     } catch {
       // Graceful fallback
     }

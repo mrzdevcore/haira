@@ -126,45 +126,52 @@ export class HairaChoices extends HTMLElement {
       const style = (props.style as string) || "buttons";
       const container = this.shadowRoot!.getElementById("options")!;
 
+      const isRestored = !!props._restored;
+      if (isRestored) this.answered = true;
+
       if (style === "list") {
         container.className = "options-list";
         container.innerHTML = options
           .map(
             (opt) =>
-              `<div class="opt-row" data-value="${this.esc(opt)}">
+              `<div class="opt-row${isRestored ? " disabled" : ""}" data-value="${this.esc(opt)}">
                 <span class="opt-radio"></span>
                 <span>${this.esc(opt)}</span>
               </div>`,
           )
           .join("");
 
-        container.querySelectorAll(".opt-row").forEach((row) => {
-          row.addEventListener("click", () => {
-            this.selectOption(
-              (row as HTMLElement).dataset.value || "",
-              container,
-              "list",
-            );
+        if (!isRestored) {
+          container.querySelectorAll(".opt-row").forEach((row) => {
+            row.addEventListener("click", () => {
+              this.selectOption(
+                (row as HTMLElement).dataset.value || "",
+                container,
+                "list",
+              );
+            });
           });
-        });
+        }
       } else {
         container.className = "options-buttons";
         container.innerHTML = options
           .map(
             (opt) =>
-              `<button class="opt-btn" data-value="${this.esc(opt)}">${this.esc(opt)}</button>`,
+              `<button class="opt-btn" data-value="${this.esc(opt)}"${isRestored ? " disabled" : ""}>${this.esc(opt)}</button>`,
           )
           .join("");
 
-        container.querySelectorAll(".opt-btn").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            this.selectOption(
-              (btn as HTMLElement).dataset.value || "",
-              container,
-              "buttons",
-            );
+        if (!isRestored) {
+          container.querySelectorAll(".opt-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              this.selectOption(
+                (btn as HTMLElement).dataset.value || "",
+                container,
+                "buttons",
+              );
+            });
           });
-        });
+        }
       }
     } catch {
       // Graceful fallback

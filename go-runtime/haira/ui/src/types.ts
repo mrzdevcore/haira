@@ -104,6 +104,7 @@ export interface ChatMessageEntry {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  ui_events?: ToolRenderEvent[];
 }
 
 // Generative UI types

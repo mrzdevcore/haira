@@ -28,9 +28,10 @@ type ChatSessionDetail struct {
 
 // ChatMessage is a single message in a chat session.
 type ChatMessage struct {
-	Role      string    `json:"role"` // "user" or "assistant"
-	Content   string    `json:"content"`
-	Timestamp time.Time `json:"timestamp"`
+	Role      string          `json:"role"` // "user" or "assistant"
+	Content   string          `json:"content"`
+	Timestamp time.Time       `json:"timestamp"`
+	UIEvents  json.RawMessage `json:"ui_events,omitempty"`
 }
 
 type chatStore struct {
@@ -107,6 +108,38 @@ func (s *chatStore) AddMessage(sessionID, role, content string) {
 	}
 
 	// Move to front of order
+	s.moveToFrontLocked(sessionID)
+	s.mu.Unlock()
+
+	s.persist()
+}
+
+// AddMessageWithUI appends a message with associated UI render events.
+func (s *chatStore) AddMessageWithUI(sessionID, role, content string, uiEvents []json.RawMessage) {
+	if len(uiEvents) == 0 {
+		s.AddMessage(sessionID, role, content)
+		return
+	}
+
+	s.mu.Lock()
+	sess, ok := s.sessions[sessionID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+
+	eventsJSON, _ := json.Marshal(uiEvents)
+
+	now := time.Now()
+	sess.Messages = append(sess.Messages, ChatMessage{
+		Role:      role,
+		Content:   content,
+		Timestamp: now,
+		UIEvents:  eventsJSON,
+	})
+	sess.MessageCount = len(sess.Messages)
+	sess.UpdatedAt = now
+
 	s.moveToFrontLocked(sessionID)
 	s.mu.Unlock()
 

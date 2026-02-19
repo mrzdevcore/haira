@@ -1077,12 +1077,32 @@ export class HairaChat extends HTMLElement {
         messagesOuter.classList.add("active");
 
         clearMessages();
-        for (const msg of detail.messages) {
+        const msgs = detail.messages;
+        for (let i = 0; i < msgs.length; i++) {
+          const msg = msgs[i];
           const el = addMessage(msg.role, msg.content);
           if (msg.role === "assistant") {
             el.updateContent(msg.content);
           }
+          // Replay persisted UI events (tables, confirmations, code blocks, etc.)
+          if (msg.ui_events && msg.ui_events.length > 0) {
+            // If there's a subsequent user message, this interaction is already
+            // answered — mark components as restored (disabled/inert).
+            // Otherwise, keep them live so the user can still interact.
+            const hasFollowUp = msgs.slice(i + 1).some((m) => m.role === "user");
+            for (const event of msg.ui_events) {
+              const renderer = document.createElement(
+                "haira-ui-renderer",
+              ) as HairaUIRenderer;
+              if (hasFollowUp) {
+                renderer.setAttribute("data-restored", "true");
+              }
+              messagesInner.insertBefore(renderer, typing);
+              requestAnimationFrame(() => renderer.render(event));
+            }
+          }
         }
+        messagesOuter.scrollTop = messagesOuter.scrollHeight;
       } catch {
         // Session doesn't exist yet on server — fresh chat
       }

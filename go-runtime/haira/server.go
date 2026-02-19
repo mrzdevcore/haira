@@ -187,6 +187,7 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 	flusher.Flush()
 
 	var fullReply strings.Builder
+	var uiEvents []json.RawMessage
 
 	for chunk := range ch {
 		if chunk.Done {
@@ -215,6 +216,10 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 				"props":     json.RawMessage(chunk.RenderProps),
 			})
 			fmt.Fprintf(rw, "event: tool_render\ndata: %s\n\n", data)
+			// Collect for persistence
+			if sessionID != "" {
+				uiEvents = append(uiEvents, data)
+			}
 		case "tool_end":
 			data, _ := json.Marshal(map[string]any{
 				"tool": chunk.ToolName,
@@ -232,9 +237,9 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 		flusher.Flush()
 	}
 
-	// Persist assistant reply
-	if sessionID != "" && fullReply.Len() > 0 {
-		globalChatStore.AddMessage(sessionID, "assistant", fullReply.String())
+	// Persist assistant reply with UI events
+	if sessionID != "" && (fullReply.Len() > 0 || len(uiEvents) > 0) {
+		globalChatStore.AddMessageWithUI(sessionID, "assistant", fullReply.String(), uiEvents)
 	}
 }
 

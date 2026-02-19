@@ -107,9 +107,11 @@ export class HairaUIRenderer extends HTMLElement {
     }
 
     const el = document.createElement(tagName);
+    const isRestored = this.hasAttribute("data-restored");
+    const finalProps = isRestored ? { ...props, _restored: true } : props;
     // setProps is called after the element is connected to the DOM
     requestAnimationFrame(() => {
-      (el as unknown as Renderable).setProps(props);
+      (el as unknown as Renderable).setProps(finalProps);
     });
     return el;
   }

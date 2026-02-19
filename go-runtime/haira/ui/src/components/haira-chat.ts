@@ -5,7 +5,7 @@ import {
   logoSvg,
 } from "../theme";
 import { streamSSE } from "../sse";
-import type { WorkflowMeta, ToolRenderEvent } from "../types";
+import type { WorkflowMeta, ToolRenderEvent, ChatSessionSummary, ChatSessionDetail } from "../types";
 import type { HairaMessage } from "./haira-message";
 import type { HairaToolCard } from "./haira-tool-card";
 import type { HairaUIRenderer } from "./haira-ui-renderer";
@@ -24,6 +24,14 @@ const iconChevronRight = `<svg width="14" height="14" viewBox="0 0 24 24" fill="
 
 const iconChevronLeft = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
 
+const iconPlus = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+const iconChat = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
+
+const iconTrash = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>`;
+
+const iconSidebar = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>`;
+
 export class HairaChat extends HTMLElement {
   private meta!: WorkflowMeta;
   private sessionId = "";
@@ -31,26 +39,179 @@ export class HairaChat extends HTMLElement {
 
   connectedCallback() {
     this.meta = JSON.parse(this.getAttribute("data-meta") || "{}");
-    this.sessionId =
-      sessionStorage.getItem(`haira-session-${this.meta.path}`) ||
-      crypto.randomUUID();
-    sessionStorage.setItem(`haira-session-${this.meta.path}`, this.sessionId);
+
+    // Session ID from URL ?session= param, or generate new
+    const url = new URL(window.location.href);
+    const urlSession = url.searchParams.get("session");
+    if (urlSession) {
+      this.sessionId = urlSession;
+    } else {
+      this.sessionId = crypto.randomUUID();
+      url.searchParams.set("session", this.sessionId);
+      window.history.replaceState({}, "", url.toString());
+    }
+
     this.render();
   }
 
   private render() {
     const m = this.meta;
-    const shadow = this.attachShadow({ mode: "open" });
+    const shadow = this.shadowRoot || this.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
         ${baseStyles}
         ${sharedKeyframes}
         :host {
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           flex: 1;
           overflow: hidden;
           position: relative;
+        }
+
+        /* ---- Session sidebar ---- */
+        .sidebar {
+          width: 240px;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          border-right: 1px solid var(--haira-border);
+          background: var(--haira-bg);
+          overflow: hidden;
+          transition: width 0.2s, opacity 0.2s;
+        }
+        .sidebar.collapsed {
+          width: 0;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .sidebar-header {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 0.55rem 0.65rem;
+          border-bottom: 1px solid var(--haira-border);
+          flex-shrink: 0;
+        }
+        .sidebar-title {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--haira-text-dim);
+          flex: 1;
+        }
+        .sidebar-btn {
+          background: none;
+          border: none;
+          color: var(--haira-muted);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.25rem;
+          border-radius: 4px;
+          transition: all 0.15s;
+        }
+        .sidebar-btn:hover {
+          color: var(--haira-accent);
+          background: var(--haira-accent-dim);
+        }
+        .sidebar-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 0.35rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          ${scrollbarStyles}
+        }
+        .session-item {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 0.45rem 0.5rem;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.12s;
+          text-decoration: none;
+          color: var(--haira-text-dim);
+          font-size: 0.78rem;
+          line-height: 1.35;
+          position: relative;
+        }
+        .session-item:hover {
+          background: var(--haira-bg-card);
+          color: var(--haira-text);
+        }
+        .session-item.active {
+          background: var(--haira-accent-dim);
+          color: var(--haira-accent);
+        }
+        .session-icon {
+          display: flex;
+          flex-shrink: 0;
+          opacity: 0.5;
+        }
+        .session-item.active .session-icon {
+          opacity: 1;
+        }
+        .session-title {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          min-width: 0;
+        }
+        .session-delete {
+          display: none;
+          background: none;
+          border: none;
+          color: var(--haira-muted);
+          cursor: pointer;
+          padding: 0.15rem;
+          border-radius: 3px;
+          flex-shrink: 0;
+          align-items: center;
+          justify-content: center;
+        }
+        .session-item:hover .session-delete {
+          display: flex;
+        }
+        .session-delete:hover {
+          color: var(--haira-error);
+          background: rgba(239, 68, 68, 0.1);
+        }
+        .sidebar-empty {
+          padding: 1rem;
+          text-align: center;
+          font-size: 0.75rem;
+          color: var(--haira-muted);
+          opacity: 0.5;
+        }
+
+        /* Sidebar toggle (in chat-main when sidebar collapsed) */
+        .sidebar-toggle {
+          position: absolute;
+          top: 0.5rem;
+          left: 0.5rem;
+          z-index: 10;
+          background: var(--haira-bg-card);
+          border: 1px solid var(--haira-border);
+          color: var(--haira-muted);
+          cursor: pointer;
+          display: none;
+          align-items: center;
+          justify-content: center;
+          padding: 0.35rem;
+          border-radius: 6px;
+          transition: all 0.15s;
+        }
+        .sidebar-toggle.visible {
+          display: flex;
+        }
+        .sidebar-toggle:hover {
+          color: var(--haira-accent);
+          border-color: var(--haira-accent);
+          background: var(--haira-accent-dim);
         }
 
         /* ---- Chat main column ---- */
@@ -458,6 +619,14 @@ export class HairaChat extends HTMLElement {
 
         /* Mobile */
         @media (max-width: 640px) {
+          .sidebar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 100;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+          }
           .messages-inner {
             padding: 1rem 0.75rem;
           }
@@ -474,7 +643,20 @@ export class HairaChat extends HTMLElement {
         }
       </style>
 
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">Chats</span>
+          <button class="sidebar-btn" id="new-chat-btn" title="New chat">${iconPlus}</button>
+          <button class="sidebar-btn" id="sidebar-close-btn" title="Close sidebar">${iconChevronLeft}</button>
+        </div>
+        <div class="sidebar-list" id="sidebar-list">
+          <div class="sidebar-empty" id="sidebar-empty">No chats yet</div>
+        </div>
+      </div>
+
       <div class="chat-main">
+        <button class="sidebar-toggle" id="sidebar-open-btn" title="Show chats">${iconSidebar}</button>
+
         <div class="welcome" id="welcome">
           <span class="welcome-icon">${m.logo ? `<img src="${this.esc(m.logo)}" alt="">` : logoSvg.replace(/width="22" height="22"/, 'width="56" height="56"')}</span>
           <h2>${this.esc(m.title || m.name || "Chat")}</h2>
@@ -565,6 +747,14 @@ export class HairaChat extends HTMLElement {
     const activityToggle = shadow.getElementById("activity-toggle")!;
     const toggleBadge = shadow.getElementById("toggle-badge")!;
 
+    // Sidebar elements
+    const sidebar = shadow.getElementById("sidebar")!;
+    const sidebarList = shadow.getElementById("sidebar-list")!;
+    const sidebarEmpty = shadow.getElementById("sidebar-empty")!;
+    const newChatBtn = shadow.getElementById("new-chat-btn")!;
+    const sidebarCloseBtn = shadow.getElementById("sidebar-close-btn")!;
+    const sidebarOpenBtn = shadow.getElementById("sidebar-open-btn")!;
+
     // Panel state
     let panelOpen = false;
     let runningCount = 0;
@@ -587,6 +777,67 @@ export class HairaChat extends HTMLElement {
 
     activityToggle.addEventListener("click", () => togglePanel());
     panelClose.addEventListener("click", () => togglePanel(false));
+
+    // --- Sidebar logic ---
+    let sidebarOpen = true;
+
+    const toggleSidebar = (open?: boolean) => {
+      sidebarOpen = open !== undefined ? open : !sidebarOpen;
+      sidebar.classList.toggle("collapsed", !sidebarOpen);
+      sidebarOpenBtn.classList.toggle("visible", !sidebarOpen);
+    };
+
+    sidebarCloseBtn.addEventListener("click", () => toggleSidebar(false));
+    sidebarOpenBtn.addEventListener("click", () => toggleSidebar(true));
+
+    const self = this;
+
+    const refreshSidebar = async () => {
+      try {
+        const resp = await fetch(`/_api/chats?workflow=${encodeURIComponent(m.path)}`);
+        if (!resp.ok) return;
+        const sessions: ChatSessionSummary[] = await resp.json();
+        if (!sessions || sessions.length === 0) {
+          sidebarEmpty.style.display = "";
+          // Remove session items but keep empty placeholder
+          sidebarList.querySelectorAll(".session-item").forEach((el) => el.remove());
+          return;
+        }
+        sidebarEmpty.style.display = "none";
+        // Remove old items
+        sidebarList.querySelectorAll(".session-item").forEach((el) => el.remove());
+
+        for (const sess of sessions) {
+          const item = document.createElement("div");
+          item.className = `session-item${sess.id === self.sessionId ? " active" : ""}`;
+          item.innerHTML = `
+            <span class="session-icon">${iconChat}</span>
+            <span class="session-title">${self.esc(sess.title || "New chat")}</span>
+            <button class="session-delete" title="Delete">${iconTrash}</button>
+          `;
+          item.addEventListener("click", (e) => {
+            if ((e.target as HTMLElement).closest(".session-delete")) return;
+            self.switchSession(sess.id);
+          });
+          item.querySelector(".session-delete")!.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await fetch(`/_api/chats/${sess.id}`, { method: "DELETE" });
+            if (sess.id === self.sessionId) {
+              // Deleted the active session — start a new one
+              self.startNewChat();
+            }
+            refreshSidebar();
+          });
+          sidebarList.appendChild(item);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+
+    newChatBtn.addEventListener("click", () => {
+      self.startNewChat();
+    });
 
     // Suggestions
     const defaultSuggestions = this.getSuggestions();
@@ -669,8 +920,6 @@ export class HairaChat extends HTMLElement {
 
     requestAnimationFrame(() => input.focus());
 
-    const self = this;
-
     const avatarValue = m.avatar || "H";
 
     function addMessage(
@@ -686,6 +935,12 @@ export class HairaChat extends HTMLElement {
       messagesInner.insertBefore(msg, typing);
       messagesOuter.scrollTop = messagesOuter.scrollHeight;
       return msg;
+    }
+
+    function clearMessages() {
+      // Remove all haira-message and haira-ui-renderer elements from messages-inner
+      const toRemove = messagesInner.querySelectorAll("haira-message, haira-tool-card, haira-ui-renderer");
+      toRemove.forEach((el) => el.remove());
     }
 
     async function send() {
@@ -801,11 +1056,58 @@ export class HairaChat extends HTMLElement {
             }
             sendBtn.disabled = false;
             input.focus();
+            // Refresh sidebar to reflect new/updated session
+            refreshSidebar();
           },
         },
         formData,
       );
     }
+
+    // --- Load existing session messages if resuming ---
+    const loadSession = async (sessionId: string) => {
+      try {
+        const resp = await fetch(`/_api/chats/${sessionId}`);
+        if (!resp.ok) return;
+        const detail: ChatSessionDetail = await resp.json();
+        if (!detail.messages || detail.messages.length === 0) return;
+
+        // Show messages area, hide welcome
+        welcome.classList.add("hidden");
+        messagesOuter.classList.add("active");
+
+        clearMessages();
+        for (const msg of detail.messages) {
+          const el = addMessage(msg.role, msg.content);
+          if (msg.role === "assistant") {
+            el.updateContent(msg.content);
+          }
+        }
+      } catch {
+        // Session doesn't exist yet on server — fresh chat
+      }
+    };
+
+    // Initialize: load session + sidebar
+    loadSession(this.sessionId);
+    refreshSidebar();
+  }
+
+  private switchSession(newSessionId: string) {
+    this.sessionId = newSessionId;
+    const url = new URL(window.location.href);
+    url.searchParams.set("session", newSessionId);
+    window.history.pushState({}, "", url.toString());
+    // Re-render the entire component
+    if (this.shadowRoot) {
+      this.shadowRoot.innerHTML = "";
+    }
+    this.render();
+  }
+
+  private startNewChat() {
+    const newId = crypto.randomUUID();
+    this.switchSession(newId);
   }
 
   private setFile(

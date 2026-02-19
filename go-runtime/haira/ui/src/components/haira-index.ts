@@ -4,7 +4,7 @@ import {
   methodColor,
   uiTypeColor,
 } from "../theme";
-import type { WorkflowMeta, RunSummary } from "../types";
+import type { WorkflowMeta, RunSummary, ChatSessionSummary } from "../types";
 
 export class HairaIndex extends HTMLElement {
   connectedCallback() {
@@ -160,6 +160,13 @@ export class HairaIndex extends HTMLElement {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          min-width: 0;
+        }
+        .run-name .run-id {
+          font-family: var(--haira-mono);
+          font-size: 0.7rem;
+          color: var(--haira-muted);
+          margin-left: 0.4rem;
         }
         .run-time {
           font-size: 0.72rem;
@@ -187,6 +194,61 @@ export class HairaIndex extends HTMLElement {
         .run-status.running {
           color: var(--haira-accent);
           background: rgba(232, 163, 23, 0.1);
+        }
+
+        /* Recent Chats */
+        .chat {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: var(--haira-bg-card);
+          border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius-sm);
+          padding: 0.6rem 0.85rem;
+          margin-bottom: 0.35rem;
+          text-decoration: none;
+          color: var(--haira-text);
+          transition: all 0.15s;
+          animation: fadeIn 0.25s ease-out both;
+        }
+        .chat:hover {
+          border-color: rgba(232, 163, 23, 0.3);
+          background: var(--haira-bg-card-hover);
+        }
+        .chat-icon {
+          color: var(--haira-accent);
+          display: flex;
+          flex-shrink: 0;
+          opacity: 0.6;
+        }
+        .chat-title {
+          flex: 1;
+          font-size: 0.82rem;
+          font-weight: 500;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          min-width: 0;
+        }
+        .chat-wf {
+          font-family: var(--haira-mono);
+          font-size: 0.7rem;
+          color: var(--haira-muted);
+          margin-left: 0.4rem;
+        }
+        .chat-time {
+          font-size: 0.72rem;
+          font-family: var(--haira-mono);
+          color: var(--haira-muted);
+          flex-shrink: 0;
+        }
+        .chat-count {
+          font-size: 0.62rem;
+          color: var(--haira-muted);
+          flex-shrink: 0;
+          padding: 0.08rem 0.35rem;
+          border-radius: 3px;
+          background: var(--haira-bg-elevated);
         }
       </style>
       <div class="container">
@@ -216,12 +278,46 @@ export class HairaIndex extends HTMLElement {
                 )
                 .join("")
         }
+        <div id="chats-section"></div>
         <div id="runs-section"></div>
       </div>
     `;
 
-    // Fetch recent runs asynchronously
+    // Fetch recent chats and runs asynchronously
+    this.loadChats(shadow);
     this.loadRuns(shadow);
+  }
+
+  private async loadChats(shadow: ShadowRoot) {
+    const section = shadow.getElementById("chats-section");
+    if (!section) return;
+
+    try {
+      const resp = await fetch("/_api/chats");
+      if (!resp.ok) return;
+      const chats: ChatSessionSummary[] = await resp.json();
+      if (!chats || chats.length === 0) return;
+
+      const iconChat = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
+
+      section.innerHTML = `
+        <h2 class="section-title">Recent Chats</h2>
+        ${chats
+          .map(
+            (chat, i) => `
+          <a class="chat" href="/_ui${this.esc(chat.workflow_path)}?session=${this.esc(chat.id)}" style="animation-delay:${i * 30}ms">
+            <span class="chat-icon">${iconChat}</span>
+            <span class="chat-title">${this.esc(chat.title || "New chat")}<span class="chat-wf">${this.esc(chat.workflow_name)}</span></span>
+            <span class="chat-time">${this.relativeTime(chat.updated_at)}</span>
+            <span class="chat-count">${chat.message_count} msg</span>
+          </a>
+        `,
+          )
+          .join("")}
+      `;
+    } catch {
+      // Silently fail — chats are optional
+    }
   }
 
   private async loadRuns(shadow: ShadowRoot) {
@@ -241,7 +337,7 @@ export class HairaIndex extends HTMLElement {
             (run, i) => `
           <a class="run" href="/_ui${this.esc(run.workflow_path)}?run=${this.esc(run.id)}" style="animation-delay:${i * 30}ms">
             <span class="run-dot ${run.status}"></span>
-            <span class="run-name">${this.esc(run.workflow_name)}</span>
+            <span class="run-name">${this.esc(run.workflow_name)}<span class="run-id">${this.shortId(run.id)}</span></span>
             <span class="run-time">${this.relativeTime(run.started_at)}</span>
             <span class="run-status ${run.status}">${run.status}</span>
           </a>
@@ -266,6 +362,13 @@ export class HairaIndex extends HTMLElement {
     if (diffHr < 24) return `${diffHr}h ago`;
     const diffDay = Math.floor(diffHr / 24);
     return `${diffDay}d ago`;
+  }
+
+  private shortId(id: string): string {
+    // "run_20260219_143052_001" → "143052_001"
+    const parts = id.split("_");
+    if (parts.length >= 4) return parts.slice(2).join("_");
+    return id;
   }
 
   private esc(s: string): string {

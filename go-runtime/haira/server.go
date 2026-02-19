@@ -29,8 +29,9 @@ func NewServer(workflows []*WorkflowDef) *Server {
 		workflows: workflows,
 	}
 
-	// Load persisted run history
+	// Load persisted history
 	globalRunStore.load()
+	globalChatStore.load()
 
 	// Register auto-UI routes (unless disabled)
 	if os.Getenv("HAIRA_DISABLE_UI") == "" {
@@ -161,6 +162,17 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 		return
 	}
 
+	// --- Chat session tracking ---
+	sessionID, _ := params["session_id"].(string)
+	if sessionID != "" {
+		globalChatStore.EnsureSession(sessionID, wf.Name, wf.Path, "")
+		// Find the chat message param and record the user message
+		chatParam := findChatParam(wf.Params)
+		if userMsg, ok := params[chatParam].(string); ok && userMsg != "" {
+			globalChatStore.AddMessage(sessionID, "user", userMsg)
+		}
+	}
+
 	ch, err := wf.StreamHandler(params)
 	if err != nil {
 		rw.Header().Set("Content-Type", "application/json")
@@ -173,6 +185,8 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 	rw.Header().Set("Cache-Control", "no-cache")
 	rw.Header().Set("Connection", "keep-alive")
 	flusher.Flush()
+
+	var fullReply strings.Builder
 
 	for chunk := range ch {
 		if chunk.Done {
@@ -210,11 +224,17 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 		default:
 			// Normal text delta (Type == "")
 			if chunk.Delta != "" {
+				fullReply.WriteString(chunk.Delta)
 				data, _ := json.Marshal(map[string]string{"delta": chunk.Delta})
 				fmt.Fprintf(rw, "data: %s\n\n", data)
 			}
 		}
 		flusher.Flush()
+	}
+
+	// Persist assistant reply
+	if sessionID != "" && fullReply.Len() > 0 {
+		globalChatStore.AddMessage(sessionID, "assistant", fullReply.String())
 	}
 }
 
@@ -300,6 +320,10 @@ func (s *Server) registerUIRoutes() {
 	// Run history API
 	s.mux.HandleFunc("/_api/runs", s.handleListRuns)
 	s.mux.HandleFunc("/_api/runs/", s.handleRunRoute)
+
+	// Chat session API
+	s.mux.HandleFunc("/_api/chats", s.handleListChats)
+	s.mux.HandleFunc("/_api/chats/", s.handleChatRoute)
 
 	for _, w := range s.workflows {
 		wf := w
@@ -492,6 +516,45 @@ func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID 
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// --- Chat Session API ---
+
+func (s *Server) handleListChats(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	wfPath := r.URL.Query().Get("workflow")
+	owner := r.URL.Query().Get("owner")
+	chats := globalChatStore.ListSessions(wfPath, owner)
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(chats)
+}
+
+func (s *Server) handleChatRoute(rw http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/_api/chats/")
+	if id == "" {
+		http.NotFound(rw, r)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		sess := globalChatStore.GetSession(id)
+		if sess == nil {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(sess)
+	case "DELETE":
+		globalChatStore.DeleteSession(id)
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(map[string]string{"status": "deleted"})
+	default:
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 

@@ -46,6 +46,12 @@ export class HairaApp extends HTMLElement {
         this.meta = null;
       }
     }
+    // Set browser tab title
+    if (this.meta) {
+      const name = this.meta.title || this.meta.name;
+      document.title = name ? `${name} — Haira` : "Haira";
+    }
+
     this.render();
   }
 

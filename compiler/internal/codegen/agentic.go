@@ -871,8 +871,26 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 func emitStepReturn(em *GoEmitter, s ast.ReturnStmt, wfName, stepName, timerVar string) {
 	if inRetryContext {
 		// Don't call StepEnd — the retry loop handles that.
-		// Set the retry error so the loop continues to the next attempt.
-		em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"retry\")", currentRetryVar))
+		// Capture the return value's message so onerror gets a meaningful error string.
+		if len(s.Values) > 0 {
+			retryValVar := fmt.Sprintf("%s_val", currentRetryVar)
+			em.Line(fmt.Sprintf("var %s any = %s", retryValVar, ExprToGo(s.Values[0])))
+			em.OpenBlock(fmt.Sprintf("if _m, ok := %s.(map[string]any); ok", retryValVar))
+			em.OpenBlock("if _msg, ok := _m[\"message\"].(string); ok")
+			em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"%%s\", _msg)", currentRetryVar))
+			em.Dedent()
+			em.Line("} else {")
+			em.Indent()
+			em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"%%v\", %s)", currentRetryVar, retryValVar))
+			em.CloseBlock()
+			em.Dedent()
+			em.Line("} else {")
+			em.Indent()
+			em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"%%v\", %s)", currentRetryVar, retryValVar))
+			em.CloseBlock()
+		} else {
+			em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"retry\")", currentRetryVar))
+		}
 		em.Line("return")
 		return
 	}

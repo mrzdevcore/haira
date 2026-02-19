@@ -83,6 +83,29 @@ export interface RunDetail {
   finished_at?: string;
 }
 
+// Chat session types
+
+export interface ChatSessionSummary {
+  id: string;
+  workflow_name: string;
+  workflow_path: string;
+  title: string;
+  owner?: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ChatSessionDetail extends ChatSessionSummary {
+  messages: ChatMessageEntry[];
+}
+
+export interface ChatMessageEntry {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
 // Generative UI types
 
 export interface ToolRenderEvent {

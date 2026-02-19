@@ -57,26 +57,34 @@ func VectorEmbedBatch(provider *Provider, texts []any) [][]float32 {
 }
 
 // ---------------------------------------------------------------------------
-// pgvector Collection
+// Unified Vector Collection (pgvector or chromem-go)
 // ---------------------------------------------------------------------------
 
-// VectorCollection represents a pgvector-backed document collection.
+// VectorCollection represents a vector document collection.
+// When DB is non-nil, uses pgvector (Postgres). When local is non-nil, uses chromem-go.
 type VectorCollection struct {
+	// pgvector backend
 	DB         *DB
 	Table      string
 	Dimensions int
+	// local backend (chromem-go)
+	local *LocalVectorCollection
 }
 
-// VectorNewCollection creates or ensures a pgvector collection table exists.
-// Creates: id SERIAL PRIMARY KEY, content TEXT, embedding vector(N), metadata JSONB, created_at TIMESTAMPTZ.
+// VectorNewCollection creates or ensures a vector collection exists.
+// If db is nil, uses the embedded chromem-go backend (local development).
+// If db is non-nil, uses pgvector (production Postgres).
 func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection {
-	// Enable pgvector extension
+	if db == nil {
+		return &VectorCollection{local: VectorNewLocalCollection(name, dimensions)}
+	}
+
+	// pgvector backend
 	_, err := db.conn.Exec("CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
 		panic(fmt.Sprintf("pgvector extension: %v", err))
 	}
 
-	// Create table if not exists
 	createSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
@@ -91,12 +99,10 @@ func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection 
 		panic(fmt.Sprintf("create collection %q: %v", name, err))
 	}
 
-	// Create index for cosine similarity search
 	indexSQL := fmt.Sprintf(
 		"CREATE INDEX IF NOT EXISTS %s_embedding_idx ON %s USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)",
 		name, name,
 	)
-	// Ignore index creation errors (may fail if not enough rows yet)
 	db.conn.Exec(indexSQL)
 
 	return &VectorCollection{
@@ -109,12 +115,14 @@ func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection 
 // VectorInsert inserts a document with embedding and optional metadata.
 // params: { content: string, embedding: []float32, metadata: map[string]any }
 func VectorInsert(coll *VectorCollection, params map[string]any) {
-	content, _ := params["content"].(string)
+	if coll.local != nil {
+		LocalVectorInsert(coll.local, params)
+		return
+	}
 
-	// Convert embedding to pgvector format: [0.1,0.2,0.3]
+	content, _ := params["content"].(string)
 	embeddingStr := formatVector(params["embedding"])
 
-	// Convert metadata to JSON
 	metadataJSON := "{}"
 	if meta, ok := params["metadata"]; ok {
 		if b, err := json.Marshal(meta); err == nil {
@@ -133,9 +141,13 @@ func VectorInsert(coll *VectorCollection, params map[string]any) {
 }
 
 // VectorSearch performs cosine similarity search on the collection.
-// params: { query: []float32, limit: int, filter: string (optional SQL WHERE clause) }
+// params: { query: []float32, limit: int, filter: string (optional SQL WHERE clause, pgvector only) }
 // Returns: [{ content: string, metadata: map, distance: float64 }]
 func VectorSearch(coll *VectorCollection, params map[string]any) []map[string]any {
+	if coll.local != nil {
+		return LocalVectorSearch(coll.local, params)
+	}
+
 	queryStr := formatVector(params["query"])
 
 	limit := 5
@@ -148,7 +160,6 @@ func VectorSearch(coll *VectorCollection, params map[string]any) []map[string]an
 		}
 	}
 
-	// Build query with optional filter
 	filter := ""
 	if f, ok := params["filter"].(string); ok && f != "" {
 		filter = " WHERE " + f

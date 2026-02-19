@@ -539,17 +539,44 @@ func resolveVectorEmbedBatch(call ast.CallExpr) string {
 	return fmt.Sprintf("haira.VectorEmbedBatch(%s, %s)", providerArg, textsArg)
 }
 
-// resolveVectorCollection converts vector.collection(db, "name", dimensions: N)
-// → haira.VectorNewCollection(db, "name", N)
+// resolveVectorCollection converts:
+//
+//	vector.collection(db, "name", dimensions: N) → haira.VectorNewCollection(db, "name", N)
+//	vector.collection("name", dimensions: N)     → haira.VectorNewCollection(nil, "name", N)
 func resolveVectorCollection(call ast.CallExpr) string {
-	if len(call.Args) < 2 {
+	if len(call.Args) < 1 {
 		return "haira.VectorNewCollection(nil, \"\", 0)"
 	}
-	dbArg := ExprToGo(call.Args[0].Value)
-	nameArg := ExprToGo(call.Args[1].Value)
+
+	// Detect if first arg is a string literal (no-db form)
+	firstIsString := false
+	if lit, ok := call.Args[0].Value.Node.(ast.LiteralExpr); ok {
+		if _, ok := lit.Lit.(ast.StringLit); ok {
+			firstIsString = true
+		}
+	}
+
+	var dbArg, nameArg string
+	var restArgs []ast.Argument
+
+	if firstIsString {
+		// No db: vector.collection("name", dimensions: N)
+		dbArg = "nil"
+		nameArg = ExprToGo(call.Args[0].Value)
+		restArgs = call.Args[1:]
+	} else {
+		// With db: vector.collection(db, "name", dimensions: N)
+		if len(call.Args) < 2 {
+			return "haira.VectorNewCollection(nil, \"\", 0)"
+		}
+		dbArg = ExprToGo(call.Args[0].Value)
+		nameArg = ExprToGo(call.Args[1].Value)
+		restArgs = call.Args[2:]
+	}
+
 	// Look for named arg "dimensions"
 	dimArg := "0"
-	for _, arg := range call.Args[2:] {
+	for _, arg := range restArgs {
 		if arg.Name != nil && arg.Name.Node == "dimensions" {
 			dimArg = ExprToGo(arg.Value)
 			break

@@ -29,9 +29,10 @@ func NewServer(workflows []*WorkflowDef) *Server {
 		workflows: workflows,
 	}
 
-	// Load persisted history
-	globalRunStore.load()
-	globalChatStore.load()
+	// Initialize unified storage (SQLite or Postgres based on HAIRA_DATABASE_URL)
+	if err := InitStore(); err != nil {
+		fmt.Fprintf(os.Stderr, "haira: failed to init store: %v\n", err)
+	}
 
 	// Register auto-UI routes (unless disabled)
 	if os.Getenv("HAIRA_DISABLE_UI") == "" {
@@ -165,11 +166,11 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 	// --- Chat session tracking ---
 	sessionID, _ := params["session_id"].(string)
 	if sessionID != "" {
-		globalChatStore.EnsureSession(sessionID, wf.Name, wf.Path, "")
+		globalStore.EnsureSession(sessionID, wf.Name, wf.Path, "")
 		// Find the chat message param and record the user message
 		chatParam := findChatParam(wf.Params)
 		if userMsg, ok := params[chatParam].(string); ok && userMsg != "" {
-			globalChatStore.AddMessage(sessionID, "user", userMsg)
+			globalStore.AddMessage(sessionID, "user", userMsg, nil)
 		}
 	}
 
@@ -239,7 +240,7 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 
 	// Persist assistant reply with UI events
 	if sessionID != "" && (fullReply.Len() > 0 || len(uiEvents) > 0) {
-		globalChatStore.AddMessageWithUI(sessionID, "assistant", fullReply.String(), uiEvents)
+		globalStore.AddMessage(sessionID, "assistant", fullReply.String(), uiEvents)
 	}
 }
 
@@ -258,7 +259,20 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 	flusher.Flush()
 
 	// Create a run in the store and send the run ID to the client
-	runID := globalRunStore.CreateRun(wf.Name, wf.Path, sanitizeParams(params))
+	runID := nextRunID()
+	now := time.Now()
+	run := &Run{
+		ID:           runID,
+		WorkflowName: wf.Name,
+		WorkflowPath: wf.Path,
+		Status:       RunStatusRunning,
+		Params:       sanitizeParams(params),
+		Steps:        []StepEvent{},
+		StartedAt:    now,
+	}
+	globalStore.CreateRun(run)
+	globalRunSubs.TrackRun(run)
+
 	idData, _ := json.Marshal(map[string]string{"run_id": runID})
 	fmt.Fprintf(rw, "event: run_id\ndata: %s\n\n", idData)
 	flusher.Flush()
@@ -281,7 +295,8 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 
 	// Stream step events until the handler completes
 	for event := range stepCh {
-		globalRunStore.RecordStepEvent(runID, event)
+		globalRunSubs.RecordStepEvent(runID, event)
+		globalStore.UpdateRun(run) // run.Steps updated by RecordStepEvent (same pointer)
 		data, _ := json.Marshal(event)
 		fmt.Fprintf(rw, "event: step\ndata: %s\n\n", data)
 		flusher.Flush()
@@ -289,12 +304,21 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 
 	// Send final result
 	res := <-resultCh
+	finishedAt := time.Now()
 	if res.err != nil {
-		globalRunStore.FailRun(runID, res.err.Error())
+		run.Status = RunStatusFailed
+		run.Error = res.err.Error()
+		run.FinishedAt = &finishedAt
+		globalStore.UpdateRun(run)
+		globalRunSubs.FinishRun(runID)
 		errData, _ := json.Marshal(map[string]string{"error": res.err.Error()})
 		fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
 	} else {
-		globalRunStore.CompleteRun(runID, res.data)
+		run.Status = RunStatusCompleted
+		run.Result = res.data
+		run.FinishedAt = &finishedAt
+		globalStore.UpdateRun(run)
+		globalRunSubs.FinishRun(runID)
 		resultData, _ := json.Marshal(res.data)
 		fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
 	}
@@ -414,7 +438,11 @@ func (s *Server) handleListRuns(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wfPath := r.URL.Query().Get("workflow")
-	runs := globalRunStore.ListRuns(wfPath)
+	runs, err := globalStore.ListRuns(wfPath)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(runs)
 }
@@ -435,7 +463,11 @@ func (s *Server) handleRunRoute(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// /_api/runs/{id} — get full run
-	run := globalRunStore.GetRun(path)
+	run, err := globalStore.GetRun(path)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if run == nil {
 		http.NotFound(rw, r)
 		return
@@ -446,7 +478,11 @@ func (s *Server) handleRunRoute(rw http.ResponseWriter, r *http.Request) {
 
 // handleRunStream replays buffered events and streams live events for in-progress runs.
 func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID string) {
-	run := globalRunStore.GetRun(runID)
+	run, err := globalStore.GetRun(runID)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if run == nil {
 		http.NotFound(rw, r)
 		return
@@ -462,12 +498,13 @@ func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID 
 	rw.Header().Set("Cache-Control", "no-cache")
 	rw.Header().Set("Connection", "keep-alive")
 
-	// Replay all buffered events
-	globalRunStore.mu.RLock()
-	buffered := make([]StepEvent, len(run.Steps))
-	copy(buffered, run.Steps)
-	status := run.Status
-	globalRunStore.mu.RUnlock()
+	// Replay all buffered events from the in-memory tracker (or from DB)
+	buffered, status := globalRunSubs.GetSteps(runID)
+	if buffered == nil {
+		// Not tracked in-memory (already finished), use DB data
+		buffered = run.Steps
+		status = run.Status
+	}
 
 	for _, event := range buffered {
 		data, _ := json.Marshal(event)
@@ -490,8 +527,8 @@ func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID 
 	}
 
 	// Subscribe to live updates for in-progress run
-	ch := globalRunStore.Subscribe(runID)
-	defer globalRunStore.Unsubscribe(runID, ch)
+	ch := globalRunSubs.Subscribe(runID)
+	defer globalRunSubs.Unsubscribe(runID, ch)
 
 	// Detect client disconnect
 	ctx := r.Context()
@@ -501,7 +538,7 @@ func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID 
 		case event, ok := <-ch:
 			if !ok {
 				// Channel closed — run completed. Fetch final state.
-				finalRun := globalRunStore.GetRun(runID)
+				finalRun, _ := globalStore.GetRun(runID)
 				if finalRun != nil {
 					if finalRun.Error != "" {
 						errData, _ := json.Marshal(map[string]string{"error": finalRun.Error})
@@ -533,7 +570,11 @@ func (s *Server) handleListChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	wfPath := r.URL.Query().Get("workflow")
 	owner := r.URL.Query().Get("owner")
-	chats := globalChatStore.ListSessions(wfPath, owner)
+	chats, err := globalStore.ListSessions(wfPath, owner)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(chats)
 }
@@ -547,7 +588,11 @@ func (s *Server) handleChatRoute(rw http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		sess := globalChatStore.GetSession(id)
+		sess, err := globalStore.GetSession(id)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		if sess == nil {
 			http.NotFound(rw, r)
 			return
@@ -555,7 +600,7 @@ func (s *Server) handleChatRoute(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(sess)
 	case "DELETE":
-		globalChatStore.DeleteSession(id)
+		globalStore.DeleteSession(id)
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(map[string]string{"status": "deleted"})
 	default:

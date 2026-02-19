@@ -1,10 +1,7 @@
 package haira
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,85 +41,45 @@ type RunSummary struct {
 	StepCount    int        `json:"step_count"`
 }
 
-type runStore struct {
+// ---------------------------------------------------------------------------
+// In-memory run tracking + pub/sub for live SSE streaming
+// ---------------------------------------------------------------------------
+
+// runSubscribers tracks in-progress runs and their SSE subscribers.
+// Persistent storage is handled by the Store interface; this is purely
+// for real-time event broadcasting and step buffering during execution.
+type runSubscribers struct {
 	mu          sync.RWMutex
-	runs        []*Run
-	subscribers map[string][]chan StepEvent
-	maxRuns     int
+	runs        map[string]*Run            // in-progress runs only
+	subscribers map[string][]chan StepEvent // runID → subscriber channels
 }
 
-var globalRunStore = &runStore{
+var globalRunSubs = &runSubscribers{
+	runs:        make(map[string]*Run),
 	subscribers: make(map[string][]chan StepEvent),
-	maxRuns:     50,
 }
 
 var runCounter atomic.Int64
-
-func init() {
-	if v := os.Getenv("HAIRA_MAX_RUNS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			globalRunStore.maxRuns = n
-		}
-	}
-}
 
 func nextRunID() string {
 	n := runCounter.Add(1)
 	return fmt.Sprintf("run_%s_%03d", time.Now().Format("20060102_150405"), n)
 }
 
-// CreateRun starts tracking a new run. Returns the run ID.
-func (s *runStore) CreateRun(wfName, wfPath string, params map[string]any) string {
-	id := nextRunID()
-	run := &Run{
-		ID:           id,
-		WorkflowName: wfName,
-		WorkflowPath: wfPath,
-		Status:       RunStatusRunning,
-		Params:       params,
-		Steps:        []StepEvent{},
-		StartedAt:    time.Now(),
-	}
-
+// TrackRun starts tracking a run in memory for live event streaming.
+func (s *runSubscribers) TrackRun(run *Run) {
 	s.mu.Lock()
-	// Prepend (newest first)
-	s.runs = append([]*Run{run}, s.runs...)
-	// Evict old completed runs if over cap
-	if len(s.runs) > s.maxRuns {
-		s.evictLocked()
-	}
+	s.runs[run.ID] = run
 	s.mu.Unlock()
-
-	return id
 }
 
-// evictLocked removes the oldest completed/failed runs to stay within maxRuns.
-// Must be called with s.mu held.
-func (s *runStore) evictLocked() {
-	for len(s.runs) > s.maxRuns {
-		// Find the oldest completed/failed run to remove (search from end)
-		removed := false
-		for i := len(s.runs) - 1; i >= 0; i-- {
-			if s.runs[i].Status != RunStatusRunning {
-				s.runs = append(s.runs[:i], s.runs[i+1:]...)
-				removed = true
-				break
-			}
-		}
-		if !removed {
-			break // all runs are still running, can't evict
-		}
-	}
-}
-
-// RecordStepEvent appends a step event to a run and broadcasts to subscribers.
-func (s *runStore) RecordStepEvent(runID string, event StepEvent) {
+// RecordStepEvent appends a step event to an in-progress run and broadcasts to subscribers.
+func (s *runSubscribers) RecordStepEvent(runID string, event StepEvent) {
 	s.mu.Lock()
-	run := s.findLocked(runID)
+	run := s.runs[runID]
 	if run != nil {
 		run.Steps = append(run.Steps, event)
 	}
-	// Broadcast to subscribers
 	subs := s.subscribers[runID]
 	s.mu.Unlock()
 
@@ -135,72 +92,33 @@ func (s *runStore) RecordStepEvent(runID string, event StepEvent) {
 	}
 }
 
-// CompleteRun marks a run as completed with a result.
-func (s *runStore) CompleteRun(runID string, result any) {
-	now := time.Now()
+// FinishRun closes all subscriber channels and removes the run from in-memory tracking.
+func (s *runSubscribers) FinishRun(runID string) {
 	s.mu.Lock()
-	run := s.findLocked(runID)
-	if run != nil {
-		run.Status = RunStatusCompleted
-		run.Result = result
-		run.FinishedAt = &now
+	for _, ch := range s.subscribers[runID] {
+		close(ch)
 	}
-	// Close and remove all subscribers
-	s.closeSubscribersLocked(runID)
+	delete(s.subscribers, runID)
+	delete(s.runs, runID)
 	s.mu.Unlock()
-
-	s.persist()
 }
 
-// FailRun marks a run as failed with an error message.
-func (s *runStore) FailRun(runID string, errMsg string) {
-	now := time.Now()
-	s.mu.Lock()
-	run := s.findLocked(runID)
-	if run != nil {
-		run.Status = RunStatusFailed
-		run.Error = errMsg
-		run.FinishedAt = &now
-	}
-	s.closeSubscribersLocked(runID)
-	s.mu.Unlock()
-
-	s.persist()
-}
-
-// ListRuns returns summaries of recent runs, newest first.
-// If wfPath is non-empty, filters by workflow path.
-func (s *runStore) ListRuns(wfPath string) []RunSummary {
+// GetSteps returns buffered steps and status for an in-progress run.
+// Returns nil, "" if the run is not tracked (already finished).
+func (s *runSubscribers) GetSteps(runID string) ([]StepEvent, RunStatus) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	result := make([]RunSummary, 0, len(s.runs))
-	for _, run := range s.runs {
-		if wfPath != "" && run.WorkflowPath != wfPath {
-			continue
-		}
-		result = append(result, RunSummary{
-			ID:           run.ID,
-			WorkflowName: run.WorkflowName,
-			WorkflowPath: run.WorkflowPath,
-			Status:       run.Status,
-			StartedAt:    run.StartedAt,
-			FinishedAt:   run.FinishedAt,
-			StepCount:    len(run.Steps),
-		})
+	run := s.runs[runID]
+	if run == nil {
+		return nil, ""
 	}
-	return result
-}
-
-// GetRun returns the full run by ID, or nil if not found.
-func (s *runStore) GetRun(id string) *Run {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.findLocked(id)
+	steps := make([]StepEvent, len(run.Steps))
+	copy(steps, run.Steps)
+	return steps, run.Status
 }
 
 // Subscribe returns a channel that receives live step events for an in-progress run.
-func (s *runStore) Subscribe(runID string) chan StepEvent {
+func (s *runSubscribers) Subscribe(runID string) chan StepEvent {
 	ch := make(chan StepEvent, 32)
 	s.mu.Lock()
 	s.subscribers[runID] = append(s.subscribers[runID], ch)
@@ -209,7 +127,7 @@ func (s *runStore) Subscribe(runID string) chan StepEvent {
 }
 
 // Unsubscribe removes a subscriber channel for a run.
-func (s *runStore) Unsubscribe(runID string, ch chan StepEvent) {
+func (s *runSubscribers) Unsubscribe(runID string, ch chan StepEvent) {
 	s.mu.Lock()
 	subs := s.subscribers[runID]
 	for i, sub := range subs {
@@ -218,58 +136,5 @@ func (s *runStore) Unsubscribe(runID string, ch chan StepEvent) {
 			break
 		}
 	}
-	s.mu.Unlock()
-}
-
-func (s *runStore) findLocked(id string) *Run {
-	for _, run := range s.runs {
-		if run.ID == id {
-			return run
-		}
-	}
-	return nil
-}
-
-func (s *runStore) closeSubscribersLocked(runID string) {
-	for _, ch := range s.subscribers[runID] {
-		close(ch)
-	}
-	delete(s.subscribers, runID)
-}
-
-// --- File persistence ---
-
-const runsFile = ".haira-runs.json"
-
-func (s *runStore) persist() {
-	s.mu.RLock()
-	data, err := json.MarshalIndent(s.runs, "", "  ")
-	s.mu.RUnlock()
-	if err != nil {
-		return
-	}
-	os.WriteFile(runsFile, data, 0644)
-}
-
-func (s *runStore) load() {
-	data, err := os.ReadFile(runsFile)
-	if err != nil {
-		return
-	}
-	var runs []*Run
-	if json.Unmarshal(data, &runs) != nil {
-		return
-	}
-	// Mark interrupted runs as failed
-	for _, run := range runs {
-		if run.Status == RunStatusRunning {
-			now := time.Now()
-			run.Status = RunStatusFailed
-			run.Error = "server restarted"
-			run.FinishedAt = &now
-		}
-	}
-	s.mu.Lock()
-	s.runs = runs
 	s.mu.Unlock()
 }

@@ -770,8 +770,10 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 		em.Dedent()
 		em.Line("}()")
 		inRetryContext = true
+		currentRetryVar = retryVar
 		emitStepBodyStatements(em, step.Body, wfName, stepName, timerVar)
 		inRetryContext = false
+		currentRetryVar = ""
 		em.Dedent()
 		em.Line("}()")
 		em.OpenBlock(fmt.Sprintf("if %s_err == nil", retryVar))
@@ -864,10 +866,18 @@ func emitStepBodyStatements(em *GoEmitter, stmts []ast.Statement, wfName, stepNa
 }
 
 // emitStepReturn emits a return statement inside a step body, ensuring StepEnd is called first.
-// Early returns from a step indicate the step did not complete normally, so we mark it as failed.
+// In retry context, returns signal "try again" — we set the retry error to continue the loop.
+// In normal steps, early returns indicate failure.
 func emitStepReturn(em *GoEmitter, s ast.ReturnStmt, wfName, stepName, timerVar string) {
-	em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, fmt.Errorf(\"step exited early\"))", wfName, stepName, timerVar))
-	if inCapturedContext || inRetryContext {
+	if inRetryContext {
+		// Don't call StepEnd — the retry loop handles that.
+		// Set the retry error so the loop continues to the next attempt.
+		em.Line(fmt.Sprintf("%s_err = fmt.Errorf(\"retry\")", currentRetryVar))
+		em.Line("return")
+		return
+	}
+	if inCapturedContext {
+		em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, fmt.Errorf(\"step exited early\"))", wfName, stepName, timerVar))
 		if len(s.Values) == 0 {
 			em.Line("return")
 		} else {
@@ -879,6 +889,7 @@ func emitStepReturn(em *GoEmitter, s ast.ReturnStmt, wfName, stepName, timerVar 
 			em.Line("return")
 		}
 	} else {
+		em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, fmt.Errorf(\"step exited early\"))", wfName, stepName, timerVar))
 		if len(s.Values) == 0 {
 			em.Line("return nil, nil")
 		} else {
@@ -943,8 +954,11 @@ var stepCounter int
 var inCapturedContext bool
 
 // inRetryContext is true when emitting inside a @retry step closure.
-// Returns become _wfResult assignments instead of actual returns.
+// Returns signal "try again" by setting the retry error variable.
 var inRetryContext bool
+
+// currentRetryVar holds the retry variable name (e.g. "_retry0") when inside a retry context.
+var currentRetryVar string
 
 func emitWorkflowIf(em *GoEmitter, ifStmt ast.IfStmt) {
 	cond := ExprToGo(ifStmt.Condition)

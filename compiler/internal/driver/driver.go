@@ -33,10 +33,7 @@ func Compile(file, output string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	runtimePath := codegen.FindRuntimePath()
-	if runtimePath == "" {
-		return fmt.Errorf("could not find go-runtime directory.\nExpected at: <project_root>/go-runtime/\nMake sure you're running from the Haira project directory")
-	}
+	runtimePath := resolveRuntime(sf)
 
 	if output == "" {
 		stem := filepath.Base(file)
@@ -71,10 +68,7 @@ func Run(file string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	runtimePath := codegen.FindRuntimePath()
-	if runtimePath == "" {
-		return fmt.Errorf("could not find go-runtime directory")
-	}
+	runtimePath := resolveRuntime(sf)
 
 	return codegen.RunProgram(sf, runtimePath, file, src, typeInfo)
 }
@@ -173,10 +167,7 @@ func Test(file string, testArgs []string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	runtimePath := codegen.FindRuntimePath()
-	if runtimePath == "" {
-		return fmt.Errorf("could not find go-runtime directory")
-	}
+	runtimePath := resolveRuntime(sf)
 
 	return codegen.RunTests(sf, runtimePath, file, src, testArgs, typeInfo)
 }
@@ -206,6 +197,22 @@ func FormatFile(file string) error {
 	}
 
 	return os.WriteFile(file, []byte(formatted), 0o644)
+}
+
+// resolveRuntime determines the runtime path based on the program's needs.
+// Returns "" for minimal mode (embedded runtime) or a path for full mode.
+func resolveRuntime(sf *ast.SourceFile) string {
+	if codegen.NeedsFullRuntime(sf) {
+		runtimePath := codegen.FindRuntimePath()
+		if runtimePath == "" {
+			fmt.Fprintf(os.Stderr, "Error: could not find go-runtime directory.\nThis program uses agentic features that require the full runtime.\nExpected at: <project_root>/go-runtime/\n")
+			os.Exit(1)
+		}
+		codegen.ResetRuntime()
+		return runtimePath
+	}
+	codegen.SetMinimalRuntime()
+	return ""
 }
 
 // resolveAndParse resolves imports and parses all files into a merged SourceFile.

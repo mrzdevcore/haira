@@ -209,6 +209,10 @@ func GenerateMainGoForTest(file *ast.SourceFile, sourceFile, sourceText string, 
 				em.LineDirective(item.Span)
 				emitTopLevelVar(em, assign)
 			}
+			if letStmt, ok := is.Stmt.Node.(ast.LetStmt); ok {
+				em.LineDirective(item.Span)
+				emitTopLevelLet(em, letStmt)
+			}
 		}
 	}
 

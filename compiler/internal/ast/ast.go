@@ -341,7 +341,15 @@ type AssertStmt struct {
 	Message   *Expr // optional custom message
 }
 
+type LetStmt struct {
+	Name    Spanned[string]
+	TypeAnn *Spanned[Type] // optional type annotation
+	Value   Expr
+	IsConst bool // true for const declarations
+}
+
 func (AssignStmt) stmtKind()   {}
+func (LetStmt) stmtKind()      {}
 func (IfStmt) stmtKind()       {}
 func (ForStmt) stmtKind()      {}
 func (WhileStmt) stmtKind()    {}

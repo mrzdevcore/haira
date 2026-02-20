@@ -86,6 +86,21 @@ func (f *Formatter) formatStatement(stmt ast.Statement) {
 			f.formatExpr(*s.Message)
 		}
 		f.newline()
+	case ast.LetStmt:
+		f.writeIndent()
+		if s.IsConst {
+			f.write("const ")
+		} else {
+			f.write("let ")
+		}
+		f.write(s.Name.Node)
+		if s.TypeAnn != nil {
+			f.write(": ")
+			f.formatType(s.TypeAnn.Node)
+		}
+		f.write(" = ")
+		f.formatExpr(s.Value)
+		f.newline()
 	}
 }
 

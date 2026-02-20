@@ -168,6 +168,14 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 					}
 				}
 			}
+			if letStmt, ok := it.Stmt.Node.(ast.LetStmt); ok {
+				rhsType := c.inferExpr(letStmt.Value)
+				if letStmt.IsConst {
+					c.env.DefineConst(letStmt.Name.Node, rhsType)
+				} else {
+					c.env.DefineVar(letStmt.Name.Node, rhsType)
+				}
+			}
 
 		case ast.ProviderDecl:
 			c.providers[it.Name.Node] = true
@@ -451,12 +459,40 @@ func (c *checker) checkBlock(block ast.Block) {
 
 func (c *checker) checkStmt(stmt ast.Statement) {
 	switch s := stmt.Node.(type) {
+	case ast.LetStmt:
+		rhsType := c.inferExpr(s.Value)
+		if s.TypeAnn != nil {
+			annotated := c.resolveASTType(s.TypeAnn.Node)
+			if !TypeEquals(annotated, rhsType) && !isAny(annotated) && !isAny(rhsType) {
+				c.addError(
+					"type mismatch: expected "+annotated.String()+", got "+rhsType.String(),
+					s.Value.Span,
+				)
+			}
+			if s.IsConst {
+				c.env.DefineConst(s.Name.Node, annotated)
+			} else {
+				c.env.DefineVar(s.Name.Node, annotated)
+			}
+		} else {
+			if s.IsConst {
+				c.env.DefineConst(s.Name.Node, rhsType)
+			} else {
+				c.env.DefineVar(s.Name.Node, rhsType)
+			}
+		}
+		c.info.VarTypes[s.Name.Span] = rhsType
+
 	case ast.AssignStmt:
 		rhsType := c.inferExpr(s.Value)
 		for _, target := range s.Targets {
 			if ident, ok := target.Path.(ast.IdentPath); ok {
 				if c.inMethod && ident.Name.Node == "self" {
 					c.addError("cannot reassign self in method", ident.Name.Span)
+				}
+				// Check const reassignment
+				if vi := c.env.LookupVarInfo(ident.Name.Node); vi != nil && vi.IsConst {
+					c.addError("cannot reassign const '"+ident.Name.Node+"'", ident.Name.Span)
 				}
 				if target.Ty != nil {
 					// Annotated type — check compatibility

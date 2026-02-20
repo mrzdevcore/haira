@@ -1,10 +1,25 @@
 import "io"
 
 fn main() {
-    name = "Haira"
-    version = 1
-    is_compiled = true
+    // Mutable variables with let
+    let name = "Haira"
+    let version = 1
+
+    // Immutable variables with const
+    const is_compiled = true
+    const language = "Haira"
+
     io.println(name)
     io.println(version)
     io.println(is_compiled)
+    io.println(language)
+
+    // let variables can be reassigned
+    name = "Haira v2"
+    version = 2
+    io.println(name)
+    io.println(version)
+
+    // const variables cannot be reassigned (compiler error)
+    // is_compiled = false  // Error: cannot reassign const 'is_compiled'
 }

@@ -4,9 +4,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/haira-lang/haira/internal/driver"
 	"github.com/haira-lang/haira/internal/lsp"
+	"github.com/haira-lang/haira/internal/manifest"
 )
 
 var version = "dev"
@@ -39,6 +42,8 @@ func main() {
 		err = cmdTest(rest)
 	case "fmt":
 		err = cmdFmt(rest)
+	case "init":
+		err = cmdInit(rest)
 	case "lsp":
 		err = lsp.RunStdio()
 	case "version", "--version", "-v":
@@ -57,15 +62,33 @@ func main() {
 	}
 }
 
-func cmdBuild(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haira build <file> [-o output]")
+// resolveEntryFile resolves the source file from args or package.haira.
+// Returns the file path and remaining args.
+func resolveEntryFile(args []string) (string, []string) {
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:]
 	}
-	file := args[0]
+	// Look for package.haira in current directory
+	if pkg := manifest.Find("."); pkg != "" {
+		p, err := manifest.Load(pkg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", err)
+			return "", args
+		}
+		return p.Entry, args
+	}
+	return "", args
+}
+
+func cmdBuild(args []string) error {
+	file, rest := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira build [file] [-o output]\n  No file specified and no package.haira found")
+	}
 	output := ""
-	for i := 1; i < len(args); i++ {
-		if (args[i] == "-o" || args[i] == "--output") && i+1 < len(args) {
-			output = args[i+1]
+	for i := 0; i < len(rest); i++ {
+		if (rest[i] == "-o" || rest[i] == "--output") && i+1 < len(rest) {
+			output = rest[i+1]
 			i++
 		}
 	}
@@ -73,22 +96,28 @@ func cmdBuild(args []string) error {
 }
 
 func cmdRun(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haira run <file>")
+	file, _ := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira run [file]\n  No file specified and no package.haira found")
 	}
-	return driver.Run(args[0])
+	return driver.Run(file)
 }
 
 func cmdParse(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haira parse <file>")
+	file, _ := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira parse [file]\n  No file specified and no package.haira found")
 	}
-	return driver.ParseFile(args[0])
+	return driver.ParseFile(file)
 }
 
 func cmdCheck(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haira check <file> [files...]")
+		file, _ := resolveEntryFile(args)
+		if file == "" {
+			return fmt.Errorf("usage: haira check [file] [files...]\n  No file specified and no package.haira found")
+		}
+		return driver.CheckFile(file)
 	}
 	for _, file := range args {
 		if err := driver.CheckFile(file); err != nil {
@@ -99,29 +128,36 @@ func cmdCheck(args []string) error {
 }
 
 func cmdLex(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haira lex <file>")
+	file, _ := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira lex [file]\n  No file specified and no package.haira found")
 	}
-	return driver.LexFile(args[0])
+	return driver.LexFile(file)
 }
 
 func cmdEmit(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haira emit <file>")
+	file, _ := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira emit [file]\n  No file specified and no package.haira found")
 	}
-	return driver.EmitFile(args[0])
+	return driver.EmitFile(file)
 }
 
 func cmdTest(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haira test <file> [flags...]")
+	file, rest := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira test [file] [flags...]\n  No file specified and no package.haira found")
 	}
-	return driver.Test(args[0], args[1:])
+	return driver.Test(file, rest)
 }
 
 func cmdFmt(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haira fmt <file> [files...]")
+		file, _ := resolveEntryFile(args)
+		if file == "" {
+			return fmt.Errorf("usage: haira fmt [file] [files...]\n  No file specified and no package.haira found")
+		}
+		return driver.FormatFile(file)
 	}
 	for _, file := range args {
 		if err := driver.FormatFile(file); err != nil {
@@ -131,23 +167,48 @@ func cmdFmt(args []string) error {
 	return nil
 }
 
+func cmdInit(args []string) error {
+	// Check if package.haira already exists
+	if manifest.Find(".") != "" {
+		return fmt.Errorf("package.haira already exists in current directory")
+	}
+
+	// Use directory name as project name
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	name := filepath.Base(dir)
+
+	content := manifest.DefaultManifest(name)
+	if err := os.WriteFile(manifest.Filename, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", manifest.Filename, err)
+	}
+
+	fmt.Printf("Created %s\n", manifest.Filename)
+	return nil
+}
+
 func printUsage() {
 	fmt.Print(`Haira — An agentic orchestration programming language
 
 Usage: haira <command> [arguments]
 
 Commands:
-  build <file> [-o output]   Compile to a native binary
-  run <file>                 Compile and execute
-  parse <file>               Show the AST
-  check <file> [files...]    Parse and report errors
-  lex <file>                 Show tokens
-  emit <file>                Show generated Go code
-  test <file> [flags...]     Run test blocks
-  fmt <file> [files...]      Format source files in-place
-  lsp                        Start the language server (LSP)
-  version                    Show version
-  help                       Show this help
+  build [file] [-o output]   Compile to a native binary
+  run [file]                  Compile and execute
+  parse [file]                Show the AST
+  check [file] [files...]     Parse and report errors
+  lex [file]                  Show tokens
+  emit [file]                 Show generated Go code
+  test [file] [flags...]      Run test blocks
+  fmt [file] [files...]       Format source files in-place
+  init                        Create a package.haira manifest
+  lsp                         Start the language server (LSP)
+  version                     Show version
+  help                        Show this help
+
+If no file is specified, haira looks for package.haira in the current directory.
 
 `)
 }

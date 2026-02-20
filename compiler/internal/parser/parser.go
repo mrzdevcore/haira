@@ -375,7 +375,7 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 
 	case token.If, token.For, token.While, token.Return, token.Match,
 		token.Try, token.Defer, token.Break, token.Continue,
-		token.Spawn, token.Async:
+		token.Spawn, token.Async, token.Let, token.Const:
 		stmt, ok := p.parseStatement()
 		if !ok {
 			return ast.Item{}, false
@@ -991,6 +991,15 @@ func (p *Parser) parseStatement() (ast.Statement, bool) {
 		}
 		return ast.Statement{Node: as, Span: p.span(start)}, true
 
+	case token.Let, token.Const:
+		isConst := p.peek().Kind == token.Const
+		p.advance()
+		ls, ok := p.parseLetStatement(isConst)
+		if !ok {
+			return ast.Statement{}, false
+		}
+		return ast.Statement{Node: ls, Span: p.span(start)}, true
+
 	case token.Break:
 		p.advance()
 		return ast.Statement{Node: ast.BreakStmt{}, Span: p.span(start)}, true
@@ -1013,6 +1022,49 @@ func (p *Parser) parseStatement() (ast.Statement, bool) {
 		}
 		return p.parseStatementRest(expr)
 	}
+}
+
+// parseLetStatement parses: let name [: Type] = expr  /  const name [: Type] = expr
+func (p *Parser) parseLetStatement(isConst bool) (ast.LetStmt, bool) {
+	if !p.check(token.Ident) {
+		kw := "let"
+		if isConst {
+			kw = "const"
+		}
+		tok := p.peek()
+		p.addError("expected variable name after '"+kw+"'", ast.Span{Start: tok.Start, End: tok.End})
+		return ast.LetStmt{}, false
+	}
+	nameTok := p.peek()
+	name := ast.Spanned[string]{Node: nameTok.Value, Span: ast.Span{Start: nameTok.Start, End: nameTok.End}}
+	p.advance()
+
+	// Optional type annotation: let x: int = ...
+	var typeAnn *ast.Spanned[ast.Type]
+	if p.check(token.Colon) {
+		p.advance()
+		ty, ok := p.parseType()
+		if !ok {
+			return ast.LetStmt{}, false
+		}
+		typeAnn = &ty
+	}
+
+	if !p.consume(token.Eq, "'='") {
+		return ast.LetStmt{}, false
+	}
+
+	value, ok := p.parseExpr()
+	if !ok {
+		return ast.LetStmt{}, false
+	}
+
+	return ast.LetStmt{
+		Name:    name,
+		TypeAnn: typeAnn,
+		Value:   value,
+		IsConst: isConst,
+	}, true
 }
 
 // parseStatementRest takes an already-parsed expression and determines whether

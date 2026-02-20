@@ -8,7 +8,7 @@ repository = "https://github.com/haira-lang/haira"
 
 [grammars.haira]
 repository = "https://github.com/mrzdevcore/haira"
-rev = "ab2806a4f3fb4d5f1072864b5df7e11de13029b8"
+rev = "32beca916413efb54dc4cc98f593befdab770cb9"
 path = "tree-sitter-haira"
 
 [language_servers.haira-lsp]

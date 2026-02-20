@@ -12,6 +12,7 @@ module.exports = grammar({
   conflicts: ($) => [
     [$.primary_expression, $.map_or_struct],
     [$.method_definition, $.primary_expression],
+    [$._statement, $.step_statement],
   ],
 
   rules: {
@@ -195,7 +196,7 @@ module.exports = grammar({
     assignment_or_call: ($) =>
       seq(
         $._expression,
-        optional(seq(choice("=", "+=", "-=", "*=", "/=", "%="), $._expression)),
+        optional(seq(choice("=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="), $._expression)),
       ),
 
     return_statement: ($) =>
@@ -321,6 +322,11 @@ module.exports = grammar({
           [">", 3],
           ["<=", 3],
           [">=", 3],
+          ["&", 4],
+          ["^", 4],
+          ["|", 4],
+          ["<<", 5],
+          [">>", 5],
           ["and", 2],
           ["or", 1],
           ["orelse", 0],
@@ -340,7 +346,7 @@ module.exports = grammar({
       prec(
         7,
         seq(
-          field("operator", choice("-", "not")),
+          field("operator", choice("-", "not", "~")),
           field("operand", $._expression),
         ),
       ),

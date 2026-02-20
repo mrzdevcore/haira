@@ -37,6 +37,8 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 		emitStep(em, s)
 	case ast.ErrDeferStmt:
 		emitErrDefer(em, s)
+	case ast.LetStmt:
+		emitLetStatement(em, s)
 	case ast.AssertStmt:
 		// assert is only valid inside test blocks; emitTestBody handles it directly.
 		// If we reach here, it means assert was used outside a test (checker should catch this).
@@ -113,6 +115,20 @@ func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
 		}
 		em.Line(fmt.Sprintf("%s %s %s", strings.Join(targets, ", "), op, value))
 	}
+}
+
+func emitLetStatement(em *GoEmitter, letStmt ast.LetStmt) {
+	// Special case: match expression as RHS
+	if matchExpr, ok := letStmt.Value.Node.(ast.MatchExpr); ok {
+		em.DeclareVar(letStmt.Name.Node)
+		em.Line(fmt.Sprintf("var %s any", letStmt.Name.Node))
+		emitMatchAssignment(em, letStmt.Name.Node, matchExpr)
+		return
+	}
+
+	value := ExprToGo(letStmt.Value)
+	em.DeclareVar(letStmt.Name.Node)
+	em.Line(fmt.Sprintf("%s := %s", letStmt.Name.Node, value))
 }
 
 func emitMatchAssignment(em *GoEmitter, target string, matchExpr ast.MatchExpr) {

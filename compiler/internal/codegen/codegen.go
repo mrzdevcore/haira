@@ -8,6 +8,44 @@ import (
 	"github.com/haira-lang/haira/internal/checker"
 )
 
+// RuntimeImportPath is the Go import path for the Haira runtime package.
+// In full mode it points to the external go-runtime; in minimal mode it
+// points to the local package within the generated module.
+var RuntimeImportPath = "haira-go-runtime/haira"
+
+// SetMinimalRuntime switches codegen to use the embedded minimal runtime.
+func SetMinimalRuntime() {
+	RuntimeImportPath = "haira-generated/haira"
+}
+
+// ResetRuntime switches codegen back to the full external runtime.
+func ResetRuntime() {
+	RuntimeImportPath = "haira-go-runtime/haira"
+}
+
+// fullRuntimeModules are import paths that require the full external go-runtime.
+var fullRuntimeModules = map[string]bool{
+	"postgres": true, "excel": true, "slack": true,
+	"vector": true, "observe": true, "ui": true, "mcp": true,
+}
+
+// NeedsFullRuntime returns true if the program requires the full external go-runtime.
+// Programs that only use minimal stdlib modules (io, http, string, math, etc.)
+// can use the embedded runtime instead.
+func NeedsFullRuntime(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		switch it := item.Node.(type) {
+		case ast.ProviderDecl, ast.ToolDecl, ast.AgentDecl, ast.WorkflowDecl:
+			return true
+		case ast.ImportDecl:
+			if fullRuntimeModules[it.Path] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GenerateMainGo generates the contents of main.go from the AST.
 func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInfo ...*checker.TypeInfo) string {
 	em := NewEmitter()
@@ -46,7 +84,7 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 		imports = append(imports, `"time"`)
 	}
 	if needsHaira {
-		imports = append(imports, `"haira-go-runtime/haira"`)
+		imports = append(imports, fmt.Sprintf("%q", RuntimeImportPath))
 	}
 
 	if len(imports) > 0 {
@@ -118,6 +156,10 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 				em.LineDirective(item.Span)
 				emitTopLevelVar(em, assign)
 			}
+			if letStmt, ok := is.Stmt.Node.(ast.LetStmt); ok {
+				em.LineDirective(item.Span)
+				emitTopLevelLet(em, letStmt)
+			}
 		}
 	}
 
@@ -173,6 +215,11 @@ func emitTopLevelVar(em *GoEmitter, assign ast.AssignStmt) {
 		}
 		em.Line(fmt.Sprintf("var %s = %s", strings.Join(names, ", "), value))
 	}
+}
+
+func emitTopLevelLet(em *GoEmitter, letStmt ast.LetStmt) {
+	value := ExprToGo(letStmt.Value)
+	em.Line(fmt.Sprintf("var %s = %s", letStmt.Name.Node, value))
 }
 
 func assignTargetName(path ast.AssignPath) string {
@@ -396,8 +443,8 @@ func needsFmtImport(file *ast.SourceFile) bool {
 			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
 				return true
 			}
-			// Lifecycle hooks and @retry use fmt.Errorf/fmt.Sprintf
-			if len(it.Hooks) > 0 || blockHasRetryDecorator(it.Body) || blockHasStepHooks(it.Body) {
+			// Lifecycle hooks, @retry, and step-early-return use fmt.Errorf/fmt.Sprintf
+			if len(it.Hooks) > 0 || blockHasRetryDecorator(it.Body) || blockHasStepHooks(it.Body) || blockHasStepWithReturn(it.Body) {
 				return true
 			}
 		}
@@ -409,6 +456,47 @@ func blockHasStepHooks(block ast.Block) bool {
 	for _, stmt := range block.Statements {
 		if s, ok := stmt.Node.(ast.StepStmt); ok {
 			if len(s.Hooks) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasStepWithReturn(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if s, ok := stmt.Node.(ast.StepStmt); ok {
+			if statementsHaveReturn(s.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func statementsHaveReturn(stmts []ast.Statement) bool {
+	for _, stmt := range stmts {
+		switch s := stmt.Node.(type) {
+		case ast.ReturnStmt:
+			return true
+		case ast.IfStmt:
+			if statementsHaveReturn(s.ThenBranch.Statements) {
+				return true
+			}
+			if s.ElseBranch != nil {
+				switch eb := s.ElseBranch.(type) {
+				case *ast.ElseBlock:
+					if statementsHaveReturn(eb.Body.Statements) {
+						return true
+					}
+				case *ast.ElseIf:
+					if statementsHaveReturn([]ast.Statement{{Node: eb.If.Node, Span: eb.If.Span}}) {
+						return true
+					}
+				}
+			}
+		case ast.ForStmt:
+			if statementsHaveReturn(s.Body.Statements) {
 				return true
 			}
 		}

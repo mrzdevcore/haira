@@ -10,29 +10,46 @@ import (
 
 	"github.com/haira-lang/haira/internal/ast"
 	"github.com/haira-lang/haira/internal/checker"
+	"github.com/haira-lang/haira/internal/runtime"
 )
 
 // CompileToBinary generates Go source and runs go build.
+// If runtimePath is empty, the embedded minimal runtime is used.
 func CompileToBinary(file *ast.SourceFile, output, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
+	useMinimal := runtimePath == ""
 
 	// Test-only files (no fn main) need the test codegen path which includes
 	// a stub main() and a test file so `go build` succeeds.
 	if HasTests(file) && !hasMainFunction(file) {
 		mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
 		testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
-		if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
-			return err
+		if useMinimal {
+			if err := writeMinimalTestProject(tmpDir, mainGo, testGo); err != nil {
+				return err
+			}
+		} else {
+			if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
+				return err
+			}
 		}
 	} else {
 		mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-		if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
-			return err
+		if useMinimal {
+			if err := writeMinimalProject(tmpDir, mainGo); err != nil {
+				return err
+			}
+		} else {
+			if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
+				return err
+			}
 		}
 	}
 
-	if err := runGoModTidy(tmpDir); err != nil {
-		return fmt.Errorf("go mod tidy failed: %w", err)
+	if !useMinimal {
+		if err := runGoModTidy(tmpDir); err != nil {
+			return fmt.Errorf("go mod tidy failed: %w", err)
+		}
 	}
 
 	if err := runGoBuild(tmpDir, output); err != nil {
@@ -45,17 +62,24 @@ func CompileToBinary(file *ast.SourceFile, output, runtimePath, hairaFile, haira
 }
 
 // RunProgram generates Go source and runs go run.
+// If runtimePath is empty, the embedded minimal runtime is used.
 func RunProgram(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-run-%d", os.Getpid()))
+	useMinimal := runtimePath == ""
 
 	mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
 
-	if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
-		return err
-	}
-
-	if err := runGoModTidy(tmpDir); err != nil {
-		return fmt.Errorf("go mod tidy failed: %w", err)
+	if useMinimal {
+		if err := writeMinimalProject(tmpDir, mainGo); err != nil {
+			return err
+		}
+	} else {
+		if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
+			return err
+		}
+		if err := runGoModTidy(tmpDir); err != nil {
+			return fmt.Errorf("go mod tidy failed: %w", err)
+		}
 	}
 
 	cmd := exec.Command("go", "run", ".")
@@ -78,8 +102,10 @@ func RunProgram(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string
 }
 
 // RunTests generates Go source and runs go test.
+// If runtimePath is empty, the embedded minimal runtime is used.
 func RunTests(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, testArgs []string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-test-%d", os.Getpid()))
+	useMinimal := runtimePath == ""
 
 	mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
 	testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
@@ -88,12 +114,17 @@ func RunTests(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, 
 		return fmt.Errorf("no test blocks found in %s", hairaFile)
 	}
 
-	if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
-		return err
-	}
-
-	if err := runGoModTidy(tmpDir); err != nil {
-		return fmt.Errorf("go mod tidy failed: %w", err)
+	if useMinimal {
+		if err := writeMinimalTestProject(tmpDir, mainGo, testGo); err != nil {
+			return err
+		}
+	} else {
+		if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
+			return err
+		}
+		if err := runGoModTidy(tmpDir); err != nil {
+			return fmt.Errorf("go mod tidy failed: %w", err)
+		}
 	}
 
 	args := append([]string{"test", "-v", "."}, normalizeTestArgs(testArgs)...)
@@ -182,6 +213,45 @@ func cleanGoErrors(output string) string {
 // ShowGeneratedGo generates Go source and prints it (for debugging).
 func ShowGeneratedGo(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) string {
 	return GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
+}
+
+// writeMinimalProject writes a self-contained Go project using the embedded
+// minimal runtime. No external dependencies or go.sum needed.
+func writeMinimalProject(dir, mainGo string) error {
+	hairaDir := filepath.Join(dir, "haira")
+	if err := os.MkdirAll(hairaDir, 0o755); err != nil {
+		return fmt.Errorf("create dir: %w", err)
+	}
+
+	// Write embedded runtime files
+	for name, data := range runtime.Files() {
+		if err := os.WriteFile(filepath.Join(hairaDir, name), data, 0o644); err != nil {
+			return fmt.Errorf("write runtime %s: %w", name, err)
+		}
+	}
+
+	// Minimal go.mod — no external dependencies
+	goMod := "module haira-generated\n\ngo 1.22\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		return fmt.Errorf("write go.mod: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {
+		return fmt.Errorf("write main.go: %w", err)
+	}
+
+	return nil
+}
+
+// writeMinimalTestProject writes a self-contained Go test project using the embedded runtime.
+func writeMinimalTestProject(dir, mainGo, testGo string) error {
+	if err := writeMinimalProject(dir, mainGo); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(testGo), 0o644); err != nil {
+		return fmt.Errorf("write main_test.go: %w", err)
+	}
+	return nil
 }
 
 func writeProject(dir, mainGo, runtimePath string) error {

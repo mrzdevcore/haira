@@ -1,0 +1,65 @@
+{
+  "name": "haira",
+  "displayName": "Haira",
+  "description": "Haira language support — agentic orchestration programming language",
+  "version": "0.1.0",
+  "publisher": "haira-lang",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haira-lang/haira"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "haira",
+    "agentic",
+    "AI",
+    "workflow",
+    "orchestration"
+  ],
+  "activationEvents": [
+    "onLanguage:haira"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "haira",
+        "aliases": [
+          "Haira",
+          "haira"
+        ],
+        "extensions": [
+          ".haira"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "haira",
+        "scopeName": "source.haira",
+        "path": "./syntaxes/haira.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "bun run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver-protocol": "^3.17.5"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

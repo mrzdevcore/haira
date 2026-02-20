@@ -1,4 +1,4 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate ui ui-dev sync-runtime help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev sync-runtime help
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
@@ -128,6 +128,25 @@ run-examples: build
 tree-sitter-generate:
 	cd tree-sitter-haira && tree-sitter generate
 
+# Build tree-sitter WASM
+tree-sitter-wasm: tree-sitter-generate
+	cd tree-sitter-haira && tree-sitter build --wasm
+
+# Sync tree-sitter WASM to Zed extension
+zed-sync-wasm: tree-sitter-wasm
+	cp tree-sitter-haira/tree-sitter-haira.wasm editors/zed-haira/grammars/haira.wasm
+	@echo "Synced tree-sitter WASM → editors/zed-haira/grammars/haira.wasm"
+
+# Build VS Code extension
+vscode-build:
+	cd editors/vscode-haira && bun install && bun run compile
+	@echo "VS Code extension built: editors/vscode-haira/out/"
+
+# Package VS Code extension (.vsix)
+vscode-package: vscode-build
+	cd editors/vscode-haira && bunx @vscode/vsce package
+	@echo "VS Code extension packaged"
+
 # Quick development cycle: format, vet, test
 dev: fmt vet test
 
@@ -154,6 +173,10 @@ help:
 	@echo "  build-examples   Build all examples"
 	@echo "  run-examples     Run non-agentic examples"
 	@echo "  tree-sitter-generate  Regenerate tree-sitter grammar"
+	@echo "  tree-sitter-wasm      Build tree-sitter WASM binary"
+	@echo "  zed-sync-wasm         Sync WASM to Zed extension"
+	@echo "  vscode-build          Build VS Code extension"
+	@echo "  vscode-package        Package VS Code extension (.vsix)"
 	@echo "  ui               Build UI bundle (TypeScript → JS)"
 	@echo "  ui-dev           Build UI in watch mode"
 	@echo "  dev              Format, vet, test"

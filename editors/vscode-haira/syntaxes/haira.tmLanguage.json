@@ -1,0 +1,378 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Haira",
+  "scopeName": "source.haira",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#decorators" },
+    { "include": "#definitions" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#operators" },
+    { "include": "#punctuation" },
+    { "include": "#function-call" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.haira",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.haira",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "captures": {
+            "0": { "name": "punctuation.definition.comment.haira" }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.haira",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.haira" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.haira" }
+          }
+        },
+        {
+          "name": "string.quoted.double.haira",
+          "begin": "\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.haira" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.haira" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.haira",
+              "match": "\\\\(?:[\"\\\\nrt0]|x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F]+\\})"
+            },
+            {
+              "name": "meta.interpolation.haira",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": { "name": "punctuation.definition.interpolation.begin.haira" }
+              },
+              "endCaptures": {
+                "0": { "name": "punctuation.definition.interpolation.end.haira" }
+              },
+              "patterns": [
+                { "include": "source.haira" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.haira",
+          "match": "\\b0x[0-9a-fA-F][0-9a-fA-F_]*\\b"
+        },
+        {
+          "name": "constant.numeric.binary.haira",
+          "match": "\\b0b[01][01_]*\\b"
+        },
+        {
+          "name": "constant.numeric.octal.haira",
+          "match": "\\b0o[0-7][0-7_]*\\b"
+        },
+        {
+          "name": "constant.numeric.float.haira",
+          "match": "\\b\\d[\\d_]*\\.\\d[\\d_]*(?:[eE][+-]?\\d[\\d_]*)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.haira",
+          "match": "\\b\\d[\\d_]*\\b"
+        }
+      ]
+    },
+    "decorators": {
+      "patterns": [
+        {
+          "name": "meta.decorator.haira",
+          "match": "(@)(\\w+)",
+          "captures": {
+            "1": { "name": "punctuation.decorator.haira" },
+            "2": { "name": "entity.name.decorator.haira" }
+          }
+        }
+      ]
+    },
+    "definitions": {
+      "patterns": [
+        {
+          "comment": "Function definition",
+          "match": "\\b(fn)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.function.haira" },
+            "2": { "name": "entity.name.function.haira" }
+          }
+        },
+        {
+          "comment": "Method definition (Type.method)",
+          "match": "\\b([A-Z]\\w*)\\s*\\.\\s*([a-zA-Z_]\\w*)\\s*\\(",
+          "captures": {
+            "1": { "name": "entity.name.type.haira" },
+            "2": { "name": "entity.name.function.haira" }
+          }
+        },
+        {
+          "comment": "Struct definition",
+          "match": "\\b(struct)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.struct.haira" },
+            "2": { "name": "entity.name.type.haira" }
+          }
+        },
+        {
+          "comment": "Enum definition",
+          "match": "\\b(enum)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.enum.haira" },
+            "2": { "name": "entity.name.type.haira" }
+          }
+        },
+        {
+          "comment": "Type alias",
+          "match": "\\b(type)\\s+([a-zA-Z_]\\w*)\\s*=",
+          "captures": {
+            "1": { "name": "keyword.declaration.type.haira" },
+            "2": { "name": "entity.name.type.haira" }
+          }
+        },
+        {
+          "comment": "Provider declaration",
+          "match": "\\b(provider)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.other.agentic.haira" },
+            "2": { "name": "entity.name.type.haira" }
+          }
+        },
+        {
+          "comment": "Tool declaration",
+          "match": "\\b(tool)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.other.agentic.haira" },
+            "2": { "name": "entity.name.function.haira" }
+          }
+        },
+        {
+          "comment": "Agent declaration",
+          "match": "\\b(agent)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.other.agentic.haira" },
+            "2": { "name": "entity.name.type.haira" }
+          }
+        },
+        {
+          "comment": "Workflow declaration",
+          "match": "\\b(workflow)\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "keyword.other.agentic.haira" },
+            "2": { "name": "entity.name.function.haira" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "comment": "Control flow keywords",
+          "name": "keyword.control.haira",
+          "match": "\\b(if|else|for|while|return|match|in|try|catch|spawn|select|defer|errdefer|step|break|continue|onerror|onsuccess|oncancel)\\b"
+        },
+        {
+          "comment": "Declaration keywords",
+          "name": "keyword.declaration.haira",
+          "match": "\\b(fn|struct|type|enum|let|const|pub|import|export|from)\\b"
+        },
+        {
+          "comment": "Agentic keywords",
+          "name": "keyword.other.agentic.haira",
+          "match": "\\b(provider|tool|agent|workflow)\\b"
+        },
+        {
+          "comment": "Logical operator keywords",
+          "name": "keyword.operator.logical.haira",
+          "match": "\\b(and|or|not|orelse)\\b"
+        },
+        {
+          "comment": "Boolean literals",
+          "name": "constant.language.boolean.haira",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "comment": "Built-in constants",
+          "name": "constant.language.haira",
+          "match": "\\b(none|some|ok|err)\\b"
+        },
+        {
+          "comment": "Reserved keywords (future use)",
+          "name": "keyword.reserved.haira",
+          "match": "\\b(trait|impl|async|default|test|assert)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "comment": "Built-in primitive types",
+          "name": "support.type.primitive.haira",
+          "match": "\\b(int|i8|i16|i32|i64|u8|u16|u32|u64|float|f32|f64|bool|string)\\b"
+        },
+        {
+          "comment": "Built-in collection/channel types",
+          "name": "support.type.haira",
+          "match": "\\b(stream|chan)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "comment": "Arrow operators",
+          "name": "keyword.operator.arrow.haira",
+          "match": "->|=>"
+        },
+        {
+          "comment": "Pipe operator",
+          "name": "keyword.operator.pipe.haira",
+          "match": "\\|>"
+        },
+        {
+          "comment": "Range operators",
+          "name": "keyword.operator.range.haira",
+          "match": "\\.\\.\\.|\\.\\.[=]|\\.\\.(?!=)"
+        },
+        {
+          "comment": "Error propagation",
+          "name": "keyword.operator.error-propagation.haira",
+          "match": "\\?"
+        },
+        {
+          "comment": "Compound shift assignments",
+          "name": "keyword.operator.assignment.compound.haira",
+          "match": "<<=|>>="
+        },
+        {
+          "comment": "Compound assignments",
+          "name": "keyword.operator.assignment.compound.haira",
+          "match": "\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^="
+        },
+        {
+          "comment": "Comparison operators",
+          "name": "keyword.operator.comparison.haira",
+          "match": "==|!=|<=|>="
+        },
+        {
+          "comment": "Shift operators",
+          "name": "keyword.operator.bitwise.haira",
+          "match": "<<|>>"
+        },
+        {
+          "comment": "Assignment",
+          "name": "keyword.operator.assignment.haira",
+          "match": "=(?!=)"
+        },
+        {
+          "comment": "Arithmetic operators",
+          "name": "keyword.operator.arithmetic.haira",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "comment": "Comparison (single char)",
+          "name": "keyword.operator.comparison.haira",
+          "match": "[<>]"
+        },
+        {
+          "comment": "Bitwise operators",
+          "name": "keyword.operator.bitwise.haira",
+          "match": "[&|^~]"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.comma.haira",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.haira",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.accessor.dot.haira",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.section.braces.begin.haira",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.braces.end.haira",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.haira",
+          "match": "\\["
+        },
+        {
+          "name": "punctuation.section.brackets.end.haira",
+          "match": "\\]"
+        },
+        {
+          "name": "punctuation.section.parens.begin.haira",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parens.end.haira",
+          "match": "\\)"
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "comment": "Method call (object.method())",
+          "match": "(?<=\\.)([a-zA-Z_]\\w*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.method.haira" }
+          }
+        },
+        {
+          "comment": "Function call",
+          "match": "\\b([a-zA-Z_]\\w*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.haira" }
+          }
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "comment": "Type-like identifiers (PascalCase)",
+          "name": "entity.name.type.haira",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

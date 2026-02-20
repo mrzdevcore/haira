@@ -1,9 +1,15 @@
 package checker
 
+// VarInfo holds the type and mutability of a variable.
+type VarInfo struct {
+	Type    Type
+	IsConst bool
+}
+
 // Env is a scoped symbol table for type checking.
 type Env struct {
 	parent *Env
-	vars   map[string]Type
+	vars   map[string]VarInfo
 	types  map[string]Type
 	funcs  map[string]*FuncType
 }
@@ -11,7 +17,7 @@ type Env struct {
 // NewEnv creates a root environment with stdlib pre-registered.
 func NewEnv() *Env {
 	env := &Env{
-		vars:  make(map[string]Type),
+		vars:  make(map[string]VarInfo),
 		types: make(map[string]Type),
 		funcs: make(map[string]*FuncType),
 	}
@@ -23,7 +29,7 @@ func NewEnv() *Env {
 func (e *Env) Child() *Env {
 	return &Env{
 		parent: e,
-		vars:   make(map[string]Type),
+		vars:   make(map[string]VarInfo),
 		types:  make(map[string]Type),
 		funcs:  make(map[string]*FuncType),
 	}
@@ -31,18 +37,34 @@ func (e *Env) Child() *Env {
 
 // DefineVar defines a variable in the current scope.
 func (e *Env) DefineVar(name string, ty Type) {
-	e.vars[name] = ty
+	e.vars[name] = VarInfo{Type: ty}
+}
+
+// DefineConst defines an immutable variable in the current scope.
+func (e *Env) DefineConst(name string, ty Type) {
+	e.vars[name] = VarInfo{Type: ty, IsConst: true}
 }
 
 // LookupVar looks up a variable in the current scope and parents.
 func (e *Env) LookupVar(name string) (Type, bool) {
-	if ty, ok := e.vars[name]; ok {
-		return ty, true
+	if vi, ok := e.vars[name]; ok {
+		return vi.Type, true
 	}
 	if e.parent != nil {
 		return e.parent.LookupVar(name)
 	}
 	return nil, false
+}
+
+// LookupVarInfo looks up full variable info (type + const flag).
+func (e *Env) LookupVarInfo(name string) *VarInfo {
+	if vi, ok := e.vars[name]; ok {
+		return &vi
+	}
+	if e.parent != nil {
+		return e.parent.LookupVarInfo(name)
+	}
+	return nil
 }
 
 // DefineType registers a type definition (struct/enum).

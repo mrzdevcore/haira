@@ -55,6 +55,17 @@ type ChatMessage struct {
 	UIEvents  json.RawMessage `json:"ui_events,omitempty"`
 }
 
+// --- Store backend registry ---
+
+// storeBackends maps backend names to factory functions.
+// Backends register themselves via init() in their respective files.
+var storeBackends = map[string]func(string) Store{}
+
+// RegisterStoreBackend registers a store backend factory.
+func RegisterStoreBackend(name string, factory func(string) Store) {
+	storeBackends[name] = factory
+}
+
 // --- Global store ---
 
 var globalStore Store
@@ -64,9 +75,16 @@ var globalStore Store
 func InitStore() error {
 	dbURL := os.Getenv("HAIRA_DATABASE_URL")
 	if dbURL != "" {
-		globalStore = NewPostgresStore(dbURL)
+		if factory, ok := storeBackends["postgres"]; ok {
+			globalStore = factory(dbURL)
+		}
 	} else {
-		globalStore = NewSQLiteStore(".haira.db")
+		if factory, ok := storeBackends["sqlite"]; ok {
+			globalStore = factory(".haira.db")
+		}
+	}
+	if globalStore == nil {
+		return nil
 	}
 	return globalStore.Init()
 }

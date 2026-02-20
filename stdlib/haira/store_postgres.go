@@ -8,6 +8,12 @@ import (
 	_ "github.com/lib/pq"
 )
 
+func init() {
+	RegisterStoreBackend("postgres", func(url string) Store {
+		return NewPostgresStore(url)
+	})
+}
+
 // PostgresStore implements Store using a PostgreSQL database.
 type PostgresStore struct {
 	connStr string

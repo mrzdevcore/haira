@@ -9,6 +9,12 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func init() {
+	RegisterStoreBackend("sqlite", func(path string) Store {
+		return NewSQLiteStore(path)
+	})
+}
+
 // SQLiteStore implements Store using an embedded SQLite database.
 type SQLiteStore struct {
 	path string

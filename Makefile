@@ -6,29 +6,41 @@ VERSION ?= dev
 LDFLAGS = -ldflags "-X main.version=$(VERSION)"
 
 # Runtime directories
-RUNTIME_DIR = runtime
-UI_SRC = $(RUNTIME_DIR)/haira/ui/src
-UI_DIST = $(RUNTIME_DIR)/haira/ui/dist
+PRIMITIVE_DIR = primitive
+STDLIB_DIR = stdlib
+UI_SDK_SRC = ui/sdk/src
+UI_SDK_DIST = ui/sdk/dist
+UI_APP_DIR = ui/application
 BUNDLE = $(COMPILER_DIR)/internal/runtime/bundle.tar.gz
 
 # Default target
 all: build
 
-# Build the UI bundle (TypeScript → JS via Bun)
+# Build the UI SDK bundle (TypeScript → JS via Bun)
 ui:
-	@mkdir -p $(UI_DIST)
-	cd $(RUNTIME_DIR)/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
-	@echo "UI bundle built: $(UI_DIST)/haira-ui.js"
+	@mkdir -p $(UI_SDK_DIST)
+	cd ui/sdk && bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
+	@echo "UI bundle built: $(UI_SDK_DIST)/haira-ui.js"
 
 # Build UI in watch mode (development)
 ui-dev:
-	@mkdir -p $(UI_DIST)
-	cd $(RUNTIME_DIR)/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
+	@mkdir -p $(UI_SDK_DIST)
+	cd ui/sdk && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
 
 # Bundle the runtime into a tar.gz for embedding in the compiler
+# Merges primitive/ + stdlib/ into a single haira/ package
 bundle-runtime: ui
 	@echo "Bundling runtime..."
-	@tar czf $(BUNDLE) -C $(RUNTIME_DIR) haira go.mod go.sum
+	@rm -rf .bundle-tmp
+	@mkdir -p .bundle-tmp/haira/ui/dist
+	@cp $(PRIMITIVE_DIR)/haira/*.go .bundle-tmp/haira/
+	@cp $(STDLIB_DIR)/haira/*.go .bundle-tmp/haira/
+	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/haira/ui/dist/
+	@cp $(UI_APP_DIR)/*.html .bundle-tmp/haira/ui/
+	@cp $(PRIMITIVE_DIR)/go.mod .bundle-tmp/go.mod
+	@cp $(PRIMITIVE_DIR)/go.sum .bundle-tmp/go.sum
+	@tar czf $(BUNDLE) -C .bundle-tmp haira go.mod go.sum
+	@rm -rf .bundle-tmp
 	@echo "Runtime bundle: $(BUNDLE) ($$(du -h $(BUNDLE) | cut -f1))"
 
 # Build the compiler (depends on runtime bundle)
@@ -44,7 +56,8 @@ clean:
 	rm -f $(BINARY)
 	rm -f $(BUNDLE)
 	rm -rf .output
-	rm -rf $(UI_DIST)
+	rm -rf .bundle-tmp
+	rm -rf $(UI_SDK_DIST)
 	@echo "Cleaned all build artifacts"
 
 # Format code
@@ -160,7 +173,7 @@ ci: vet test build-examples
 help:
 	@echo "Haira Makefile targets:"
 	@echo ""
-	@echo "  build            Build the compiler (all runtime embedded)"
+	@echo "  build            Build the compiler (primitive + stdlib + UI embedded)"
 	@echo "  test             Run Go tests"
 	@echo "  clean            Clean build artifacts"
 	@echo "  fmt              Format code"
@@ -179,8 +192,8 @@ help:
 	@echo "  zed-sync-wasm         Sync WASM to Zed extension"
 	@echo "  vscode-build          Build VS Code extension"
 	@echo "  vscode-package        Package VS Code extension (.vsix)"
-	@echo "  ui               Build UI bundle (TypeScript → JS)"
-	@echo "  ui-dev           Build UI in watch mode"
-	@echo "  bundle-runtime   Bundle runtime into tar.gz for embedding"
+	@echo "  ui               Build UI SDK bundle (TypeScript → JS)"
+	@echo "  ui-dev           Build UI SDK in watch mode"
+	@echo "  bundle-runtime   Bundle primitive + stdlib into tar.gz for embedding"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

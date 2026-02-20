@@ -343,20 +343,3 @@ func (gl *GitlabClient) CreateMr(opts map[string]any) (*GitlabMR, error) {
 	}, nil
 }
 
-// --- Helpers ---
-
-func parseJSON(body string) map[string]any {
-	var result map[string]any
-	json.Unmarshal([]byte(body), &result)
-	if result == nil {
-		return map[string]any{}
-	}
-	return result
-}
-
-func strVal(m map[string]any, key string) string {
-	if v, ok := m[key]; ok {
-		return Str(v)
-	}
-	return ""
-}

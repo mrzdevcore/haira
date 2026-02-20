@@ -20,7 +20,11 @@ Thumbs.db
 .output/
 
 # UI build output
-compiler/internal/runtime/embedded/haira/ui/dist/
+ui/sdk/dist/
+
+# Bundle temp directory and embedded runtime bundle
+.bundle-tmp/
+compiler/internal/runtime/bundle.tar.gz
 
 # Object files
 *.o

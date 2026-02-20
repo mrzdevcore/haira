@@ -35,7 +35,7 @@ jobs:
 
       - name: Build UI bundle
         run: |
-          cd go-runtime/haira/ui
+          cd compiler/internal/runtime/embedded/haira/ui
           bun install --frozen-lockfile || true
           bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
 
@@ -68,7 +68,6 @@ jobs:
           fi
 
           cp "compiler/${BINARY}" "${NAME}/bin/"
-          cp -r go-runtime "${NAME}/runtime"
           cp LICENSE "${NAME}/"
           cp README.md "${NAME}/"
 

@@ -3,7 +3,6 @@ set -e
 
 REPO="mrzdevcore/haira"
 INSTALL_DIR="$HOME/.local/bin"
-RUNTIME_DIR="$HOME/.haira/runtime"
 
 # Detect OS
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -56,23 +55,17 @@ echo "Installing..."
 tar xzf "$ARCHIVE"
 EXTRACTED="haira-${VERSION}-${OS}-${ARCH}"
 
-# Install binary
+# Install binary (runtime is embedded — no separate runtime directory needed)
 mkdir -p "$INSTALL_DIR"
 cp "$EXTRACTED/bin/haira" "$INSTALL_DIR/haira"
 chmod +x "$INSTALL_DIR/haira"
-
-# Install runtime
-rm -rf "$RUNTIME_DIR"
-mkdir -p "$RUNTIME_DIR"
-cp -r "$EXTRACTED/runtime/"* "$RUNTIME_DIR/"
 
 # Cleanup
 rm -rf "$TMPDIR"
 
 echo ""
 echo "Haira $VERSION installed successfully!"
-echo "  Binary:  $INSTALL_DIR/haira"
-echo "  Runtime: $RUNTIME_DIR"
+echo "  Binary: $INSTALL_DIR/haira"
 
 # Check PATH
 case ":$PATH:" in

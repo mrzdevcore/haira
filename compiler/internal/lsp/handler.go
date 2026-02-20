@@ -203,7 +203,7 @@ func (h *Handler) Hover(params json.RawMessage) *Hover {
 func (h *Handler) Completion(params json.RawMessage) *CompletionList {
 	var p CompletionParams
 	if err := json.Unmarshal(params, &p); err != nil {
-		return nil
+		return &CompletionList{Items: []CompletionItem{}}
 	}
 
 	h.mu.RLock()
@@ -212,13 +212,13 @@ func (h *Handler) Completion(params json.RawMessage) *CompletionList {
 	h.mu.RUnlock()
 
 	if !ok {
-		return &CompletionList{}
+		return &CompletionList{Items: []CompletionItem{}}
 	}
 
 	offset := positionToOffset(text, p.Position)
 	prefix := getWordPrefix(text, offset)
 
-	var items []CompletionItem
+	items := []CompletionItem{}
 
 	// Keywords
 	for kw := range token.Keywords {
@@ -340,10 +340,10 @@ func (h *Handler) Completion(params json.RawMessage) *CompletionList {
 }
 
 // Definition handles textDocument/definition.
-func (h *Handler) Definition(params json.RawMessage) *Location {
+func (h *Handler) Definition(params json.RawMessage) []Location {
 	var p TextDocumentPositionParams
 	if err := json.Unmarshal(params, &p); err != nil {
-		return nil
+		return []Location{}
 	}
 
 	h.mu.RLock()
@@ -352,13 +352,13 @@ func (h *Handler) Definition(params json.RawMessage) *Location {
 	h.mu.RUnlock()
 
 	if !ok || file == nil {
-		return nil
+		return []Location{}
 	}
 
 	offset := positionToOffset(text, p.Position)
 	name := getWordAt(text, offset)
 	if name == "" {
-		return nil
+		return []Location{}
 	}
 
 	// Search for definition in the file
@@ -366,40 +366,40 @@ func (h *Handler) Definition(params json.RawMessage) *Location {
 		switch it := item.Node.(type) {
 		case ast.FunctionDef:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.TypeDef:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.EnumDef:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.ToolDecl:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.AgentDecl:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.WorkflowDecl:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.MethodDef:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		case ast.TestDecl:
 			if it.Name.Node == name {
-				return spanToLocation(p.TextDocument.URI, text, it.Name.Span)
+				return []Location{*spanToLocation(p.TextDocument.URI, text, it.Name.Span)}
 			}
 		}
 	}
 
-	return nil
+	return []Location{}
 }
 
 // ---------------------------------------------------------------------------
@@ -408,7 +408,7 @@ func (h *Handler) Definition(params json.RawMessage) *Location {
 
 // analyzeAndPublish parses and type-checks a document, then publishes diagnostics.
 func (h *Handler) analyzeAndPublish(uri, text string) {
-	var lspDiags []Diagnostic
+	lspDiags := []Diagnostic{}
 
 	// Parse
 	file, parseErrs := parser.Parse(text)

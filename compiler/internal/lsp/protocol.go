@@ -13,10 +13,12 @@ type Request struct {
 }
 
 // Response is a JSON-RPC 2.0 response.
+// Note: Result uses a pointer to json.RawMessage so we can distinguish
+// "result: null" from omitting "result" entirely.
 type Response struct {
 	JSONRPC string         `json:"jsonrpc"`
 	ID      interface{}    `json:"id"`
-	Result  interface{}    `json:"result,omitempty"`
+	Result  interface{}    `json:"result"`
 	Error   *ResponseError `json:"error,omitempty"`
 }
 

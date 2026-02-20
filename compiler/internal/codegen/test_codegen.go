@@ -52,7 +52,7 @@ func GenerateTestGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 		imports = append(imports, `"fmt"`)
 	}
 	if needsOS || hasMCP {
-		imports = append(imports, `"haira-go-runtime/haira"`)
+		imports = append(imports, `"haira-generated/haira"`)
 	}
 
 	if len(imports) == 1 {
@@ -141,7 +141,7 @@ func GenerateMainGoForTest(file *ast.SourceFile, sourceFile, sourceText string, 
 		imports = append(imports, `"time"`)
 	}
 	if needsHaira {
-		imports = append(imports, `"haira-go-runtime/haira"`)
+		imports = append(imports, `"haira-generated/haira"`)
 	}
 
 	if len(imports) > 0 {

@@ -33,8 +33,6 @@ func Compile(file, output string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	runtimePath := resolveRuntime(sf)
-
 	if output == "" {
 		stem := filepath.Base(file)
 		ext := filepath.Ext(stem)
@@ -46,7 +44,7 @@ func Compile(file, output string) error {
 		output = filepath.Join(outputDir, stem)
 	}
 
-	if err := codegen.CompileToBinary(sf, output, runtimePath, file, src, typeInfo); err != nil {
+	if err := codegen.CompileToBinary(sf, output, file, src, typeInfo); err != nil {
 		return err
 	}
 
@@ -68,9 +66,7 @@ func Run(file string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	runtimePath := resolveRuntime(sf)
-
-	return codegen.RunProgram(sf, runtimePath, file, src, typeInfo)
+	return codegen.RunProgram(sf, file, src, typeInfo)
 }
 
 // ParseFile parses a file and prints the AST.
@@ -167,9 +163,7 @@ func Test(file string, testArgs []string) error {
 	}
 	reportWarnings(typeDiags, src)
 
-	runtimePath := resolveRuntime(sf)
-
-	return codegen.RunTests(sf, runtimePath, file, src, testArgs, typeInfo)
+	return codegen.RunTests(sf, file, src, testArgs, typeInfo)
 }
 
 // FormatFile formats a Haira source file in-place.
@@ -199,24 +193,7 @@ func FormatFile(file string) error {
 	return os.WriteFile(file, []byte(formatted), 0o644)
 }
 
-// resolveRuntime determines the runtime path based on the program's needs.
-// Returns "" for minimal mode (embedded runtime) or a path for full mode.
-func resolveRuntime(sf *ast.SourceFile) string {
-	if codegen.NeedsFullRuntime(sf) {
-		runtimePath := codegen.FindRuntimePath()
-		if runtimePath == "" {
-			fmt.Fprintf(os.Stderr, "Error: could not find go-runtime directory.\nThis program uses agentic features that require the full runtime.\nExpected at: <project_root>/go-runtime/\n")
-			os.Exit(1)
-		}
-		codegen.ResetRuntime()
-		return runtimePath
-	}
-	codegen.SetMinimalRuntime()
-	return ""
-}
-
 // resolveAndParse resolves imports and parses all files into a merged SourceFile.
-// Returns the merged AST, the main file source (for error reporting), and any error.
 func resolveAndParse(file string) (*ast.SourceFile, string, error) {
 	source, err := os.ReadFile(file)
 	if err != nil {
@@ -224,14 +201,12 @@ func resolveAndParse(file string) (*ast.SourceFile, string, error) {
 	}
 	src := string(source)
 
-	// Use resolver for multi-file support
 	prog, diags := resolver.Resolve(file)
 	if hairaerr.HasErrors(diags) {
 		return nil, src, reportErrors(diags, src)
 	}
 	reportWarnings(diags, src)
 
-	// If there are imported modules, merge their items into the main AST
 	if len(prog.Modules) > 0 {
 		merged := prog.MergedItems()
 		prog.Main.Items = merged
@@ -240,7 +215,6 @@ func resolveAndParse(file string) (*ast.SourceFile, string, error) {
 	return prog.Main, src, nil
 }
 
-// toDiagnostics converts parser errors to Diagnostic values.
 func toDiagnostics(errs []parser.ParseError, file string) []hairaerr.Diagnostic {
 	diags := make([]hairaerr.Diagnostic, len(errs))
 	for i, e := range errs {
@@ -254,7 +228,6 @@ func toDiagnostics(errs []parser.ParseError, file string) []hairaerr.Diagnostic 
 	return diags
 }
 
-// reportWarnings prints non-error diagnostics to stderr.
 func reportWarnings(diags []hairaerr.Diagnostic, source string) {
 	for _, d := range diags {
 		if d.Level != hairaerr.Error {
@@ -263,7 +236,6 @@ func reportWarnings(diags []hairaerr.Diagnostic, source string) {
 	}
 }
 
-// reportErrors pretty-prints diagnostics to stderr and returns an error summary.
 func reportErrors(diags []hairaerr.Diagnostic, source string) error {
 	fmt.Fprint(os.Stderr, hairaerr.FormatAll(diags, source))
 	count := 0

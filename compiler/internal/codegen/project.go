@@ -14,42 +14,25 @@ import (
 )
 
 // CompileToBinary generates Go source and runs go build.
-// If runtimePath is empty, the embedded minimal runtime is used.
-func CompileToBinary(file *ast.SourceFile, output, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
+// The embedded runtime is always used — no external runtime path needed.
+func CompileToBinary(file *ast.SourceFile, output, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
-	useMinimal := runtimePath == ""
 
-	// Test-only files (no fn main) need the test codegen path which includes
-	// a stub main() and a test file so `go build` succeeds.
 	if HasTests(file) && !hasMainFunction(file) {
 		mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
 		testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
-		if useMinimal {
-			if err := writeMinimalTestProject(tmpDir, mainGo, testGo); err != nil {
-				return err
-			}
-		} else {
-			if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
-				return err
-			}
+		if err := writeTestProject(tmpDir, mainGo, testGo); err != nil {
+			return err
 		}
 	} else {
 		mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-		if useMinimal {
-			if err := writeMinimalProject(tmpDir, mainGo); err != nil {
-				return err
-			}
-		} else {
-			if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
-				return err
-			}
+		if err := writeProject(tmpDir, mainGo); err != nil {
+			return err
 		}
 	}
 
-	if !useMinimal {
-		if err := runGoModTidy(tmpDir); err != nil {
-			return fmt.Errorf("go mod tidy failed: %w", err)
-		}
+	if err := runGoModTidy(tmpDir); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w", err)
 	}
 
 	if err := runGoBuild(tmpDir, output); err != nil {
@@ -62,24 +45,15 @@ func CompileToBinary(file *ast.SourceFile, output, runtimePath, hairaFile, haira
 }
 
 // RunProgram generates Go source and runs go run.
-// If runtimePath is empty, the embedded minimal runtime is used.
-func RunProgram(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
+func RunProgram(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-run-%d", os.Getpid()))
-	useMinimal := runtimePath == ""
 
 	mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-
-	if useMinimal {
-		if err := writeMinimalProject(tmpDir, mainGo); err != nil {
-			return err
-		}
-	} else {
-		if err := writeProject(tmpDir, mainGo, runtimePath); err != nil {
-			return err
-		}
-		if err := runGoModTidy(tmpDir); err != nil {
-			return fmt.Errorf("go mod tidy failed: %w", err)
-		}
+	if err := writeProject(tmpDir, mainGo); err != nil {
+		return err
+	}
+	if err := runGoModTidy(tmpDir); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w", err)
 	}
 
 	cmd := exec.Command("go", "run", ".")
@@ -102,10 +76,8 @@ func RunProgram(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string
 }
 
 // RunTests generates Go source and runs go test.
-// If runtimePath is empty, the embedded minimal runtime is used.
-func RunTests(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, testArgs []string, typeInfo ...*checker.TypeInfo) error {
+func RunTests(file *ast.SourceFile, hairaFile, hairaSource string, testArgs []string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-test-%d", os.Getpid()))
-	useMinimal := runtimePath == ""
 
 	mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
 	testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
@@ -114,17 +86,11 @@ func RunTests(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, 
 		return fmt.Errorf("no test blocks found in %s", hairaFile)
 	}
 
-	if useMinimal {
-		if err := writeMinimalTestProject(tmpDir, mainGo, testGo); err != nil {
-			return err
-		}
-	} else {
-		if err := writeTestProject(tmpDir, mainGo, testGo, runtimePath); err != nil {
-			return err
-		}
-		if err := runGoModTidy(tmpDir); err != nil {
-			return fmt.Errorf("go mod tidy failed: %w", err)
-		}
+	if err := writeTestProject(tmpDir, mainGo, testGo); err != nil {
+		return err
+	}
+	if err := runGoModTidy(tmpDir); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w", err)
 	}
 
 	args := append([]string{"test", "-v", "."}, normalizeTestArgs(testArgs)...)
@@ -147,35 +113,86 @@ func RunTests(file *ast.SourceFile, runtimePath, hairaFile, hairaSource string, 
 	return err
 }
 
-func writeTestProject(dir, mainGo, testGo, runtimePath string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+// writeProject writes a Go project using the embedded runtime.
+func writeProject(dir, mainGo string) error {
+	hairaDir := filepath.Join(dir, "haira")
+	if err := os.MkdirAll(hairaDir, 0o755); err != nil {
 		return fmt.Errorf("create dir: %w", err)
 	}
 
-	absRuntime, err := filepath.Abs(runtimePath)
-	if err != nil {
-		return fmt.Errorf("resolve runtime path: %w", err)
+	// Write all Go runtime source files
+	for name, data := range runtime.GoFiles() {
+		if err := os.WriteFile(filepath.Join(hairaDir, name), data, 0o644); err != nil {
+			return fmt.Errorf("write runtime %s: %w", name, err)
+		}
 	}
 
-	goMod := fmt.Sprintf("module haira-generated\n\ngo 1.22\n\nrequire haira-go-runtime v0.0.0\n\nreplace haira-go-runtime => %s\n", absRuntime)
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+	// Write UI files (dist/, HTML templates)
+	for relPath, data := range runtime.UIFiles() {
+		fullPath := filepath.Join(hairaDir, relPath)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+			return fmt.Errorf("create ui dir: %w", err)
+		}
+		if err := os.WriteFile(fullPath, data, 0o644); err != nil {
+			return fmt.Errorf("write ui %s: %w", relPath, err)
+		}
+	}
+
+	// Write go.mod — rewrite the module to use the local haira/ directory
+	goMod := rewriteGoMod(runtime.GoMod())
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), goMod, 0o644); err != nil {
 		return fmt.Errorf("write go.mod: %w", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {
-		return fmt.Errorf("write main.go: %w", err)
+	// Write go.sum
+	goSum := runtime.GoSum()
+	if goSum != nil {
+		if err := os.WriteFile(filepath.Join(dir, "go.sum"), goSum, 0o644); err != nil {
+			return fmt.Errorf("write go.sum: %w", err)
+		}
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(testGo), 0o644); err != nil {
-		return fmt.Errorf("write main_test.go: %w", err)
+	// Write main.go
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {
+		return fmt.Errorf("write main.go: %w", err)
 	}
 
 	return nil
 }
 
+// writeTestProject writes a Go test project using the embedded runtime.
+func writeTestProject(dir, mainGo, testGo string) error {
+	if err := writeProject(dir, mainGo); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(testGo), 0o644); err != nil {
+		return fmt.Errorf("write main_test.go: %w", err)
+	}
+	return nil
+}
+
+// rewriteGoMod transforms the embedded go.mod to work in the temp build directory.
+// It changes the module name and adds a replace directive for the runtime.
+func rewriteGoMod(original []byte) []byte {
+	if original == nil {
+		// Fallback: generate a minimal go.mod
+		return []byte("module haira-generated\n\ngo 1.22\n")
+	}
+
+	content := string(original)
+
+	// Replace the module name
+	content = strings.Replace(content, "module haira-go-runtime", "module haira-generated", 1)
+
+	// The runtime Go files are in haira/ subdirectory of the build dir,
+	// but since we're using the same module (haira-generated), Go resolves
+	// the import "haira-generated/haira" to the haira/ subdirectory automatically.
+	// No replace directive needed — it's all one module.
+
+	return []byte(content)
+}
+
 // normalizeTestArgs translates user-facing test flags to Go's format.
-// Go's t.Run replaces spaces with underscores, so -run "multiply works"
-// needs to become -run "TestHaira/multiply_works" for go test.
 func normalizeTestArgs(args []string) []string {
 	out := make([]string, len(args))
 	for i, arg := range args {
@@ -184,21 +201,18 @@ func normalizeTestArgs(args []string) []string {
 	for i := 0; i < len(out); i++ {
 		if (out[i] == "-run" || out[i] == "--run") && i+1 < len(out) {
 			filter := out[i+1]
-			// Replace spaces with underscores (Go's t.Run behavior)
 			filter = strings.ReplaceAll(filter, " ", "_")
-			// Prefix with TestHaira/ so users just write the test name
 			if !strings.HasPrefix(filter, "TestHaira") {
 				filter = "TestHaira/" + filter
 			}
 			out[i+1] = filter
-			i++ // skip the value
+			i++
 		}
 	}
 	return out
 }
 
-// cleanGoErrors strips Go module/build noise from error output,
-// since //line directives already point to the Haira source file.
+// cleanGoErrors strips Go module/build noise from error output.
 func cleanGoErrors(output string) string {
 	var lines []string
 	for _, line := range strings.Split(output, "\n") {
@@ -213,67 +227,6 @@ func cleanGoErrors(output string) string {
 // ShowGeneratedGo generates Go source and prints it (for debugging).
 func ShowGeneratedGo(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) string {
 	return GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-}
-
-// writeMinimalProject writes a self-contained Go project using the embedded
-// minimal runtime. No external dependencies or go.sum needed.
-func writeMinimalProject(dir, mainGo string) error {
-	hairaDir := filepath.Join(dir, "haira")
-	if err := os.MkdirAll(hairaDir, 0o755); err != nil {
-		return fmt.Errorf("create dir: %w", err)
-	}
-
-	// Write embedded runtime files
-	for name, data := range runtime.Files() {
-		if err := os.WriteFile(filepath.Join(hairaDir, name), data, 0o644); err != nil {
-			return fmt.Errorf("write runtime %s: %w", name, err)
-		}
-	}
-
-	// Minimal go.mod — no external dependencies
-	goMod := "module haira-generated\n\ngo 1.22\n"
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
-		return fmt.Errorf("write go.mod: %w", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {
-		return fmt.Errorf("write main.go: %w", err)
-	}
-
-	return nil
-}
-
-// writeMinimalTestProject writes a self-contained Go test project using the embedded runtime.
-func writeMinimalTestProject(dir, mainGo, testGo string) error {
-	if err := writeMinimalProject(dir, mainGo); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(testGo), 0o644); err != nil {
-		return fmt.Errorf("write main_test.go: %w", err)
-	}
-	return nil
-}
-
-func writeProject(dir, mainGo, runtimePath string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create dir: %w", err)
-	}
-
-	absRuntime, err := filepath.Abs(runtimePath)
-	if err != nil {
-		return fmt.Errorf("resolve runtime path: %w", err)
-	}
-
-	goMod := fmt.Sprintf("module haira-generated\n\ngo 1.22\n\nrequire haira-go-runtime v0.0.0\n\nreplace haira-go-runtime => %s\n", absRuntime)
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
-		return fmt.Errorf("write go.mod: %w", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {
-		return fmt.Errorf("write main.go: %w", err)
-	}
-
-	return nil
 }
 
 func runGoModTidy(dir string) error {
@@ -303,72 +256,4 @@ func runGoBuild(dir, output string) error {
 		return fmt.Errorf("go build failed: %s", string(out))
 	}
 	return nil
-}
-
-// isValidRuntime checks that the runtime directory contains the required
-// embedded assets (e.g. the built UI bundle) so go:embed won't fail.
-func isValidRuntime(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
-		return false
-	}
-	// server.go embeds ui/dist/haira-ui.js — must exist
-	_, err = os.Stat(filepath.Join(path, "haira", "ui", "dist", "haira-ui.js"))
-	return err == nil
-}
-
-// FindRuntimePath locates the go-runtime directory.
-func FindRuntimePath() string {
-	// 1. Explicit override via environment variable
-	if envPath := os.Getenv("HAIRA_RUNTIME"); envPath != "" {
-		if isValidRuntime(envPath) {
-			return envPath
-		}
-	}
-
-	// 2. User install location (~/.haira/runtime/)
-	if home, err := os.UserHomeDir(); err == nil {
-		runtime := filepath.Join(home, ".haira", "runtime")
-		if isValidRuntime(runtime) {
-			return runtime
-		}
-	}
-
-	// 3. Relative to executable (installed locations)
-	if exe, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exe)
-
-		// <exe_dir>/../lib/haira/runtime (system install: /usr/local/lib/haira/runtime)
-		runtime := filepath.Join(exeDir, "..", "lib", "haira", "runtime")
-		if isValidRuntime(runtime) {
-			return runtime
-		}
-
-		// <exe_dir>/runtime (same-directory install)
-		runtime = filepath.Join(exeDir, "runtime")
-		if isValidRuntime(runtime) {
-			return runtime
-		}
-
-		// Dev: <exe_dir>/../../go-runtime (running from compiler/)
-		runtime = filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(exe))), "go-runtime")
-		if isValidRuntime(runtime) {
-			return runtime
-		}
-	}
-
-	// 4. Current working directory (development)
-	if cwd, err := os.Getwd(); err == nil {
-		runtime := filepath.Join(cwd, "go-runtime")
-		if isValidRuntime(runtime) {
-			return runtime
-		}
-		// Parent directory (compiler is a subdirectory)
-		runtime = filepath.Join(filepath.Dir(cwd), "go-runtime")
-		if isValidRuntime(runtime) {
-			return runtime
-		}
-	}
-
-	return ""
 }

@@ -88,7 +88,7 @@ fn main() {
 		t.Error("missing 'package main'")
 	}
 	// Must import haira runtime
-	if !strings.Contains(got, `"haira-go-runtime/haira"`) {
+	if !strings.Contains(got, `"haira-generated/haira"`) {
 		t.Error("missing haira runtime import")
 	}
 	// Must call haira.Println

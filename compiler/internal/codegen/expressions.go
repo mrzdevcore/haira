@@ -76,11 +76,7 @@ func ExprToGo(expr ast.Expr) string {
 		}
 		receiver := ExprToGo(e.Receiver)
 		method := SnakeToPascal(e.Method.Node)
-		args := make([]string, len(e.Args))
-		for i, a := range e.Args {
-			args[i] = ExprToGo(a.Value)
-		}
-		return fmt.Sprintf("%s.%s(%s)", receiver, method, strings.Join(args, ", "))
+		return fmt.Sprintf("%s.%s(%s)", receiver, method, argsWithNamedToGo(e.Args))
 	case ast.FieldExpr:
 		// Enum variant access: Direction.North → DirectionNorth
 		if ident, ok := e.Object.Node.(ast.IdentExpr); ok {
@@ -260,6 +256,8 @@ func orelseReturnType(e ast.Expr) string {
 	switch key {
 	case "excel.open":
 		return "*haira.Workbook"
+	case "excel.read_sheets":
+		return "*haira.ExcelTables"
 	case "postgres.connect":
 		return "*haira.DB"
 	}
@@ -271,10 +269,20 @@ func orelseReturnType(e ast.Expr) string {
 			return "*haira.Response"
 		}
 	}
-	// Instance method calls: *.read_sheet, *.query return []map[string]any
+	// Instance method calls — return types based on method name
 	switch mc.Method.Node {
 	case "read_sheet", "query":
 		return "[]map[string]any"
+	case "get", "post", "put", "patch", "delete":
+		return "*haira.Response"
+	case "schema":
+		return "*haira.PgSchema"
+	case "tables":
+		return "[]any"
+	case "merge_request", "create_mr":
+		return "*haira.GitlabMR"
+	case "pull_request", "create_pr":
+		return "*haira.GithubPR"
 	}
 	return "any"
 }
@@ -645,4 +653,37 @@ func nodeKind(node ast.ExprKind) string {
 	default:
 		return fmt.Sprintf("%T", node)
 	}
+}
+
+// argsWithNamedToGo converts a list of arguments to Go, collecting named args into a map.
+// If there are no named args, returns all args positionally as usual.
+// If there are named args, positional args come first, then a map[string]any{...} for named args.
+func argsWithNamedToGo(args []ast.Argument) string {
+	hasNamed := false
+	for _, a := range args {
+		if a.Name != nil {
+			hasNamed = true
+			break
+		}
+	}
+	if !hasNamed {
+		parts := make([]string, len(args))
+		for i, a := range args {
+			parts[i] = ExprToGo(a.Value)
+		}
+		return strings.Join(parts, ", ")
+	}
+
+	var positional []string
+	var named []string
+	for _, a := range args {
+		if a.Name != nil {
+			named = append(named, fmt.Sprintf("%q: %s", a.Name.Node, ExprToGo(a.Value)))
+		} else {
+			positional = append(positional, ExprToGo(a.Value))
+		}
+	}
+	parts := positional
+	parts = append(parts, fmt.Sprintf("map[string]any{%s}", strings.Join(named, ", ")))
+	return strings.Join(parts, ", ")
 }

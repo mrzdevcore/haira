@@ -20,7 +20,7 @@ Thumbs.db
 .output/
 
 # UI build output
-go-runtime/haira/ui/dist/
+compiler/internal/runtime/embedded/haira/ui/dist/
 
 # Object files
 *.o

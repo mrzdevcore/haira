@@ -1,13 +1,15 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev sync-runtime help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev bundle-runtime help
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
 VERSION ?= dev
 LDFLAGS = -ldflags "-X main.version=$(VERSION)"
 
-# UI directories
-UI_SRC = go-runtime/haira/ui/src
-UI_DIST = go-runtime/haira/ui/dist
+# Runtime directories
+RUNTIME_DIR = runtime
+UI_SRC = $(RUNTIME_DIR)/haira/ui/src
+UI_DIST = $(RUNTIME_DIR)/haira/ui/dist
+BUNDLE = $(COMPILER_DIR)/internal/runtime/bundle.tar.gz
 
 # Default target
 all: build
@@ -15,16 +17,22 @@ all: build
 # Build the UI bundle (TypeScript → JS via Bun)
 ui:
 	@mkdir -p $(UI_DIST)
-	cd go-runtime/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
+	cd $(RUNTIME_DIR)/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
 	@echo "UI bundle built: $(UI_DIST)/haira-ui.js"
 
 # Build UI in watch mode (development)
 ui-dev:
 	@mkdir -p $(UI_DIST)
-	cd go-runtime/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
+	cd $(RUNTIME_DIR)/haira/ui && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
 
-# Build the compiler (depends on UI bundle + runtime sync)
-build: ui sync-runtime
+# Bundle the runtime into a tar.gz for embedding in the compiler
+bundle-runtime: ui
+	@echo "Bundling runtime..."
+	@tar czf $(BUNDLE) -C $(RUNTIME_DIR) haira go.mod go.sum
+	@echo "Runtime bundle: $(BUNDLE) ($$(du -h $(BUNDLE) | cut -f1))"
+
+# Build the compiler (depends on runtime bundle)
+build: bundle-runtime
 	cd $(COMPILER_DIR) && go build $(LDFLAGS) -o haira .
 
 # Run Go tests
@@ -34,6 +42,7 @@ test:
 # Clean build artifacts
 clean:
 	rm -f $(BINARY)
+	rm -f $(BUNDLE)
 	rm -rf .output
 	rm -rf $(UI_DIST)
 	@echo "Cleaned all build artifacts"
@@ -47,12 +56,12 @@ vet:
 	cd $(COMPILER_DIR) && go vet ./...
 
 # Install haira binary to $GOPATH/bin
-install: build sync-runtime
+install: build
 	cp $(BINARY) $(shell go env GOPATH)/bin/haira
 	@echo "Installed haira to $$(go env GOPATH)/bin/haira"
 
 # Install haira binary to ~/.local/bin
-install-local: build sync-runtime
+install-local: build
 	@mkdir -p ~/.local/bin
 	@cp $(BINARY) ~/.local/bin/haira
 	@echo "Installed haira to ~/.local/bin/haira"
@@ -64,12 +73,6 @@ install-local: build sync-runtime
 install-system: build
 	@sudo cp $(BINARY) /usr/local/bin/haira
 	@echo "Installed haira to /usr/local/bin/haira"
-
-# Sync go-runtime to ~/.haira/runtime (for installed haira)
-sync-runtime:
-	@mkdir -p ~/.haira/runtime
-	@rsync -a --delete go-runtime/ ~/.haira/runtime/
-	@echo "Synced go-runtime → ~/.haira/runtime"
 
 # Uninstall haira binary
 uninstall:
@@ -157,7 +160,7 @@ ci: vet test build-examples
 help:
 	@echo "Haira Makefile targets:"
 	@echo ""
-	@echo "  build            Build the compiler"
+	@echo "  build            Build the compiler (all runtime embedded)"
 	@echo "  test             Run Go tests"
 	@echo "  clean            Clean build artifacts"
 	@echo "  fmt              Format code"
@@ -165,7 +168,6 @@ help:
 	@echo "  install          Install to GOPATH/bin"
 	@echo "  install-local    Install to ~/.local/bin"
 	@echo "  install-system   Install to /usr/local/bin (sudo)"
-	@echo "  sync-runtime     Sync go-runtime to ~/.haira/runtime"
 	@echo "  uninstall        Remove installed binary"
 	@echo "  run              Run haira (use ARGS=\"...\")"
 	@echo "  parse            Parse a file (use FILE=\"...\")"
@@ -179,5 +181,6 @@ help:
 	@echo "  vscode-package        Package VS Code extension (.vsix)"
 	@echo "  ui               Build UI bundle (TypeScript → JS)"
 	@echo "  ui-dev           Build UI in watch mode"
+	@echo "  bundle-runtime   Bundle runtime into tar.gz for embedding"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

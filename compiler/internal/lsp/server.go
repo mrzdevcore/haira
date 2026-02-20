@@ -159,7 +159,9 @@ func (s *Server) handleMessage(msg json.RawMessage) {
 
 	default:
 		if !isNotification {
-			s.sendError(req.ID, -32601, "method not found: "+req.Method)
+			// Return null for unimplemented methods instead of an error,
+			// so clients don't log deserialization failures.
+			s.sendResult(req.ID, nil)
 		}
 	}
 }

@@ -9,42 +9,8 @@ import (
 )
 
 // RuntimeImportPath is the Go import path for the Haira runtime package.
-// In full mode it points to the external go-runtime; in minimal mode it
-// points to the local package within the generated module.
-var RuntimeImportPath = "haira-go-runtime/haira"
-
-// SetMinimalRuntime switches codegen to use the embedded minimal runtime.
-func SetMinimalRuntime() {
-	RuntimeImportPath = "haira-generated/haira"
-}
-
-// ResetRuntime switches codegen back to the full external runtime.
-func ResetRuntime() {
-	RuntimeImportPath = "haira-go-runtime/haira"
-}
-
-// fullRuntimeModules are import paths that require the full external go-runtime.
-var fullRuntimeModules = map[string]bool{
-	"postgres": true, "excel": true, "slack": true,
-	"vector": true, "observe": true, "ui": true, "mcp": true,
-}
-
-// NeedsFullRuntime returns true if the program requires the full external go-runtime.
-// Programs that only use minimal stdlib modules (io, http, string, math, etc.)
-// can use the embedded runtime instead.
-func NeedsFullRuntime(file *ast.SourceFile) bool {
-	for _, item := range file.Items {
-		switch it := item.Node.(type) {
-		case ast.ProviderDecl, ast.ToolDecl, ast.AgentDecl, ast.WorkflowDecl:
-			return true
-		case ast.ImportDecl:
-			if fullRuntimeModules[it.Path] {
-				return true
-			}
-		}
-	}
-	return false
-}
+// All programs use the embedded runtime written to haira/ in the temp build dir.
+var RuntimeImportPath = "haira-generated/haira"
 
 // GenerateMainGo generates the contents of main.go from the AST.
 func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInfo ...*checker.TypeInfo) string {

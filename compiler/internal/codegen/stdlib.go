@@ -84,6 +84,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		}
 	case "http":
 		switch method {
+		case "client":
+			return fmt.Sprintf("haira.HttpClient(%s)", args), true
 		case "get":
 			return fmt.Sprintf("haira.HttpGet(%s)", args), true
 		case "get_with_headers":
@@ -176,6 +178,34 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.StringReplaceAll(%s)", args), true
 		case "repeat":
 			return fmt.Sprintf("haira.StringRepeat(%s)", args), true
+		case "slugify":
+			return fmt.Sprintf("haira.StringSlugify(%s)", args), true
+		case "basename":
+			return fmt.Sprintf("haira.StringBasename(%s)", args), true
+		case "strip_ext":
+			return fmt.Sprintf("haira.StringStripExt(%s)", args), true
+		case "ext":
+			return fmt.Sprintf("haira.StringExt(%s)", args), true
+		case "pad_left":
+			return fmt.Sprintf("haira.StringPadLeft(%s)", args), true
+		case "pad_right":
+			return fmt.Sprintf("haira.StringPadRight(%s)", args), true
+		case "truncate":
+			return fmt.Sprintf("haira.StringTruncate(%s)", args), true
+		case "extract_between":
+			return fmt.Sprintf("haira.StringExtractBetween(%s)", args), true
+		case "capitalize":
+			return fmt.Sprintf("haira.StringCapitalize(%s)", args), true
+		case "title":
+			return fmt.Sprintf("haira.StringTitle(%s)", args), true
+		case "reverse":
+			return fmt.Sprintf("haira.StringReverse(%s)", args), true
+		case "count":
+			return fmt.Sprintf("haira.StringCount(%s)", args), true
+		case "lines":
+			return fmt.Sprintf("haira.StringLines(%s)", args), true
+		case "words":
+			return fmt.Sprintf("haira.StringWords(%s)", args), true
 		}
 	case "regex":
 		switch method {
@@ -367,16 +397,37 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.MapContainsValue(%s)", args), true
 		}
 	case "postgres":
-		if method == "connect" {
+		switch method {
+		case "connect":
 			return fmt.Sprintf("haira.PostgresConnect(%s)", args), true
+		case "generate_upsert":
+			return fmt.Sprintf("haira.PostgresGenerateUpsert(%s)", args), true
+		case "escape":
+			return fmt.Sprintf("haira.PostgresEscape(%s)", args), true
 		}
 	case "slack":
-		if method == "send" {
+		switch method {
+		case "send":
 			return fmt.Sprintf("haira.SlackSend(%s)", args), true
+		case "send_blocks":
+			return fmt.Sprintf("haira.SlackSendBlocks(%s)", args), true
+		case "header":
+			return fmt.Sprintf("haira.SlackHeader(%s)", args), true
+		case "section":
+			return fmt.Sprintf("haira.SlackSection(%s)", args), true
+		case "divider":
+			return "haira.SlackDivider()", true
+		case "context":
+			return fmt.Sprintf("haira.SlackContext(%s)", args), true
+		case "client":
+			return fmt.Sprintf("haira.SlackNewClient(%s)", args), true
 		}
 	case "excel":
-		if method == "open" {
+		switch method {
+		case "open":
 			return fmt.Sprintf("haira.ExcelOpen(%s)", args), true
+		case "read_sheets":
+			return fmt.Sprintf("haira.ExcelReadSheets(%s)", args), true
 		}
 	case "log":
 		// log.info/warn/error inside steps → haira.StepLog with injected context
@@ -471,8 +522,43 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "langfuse":
 			return fmt.Sprintf("haira.ObserveLangfuse(%s)", args), true
 		}
+	case "gitlab":
+		switch method {
+		case "Client":
+			return resolveClientConstructor("haira.GitlabNewClient", call), true
+		case "client":
+			return resolveClientConstructor("haira.GitlabConnect", call), true
+		}
+	case "github":
+		switch method {
+		case "Client":
+			return resolveClientConstructor("haira.GithubNewClient", call), true
+		case "client":
+			return resolveClientConstructor("haira.GithubConnect", call), true
+		}
 	}
 	return "", false
+}
+
+// resolveClientConstructor generates a Go call with positional args + named args collected into a map.
+// e.g., gitlab.Client(token, project: 359) → haira.GitlabNewClient(token, map[string]any{"project": 359})
+func resolveClientConstructor(goFunc string, call ast.CallExpr) string {
+	var positional []string
+	var named []string
+	for _, arg := range call.Args {
+		if arg.Name != nil {
+			named = append(named, fmt.Sprintf("%q: %s", arg.Name.Node, ExprToGo(arg.Value)))
+		} else {
+			positional = append(positional, ExprToGo(arg.Value))
+		}
+	}
+	parts := positional
+	if len(named) > 0 {
+		parts = append(parts, fmt.Sprintf("map[string]any{%s}", strings.Join(named, ", ")))
+	} else {
+		parts = append(parts, "nil")
+	}
+	return fmt.Sprintf("%s(%s)", goFunc, strings.Join(parts, ", "))
 }
 
 func resolveServerCall(call ast.CallExpr) string {
@@ -599,7 +685,7 @@ func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
-		"observe", "fs":
+		"observe", "fs", "gitlab", "github":
 		return true
 	}
 	return false

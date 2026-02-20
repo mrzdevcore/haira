@@ -396,15 +396,15 @@ fn main() {
 		Position:     Position{Line: 5, Character: 5},
 	})
 	result := s.handler.Definition(defParams)
-	if result == nil {
+	if len(result) == 0 {
 		t.Fatal("expected definition location")
 	}
-	if result.URI != "file:///test.haira" {
-		t.Errorf("uri = %q, want file:///test.haira", result.URI)
+	if result[0].URI != "file:///test.haira" {
+		t.Errorf("uri = %q, want file:///test.haira", result[0].URI)
 	}
 	// The definition should point to line 0 (where fn add is defined)
-	if result.Range.Start.Line != 0 {
-		t.Errorf("definition line = %d, want 0", result.Range.Start.Line)
+	if result[0].Range.Start.Line != 0 {
+		t.Errorf("definition line = %d, want 0", result[0].Range.Start.Line)
 	}
 }
 
@@ -433,11 +433,11 @@ fn main() {
 		Position:     Position{Line: 5, Character: 5},
 	})
 	result := s.handler.Definition(defParams)
-	if result == nil {
+	if len(result) == 0 {
 		t.Fatal("expected definition location for User")
 	}
-	if result.Range.Start.Line != 0 {
-		t.Errorf("definition line = %d, want 0", result.Range.Start.Line)
+	if result[0].Range.Start.Line != 0 {
+		t.Errorf("definition line = %d, want 0", result[0].Range.Start.Line)
 	}
 }
 

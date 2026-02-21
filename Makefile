@@ -28,7 +28,7 @@ ui-dev:
 	cd ui/sdk && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
 
 # Stdlib packages to bundle separately (each gets its own Go package)
-STDLIB_PKGS = postgres excel vector slack github gitlab sqlite
+STDLIB_PKGS = postgres excel vector slack github gitlab sqlite langfuse
 
 # Bundle the runtime into a tar.gz for embedding in the compiler
 # Core haira/ package is always included; stdlib packages are separate

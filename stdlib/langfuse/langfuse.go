@@ -1,4 +1,4 @@
-package haira
+package langfuse
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	haira "haira-go-runtime/haira"
 )
 
 // ── Configuration ──
@@ -32,11 +34,6 @@ type langfuseExporter struct {
 	stopCh chan struct{}
 }
 
-var (
-	globalLangfuse *langfuseExporter
-	langfuseOnce   sync.Once
-)
-
 // ── Event types (Langfuse ingestion API) ──
 
 type langfuseEvent struct {
@@ -53,9 +50,10 @@ type langfusePayload struct {
 
 // ── Public API ──
 
-// ObserveLangfuse enables Langfuse export. Pass empty strings to auto-detect
-// from LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY env vars.
-func ObserveLangfuse(host, publicKey, secretKey string) {
+// LangfuseExporter creates a Langfuse exporter for use with observe.export().
+// Pass empty strings to auto-detect from LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY env vars.
+// Returns nil if config is missing (no-op).
+func LangfuseExporter(host, publicKey, secretKey string) haira.Exporter {
 	if host == "" {
 		host = os.Getenv("LANGFUSE_HOST")
 	}
@@ -67,33 +65,27 @@ func ObserveLangfuse(host, publicKey, secretKey string) {
 	}
 	if host == "" || publicKey == "" || secretKey == "" {
 		fmt.Println("[haira] Langfuse: missing config (set LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY) — export disabled")
-		return
+		return nil
 	}
-	langfuseOnce.Do(func() {
-		exp := &langfuseExporter{
-			config: langfuseConfig{
-				host:      host,
-				publicKey: publicKey,
-				secretKey: secretKey,
-			},
-			buffer: make([]langfuseEvent, 0, 64),
-			traces: make(map[string]bool),
-			ticker: time.NewTicker(5 * time.Second),
-			stopCh: make(chan struct{}),
-		}
-		globalLangfuse = exp
-		go exp.runLoop()
-		fmt.Printf("[haira] Langfuse export enabled → %s\n", host)
-	})
+	exp := &langfuseExporter{
+		config: langfuseConfig{
+			host:      host,
+			publicKey: publicKey,
+			secretKey: secretKey,
+		},
+		buffer: make([]langfuseEvent, 0, 64),
+		traces: make(map[string]bool),
+		ticker: time.NewTicker(5 * time.Second),
+		stopCh: make(chan struct{}),
+	}
+	go exp.runLoop()
+	fmt.Printf("[haira] Langfuse export enabled → %s\n", host)
+	return exp
 }
 
-// ── Internal hook (called from RecordGeneration in observe.go) ──
+// ── Exporter interface implementation ──
 
-func langfuseEnqueue(gen LLMGeneration) {
-	if globalLangfuse == nil {
-		return
-	}
-
+func (e *langfuseExporter) OnGeneration(gen haira.LLMGeneration) {
 	now := gen.Timestamp.UTC().Format(time.RFC3339Nano)
 	endTime := gen.Timestamp.Add(time.Duration(gen.LatencyMs) * time.Millisecond).UTC().Format(time.RFC3339Nano)
 
@@ -107,11 +99,11 @@ func langfuseEnqueue(gen LLMGeneration) {
 	inputCost := float64(gen.InputTokens) * gen.InputTokenCost / 1_000_000
 	outputCost := float64(gen.OutputTokens) * gen.OutputTokenCost / 1_000_000
 
-	globalLangfuse.mu.Lock()
+	e.mu.Lock()
 
 	// Create a trace-create event if we haven't seen this trace yet.
-	if !globalLangfuse.traces[traceID] {
-		globalLangfuse.traces[traceID] = true
+	if !e.traces[traceID] {
+		e.traces[traceID] = true
 		traceBody := map[string]any{
 			"id":        traceID,
 			"timestamp": now,
@@ -120,7 +112,7 @@ func langfuseEnqueue(gen LLMGeneration) {
 		if gen.SessionID != "" {
 			traceBody["sessionId"] = gen.SessionID
 		}
-		globalLangfuse.buffer = append(globalLangfuse.buffer, langfuseEvent{
+		e.buffer = append(e.buffer, langfuseEvent{
 			ID:        newUUID(),
 			Type:      "trace-create",
 			Timestamp: now,
@@ -156,22 +148,22 @@ func langfuseEnqueue(gen LLMGeneration) {
 		genBody["sessionId"] = gen.SessionID
 	}
 
-	globalLangfuse.buffer = append(globalLangfuse.buffer, langfuseEvent{
+	e.buffer = append(e.buffer, langfuseEvent{
 		ID:        newUUID(),
 		Type:      "generation-create",
 		Timestamp: now,
 		Body:      genBody,
 	})
 
-	buffered := len(globalLangfuse.buffer)
+	buffered := len(e.buffer)
 	shouldFlush := buffered >= 50
-	globalLangfuse.mu.Unlock()
+	e.mu.Unlock()
 
 	fmt.Fprintf(os.Stderr, "[haira] Langfuse: enqueued generation for %s (%d input, %d output) — buffer size: %d\n",
 		gen.AgentName, gen.InputTokens, gen.OutputTokens, buffered)
 
 	if shouldFlush {
-		go globalLangfuse.flush()
+		go e.flush()
 	}
 }
 

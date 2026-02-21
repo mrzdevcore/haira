@@ -7,6 +7,7 @@
 import "io"
 import "http"
 import "observe"
+import "langfuse"
 import "conv"
 
 provider openai {
@@ -66,7 +67,7 @@ workflow Stats() -> { total_cost: float, writer_cost: float, summary: map } {
 
 fn main() {
     // Enable Langfuse export (auto-detects env vars, no-op if not set)
-    observe.langfuse("", "", "")
+    observe.use(langfuse.exporter("", "", ""))
 
     server = http.Server([Write, Chat, Stats])
     observe.start(server)

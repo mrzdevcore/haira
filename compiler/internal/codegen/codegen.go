@@ -744,7 +744,7 @@ func SnakeToPascal(name string) string {
 // separate stdlib package (not part of the core haira package).
 func stdlibGoPackage(path string) (string, bool) {
 	switch path {
-	case "postgres", "excel", "vector", "slack", "github", "gitlab":
+	case "postgres", "excel", "vector", "slack", "github", "gitlab", "langfuse":
 		return path, true
 	}
 	return "", false

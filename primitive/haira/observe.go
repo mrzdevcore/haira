@@ -51,6 +51,22 @@ type ToolExec struct {
 	SessionID string    `json:"session_id"`
 }
 
+// ── Exporter interface (for external services like Langfuse, Datadog, etc.) ──
+
+// Exporter receives LLM generation events for external observability platforms.
+type Exporter interface {
+	OnGeneration(LLMGeneration)
+}
+
+var exporters []Exporter
+
+// ObserveExport registers an exporter to receive all LLM generation events.
+func ObserveExport(exp Exporter) {
+	if exp != nil {
+		exporters = append(exporters, exp)
+	}
+}
+
 // ── Global observer (goroutine-safe) ──
 
 type observer struct {
@@ -76,7 +92,9 @@ func RecordGeneration(gen LLMGeneration) {
 	globalObserver.mu.Lock()
 	globalObserver.generations = append(globalObserver.generations, gen)
 	globalObserver.mu.Unlock()
-	langfuseEnqueue(gen)
+	for _, exp := range exporters {
+		exp.OnGeneration(gen)
+	}
 }
 
 // RecordToolExec records a tool execution event.

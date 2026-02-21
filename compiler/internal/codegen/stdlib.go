@@ -531,8 +531,13 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return "haira.ObserveCost()", true
 		case "agent_cost":
 			return fmt.Sprintf("haira.ObserveAgentCost(%s)", args), true
-		case "langfuse":
-			return fmt.Sprintf("haira.ObserveLangfuse(%s)", args), true
+		case "use":
+			return fmt.Sprintf("haira.ObserveExport(%s)", args), true
+		}
+	case "langfuse":
+		switch method {
+		case "exporter":
+			return fmt.Sprintf("langfuse.LangfuseExporter(%s)", args), true
 		}
 	case "gitlab":
 		switch method {
@@ -710,7 +715,7 @@ func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
-		"observe", "fs", "gitlab", "github":
+		"observe", "fs", "gitlab", "github", "langfuse":
 		return true
 	}
 	return false

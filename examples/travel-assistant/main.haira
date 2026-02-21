@@ -12,6 +12,7 @@
 import "io"
 import "http"
 import "observe"
+import "langfuse"
 import "agents/agents"
 
 @webui(
@@ -66,7 +67,7 @@ workflow Stats() -> { total_cost: float, concierge_cost: float, weather_cost: fl
 
 fn main() {
     // Optional: enable Langfuse export (auto-detects env vars)
-    observe.langfuse("", "", "")
+    observe.use(langfuse.exporter("", "", ""))
 
     server = http.Server([Chat, Ask, Stats])
     observe.start(server)

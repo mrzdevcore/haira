@@ -237,6 +237,8 @@ func stdlibGoImport(path string) (string, bool) {
 		return "github", true
 	case "gitlab":
 		return "gitlab", true
+	case "langfuse":
+		return "langfuse", true
 	}
 	return "", false
 }

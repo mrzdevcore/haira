@@ -30,7 +30,7 @@ compiler/internal/runtime/bundle.tar.gz
 *.o
 
 # POC projects
-poc
+poc/maltimize
 
 # Environment
 .env

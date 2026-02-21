@@ -1,14 +1,5 @@
-import {
-  baseStyles,
-  sharedKeyframes,
-  scrollbarStyles,
-  iconSpinner,
-  iconCheck,
-  iconX,
-  iconRetry,
-  iconChevron,
-} from "../theme";
-import type { StepStatus } from "../types";
+import { baseCSS, scrollbarCSS, icons, esc } from "../core";
+import type { StepStatus } from "../core/types";
 
 export class HairaStep extends HTMLElement {
   private _status: StepStatus = "pending";
@@ -20,236 +11,105 @@ export class HairaStep extends HTMLElement {
   private _hasError = false;
 
   connectedCallback() {
-    this.render();
+    this.renderStep();
   }
 
   disconnectedCallback() {
     this.clearTimer();
   }
 
-  private render() {
+  private renderStep() {
     const name = this.getAttribute("name") || "";
     const idx = this.getAttribute("index") || "0";
     const shadow = this.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
-        ${baseStyles}
-        ${sharedKeyframes}
-        :host {
-          display: block;
-          position: relative;
-        }
-
-        /* --- Step header row (clickable) --- */
+        ${baseCSS}
+        :host { display: block; position: relative; }
         .step-header {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          padding: 0.5rem 0.65rem;
-          border-radius: var(--haira-radius-sm);
-          cursor: pointer;
-          user-select: none;
-          transition: background 0.15s;
-          position: relative;
+          display: flex; align-items: center; gap: 0.6rem;
+          padding: 0.5rem 0.65rem; border-radius: var(--haira-radius-sm);
+          cursor: pointer; user-select: none; transition: background 0.15s; position: relative;
         }
-        .step-header:hover {
-          background: rgba(255, 255, 255, 0.03);
-        }
-
-        /* Chevron */
+        .step-header:hover { background: rgba(255, 255, 255, 0.03); }
         .chevron {
-          flex-shrink: 0;
-          width: 16px;
-          height: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--haira-muted);
-          transition: transform 0.2s ease, color 0.2s;
-          opacity: 0;
+          flex-shrink: 0; width: 16px; height: 16px; display: flex; align-items: center;
+          justify-content: center; color: var(--haira-muted); transition: transform 0.2s ease, color 0.2s; opacity: 0;
         }
         .has-logs .chevron { opacity: 1; }
-        .expanded .chevron {
-          transform: rotate(90deg);
-        }
-
-        /* Status indicator */
+        .expanded .chevron { transform: rotate(90deg); }
         .status-icon {
-          flex-shrink: 0;
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.25s ease;
+          flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center; transition: all 0.25s ease;
         }
-        .pending .status-icon {
-          border: 1.5px dashed var(--haira-muted);
-          color: var(--haira-muted);
-        }
-        .running .status-icon {
-          border: 1.5px solid var(--haira-accent);
-          color: var(--haira-accent);
-          background: rgba(232, 163, 23, 0.1);
-        }
-        .done .status-icon {
-          background: var(--haira-success);
-          color: #fff;
-        }
-        .failed .status-icon {
-          background: var(--haira-error);
-          color: #fff;
-        }
+        .pending .status-icon { border: 1.5px dashed var(--haira-muted); color: var(--haira-muted); }
+        .running .status-icon { border: 1.5px solid var(--haira-accent); color: var(--haira-accent); background: rgba(232, 163, 23, 0.1); }
+        .done .status-icon { background: var(--haira-success); color: #fff; }
+        .failed .status-icon { background: var(--haira-error); color: #fff; }
         .retrying .status-icon {
-          border: 1.5px solid var(--haira-accent);
-          color: var(--haira-accent);
-          background: rgba(232, 163, 23, 0.1);
-          animation: pulse 1.5s ease-in-out infinite;
+          border: 1.5px solid var(--haira-accent); color: var(--haira-accent);
+          background: rgba(232, 163, 23, 0.1); animation: pulse 1.5s ease-in-out infinite;
         }
-        .skipped .status-icon {
-          border: 1.5px dashed var(--haira-muted);
-          color: var(--haira-muted);
-          opacity: 0.5;
-        }
-
-        .step-num {
-          font-size: 0.65rem;
-          font-weight: 600;
-        }
-
-        /* Step name */
+        .skipped .status-icon { border: 1.5px dashed var(--haira-muted); color: var(--haira-muted); opacity: 0.5; }
+        .step-num { font-size: 0.65rem; font-weight: 600; }
         .step-name {
-          flex: 1;
-          font-size: 0.85rem;
-          font-weight: 500;
-          color: var(--haira-muted);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          transition: color 0.2s;
+          flex: 1; font-size: 0.85rem; font-weight: 500; color: var(--haira-muted);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.2s;
         }
         .running .step-name { color: var(--haira-text); font-weight: 600; }
         .done .step-name { color: var(--haira-text-dim); }
         .failed .step-name { color: var(--haira-text); }
         .retrying .step-name { color: var(--haira-text); }
-
-        /* Log count badge */
         .log-count {
-          font-size: 0.7rem;
-          color: var(--haira-muted);
-          padding: 0.1rem 0.4rem;
-          border-radius: 10px;
-          background: rgba(255, 255, 255, 0.04);
-          font-family: var(--haira-mono);
-          display: none;
+          font-size: 0.7rem; color: var(--haira-muted); padding: 0.1rem 0.4rem;
+          border-radius: 10px; background: rgba(255, 255, 255, 0.04);
+          font-family: var(--haira-mono); display: none;
         }
         .has-logs .log-count { display: inline-block; }
-        .has-error .log-count {
-          color: var(--haira-error);
-          background: rgba(239, 68, 68, 0.1);
-        }
-
-        /* Timer */
+        .has-error .log-count { color: var(--haira-error); background: rgba(239, 68, 68, 0.1); }
         .timer {
-          flex-shrink: 0;
-          font-size: 0.75rem;
-          font-family: var(--haira-mono);
-          color: var(--haira-muted);
-          min-width: 36px;
-          text-align: right;
-          transition: color 0.2s;
+          flex-shrink: 0; font-size: 0.75rem; font-family: var(--haira-mono);
+          color: var(--haira-muted); min-width: 36px; text-align: right; transition: color 0.2s;
         }
         .running .timer { color: var(--haira-accent-light); }
         .done .timer { color: var(--haira-success); }
         .failed .timer { color: var(--haira-error); }
-
-        /* --- Collapsible log area --- */
         .logs-wrapper {
-          overflow: hidden;
-          max-height: 0;
-          opacity: 0;
-          transition: max-height 0.25s ease, opacity 0.2s ease;
-          margin-left: 2.55rem;
+          overflow: hidden; max-height: 0; opacity: 0;
+          transition: max-height 0.25s ease, opacity 0.2s ease; margin-left: 2.55rem;
         }
-        .logs-wrapper.open {
-          max-height: 600px;
-          opacity: 1;
-          overflow-y: auto;
-          ${scrollbarStyles}
-        }
-        .logs-inner {
-          padding: 0.25rem 0 0.5rem 0;
-          border-left: 1px solid rgba(63, 63, 70, 0.3);
-          margin-left: 0.15rem;
-        }
+        .logs-wrapper.open { max-height: 600px; opacity: 1; overflow-y: auto; ${scrollbarCSS} }
+        .logs-inner { padding: 0.25rem 0 0.5rem 0; border-left: 1px solid rgba(63, 63, 70, 0.3); margin-left: 0.15rem; }
         .log-entry {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.5rem;
-          font-size: 0.78rem;
-          font-family: var(--haira-mono);
-          line-height: 1.5;
-          padding: 0.15rem 0 0.15rem 0.85rem;
-          animation: fadeIn 0.15s ease-out both;
+          display: flex; align-items: flex-start; gap: 0.5rem;
+          font-size: 0.78rem; font-family: var(--haira-mono); line-height: 1.5;
+          padding: 0.15rem 0 0.15rem 0.85rem; animation: fadeIn 0.15s ease-out both;
         }
         .log-badge {
-          flex-shrink: 0;
-          font-size: 0.6rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          padding: 0.08rem 0.35rem;
-          border-radius: 3px;
-          letter-spacing: 0.04em;
-          margin-top: 0.12rem;
+          flex-shrink: 0; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+          padding: 0.08rem 0.35rem; border-radius: 3px; letter-spacing: 0.04em; margin-top: 0.12rem;
         }
-        .log-badge.info {
-          background: rgba(59, 130, 246, 0.12);
-          color: var(--haira-info);
-        }
-        .log-badge.warn {
-          background: rgba(234, 179, 8, 0.12);
-          color: var(--haira-warn);
-        }
-        .log-badge.error {
-          background: rgba(239, 68, 68, 0.12);
-          color: var(--haira-error);
-        }
-        .log-msg {
-          flex: 1;
-          word-break: break-word;
-          white-space: pre-wrap;
-          color: var(--haira-text-dim);
-        }
+        .log-badge.info { background: rgba(59, 130, 246, 0.12); color: var(--haira-info); }
+        .log-badge.warn { background: rgba(234, 179, 8, 0.12); color: var(--haira-warn); }
+        .log-badge.error { background: rgba(239, 68, 68, 0.12); color: var(--haira-error); }
+        .log-msg { flex: 1; word-break: break-word; white-space: pre-wrap; color: var(--haira-text-dim); }
         .log-msg.warn { color: var(--haira-warn); }
         .log-msg.error { color: var(--haira-error); }
-
-        /* Error detail */
         .error-detail {
-          margin: 0.25rem 0 0.5rem 0;
-          padding: 0.5rem 0.75rem;
-          font-size: 0.78rem;
-          font-family: var(--haira-mono);
-          color: var(--haira-error);
-          background: rgba(239, 68, 68, 0.06);
-          border: 1px solid rgba(239, 68, 68, 0.12);
-          border-radius: var(--haira-radius-sm);
-          margin-left: 2.55rem;
-          line-height: 1.5;
-          word-break: break-word;
-          white-space: pre-wrap;
-          display: none;
+          margin: 0.25rem 0 0.5rem 0; padding: 0.5rem 0.75rem;
+          font-size: 0.78rem; font-family: var(--haira-mono); color: var(--haira-error);
+          background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.12);
+          border-radius: var(--haira-radius-sm); margin-left: 2.55rem; line-height: 1.5;
+          word-break: break-word; white-space: pre-wrap; display: none;
         }
         .error-detail.visible { display: block; animation: fadeIn 0.2s ease-out; }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
       </style>
       <div class="step-header pending" id="header">
-        <span class="chevron" id="chevron">${iconChevron}</span>
+        <span class="chevron" id="chevron">${icons.chevron}</span>
         <span class="status-icon" id="status-icon">
           <span class="step-num" id="step-num">${Number(idx) + 1}</span>
         </span>
-        <span class="step-name">${this.esc(name)}</span>
+        <span class="step-name">${esc(name)}</span>
         <span class="log-count" id="log-count"></span>
         <span class="timer" id="timer"></span>
       </div>
@@ -259,7 +119,6 @@ export class HairaStep extends HTMLElement {
       <div class="error-detail" id="error-detail"></div>
     `;
 
-    // Click to toggle logs
     shadow.getElementById("header")!.addEventListener("click", () => {
       if (this._logCount === 0) return;
       this.toggleLogs();
@@ -297,7 +156,6 @@ export class HairaStep extends HTMLElement {
     const errorDetail = this.shadowRoot?.getElementById("error-detail");
     if (!header || !icon || !timer) return;
 
-    // Keep expanded/has-logs classes
     const extraClasses: string[] = [];
     if (this._logCount > 0) extraClasses.push("has-logs");
     if (this._hasError) extraClasses.push("has-error");
@@ -312,31 +170,29 @@ export class HairaStep extends HTMLElement {
         errorDetail?.classList.remove("visible");
         break;
       case "running":
-        icon.innerHTML = iconSpinner;
+        icon.innerHTML = icons.spinner;
         this.startTimer(timer);
         errorDetail?.classList.remove("visible");
         break;
       case "done":
-        icon.innerHTML = iconCheck;
+        icon.innerHTML = icons.check;
         this.clearTimer();
         timer.textContent = this.formatDuration(durationMs);
         errorDetail?.classList.remove("visible");
-        // Collapse logs on success (user can re-open)
         if (!this._hasError) this.toggleLogs(false);
         break;
       case "failed":
-        icon.innerHTML = iconX;
+        icon.innerHTML = icons.x;
         this.clearTimer();
         timer.textContent = this.formatDuration(durationMs);
         if (error && errorDetail) {
           errorDetail.textContent = error;
           errorDetail.classList.add("visible");
         }
-        // Auto-expand logs on failure
         if (this._logCount > 0) this.toggleLogs(true);
         break;
       case "retrying":
-        icon.innerHTML = iconRetry;
+        icon.innerHTML = icons.retry;
         errorDetail?.classList.remove("visible");
         break;
       case "skipped":
@@ -361,25 +217,21 @@ export class HairaStep extends HTMLElement {
     if (level === "error") {
       this._hasError = true;
       header.classList.add("has-error");
-      // Auto-expand on error log
       this.toggleLogs(true);
     }
 
-    // Truncate very long log messages (full content goes in the result card)
     const maxLen = 200;
     const display = message.length > maxLen ? message.slice(0, maxLen) + "..." : message;
 
     const entry = document.createElement("div");
     entry.className = "log-entry";
-    entry.innerHTML = `<span class="log-badge ${level}">${level}</span><span class="log-msg ${level}">${this.esc(display)}</span>`;
+    entry.innerHTML = `<span class="log-badge ${level}">${level}</span><span class="log-msg ${level}">${esc(display)}</span>`;
     logsContainer.appendChild(entry);
 
-    // Auto-expand while running
     if (this._status === "running" && !this._expanded) {
       this.toggleLogs(true);
     }
 
-    // Scroll to bottom
     const wrapper = this.shadowRoot?.getElementById("logs-wrapper");
     if (wrapper && this._expanded) {
       wrapper.scrollTop = wrapper.scrollHeight;
@@ -435,9 +287,5 @@ export class HairaStep extends HTMLElement {
   }
   get duration(): number | undefined {
     return this._duration;
-  }
-
-  private esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 }

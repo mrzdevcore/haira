@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
@@ -17,16 +18,17 @@ import (
 // The embedded runtime is always used — no external runtime path needed.
 func CompileToBinary(file *ast.SourceFile, output, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
+	usedPkgs := collectUsedStdlibPackages(file)
 
 	if HasTests(file) && !hasMainFunction(file) {
 		mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
 		testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
-		if err := writeTestProject(tmpDir, mainGo, testGo); err != nil {
+		if err := writeTestProject(tmpDir, mainGo, testGo, usedPkgs); err != nil {
 			return err
 		}
 	} else {
 		mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-		if err := writeProject(tmpDir, mainGo); err != nil {
+		if err := writeProject(tmpDir, mainGo, usedPkgs); err != nil {
 			return err
 		}
 	}
@@ -47,9 +49,10 @@ func CompileToBinary(file *ast.SourceFile, output, hairaFile, hairaSource string
 // RunProgram generates Go source and runs go run.
 func RunProgram(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-run-%d", os.Getpid()))
+	usedPkgs := collectUsedStdlibPackages(file)
 
 	mainGo := GenerateMainGo(file, hairaFile, hairaSource, typeInfo...)
-	if err := writeProject(tmpDir, mainGo); err != nil {
+	if err := writeProject(tmpDir, mainGo, usedPkgs); err != nil {
 		return err
 	}
 	if err := runGoModTidy(tmpDir); err != nil {
@@ -78,6 +81,7 @@ func RunProgram(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ..
 // RunTests generates Go source and runs go test.
 func RunTests(file *ast.SourceFile, hairaFile, hairaSource string, testArgs []string, typeInfo ...*checker.TypeInfo) error {
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-test-%d", os.Getpid()))
+	usedPkgs := collectUsedStdlibPackages(file)
 
 	mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
 	testGo := GenerateTestGo(file, hairaFile, hairaSource, typeInfo...)
@@ -86,7 +90,7 @@ func RunTests(file *ast.SourceFile, hairaFile, hairaSource string, testArgs []st
 		return fmt.Errorf("no test blocks found in %s", hairaFile)
 	}
 
-	if err := writeTestProject(tmpDir, mainGo, testGo); err != nil {
+	if err := writeTestProject(tmpDir, mainGo, testGo, usedPkgs); err != nil {
 		return err
 	}
 	if err := runGoModTidy(tmpDir); err != nil {
@@ -114,14 +118,14 @@ func RunTests(file *ast.SourceFile, hairaFile, hairaSource string, testArgs []st
 }
 
 // writeProject writes a Go project using the embedded runtime.
-func writeProject(dir, mainGo string) error {
+// usedStdlibPkgs lists the stdlib package names (e.g., "postgres", "excel") to include.
+func writeProject(dir, mainGo string, usedStdlibPkgs []string) error {
+	// Write core haira/ package (always included)
 	hairaDir := filepath.Join(dir, "haira")
 	if err := os.MkdirAll(hairaDir, 0o755); err != nil {
 		return fmt.Errorf("create dir: %w", err)
 	}
-
-	// Write all Go runtime source files
-	for name, data := range runtime.GoFiles() {
+	for name, data := range runtime.GoFilesForPackage("haira") {
 		if err := os.WriteFile(filepath.Join(hairaDir, name), data, 0o644); err != nil {
 			return fmt.Errorf("write runtime %s: %w", name, err)
 		}
@@ -138,7 +142,22 @@ func writeProject(dir, mainGo string) error {
 		}
 	}
 
-	// Write go.mod — rewrite the module to use the local haira/ directory
+	// Write used stdlib packages (rewrite module imports to match generated module name)
+	for _, pkg := range usedStdlibPkgs {
+		pkgDir := filepath.Join(dir, pkg)
+		if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+			return fmt.Errorf("create dir %s: %w", pkg, err)
+		}
+		for name, data := range runtime.GoFilesForPackage(pkg) {
+			// Rewrite import paths from dev module to generated module
+			content := strings.ReplaceAll(string(data), "haira-go-runtime/", "haira-generated/")
+			if err := os.WriteFile(filepath.Join(pkgDir, name), []byte(content), 0o644); err != nil {
+				return fmt.Errorf("write %s/%s: %w", pkg, name, err)
+			}
+		}
+	}
+
+	// Write go.mod — rewrite the module to use the local directory structure
 	goMod := rewriteGoMod(runtime.GoMod())
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), goMod, 0o644); err != nil {
 		return fmt.Errorf("write go.mod: %w", err)
@@ -161,8 +180,8 @@ func writeProject(dir, mainGo string) error {
 }
 
 // writeTestProject writes a Go test project using the embedded runtime.
-func writeTestProject(dir, mainGo, testGo string) error {
-	if err := writeProject(dir, mainGo); err != nil {
+func writeTestProject(dir, mainGo, testGo string, usedStdlibPkgs []string) error {
+	if err := writeProject(dir, mainGo, usedStdlibPkgs); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "main_test.go"), []byte(testGo), 0o644); err != nil {
@@ -171,8 +190,127 @@ func writeTestProject(dir, mainGo, testGo string) error {
 	return nil
 }
 
+// collectUsedStdlibPackages determines which stdlib packages to include based on
+// the Haira source file's imports, workflow usage, and transitive dependencies.
+func collectUsedStdlibPackages(file *ast.SourceFile) []string {
+	pkgs := map[string]bool{}
+
+	// Scan imports for stdlib packages that map to separate Go packages
+	for _, item := range file.Items {
+		if imp, ok := item.Node.(ast.ImportDecl); ok {
+			if goImport, ok := stdlibGoImport(imp.Path); ok {
+				pkgs[goImport] = true
+			}
+		}
+	}
+
+	// If any workflow or http.Server is used, include sqlite (default store backend)
+	if hasWorkflows(file) || hasServerCall(file) {
+		pkgs["sqlite"] = true
+	}
+
+	// Resolve transitive dependencies
+	addTransitiveDeps(pkgs)
+
+	var result []string
+	for pkg := range pkgs {
+		result = append(result, pkg)
+	}
+	sort.Strings(result)
+	return result
+}
+
+// stdlibGoImport maps a Haira import path to its Go package directory name.
+// Returns the Go package name and true if it's a separate stdlib package,
+// or empty string and false if it's a core module.
+func stdlibGoImport(path string) (string, bool) {
+	switch path {
+	case "postgres":
+		return "postgres", true
+	case "excel":
+		return "excel", true
+	case "vector":
+		return "vector", true
+	case "slack":
+		return "slack", true
+	case "github":
+		return "github", true
+	case "gitlab":
+		return "gitlab", true
+	}
+	return "", false
+}
+
+// addTransitiveDeps adds packages required by already-included packages.
+func addTransitiveDeps(pkgs map[string]bool) {
+	// vector requires postgres (for pgvector DB type and QuoteIdentifier)
+	if pkgs["vector"] {
+		pkgs["postgres"] = true
+	}
+	// excel references postgres types (PgSchema) for validation
+	if pkgs["excel"] {
+		pkgs["postgres"] = true
+	}
+}
+
+// hasWorkflows returns true if the file contains any workflow declarations.
+func hasWorkflows(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if _, ok := item.Node.(ast.WorkflowDecl); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// hasServerCall returns true if the file contains http.Server() or mcp.Server() calls.
+func hasServerCall(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if fn, ok := item.Node.(ast.FunctionDef); ok {
+			if blockHasServerCall(fn.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasServerCall(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if exprStmt, ok := stmt.Node.(ast.ExprStmt); ok {
+			if hasServerExpr(exprStmt.Value) {
+				return true
+			}
+		}
+		if assign, ok := stmt.Node.(ast.AssignStmt); ok {
+			if hasServerExpr(assign.Value) {
+				return true
+			}
+		}
+		if letStmt, ok := stmt.Node.(ast.LetStmt); ok {
+			if hasServerExpr(letStmt.Value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasServerExpr(expr ast.Expr) bool {
+	if call, ok := expr.Node.(ast.CallExpr); ok {
+		if field, ok := call.Callee.Node.(ast.FieldExpr); ok {
+			if ident, ok := field.Object.Node.(ast.IdentExpr); ok {
+				if (ident.Name == "http" || ident.Name == "mcp") && field.Field.Node == "Server" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // rewriteGoMod transforms the embedded go.mod to work in the temp build directory.
-// It changes the module name and adds a replace directive for the runtime.
+// It changes the module name — stdlib packages resolve automatically as subdirectories.
 func rewriteGoMod(original []byte) []byte {
 	if original == nil {
 		// Fallback: generate a minimal go.mod
@@ -185,9 +323,10 @@ func rewriteGoMod(original []byte) []byte {
 	content = strings.Replace(content, "module haira-go-runtime", "module haira-generated", 1)
 
 	// The runtime Go files are in haira/ subdirectory of the build dir,
-	// but since we're using the same module (haira-generated), Go resolves
-	// the import "haira-generated/haira" to the haira/ subdirectory automatically.
-	// No replace directive needed — it's all one module.
+	// and stdlib packages in postgres/, excel/, etc. subdirectories.
+	// Since we're using the same module (haira-generated), Go resolves
+	// imports like "haira-generated/haira" and "haira-generated/postgres"
+	// to their respective subdirectories automatically.
 
 	return []byte(content)
 }

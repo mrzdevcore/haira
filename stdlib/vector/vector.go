@@ -1,10 +1,13 @@
-package haira
+package vector
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	haira "haira-go-runtime/haira"
+	"haira-go-runtime/postgres"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -15,8 +18,8 @@ import (
 
 // VectorEmbed generates an embedding for a single text using the given provider.
 // Panics on error (caught by Haira's try/catch via recover).
-func VectorEmbed(provider *Provider, text string) []float32 {
-	client := CreateOpenAIClient(provider)
+func VectorEmbed(provider *haira.Provider, text string) []float32 {
+	client := haira.CreateOpenAIClient(provider)
 
 	resp, err := client.CreateEmbeddings(context.Background(), openai.EmbeddingRequest{
 		Input: []string{text},
@@ -33,13 +36,13 @@ func VectorEmbed(provider *Provider, text string) []float32 {
 
 // VectorEmbedBatch generates embeddings for multiple texts.
 // Panics on error (caught by Haira's try/catch via recover).
-func VectorEmbedBatch(provider *Provider, texts []any) [][]float32 {
+func VectorEmbedBatch(provider *haira.Provider, texts []any) [][]float32 {
 	strs := make([]string, len(texts))
 	for i, t := range texts {
 		strs[i] = fmt.Sprintf("%v", t)
 	}
 
-	client := CreateOpenAIClient(provider)
+	client := haira.CreateOpenAIClient(provider)
 
 	resp, err := client.CreateEmbeddings(context.Background(), openai.EmbeddingRequest{
 		Input: strs,
@@ -64,7 +67,7 @@ func VectorEmbedBatch(provider *Provider, texts []any) [][]float32 {
 // When DB is non-nil, uses pgvector (Postgres). When local is non-nil, uses chromem-go.
 type VectorCollection struct {
 	// pgvector backend
-	DB         *DB
+	DB         *postgres.DB
 	Table      string
 	Dimensions int
 	// local backend (chromem-go)
@@ -74,18 +77,18 @@ type VectorCollection struct {
 // VectorNewCollection creates or ensures a vector collection exists.
 // If db is nil, uses the embedded chromem-go backend (local development).
 // If db is non-nil, uses pgvector (production Postgres).
-func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection {
+func VectorNewCollection(db *postgres.DB, name string, dimensions int) *VectorCollection {
 	if db == nil {
 		return &VectorCollection{local: VectorNewLocalCollection(name, dimensions)}
 	}
 
 	// pgvector backend
-	_, err := db.conn.Exec("CREATE EXTENSION IF NOT EXISTS vector")
+	_, err := db.Conn().Exec("CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
 		panic(fmt.Sprintf("pgvector extension: %v", err))
 	}
 
-	qname := QuoteIdentifier(name)
+	qname := postgres.QuoteIdentifier(name)
 	createSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
@@ -95,16 +98,16 @@ func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection 
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		)
 	`, qname, dimensions)
-	_, err = db.conn.Exec(createSQL)
+	_, err = db.Conn().Exec(createSQL)
 	if err != nil {
 		panic(fmt.Sprintf("create collection %q: %v", name, err))
 	}
 
 	indexSQL := fmt.Sprintf(
 		"CREATE INDEX IF NOT EXISTS %s ON %s USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)",
-		QuoteIdentifier(name+"_embedding_idx"), qname,
+		postgres.QuoteIdentifier(name+"_embedding_idx"), qname,
 	)
-	db.conn.Exec(indexSQL)
+	db.Conn().Exec(indexSQL)
 
 	return &VectorCollection{
 		DB:         db,
@@ -133,9 +136,9 @@ func VectorInsert(coll *VectorCollection, params map[string]any) {
 
 	insertSQL := fmt.Sprintf(
 		"INSERT INTO %s (content, embedding, metadata) VALUES ($1, $2::vector, $3::jsonb)",
-		QuoteIdentifier(coll.Table),
+		postgres.QuoteIdentifier(coll.Table),
 	)
-	_, err := coll.DB.conn.Exec(insertSQL, content, embeddingStr, metadataJSON)
+	_, err := coll.DB.Conn().Exec(insertSQL, content, embeddingStr, metadataJSON)
 	if err != nil {
 		panic(fmt.Sprintf("vector insert: %v", err))
 	}
@@ -168,10 +171,10 @@ func VectorSearch(coll *VectorCollection, params map[string]any) []map[string]an
 
 	searchSQL := fmt.Sprintf(
 		"SELECT content, metadata, embedding <=> $1::vector AS distance FROM %s%s ORDER BY distance LIMIT $2",
-		QuoteIdentifier(coll.Table), filter,
+		postgres.QuoteIdentifier(coll.Table), filter,
 	)
 
-	rows, err := coll.DB.conn.Query(searchSQL, queryStr, limit)
+	rows, err := coll.DB.Conn().Query(searchSQL, queryStr, limit)
 	if err != nil {
 		panic(fmt.Sprintf("vector search: %v", err))
 	}

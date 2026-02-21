@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/haira-lang/haira/internal/ast"
@@ -51,6 +52,17 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 	}
 	if needsHaira {
 		imports = append(imports, fmt.Sprintf("%q", RuntimeImportPath))
+	}
+
+	// Add stdlib package imports (non-core packages that live in separate Go packages)
+	stdlibImports := collectStdlibImports(file)
+	for _, mod := range stdlibImports {
+		imports = append(imports, fmt.Sprintf(`"haira-generated/%s"`, mod))
+	}
+
+	// Auto-include sqlite blank import when workflows or server detected (default store backend)
+	if needsSqliteImport(file) {
+		imports = append(imports, `_ "haira-generated/sqlite"`)
 	}
 
 	if len(imports) > 0 {
@@ -726,4 +738,82 @@ func SnakeToPascal(name string) string {
 		result[i] = Capitalize(p)
 	}
 	return strings.Join(result, "")
+}
+
+// stdlibGoPackage maps a Haira import path to its Go package name if it's a
+// separate stdlib package (not part of the core haira package).
+func stdlibGoPackage(path string) (string, bool) {
+	switch path {
+	case "postgres", "excel", "vector", "slack", "github", "gitlab":
+		return path, true
+	}
+	return "", false
+}
+
+// collectStdlibImports returns the sorted list of non-core stdlib package names
+// used by the source file (for adding Go import lines).
+func collectStdlibImports(file *ast.SourceFile) []string {
+	pkgs := map[string]bool{}
+	for _, item := range file.Items {
+		if imp, ok := item.Node.(ast.ImportDecl); ok {
+			if pkg, ok := stdlibGoPackage(imp.Path); ok {
+				pkgs[pkg] = true
+			}
+		}
+	}
+	var result []string
+	for pkg := range pkgs {
+		result = append(result, pkg)
+	}
+	sort.Strings(result)
+	return result
+}
+
+// needsSqliteImport returns true if the file uses workflows or http.Server,
+// requiring the sqlite store backend (auto-included via blank import).
+func needsSqliteImport(file *ast.SourceFile) bool {
+	for _, item := range file.Items {
+		if _, ok := item.Node.(ast.WorkflowDecl); ok {
+			return true
+		}
+		if fn, ok := item.Node.(ast.FunctionDef); ok {
+			if blockHasServerCallExpr(fn.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockHasServerCallExpr(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		switch s := stmt.Node.(type) {
+		case ast.ExprStmt:
+			if hasServerCallExpr(s.Value) {
+				return true
+			}
+		case ast.AssignStmt:
+			if hasServerCallExpr(s.Value) {
+				return true
+			}
+		case ast.LetStmt:
+			if hasServerCallExpr(s.Value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasServerCallExpr(expr ast.Expr) bool {
+	if call, ok := expr.Node.(ast.CallExpr); ok {
+		if field, ok := call.Callee.Node.(ast.FieldExpr); ok {
+			if ident, ok := field.Object.Node.(ast.IdentExpr); ok {
+				if (ident.Name == "http" || ident.Name == "mcp") && field.Field.Node == "Server" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

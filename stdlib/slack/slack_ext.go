@@ -1,4 +1,4 @@
-package haira
+package slack
 
 import (
 	"bytes"

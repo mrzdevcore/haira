@@ -62,8 +62,9 @@ func CheckerTypeToGo(ty checker.Type) string {
 }
 
 // qualifiedTypeToGo maps a dotted stdlib type name (e.g. "ui.StatusCard")
-// to its Go runtime type (e.g. "haira.UIStatusCard").
-// Generic rule: module.Type → haira.<Module><Type> (module capitalized).
+// to its Go runtime type.
+// Core modules: module.Type → haira.<Module><Type> (e.g. ui.StatusCard → haira.UiStatusCard)
+// Stdlib packages: module.Type → <module>.<Type> (e.g. postgres.DB → postgres.DB)
 func qualifiedTypeToGo(name string) (string, bool) {
 	parts := strings.SplitN(name, ".", 2)
 	if len(parts) != 2 {
@@ -72,6 +73,11 @@ func qualifiedTypeToGo(name string) (string, bool) {
 	if !IsStdlibImport(parts[0]) {
 		return "", false
 	}
+	// Stdlib packages that have their own Go package — types keep their original names
+	if _, ok := stdlibGoPackage(parts[0]); ok {
+		return parts[0] + "." + parts[1], true
+	}
+	// Core modules: prefix with haira.
 	return "haira." + Capitalize(parts[0]) + parts[1], true
 }
 

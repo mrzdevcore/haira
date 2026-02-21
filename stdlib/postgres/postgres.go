@@ -1,4 +1,4 @@
-package haira
+package postgres
 
 import (
 	"context"
@@ -119,6 +119,11 @@ func (db *DB) Execute(query string, args ...any) (int64, error) {
 		return 0, fmt.Errorf("postgres execute: %w", err)
 	}
 	return result.RowsAffected()
+}
+
+// Conn returns the underlying *sql.DB connection pool.
+func (db *DB) Conn() *sql.DB {
+	return db.conn
 }
 
 // Close closes the database connection pool.

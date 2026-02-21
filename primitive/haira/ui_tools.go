@@ -205,6 +205,35 @@ var uiToolSpecs = []uiToolSpec{
 			return UiProgress{Title: p.Title, Steps: steps}, nil
 		},
 	},
+	{
+		component:   "Chart",
+		toolName:    "render_chart",
+		description: "Display a chart or graph. Supports line, bar, pie, area, and scatter types. Use for visualizing numeric data, trends, distributions, or comparisons.",
+		schema:      `{"type":"object","properties":{"type":{"type":"string","enum":["line","bar","pie","area","scatter"],"description":"Chart type"},"title":{"type":"string","description":"Chart title"},"labels":{"type":"array","items":{"type":"string"},"description":"X-axis labels (categories). For pie charts, these are slice labels."},"datasets":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string","description":"Dataset name (shown in legend)"},"data":{"type":"array","items":{"type":"number"},"description":"Numeric data points"},"color":{"type":"string","description":"Optional hex color (e.g. #e8a317)"}},"required":["label","data"]},"description":"One or more data series to plot"},"height":{"type":"number","description":"Chart height in pixels (default 240)"}},"required":["type","datasets"]}`,
+		handler: func(args json.RawMessage) (any, error) {
+			var p struct {
+				Type     string   `json:"type"`
+				Title    string   `json:"title"`
+				Labels   []string `json:"labels"`
+				Datasets []struct {
+					Label string    `json:"label"`
+					Data  []float64 `json:"data"`
+					Color string    `json:"color"`
+				} `json:"datasets"`
+				Height float64 `json:"height"`
+			}
+			json.Unmarshal(args, &p)
+			labels := make([]any, len(p.Labels))
+			for i, l := range p.Labels {
+				labels[i] = l
+			}
+			datasets := make([]any, len(p.Datasets))
+			for i, ds := range p.Datasets {
+				datasets[i] = UiChartDataset{Label: ds.Label, Data: ds.Data, Color: ds.Color}
+			}
+			return UiChart{Type: p.Type, Title: p.Title, Labels: labels, Datasets: datasets, Height: p.Height}, nil
+		},
+	},
 }
 
 // RegisterUITools registers ALL built-in UI component tools into a registry.

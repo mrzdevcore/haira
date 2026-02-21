@@ -1,15 +1,17 @@
-package haira
+package gitlab
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	haira "haira-go-runtime/haira"
 )
 
 // GitlabClient is an authenticated GitLab API client.
 type GitlabClient struct {
-	client  *HTTPClient
+	client  *haira.HTTPClient
 	baseURL string
 	token   string
 	project string
@@ -17,10 +19,10 @@ type GitlabClient struct {
 
 // GitlabMR represents a GitLab merge request.
 type GitlabMR struct {
-	client    *GitlabClient
-	Url       string
-	Iid       string
-	ProjectId string
+	client       *GitlabClient
+	Url          string
+	Iid          string
+	ProjectId    string
 	SourceBranch string
 }
 
@@ -44,15 +46,15 @@ func GitlabNewClient(token string, opts map[string]any) *GitlabFluentBuilder {
 	project := ""
 	if opts != nil {
 		if p, ok := opts["project"]; ok {
-			project = Str(p)
+			project = haira.Str(p)
 		}
 		if u, ok := opts["url"]; ok {
-			baseURL = strings.TrimRight(Str(u), "/")
+			baseURL = strings.TrimRight(haira.Str(u), "/")
 		}
 	}
 
 	cl := &GitlabClient{
-		client: HttpClient(baseURL+"/api/v4", map[string]any{
+		client: haira.HttpClient(baseURL+"/api/v4", map[string]any{
 			"headers": map[string]any{"PRIVATE-TOKEN": token},
 			"retry":   2,
 			"timeout": 30000,
@@ -78,8 +80,8 @@ func (b *GitlabFluentBuilder) Branch(name string) *GitlabFluentBuilder {
 		b.err = fmt.Errorf("get project: %w", err)
 		return b
 	}
-	projectInfo := parseJSON(resp.Body)
-	defaultBranch := strVal(projectInfo, "default_branch")
+	projectInfo := haira.ParseJSON(resp.Body)
+	defaultBranch := haira.StrVal(projectInfo, "default_branch")
 	if defaultBranch == "" {
 		defaultBranch = "main"
 	}
@@ -93,7 +95,7 @@ func (b *GitlabFluentBuilder) Branch(name string) *GitlabFluentBuilder {
 		b.err = fmt.Errorf("create branch %q: %w", name, err)
 		return b
 	}
-	// 400 means branch already exists — that's OK
+	// 400 means branch already exists -- that's OK
 	if resp.StatusCode != 201 && resp.StatusCode != 400 {
 		b.err = fmt.Errorf("create branch %q: HTTP %d: %s", name, resp.StatusCode, resp.Body)
 	}
@@ -127,7 +129,7 @@ func (b *GitlabFluentBuilder) CommitFiles(files map[string]any) *GitlabFluentBui
 	for path, content := range files {
 		b.files = append(b.files, gitlabFileAction{
 			Path:    path,
-			Content: Str(content),
+			Content: haira.Str(content),
 		})
 	}
 	return b
@@ -142,7 +144,7 @@ func (b *GitlabFluentBuilder) MergeRequest(opts map[string]any) (*GitlabMR, erro
 	title := "Merge request"
 	if opts != nil {
 		if t, ok := opts["title"]; ok {
-			title = Str(t)
+			title = haira.Str(t)
 		}
 	}
 
@@ -182,11 +184,11 @@ func (b *GitlabFluentBuilder) MergeRequest(opts map[string]any) (*GitlabMR, erro
 		return nil, fmt.Errorf("create MR: HTTP %d: %s", resp.StatusCode, resp.Body)
 	}
 
-	mrData := parseJSON(resp.Body)
+	mrData := haira.ParseJSON(resp.Body)
 	return &GitlabMR{
 		client:       b.client,
-		Url:          strVal(mrData, "web_url"),
-		Iid:          Str(mrData["iid"]),
+		Url:          haira.StrVal(mrData, "web_url"),
+		Iid:          haira.Str(mrData["iid"]),
 		ProjectId:    b.client.project,
 		SourceBranch: b.branchName,
 	}, nil
@@ -203,12 +205,12 @@ func (mr *GitlabMR) WaitForPipeline() error {
 		var pipelines []map[string]any
 		json.Unmarshal([]byte(resp.Body), &pipelines)
 		if len(pipelines) > 0 {
-			status := Str(pipelines[0]["status"])
+			status := haira.Str(pipelines[0]["status"])
 			switch status {
 			case "success":
 				return nil
 			case "failed", "canceled":
-				return fmt.Errorf("pipeline %s: %s", Str(pipelines[0]["id"]), status)
+				return fmt.Errorf("pipeline %s: %s", haira.Str(pipelines[0]["id"]), status)
 			}
 		}
 		time.Sleep(30 * time.Second)
@@ -224,8 +226,8 @@ func (mr *GitlabMR) WaitForMerge() error {
 		if err != nil {
 			return fmt.Errorf("check MR: %w", err)
 		}
-		mrData := parseJSON(resp.Body)
-		state := strVal(mrData, "state")
+		mrData := haira.ParseJSON(resp.Body)
+		state := haira.StrVal(mrData, "state")
 		switch state {
 		case "merged":
 			return nil
@@ -244,11 +246,11 @@ func GitlabConnect(baseURL, token string, opts map[string]any) *GitlabClient {
 	project := ""
 	if opts != nil {
 		if p, ok := opts["project"]; ok {
-			project = Str(p)
+			project = haira.Str(p)
 		}
 	}
 	return &GitlabClient{
-		client: HttpClient(strings.TrimRight(baseURL, "/")+"/api/v4", map[string]any{
+		client: haira.HttpClient(strings.TrimRight(baseURL, "/")+"/api/v4", map[string]any{
 			"headers": map[string]any{"PRIVATE-TOKEN": token},
 			"retry":   2,
 			"timeout": 30000,
@@ -264,7 +266,7 @@ func (gl *GitlabClient) CreateBranch(name string, opts ...map[string]any) error 
 	ref := "main"
 	if len(opts) > 0 && opts[0] != nil {
 		if r, ok := opts[0]["ref"]; ok {
-			ref = Str(r)
+			ref = haira.Str(r)
 		}
 	}
 	resp, err := gl.client.Post("/projects/"+gl.project+"/repository/branches", map[string]any{
@@ -285,7 +287,7 @@ func (gl *GitlabClient) CommitFile(path, content, message string, opts map[strin
 	branch := "main"
 	if opts != nil {
 		if b, ok := opts["branch"]; ok {
-			branch = Str(b)
+			branch = haira.Str(b)
 		}
 	}
 	resp, err := gl.client.Post("/projects/"+gl.project+"/repository/commits", map[string]any{
@@ -313,13 +315,13 @@ func (gl *GitlabClient) CreateMr(opts map[string]any) (*GitlabMR, error) {
 	title := "Merge request"
 	if opts != nil {
 		if s, ok := opts["source"]; ok {
-			source = Str(s)
+			source = haira.Str(s)
 		}
 		if t, ok := opts["target"]; ok {
-			target = Str(t)
+			target = haira.Str(t)
 		}
 		if t, ok := opts["title"]; ok {
-			title = Str(t)
+			title = haira.Str(t)
 		}
 	}
 	resp, err := gl.client.Post("/projects/"+gl.project+"/merge_requests", map[string]any{
@@ -333,13 +335,12 @@ func (gl *GitlabClient) CreateMr(opts map[string]any) (*GitlabMR, error) {
 	if resp.StatusCode != 201 {
 		return nil, fmt.Errorf("create MR: HTTP %d: %s", resp.StatusCode, resp.Body)
 	}
-	mrData := parseJSON(resp.Body)
+	mrData := haira.ParseJSON(resp.Body)
 	return &GitlabMR{
 		client:       gl,
-		Url:          strVal(mrData, "web_url"),
-		Iid:          Str(mrData["iid"]),
+		Url:          haira.StrVal(mrData, "web_url"),
+		Iid:          haira.Str(mrData["iid"]),
 		ProjectId:    gl.project,
 		SourceBranch: source,
 	}, nil
 }
-

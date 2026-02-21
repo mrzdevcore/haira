@@ -1,5 +1,5 @@
 // Package runtime provides the embedded Haira runtime.
-// The runtime (stdlib, agentic, UI, dependencies) is bundled as a tar.gz
+// The runtime (core, stdlib packages, UI, dependencies) is bundled as a tar.gz
 // archive at build time and embedded into the compiler binary via //go:embed.
 // At compile time, the archive is extracted to provide Go source files,
 // UI assets, and module files to the temp build directory.
@@ -12,6 +12,7 @@ import (
 	_ "embed"
 	"io"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -22,7 +23,7 @@ var bundleData []byte
 // cached extraction results
 var (
 	once       sync.Once
-	goFiles    map[string][]byte
+	goFiles    map[string][]byte // key = "haira/agent.go" or "postgres/postgres.go"
 	uiFiles    map[string][]byte
 	goMod      []byte
 	goSum      []byte
@@ -73,19 +74,57 @@ func extract() {
 				// UI files: strip "haira/" prefix → "ui/dist/haira-ui.js"
 				rel := strings.TrimPrefix(name, "haira/")
 				uiFiles[rel] = data
-			case strings.HasPrefix(name, "haira/") && strings.HasSuffix(name, ".go"):
-				// Go source files: "haira/agent.go" → "agent.go"
-				goName := filepath.Base(name)
-				goFiles[goName] = data
+			case strings.HasSuffix(name, ".go"):
+				// Go source files: preserve package path
+				// "haira/agent.go", "postgres/postgres.go", etc.
+				goFiles[name] = data
 			}
 		}
 	})
 }
 
-// GoFiles returns all runtime Go source files as a map of filename → content.
+// GoFiles returns all runtime Go source files as a map of path → content.
+// Keys include the package directory: "haira/agent.go", "postgres/postgres.go", etc.
 func GoFiles() map[string][]byte {
 	extract()
 	return goFiles
+}
+
+// GoFilesForPackage returns Go source files for a specific package directory.
+// For example, GoFilesForPackage("haira") returns {"agent.go": data, "io.go": data, ...}.
+func GoFilesForPackage(pkg string) map[string][]byte {
+	extract()
+	result := make(map[string][]byte)
+	prefix := pkg + "/"
+	for path, data := range goFiles {
+		if strings.HasPrefix(path, prefix) {
+			filename := strings.TrimPrefix(path, prefix)
+			// Skip files in subdirectories (e.g., haira/ui/ files)
+			if !strings.Contains(filename, "/") {
+				result[filename] = data
+			}
+		}
+	}
+	return result
+}
+
+// StdlibPackages returns the list of stdlib package directory names found in the bundle.
+// These are packages other than "haira" that contain Go source files.
+func StdlibPackages() []string {
+	extract()
+	seen := map[string]bool{}
+	for path := range goFiles {
+		dir := filepath.Dir(path)
+		if dir != "haira" && dir != "." {
+			seen[dir] = true
+		}
+	}
+	var pkgs []string
+	for pkg := range seen {
+		pkgs = append(pkgs, pkg)
+	}
+	sort.Strings(pkgs)
+	return pkgs
 }
 
 // UIFiles returns all UI files (HTML + dist/) as a map of relative path → content.

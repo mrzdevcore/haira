@@ -147,6 +147,24 @@ type UiChoices struct {
 
 func (UiChoices) UiComponentName() string { return "choices" }
 
+// --- Chart ---
+
+type UiChartDataset struct {
+	Label string    `json:"label"`
+	Data  []float64 `json:"data"`
+	Color string    `json:"color,omitempty"`
+}
+
+type UiChart struct {
+	Type     string  `json:"type"`
+	Title    string  `json:"title,omitempty"`
+	Labels   []any   `json:"labels,omitempty"`
+	Datasets []any   `json:"datasets"`
+	Height   float64 `json:"height,omitempty"`
+}
+
+func (UiChart) UiComponentName() string { return "chart" }
+
 // --- Group (composition) ---
 
 type UiGroup struct {
@@ -220,6 +238,8 @@ func uiNodeSummary(node UiNode, raw any) string {
 		return fmt.Sprintf("Rendered diff %q", v.Title)
 	case UiForm:
 		return fmt.Sprintf("Rendered form %q with %d fields", v.Title, len(v.Fields))
+	case UiChart:
+		return fmt.Sprintf("Rendered %s chart %q with %d datasets", v.Type, v.Title, len(v.Datasets))
 	default:
 		return fmt.Sprintf("Rendered %s component", node.UiComponentName())
 	}
@@ -269,4 +289,14 @@ func UiNewConfirm(title, confirmLabel, denyLabel string, message ...string) UiCo
 		msg = message[0]
 	}
 	return UiConfirm{Title: title, ConfirmLabel: confirmLabel, DenyLabel: denyLabel, Message: msg}
+}
+
+// UiNewChart builds a UiChart from type, labels, and datasets.
+// Usage in Haira: ui.chart("bar", "Revenue", ["Q1","Q2","Q3"], [dataset1, dataset2])
+func UiNewChart(chartType string, title string, labels []any, datasets []any, height ...float64) UiChart {
+	h := float64(0)
+	if len(height) > 0 {
+		h = height[0]
+	}
+	return UiChart{Type: chartType, Title: title, Labels: labels, Datasets: datasets, Height: h}
 }

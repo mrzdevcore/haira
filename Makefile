@@ -27,19 +27,27 @@ ui-dev:
 	@mkdir -p $(UI_SDK_DIST)
 	cd ui/sdk && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
 
+# Stdlib packages to bundle separately (each gets its own Go package)
+STDLIB_PKGS = postgres excel vector slack github gitlab sqlite
+
 # Bundle the runtime into a tar.gz for embedding in the compiler
-# Merges primitive/ + stdlib/ into a single haira/ package
+# Core haira/ package is always included; stdlib packages are separate
 bundle-runtime: ui
 	@echo "Bundling runtime..."
 	@rm -rf .bundle-tmp
 	@mkdir -p .bundle-tmp/haira/ui/dist
 	@cp $(PRIMITIVE_DIR)/haira/*.go .bundle-tmp/haira/
-	@cp $(STDLIB_DIR)/haira/*.go .bundle-tmp/haira/
 	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/haira/ui/dist/
 	@cp $(UI_APP_DIR)/*.html .bundle-tmp/haira/ui/
+	@for pkg in $(STDLIB_PKGS); do \
+		if [ -d $(STDLIB_DIR)/$$pkg ]; then \
+			mkdir -p .bundle-tmp/$$pkg && \
+			cp $(STDLIB_DIR)/$$pkg/*.go .bundle-tmp/$$pkg/; \
+		fi; \
+	done
 	@cp $(PRIMITIVE_DIR)/go.mod .bundle-tmp/go.mod
 	@cp $(PRIMITIVE_DIR)/go.sum .bundle-tmp/go.sum
-	@tar czf $(BUNDLE) -C .bundle-tmp haira go.mod go.sum
+	@tar czf $(BUNDLE) -C .bundle-tmp .
 	@rm -rf .bundle-tmp
 	@echo "Runtime bundle: $(BUNDLE) ($$(du -h $(BUNDLE) | cut -f1))"
 

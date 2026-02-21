@@ -1,4 +1,4 @@
-package haira
+package sqlite
 
 import (
 	"database/sql"
@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	haira "haira-go-runtime/haira"
+
 	_ "modernc.org/sqlite"
 )
 
 func init() {
-	RegisterStoreBackend("sqlite", func(path string) Store {
+	haira.RegisterStoreBackend("sqlite", func(path string) haira.Store {
 		return NewSQLiteStore(path)
 	})
 }
@@ -134,13 +136,13 @@ func (s *SQLiteStore) AddMessage(sessionID, role, content string, uiEvents []jso
 	return tx.Commit()
 }
 
-func (s *SQLiteStore) GetSession(id string) (*ChatSessionDetail, error) {
+func (s *SQLiteStore) GetSession(id string) (*haira.ChatSessionDetail, error) {
 	row := s.db.QueryRow(
 		`SELECT id, workflow_name, workflow_path, title, owner, created_at, updated_at, message_count
 		 FROM chat_sessions WHERE id = ?`, id,
 	)
 
-	var sess ChatSessionDetail
+	var sess haira.ChatSessionDetail
 	var createdAt, updatedAt string
 	err := row.Scan(
 		&sess.ID, &sess.WorkflowName, &sess.WorkflowPath,
@@ -164,9 +166,9 @@ func (s *SQLiteStore) GetSession(id string) (*ChatSessionDetail, error) {
 	}
 	defer rows.Close()
 
-	sess.Messages = []ChatMessage{}
+	sess.Messages = []haira.ChatMessage{}
 	for rows.Next() {
-		var msg ChatMessage
+		var msg haira.ChatMessage
 		var eventsStr *string
 		var ts string
 		if err := rows.Scan(&msg.Role, &msg.Content, &eventsStr, &ts); err != nil {
@@ -182,7 +184,7 @@ func (s *SQLiteStore) GetSession(id string) (*ChatSessionDetail, error) {
 	return &sess, nil
 }
 
-func (s *SQLiteStore) ListSessions(wfPath, owner string) ([]ChatSession, error) {
+func (s *SQLiteStore) ListSessions(wfPath, owner string) ([]haira.ChatSession, error) {
 	query := `SELECT id, workflow_name, workflow_path, title, owner, created_at, updated_at, message_count
 			  FROM chat_sessions WHERE 1=1`
 	var args []any
@@ -203,9 +205,9 @@ func (s *SQLiteStore) ListSessions(wfPath, owner string) ([]ChatSession, error) 
 	}
 	defer rows.Close()
 
-	var sessions []ChatSession
+	var sessions []haira.ChatSession
 	for rows.Next() {
-		var sess ChatSession
+		var sess haira.ChatSession
 		var createdAt, updatedAt string
 		if err := rows.Scan(
 			&sess.ID, &sess.WorkflowName, &sess.WorkflowPath,
@@ -219,7 +221,7 @@ func (s *SQLiteStore) ListSessions(wfPath, owner string) ([]ChatSession, error) 
 	}
 
 	if sessions == nil {
-		sessions = []ChatSession{}
+		sessions = []haira.ChatSession{}
 	}
 	return sessions, nil
 }
@@ -231,7 +233,7 @@ func (s *SQLiteStore) DeleteSession(id string) error {
 
 // --- Runs ---
 
-func (s *SQLiteStore) CreateRun(run *Run) error {
+func (s *SQLiteStore) CreateRun(run *haira.Run) error {
 	paramsJSON, _ := json.Marshal(run.Params)
 	stepsJSON, _ := json.Marshal(run.Steps)
 
@@ -244,7 +246,7 @@ func (s *SQLiteStore) CreateRun(run *Run) error {
 	return err
 }
 
-func (s *SQLiteStore) UpdateRun(run *Run) error {
+func (s *SQLiteStore) UpdateRun(run *haira.Run) error {
 	stepsJSON, _ := json.Marshal(run.Steps)
 	var resultJSON *string
 	if run.Result != nil {
@@ -265,13 +267,13 @@ func (s *SQLiteStore) UpdateRun(run *Run) error {
 	return err
 }
 
-func (s *SQLiteStore) GetRun(id string) (*Run, error) {
+func (s *SQLiteStore) GetRun(id string) (*haira.Run, error) {
 	row := s.db.QueryRow(
 		`SELECT id, workflow_name, workflow_path, status, params, steps, result, error, started_at, finished_at
 		 FROM runs WHERE id = ?`, id,
 	)
 
-	var run Run
+	var run haira.Run
 	var paramsStr, stepsStr *string
 	var resultStr *string
 	var startedAt string
@@ -303,13 +305,13 @@ func (s *SQLiteStore) GetRun(id string) (*Run, error) {
 		json.Unmarshal([]byte(*resultStr), &run.Result)
 	}
 	if run.Steps == nil {
-		run.Steps = []StepEvent{}
+		run.Steps = []haira.StepEvent{}
 	}
 
 	return &run, nil
 }
 
-func (s *SQLiteStore) ListRuns(wfPath string) ([]RunSummary, error) {
+func (s *SQLiteStore) ListRuns(wfPath string) ([]haira.RunSummary, error) {
 	query := `SELECT id, workflow_name, workflow_path, status, started_at, finished_at,
 			  (SELECT COUNT(*) FROM json_each(steps)) as step_count
 			  FROM runs WHERE 1=1`
@@ -327,9 +329,9 @@ func (s *SQLiteStore) ListRuns(wfPath string) ([]RunSummary, error) {
 	}
 	defer rows.Close()
 
-	var runs []RunSummary
+	var runs []haira.RunSummary
 	for rows.Next() {
-		var r RunSummary
+		var r haira.RunSummary
 		var startedAt string
 		var finishedAt *string
 		if err := rows.Scan(
@@ -347,7 +349,7 @@ func (s *SQLiteStore) ListRuns(wfPath string) ([]RunSummary, error) {
 	}
 
 	if runs == nil {
-		runs = []RunSummary{}
+		runs = []haira.RunSummary{}
 	}
 	return runs, nil
 }

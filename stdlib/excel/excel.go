@@ -1,7 +1,9 @@
-package haira
+package excel
 
 import (
 	"fmt"
+
+	haira "haira-go-runtime/haira"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -34,7 +36,7 @@ func (wb *Workbook) SheetNames() []any {
 // The first row is treated as header (column names).
 // Returns each subsequent row as a map of column_name → value.
 func (wb *Workbook) ReadSheet(name any) ([]map[string]any, error) {
-	rows, err := wb.file.GetRows(Str(name))
+	rows, err := wb.file.GetRows(haira.Str(name))
 	if err != nil {
 		return nil, fmt.Errorf("excel read sheet %q: %w", name, err)
 	}

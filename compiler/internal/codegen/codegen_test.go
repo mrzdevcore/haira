@@ -749,8 +749,8 @@ fn main() {
 }`
 	got := parseAndGenerate(t, src)
 
-	if !strings.Contains(got, "haira.VectorEmbed(providerOpenaiEmbed,") {
-		t.Errorf("missing haira.VectorEmbed with resolved provider var in output:\n%s", got)
+	if !strings.Contains(got, "vector.VectorEmbed(providerOpenaiEmbed,") {
+		t.Errorf("missing vector.VectorEmbed with resolved provider var in output:\n%s", got)
 	}
 	if !strings.Contains(got, `"Hello world"`) {
 		t.Errorf("missing text argument in output:\n%s", got)
@@ -778,14 +778,14 @@ fn main() {
 }`
 	got := parseAndGenerate(t, src)
 
-	if !strings.Contains(got, "haira.VectorNewCollection(db, \"documents\", 1536)") {
-		t.Errorf("missing haira.VectorNewCollection with dimensions in output:\n%s", got)
+	if !strings.Contains(got, "vector.VectorNewCollection(db, \"documents\", 1536)") {
+		t.Errorf("missing vector.VectorNewCollection with dimensions in output:\n%s", got)
 	}
-	if !strings.Contains(got, "haira.VectorSearch(") {
-		t.Errorf("missing haira.VectorSearch in output:\n%s", got)
+	if !strings.Contains(got, "vector.VectorSearch(") {
+		t.Errorf("missing vector.VectorSearch in output:\n%s", got)
 	}
-	if !strings.Contains(got, "haira.VectorFormat(") {
-		t.Errorf("missing haira.VectorFormat in output:\n%s", got)
+	if !strings.Contains(got, "vector.VectorFormat(") {
+		t.Errorf("missing vector.VectorFormat in output:\n%s", got)
 	}
 }
 

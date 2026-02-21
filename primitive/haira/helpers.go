@@ -6,11 +6,11 @@ import (
 	"os"
 )
 
-// parseJSON unmarshals a JSON string into a map. Returns empty map on error.
-func parseJSON(body string) map[string]any {
+// ParseJSON unmarshals a JSON string into a map. Returns empty map on error.
+func ParseJSON(body string) map[string]any {
 	var result map[string]any
 	if err := json.Unmarshal([]byte(body), &result); err != nil {
-		fmt.Fprintf(os.Stderr, "haira: parseJSON error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "haira: ParseJSON error: %v\n", err)
 		return map[string]any{}
 	}
 	if result == nil {
@@ -32,8 +32,8 @@ func ErrorMessage(v any) string {
 	return fmt.Sprint(v)
 }
 
-// strVal safely extracts a string value from a map by key.
-func strVal(m map[string]any, key string) string {
+// StrVal safely extracts a string value from a map by key.
+func StrVal(m map[string]any, key string) string {
 	if v, ok := m[key]; ok {
 		return Str(v)
 	}

@@ -1,9 +1,12 @@
-package haira
+package excel
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	haira "haira-go-runtime/haira"
+	"haira-go-runtime/postgres"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -110,7 +113,7 @@ func ExcelReadConfig(filePath string, mappings map[string]any) (*ExcelTables, er
 		if !ok {
 			continue
 		}
-		si := sheetInfo{tableName: Str(m["table"]), tableType: Str(m["table_type"])}
+		si := sheetInfo{tableName: haira.Str(m["table"]), tableType: haira.Str(m["table_type"])}
 		if si.tableName == "" {
 			si.tableName = sheetName
 		}
@@ -184,7 +187,7 @@ func (t *ExcelTables) Names() []any {
 
 // Sheet returns the rows for a given table name.
 func (t *ExcelTables) Sheet(name any) []map[string]any {
-	if s, ok := t.sheets[Str(name)]; ok {
+	if s, ok := t.sheets[haira.Str(name)]; ok {
 		return s.Rows
 	}
 	return nil
@@ -192,7 +195,7 @@ func (t *ExcelTables) Sheet(name any) []map[string]any {
 
 // SheetHeaders returns the column headers for a given table name.
 func (t *ExcelTables) SheetHeaders(name any) []any {
-	if s, ok := t.sheets[Str(name)]; ok {
+	if s, ok := t.sheets[haira.Str(name)]; ok {
 		result := make([]any, len(s.Headers))
 		for i, h := range s.Headers {
 			result[i] = h
@@ -209,7 +212,7 @@ func (t *ExcelTables) Len() int {
 
 // TableType returns the type of a table ("configuration", "run", or "").
 func (t *ExcelTables) TableType(name any) string {
-	return t.tableTypes[Str(name)]
+	return t.tableTypes[haira.Str(name)]
 }
 
 // Summary returns a human-readable summary of all tables with row/column counts.
@@ -231,7 +234,7 @@ func (t *ExcelTables) Summary() string {
 // ToUiTable converts all sheets into a UiTable with tabs for direct UI rendering.
 // Each tab shows up to maxRows rows (default 20). The data goes straight to the
 // frontend via tool_render SSE — the LLM only receives a compact summary.
-func (t *ExcelTables) ToUiTable(maxRows ...int) UiTable {
+func (t *ExcelTables) ToUiTable(maxRows ...int) haira.UiTable {
 	limit := 20
 	if len(maxRows) > 0 && maxRows[0] > 0 {
 		limit = maxRows[0]
@@ -253,16 +256,16 @@ func (t *ExcelTables) ToUiTable(maxRows ...int) UiTable {
 		for i := 0; i < rowCount; i++ {
 			cells := make([]any, len(sheet.Headers))
 			for j, h := range sheet.Headers {
-				cells[j] = Str(sheet.Rows[i][h])
+				cells[j] = haira.Str(sheet.Rows[i][h])
 			}
 			rows[i] = cells
 		}
 
 		tabName := fmt.Sprintf("%s (%d)", name, len(sheet.Rows))
-		tabs = append(tabs, UiTab{Name: tabName, Headers: hdrs, Rows: rows})
+		tabs = append(tabs, haira.UiTab{Name: tabName, Headers: hdrs, Rows: rows})
 	}
 
-	return UiTable{
+	return haira.UiTable{
 		Title: fmt.Sprintf("Configuration Data — %d tables", len(t.order)),
 		Tabs:  tabs,
 	}
@@ -270,7 +273,7 @@ func (t *ExcelTables) ToUiTable(maxRows ...int) UiTable {
 
 // ToUiValidation converts a ValidateResult into a UiGroup with a status card
 // and an error/warning table for direct UI rendering.
-func (vr *ValidateResult) ToUiValidation() UiGroup {
+func (vr *ValidateResult) ToUiValidation() haira.UiGroup {
 	var children []any
 
 	// Status card
@@ -282,7 +285,7 @@ func (vr *ValidateResult) ToUiValidation() UiGroup {
 		title = "Validation Failed"
 		message = fmt.Sprintf("%d errors, %d warnings across %d tables", vr.ErrorCount, vr.WarningCount, vr.TablesCount)
 	}
-	children = append(children, UiStatusCard{Status: status, Title: title, Message: message})
+	children = append(children, haira.UiStatusCard{Status: status, Title: title, Message: message})
 
 	// Error table (if any)
 	if vr.ErrorCount > 0 {
@@ -293,16 +296,16 @@ func (vr *ValidateResult) ToUiValidation() UiGroup {
 		hdrs := []any{"#", "Error"}
 		rows := make([]any, limit)
 		for i := 0; i < limit; i++ {
-			rows[i] = []any{fmt.Sprintf("%d", i+1), Str(vr.Errors[i])}
+			rows[i] = []any{fmt.Sprintf("%d", i+1), haira.Str(vr.Errors[i])}
 		}
 		title := fmt.Sprintf("Validation Errors (%d)", vr.ErrorCount)
 		if vr.ErrorCount > limit {
 			title = fmt.Sprintf("Validation Errors (showing %d of %d)", limit, vr.ErrorCount)
 		}
-		children = append(children, UiTable{Title: title, Headers: hdrs, Rows: rows})
+		children = append(children, haira.UiTable{Title: title, Headers: hdrs, Rows: rows})
 	}
 
-	return UiGroup{Children: children}
+	return haira.UiGroup{Children: children}
 }
 
 // ValidateAgainst checks that all sheets and columns exist in the given schema.
@@ -356,7 +359,7 @@ type ValidateResult struct {
 // ValidateWithSchema performs rich validation of Excel data against a PgSchema.
 // Checks: unknown tables, missing required columns, unknown columns, null required fields,
 // type mismatches (number/boolean), and duplicate primary keys.
-func (t *ExcelTables) ValidateWithSchema(schema *PgSchema) *ValidateResult {
+func (t *ExcelTables) ValidateWithSchema(schema *postgres.PgSchema) *ValidateResult {
 	var errors, warnings []string
 	totalRows := 0
 
@@ -405,7 +408,7 @@ func (t *ExcelTables) ValidateWithSchema(schema *PgSchema) *ValidateResult {
 				if !ok {
 					continue
 				}
-				strVal := Str(val)
+				strVal := haira.Str(val)
 
 				// Check null required fields
 				if strVal == "" && !info.Nullable && !info.AutoGenerated {
@@ -436,7 +439,7 @@ func (t *ExcelTables) ValidateWithSchema(schema *PgSchema) *ValidateResult {
 			var pkParts []string
 			for _, col := range ts.Order {
 				if ci, ok := ts.Columns[col]; ok && ci.PrimaryKey {
-					pkParts = append(pkParts, Str(row[col]))
+					pkParts = append(pkParts, haira.Str(row[col]))
 				}
 			}
 			if len(pkParts) > 0 {
@@ -535,7 +538,7 @@ func (t *ExcelTables) SkipFirstRow() {
 			if header == "" {
 				continue
 			}
-			val := strings.TrimSpace(strings.ToLower(Str(row[header])))
+			val := strings.TrimSpace(strings.ToLower(haira.Str(row[header])))
 			if val != "" && !typeKeywords[val] {
 				isTypeRow = false
 				break
@@ -546,7 +549,7 @@ func (t *ExcelTables) SkipFirstRow() {
 				if header == "" {
 					continue
 				}
-				val := strings.TrimSpace(strings.ToLower(Str(row[header])))
+				val := strings.TrimSpace(strings.ToLower(haira.Str(row[header])))
 				if val != "" {
 					sheet.Types[header] = val
 				}
@@ -563,4 +566,130 @@ func isNumericPgType(t string) bool {
 		return true
 	}
 	return false
+}
+
+// PostgresGenerateUpsert generates INSERT ... ON CONFLICT UPDATE SQL from ExcelTables and PgSchema.
+// Uses PK columns for conflict detection. Tables are split into seeds/oneshots based on
+// their TableType field set by ExcelReadConfig ("configuration" -> seeds, "run" -> oneshots).
+func PostgresGenerateUpsert(tables *ExcelTables, schema *postgres.PgSchema) *postgres.SqlResult {
+	return PostgresGenerateUpsertWithConflicts(tables, schema, nil)
+}
+
+// PostgresGenerateUpsertWithConflicts generates upsert SQL with optional per-table conflict columns.
+// conflicts is a map of table_name -> []any (column names). If nil or missing for a table,
+// the primary key columns from the schema are used as the conflict target.
+func PostgresGenerateUpsertWithConflicts(tables *ExcelTables, schema *postgres.PgSchema, conflicts map[string]any) *postgres.SqlResult {
+	var seeds, oneshots []string
+
+	for _, name := range tables.order {
+		sheet := tables.sheets[name]
+		ts, ok := schema.Tables[name]
+		if !ok || len(sheet.Rows) == 0 {
+			continue
+		}
+
+		// Determine conflict columns: custom override or PK
+		var conflictCols []string
+		if conflicts != nil {
+			if custom, ok := conflicts[name]; ok {
+				switch v := custom.(type) {
+				case []any:
+					for _, c := range v {
+						conflictCols = append(conflictCols, haira.Str(c))
+					}
+				case []string:
+					conflictCols = v
+				}
+			}
+		}
+		if len(conflictCols) == 0 {
+			for _, col := range ts.Order {
+				if info, ok := ts.Columns[col]; ok && info.PrimaryKey {
+					conflictCols = append(conflictCols, col)
+				}
+			}
+		}
+
+		// Find insertable columns (skip auto-generated)
+		var insertCols []string
+		for _, header := range sheet.Headers {
+			if header == "" {
+				continue
+			}
+			if info, ok := ts.Columns[header]; ok && !info.AutoGenerated {
+				insertCols = append(insertCols, header)
+			}
+		}
+
+		if len(insertCols) == 0 {
+			continue
+		}
+
+		sql := generateTableUpsert(name, insertCols, conflictCols, sheet.Rows)
+
+		// Split into seeds/oneshots based on table type
+		tableType := tables.tableTypes[name]
+		if tableType == "run" {
+			oneshots = append(oneshots, sql)
+		} else {
+			seeds = append(seeds, sql)
+		}
+	}
+
+	seedSQL := strings.Join(seeds, "\n\n")
+	oneshotSQL := strings.Join(oneshots, "\n\n")
+
+	return &postgres.SqlResult{
+		Seeds:    seedSQL,
+		Oneshots: oneshotSQL,
+		All:      strings.TrimSpace(seedSQL + "\n\n" + oneshotSQL),
+	}
+}
+
+func generateTableUpsert(tableName string, insertCols, conflictCols []string, rows []map[string]any) string {
+	quotedTable := postgres.QuoteIdentifier(tableName)
+	quotedInsertCols := make([]string, len(insertCols))
+	for i, col := range insertCols {
+		quotedInsertCols[i] = postgres.QuoteIdentifier(col)
+	}
+
+	// Build all value tuples
+	var valueTuples []string
+	for _, row := range rows {
+		values := make([]string, len(insertCols))
+		for i, col := range insertCols {
+			values[i] = postgres.PostgresEscape(haira.Str(row[col]))
+		}
+		valueTuples = append(valueTuples, fmt.Sprintf("  (%s)", strings.Join(values, ", ")))
+	}
+
+	stmt := fmt.Sprintf("INSERT INTO %s (%s)\nVALUES\n%s",
+		quotedTable,
+		strings.Join(quotedInsertCols, ", "),
+		strings.Join(valueTuples, ",\n"))
+
+	if len(conflictCols) > 0 {
+		conflictSet := make(map[string]bool, len(conflictCols))
+		for _, c := range conflictCols {
+			conflictSet[c] = true
+		}
+		quotedConflictCols := make([]string, len(conflictCols))
+		for i, c := range conflictCols {
+			quotedConflictCols[i] = postgres.QuoteIdentifier(c)
+		}
+		var updateCols []string
+		for _, col := range insertCols {
+			if !conflictSet[col] {
+				qc := postgres.QuoteIdentifier(col)
+				updateCols = append(updateCols, fmt.Sprintf("%s = EXCLUDED.%s", qc, qc))
+			}
+		}
+		if len(updateCols) > 0 {
+			stmt += fmt.Sprintf("\nON CONFLICT (%s) DO UPDATE SET\n  %s",
+				strings.Join(quotedConflictCols, ", "),
+				strings.Join(updateCols, ",\n  "))
+		}
+	}
+
+	return fmt.Sprintf("-- %s\n%s;", tableName, stmt)
 }

@@ -121,11 +121,11 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "collection":
 			return resolveVectorCollection(call), true
 		case "insert":
-			return fmt.Sprintf("haira.VectorInsert(%s)", args), true
+			return fmt.Sprintf("vector.VectorInsert(%s)", args), true
 		case "search":
-			return fmt.Sprintf("haira.VectorSearch(%s)", args), true
+			return fmt.Sprintf("vector.VectorSearch(%s)", args), true
 		case "format":
-			return fmt.Sprintf("haira.VectorFormat(%s)", args), true
+			return fmt.Sprintf("vector.VectorFormat(%s)", args), true
 		}
 	case "json":
 		switch method {
@@ -399,44 +399,45 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 	case "postgres":
 		switch method {
 		case "connect":
-			return fmt.Sprintf("haira.PostgresConnect(%s)", args), true
+			return fmt.Sprintf("postgres.PostgresConnect(%s)", args), true
 		case "generate_upsert":
 			// 2-arg: postgres.generate_upsert(tables, schema)
 			// 3-arg: postgres.generate_upsert(tables, schema, conflicts)
+			// These functions live in the excel package (they access ExcelTables internals)
 			if len(call.Args) >= 3 {
-				return fmt.Sprintf("haira.PostgresGenerateUpsertWithConflicts(%s)", args), true
+				return fmt.Sprintf("excel.PostgresGenerateUpsertWithConflicts(%s)", args), true
 			}
-			return fmt.Sprintf("haira.PostgresGenerateUpsert(%s)", args), true
+			return fmt.Sprintf("excel.PostgresGenerateUpsert(%s)", args), true
 		case "escape":
-			return fmt.Sprintf("haira.PostgresEscape(%s)", args), true
+			return fmt.Sprintf("postgres.PostgresEscape(%s)", args), true
 		case "quote_identifier":
-			return fmt.Sprintf("haira.QuoteIdentifier(%s)", args), true
+			return fmt.Sprintf("postgres.QuoteIdentifier(%s)", args), true
 		}
 	case "slack":
 		switch method {
 		case "send":
-			return fmt.Sprintf("haira.SlackSend(%s)", args), true
+			return fmt.Sprintf("slack.SlackSend(%s)", args), true
 		case "send_blocks":
-			return fmt.Sprintf("haira.SlackSendBlocks(%s)", args), true
+			return fmt.Sprintf("slack.SlackSendBlocks(%s)", args), true
 		case "header":
-			return fmt.Sprintf("haira.SlackHeader(%s)", args), true
+			return fmt.Sprintf("slack.SlackHeader(%s)", args), true
 		case "section":
-			return fmt.Sprintf("haira.SlackSection(%s)", args), true
+			return fmt.Sprintf("slack.SlackSection(%s)", args), true
 		case "divider":
-			return "haira.SlackDivider()", true
+			return "slack.SlackDivider()", true
 		case "context":
-			return fmt.Sprintf("haira.SlackContext(%s)", args), true
+			return fmt.Sprintf("slack.SlackContext(%s)", args), true
 		case "client":
-			return fmt.Sprintf("haira.SlackNewClient(%s)", args), true
+			return fmt.Sprintf("slack.SlackNewClient(%s)", args), true
 		}
 	case "excel":
 		switch method {
 		case "open":
-			return fmt.Sprintf("haira.ExcelOpen(%s)", args), true
+			return fmt.Sprintf("excel.ExcelOpen(%s)", args), true
 		case "read_sheets":
-			return fmt.Sprintf("haira.ExcelReadSheets(%s)", args), true
+			return fmt.Sprintf("excel.ExcelReadSheets(%s)", args), true
 		case "read_config":
-			return fmt.Sprintf("haira.ExcelReadConfig(%s)", args), true
+			return fmt.Sprintf("excel.ExcelReadConfig(%s)", args), true
 		}
 	case "log":
 		// log.info/warn/error inside steps → haira.StepLog with injected context
@@ -536,16 +537,16 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 	case "gitlab":
 		switch method {
 		case "Client":
-			return resolveClientConstructor("haira.GitlabNewClient", call), true
+			return resolveClientConstructor("gitlab.GitlabNewClient", call), true
 		case "client":
-			return resolveClientConstructor("haira.GitlabConnect", call), true
+			return resolveClientConstructor("gitlab.GitlabConnect", call), true
 		}
 	case "github":
 		switch method {
 		case "Client":
-			return resolveClientConstructor("haira.GithubNewClient", call), true
+			return resolveClientConstructor("github.GithubNewClient", call), true
 		case "client":
-			return resolveClientConstructor("haira.GithubConnect", call), true
+			return resolveClientConstructor("github.GithubConnect", call), true
 		}
 	case "ui":
 		switch method {
@@ -557,6 +558,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.UiNewGroup(%s)", args), true
 		case "confirm":
 			return fmt.Sprintf("haira.UiNewConfirm(%s)", args), true
+		case "chart":
+			return fmt.Sprintf("haira.UiNewChart(%s)", args), true
 		}
 	}
 	return "", false
@@ -627,33 +630,33 @@ func callArgsToGo(args []ast.Argument) string {
 	return strings.Join(parts, ", ")
 }
 
-// resolveVectorEmbed converts vector.embed(provider, text) → haira.VectorEmbed(providerVar, text)
+// resolveVectorEmbed converts vector.embed(provider, text) → vector.VectorEmbed(providerVar, text)
 func resolveVectorEmbed(call ast.CallExpr) string {
 	if len(call.Args) < 2 {
-		return "haira.VectorEmbed(nil, \"\")"
+		return "vector.VectorEmbed(nil, \"\")"
 	}
 	providerArg := resolveProviderArg(call.Args[0].Value)
 	textArg := ExprToGo(call.Args[1].Value)
-	return fmt.Sprintf("haira.VectorEmbed(%s, %s)", providerArg, textArg)
+	return fmt.Sprintf("vector.VectorEmbed(%s, %s)", providerArg, textArg)
 }
 
-// resolveVectorEmbedBatch converts vector.embed_batch(provider, texts) → haira.VectorEmbedBatch(providerVar, texts)
+// resolveVectorEmbedBatch converts vector.embed_batch(provider, texts) → vector.VectorEmbedBatch(providerVar, texts)
 func resolveVectorEmbedBatch(call ast.CallExpr) string {
 	if len(call.Args) < 2 {
-		return "haira.VectorEmbedBatch(nil, nil)"
+		return "vector.VectorEmbedBatch(nil, nil)"
 	}
 	providerArg := resolveProviderArg(call.Args[0].Value)
 	textsArg := ExprToGo(call.Args[1].Value)
-	return fmt.Sprintf("haira.VectorEmbedBatch(%s, %s)", providerArg, textsArg)
+	return fmt.Sprintf("vector.VectorEmbedBatch(%s, %s)", providerArg, textsArg)
 }
 
 // resolveVectorCollection converts:
 //
-//	vector.collection(db, "name", dimensions: N) → haira.VectorNewCollection(db, "name", N)
-//	vector.collection("name", dimensions: N)     → haira.VectorNewCollection(nil, "name", N)
+//	vector.collection(db, "name", dimensions: N) → vector.VectorNewCollection(db, "name", N)
+//	vector.collection("name", dimensions: N)     → vector.VectorNewCollection(nil, "name", N)
 func resolveVectorCollection(call ast.CallExpr) string {
 	if len(call.Args) < 1 {
-		return "haira.VectorNewCollection(nil, \"\", 0)"
+		return "vector.VectorNewCollection(nil, \"\", 0)"
 	}
 
 	// Detect if first arg is a string literal (no-db form)
@@ -675,7 +678,7 @@ func resolveVectorCollection(call ast.CallExpr) string {
 	} else {
 		// With db: vector.collection(db, "name", dimensions: N)
 		if len(call.Args) < 2 {
-			return "haira.VectorNewCollection(nil, \"\", 0)"
+			return "vector.VectorNewCollection(nil, \"\", 0)"
 		}
 		dbArg = ExprToGo(call.Args[0].Value)
 		nameArg = ExprToGo(call.Args[1].Value)
@@ -690,7 +693,7 @@ func resolveVectorCollection(call ast.CallExpr) string {
 			break
 		}
 	}
-	return fmt.Sprintf("haira.VectorNewCollection(%s, %s, %s)", dbArg, nameArg, dimArg)
+	return fmt.Sprintf("vector.VectorNewCollection(%s, %s, %s)", dbArg, nameArg, dimArg)
 }
 
 // resolveProviderArg resolves a provider identifier to its Go variable name.

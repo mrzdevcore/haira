@@ -1,15 +1,17 @@
-package haira
+package postgres
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
 
+	haira "haira-go-runtime/haira"
+
 	_ "github.com/lib/pq"
 )
 
 func init() {
-	RegisterStoreBackend("postgres", func(url string) Store {
+	haira.RegisterStoreBackend("postgres", func(url string) haira.Store {
 		return NewPostgresStore(url)
 	})
 }
@@ -135,13 +137,13 @@ func (s *PostgresStore) AddMessage(sessionID, role, content string, uiEvents []j
 	return tx.Commit()
 }
 
-func (s *PostgresStore) GetSession(id string) (*ChatSessionDetail, error) {
+func (s *PostgresStore) GetSession(id string) (*haira.ChatSessionDetail, error) {
 	row := s.db.QueryRow(
 		`SELECT id, workflow_name, workflow_path, title, COALESCE(owner, ''), created_at, updated_at, message_count
 		 FROM chat_sessions WHERE id = $1`, id,
 	)
 
-	var sess ChatSessionDetail
+	var sess haira.ChatSessionDetail
 	err := row.Scan(
 		&sess.ID, &sess.WorkflowName, &sess.WorkflowPath,
 		&sess.Title, &sess.Owner, &sess.CreatedAt, &sess.UpdatedAt, &sess.MessageCount,
@@ -161,9 +163,9 @@ func (s *PostgresStore) GetSession(id string) (*ChatSessionDetail, error) {
 	}
 	defer rows.Close()
 
-	sess.Messages = []ChatMessage{}
+	sess.Messages = []haira.ChatMessage{}
 	for rows.Next() {
-		var msg ChatMessage
+		var msg haira.ChatMessage
 		var eventsRaw *[]byte
 		if err := rows.Scan(&msg.Role, &msg.Content, &eventsRaw, &msg.Timestamp); err != nil {
 			return nil, err
@@ -177,7 +179,7 @@ func (s *PostgresStore) GetSession(id string) (*ChatSessionDetail, error) {
 	return &sess, nil
 }
 
-func (s *PostgresStore) ListSessions(wfPath, owner string) ([]ChatSession, error) {
+func (s *PostgresStore) ListSessions(wfPath, owner string) ([]haira.ChatSession, error) {
 	query := `SELECT id, workflow_name, workflow_path, title, COALESCE(owner, ''), created_at, updated_at, message_count
 			  FROM chat_sessions WHERE TRUE`
 	var args []any
@@ -201,9 +203,9 @@ func (s *PostgresStore) ListSessions(wfPath, owner string) ([]ChatSession, error
 	}
 	defer rows.Close()
 
-	var sessions []ChatSession
+	var sessions []haira.ChatSession
 	for rows.Next() {
-		var sess ChatSession
+		var sess haira.ChatSession
 		if err := rows.Scan(
 			&sess.ID, &sess.WorkflowName, &sess.WorkflowPath,
 			&sess.Title, &sess.Owner, &sess.CreatedAt, &sess.UpdatedAt, &sess.MessageCount,
@@ -214,7 +216,7 @@ func (s *PostgresStore) ListSessions(wfPath, owner string) ([]ChatSession, error
 	}
 
 	if sessions == nil {
-		sessions = []ChatSession{}
+		sessions = []haira.ChatSession{}
 	}
 	return sessions, nil
 }
@@ -226,7 +228,7 @@ func (s *PostgresStore) DeleteSession(id string) error {
 
 // --- Runs ---
 
-func (s *PostgresStore) CreateRun(run *Run) error {
+func (s *PostgresStore) CreateRun(run *haira.Run) error {
 	paramsJSON, _ := json.Marshal(run.Params)
 	stepsJSON, _ := json.Marshal(run.Steps)
 
@@ -239,7 +241,7 @@ func (s *PostgresStore) CreateRun(run *Run) error {
 	return err
 }
 
-func (s *PostgresStore) UpdateRun(run *Run) error {
+func (s *PostgresStore) UpdateRun(run *haira.Run) error {
 	stepsJSON, _ := json.Marshal(run.Steps)
 	var resultJSON *string
 	if run.Result != nil {
@@ -255,13 +257,13 @@ func (s *PostgresStore) UpdateRun(run *Run) error {
 	return err
 }
 
-func (s *PostgresStore) GetRun(id string) (*Run, error) {
+func (s *PostgresStore) GetRun(id string) (*haira.Run, error) {
 	row := s.db.QueryRow(
 		`SELECT id, workflow_name, workflow_path, status, params, steps, result, error, started_at, finished_at
 		 FROM runs WHERE id = $1`, id,
 	)
 
-	var run Run
+	var run haira.Run
 	var paramsRaw, stepsRaw, resultRaw *[]byte
 
 	err := row.Scan(
@@ -285,13 +287,13 @@ func (s *PostgresStore) GetRun(id string) (*Run, error) {
 		json.Unmarshal(*resultRaw, &run.Result)
 	}
 	if run.Steps == nil {
-		run.Steps = []StepEvent{}
+		run.Steps = []haira.StepEvent{}
 	}
 
 	return &run, nil
 }
 
-func (s *PostgresStore) ListRuns(wfPath string) ([]RunSummary, error) {
+func (s *PostgresStore) ListRuns(wfPath string) ([]haira.RunSummary, error) {
 	query := `SELECT id, workflow_name, workflow_path, status, started_at, finished_at,
 			  COALESCE(jsonb_array_length(steps), 0) as step_count
 			  FROM runs WHERE TRUE`
@@ -309,9 +311,9 @@ func (s *PostgresStore) ListRuns(wfPath string) ([]RunSummary, error) {
 	}
 	defer rows.Close()
 
-	var runs []RunSummary
+	var runs []haira.RunSummary
 	for rows.Next() {
-		var r RunSummary
+		var r haira.RunSummary
 		if err := rows.Scan(
 			&r.ID, &r.WorkflowName, &r.WorkflowPath, &r.Status,
 			&r.StartedAt, &r.FinishedAt, &r.StepCount,
@@ -322,7 +324,7 @@ func (s *PostgresStore) ListRuns(wfPath string) ([]RunSummary, error) {
 	}
 
 	if runs == nil {
-		runs = []RunSummary{}
+		runs = []haira.RunSummary{}
 	}
 	return runs, nil
 }

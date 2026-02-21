@@ -1,254 +1,90 @@
-import {
-  baseStyles,
-  sharedKeyframes,
-  methodColor,
-  uiTypeColor,
-} from "../theme";
-import type { WorkflowMeta, RunSummary, ChatSessionSummary } from "../types";
+import { baseCSS, keyframes, methodColor, uiTypeColor, esc } from "../core";
+import type { WorkflowMeta, RunSummary, ChatSessionSummary } from "../core/types";
 
 export class HairaIndex extends HTMLElement {
   connectedCallback() {
-    const meta: WorkflowMeta = JSON.parse(
-      this.getAttribute("data-meta") || "{}",
-    );
+    const meta: WorkflowMeta = JSON.parse(this.getAttribute("data-meta") || "{}");
     const workflows = meta.workflows || [];
 
     const shadow = this.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
-        ${baseStyles}
-        ${sharedKeyframes}
-        :host {
-          display: flex;
-          justify-content: center;
-          padding: 2.5rem 1rem;
-        }
+        ${baseCSS}
+        :host { display: flex; justify-content: center; padding: 2.5rem 1rem; }
         .container { max-width: 960px; width: 100%; }
-        @media (min-width: 768px) {
-          :host {
-            padding: 2.5rem 2rem;
-          }
-        }
-        h1 {
-          font-size: 1.3rem;
-          font-weight: 700;
-          color: var(--haira-text);
-          margin-bottom: 1.25rem;
-        }
+        @media (min-width: 768px) { :host { padding: 2.5rem 2rem; } }
+        h1 { font-size: 1.3rem; font-weight: 700; color: var(--haira-text); margin-bottom: 1.25rem; }
         .wf {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius);
-          padding: 0.85rem 1rem;
-          margin-bottom: 0.5rem;
-          text-decoration: none;
-          color: var(--haira-text);
-          transition: all 0.15s;
+          display: flex; align-items: center; justify-content: space-between;
+          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius); padding: 0.85rem 1rem; margin-bottom: 0.5rem;
+          text-decoration: none; color: var(--haira-text); transition: all 0.15s;
           animation: fadeSlideUp 0.3s ease-out both;
         }
-        .wf:hover {
-          border-color: rgba(232, 163, 23, 0.3);
-          background: var(--haira-bg-card-hover);
-        }
-        .wf-left {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          min-width: 0;
-        }
+        .wf:hover { border-color: rgba(232, 163, 23, 0.3); background: var(--haira-bg-card-hover); }
+        .wf-left { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
         .badge {
-          font-size: 0.6rem;
-          font-weight: 700;
-          padding: 0.12rem 0.4rem;
-          border-radius: 3px;
-          color: #fff;
-          flex-shrink: 0;
-          letter-spacing: 0.02em;
+          font-size: 0.6rem; font-weight: 700; padding: 0.12rem 0.4rem;
+          border-radius: 3px; color: #fff; flex-shrink: 0; letter-spacing: 0.02em;
         }
         .wf-info { min-width: 0; }
         .wf-name {
-          font-weight: 600;
-          font-size: 0.88rem;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          font-weight: 600; font-size: 0.88rem; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
         }
-        .wf-path {
-          font-family: var(--haira-mono);
-          font-size: 0.75rem;
-          color: var(--haira-muted);
-          margin-top: 0.1rem;
-        }
-        .wf-right {
-          display: flex;
-          align-items: center;
-          flex-shrink: 0;
-          margin-left: 0.75rem;
-        }
+        .wf-path { font-family: var(--haira-mono); font-size: 0.75rem; color: var(--haira-muted); margin-top: 0.1rem; }
+        .wf-right { display: flex; align-items: center; flex-shrink: 0; margin-left: 0.75rem; }
         .type-pill {
-          font-size: 0.65rem;
-          font-weight: 600;
-          padding: 0.12rem 0.5rem;
-          border-radius: 10px;
-          border: 1px solid;
-          text-transform: lowercase;
+          font-size: 0.65rem; font-weight: 600; padding: 0.12rem 0.5rem;
+          border-radius: 10px; border: 1px solid; text-transform: lowercase;
         }
-        .empty {
-          text-align: center;
-          padding: 3rem 1rem;
-          animation: fadeIn 0.4s ease-out;
-        }
-        .empty-title {
-          color: var(--haira-text-dim);
-          font-size: 0.95rem;
-          font-weight: 500;
-          margin-bottom: 0.25rem;
-        }
-        .empty-sub {
-          color: var(--haira-muted);
-          font-size: 0.82rem;
-        }
-
-        /* Recent Runs */
-        .section-title {
-          font-size: 1rem;
-          font-weight: 700;
-          color: var(--haira-text);
-          margin: 2rem 0 0.75rem;
-        }
+        .empty { text-align: center; padding: 3rem 1rem; animation: fadeIn 0.4s ease-out; }
+        .empty-title { color: var(--haira-text-dim); font-size: 0.95rem; font-weight: 500; margin-bottom: 0.25rem; }
+        .empty-sub { color: var(--haira-muted); font-size: 0.82rem; }
+        .section-title { font-size: 1rem; font-weight: 700; color: var(--haira-text); margin: 2rem 0 0.75rem; }
         .run {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius-sm);
-          padding: 0.6rem 0.85rem;
-          margin-bottom: 0.35rem;
-          text-decoration: none;
-          color: var(--haira-text);
-          transition: all 0.15s;
+          display: flex; align-items: center; gap: 0.6rem;
+          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius-sm); padding: 0.6rem 0.85rem; margin-bottom: 0.35rem;
+          text-decoration: none; color: var(--haira-text); transition: all 0.15s;
           animation: fadeIn 0.25s ease-out both;
         }
-        .run:hover {
-          border-color: rgba(232, 163, 23, 0.3);
-          background: var(--haira-bg-card-hover);
-        }
-        .run-dot {
-          width: 7px;
-          height: 7px;
-          border-radius: 50%;
-          flex-shrink: 0;
-        }
+        .run:hover { border-color: rgba(232, 163, 23, 0.3); background: var(--haira-bg-card-hover); }
+        .run-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
         .run-dot.completed { background: var(--haira-success); }
         .run-dot.failed { background: var(--haira-error); }
-        .run-dot.running {
-          background: var(--haira-accent);
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
+        .run-dot.running { background: var(--haira-accent); animation: pulse 1.5s ease-in-out infinite; }
         .run-name {
-          flex: 1;
-          font-size: 0.82rem;
-          font-weight: 500;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          min-width: 0;
+          flex: 1; font-size: 0.82rem; font-weight: 500;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
         }
-        .run-name .run-id {
-          font-family: var(--haira-mono);
-          font-size: 0.7rem;
-          color: var(--haira-muted);
-          margin-left: 0.4rem;
-        }
-        .run-time {
-          font-size: 0.72rem;
-          font-family: var(--haira-mono);
-          color: var(--haira-muted);
-          flex-shrink: 0;
-        }
+        .run-name .run-id { font-family: var(--haira-mono); font-size: 0.7rem; color: var(--haira-muted); margin-left: 0.4rem; }
+        .run-time { font-size: 0.72rem; font-family: var(--haira-mono); color: var(--haira-muted); flex-shrink: 0; }
         .run-status {
-          font-size: 0.62rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.03em;
-          flex-shrink: 0;
-          padding: 0.08rem 0.35rem;
-          border-radius: 3px;
+          font-size: 0.62rem; font-weight: 600; text-transform: uppercase;
+          letter-spacing: 0.03em; flex-shrink: 0; padding: 0.08rem 0.35rem; border-radius: 3px;
         }
-        .run-status.completed {
-          color: var(--haira-success);
-          background: rgba(34, 197, 94, 0.1);
-        }
-        .run-status.failed {
-          color: var(--haira-error);
-          background: rgba(239, 68, 68, 0.1);
-        }
-        .run-status.running {
-          color: var(--haira-accent);
-          background: rgba(232, 163, 23, 0.1);
-        }
-
-        /* Recent Chats */
+        .run-status.completed { color: var(--haira-success); background: rgba(34, 197, 94, 0.1); }
+        .run-status.failed { color: var(--haira-error); background: rgba(239, 68, 68, 0.1); }
+        .run-status.running { color: var(--haira-accent); background: rgba(232, 163, 23, 0.1); }
         .chat {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius-sm);
-          padding: 0.6rem 0.85rem;
-          margin-bottom: 0.35rem;
-          text-decoration: none;
-          color: var(--haira-text);
-          transition: all 0.15s;
+          display: flex; align-items: center; gap: 0.6rem;
+          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius-sm); padding: 0.6rem 0.85rem; margin-bottom: 0.35rem;
+          text-decoration: none; color: var(--haira-text); transition: all 0.15s;
           animation: fadeIn 0.25s ease-out both;
         }
-        .chat:hover {
-          border-color: rgba(232, 163, 23, 0.3);
-          background: var(--haira-bg-card-hover);
-        }
-        .chat-icon {
-          color: var(--haira-accent);
-          display: flex;
-          flex-shrink: 0;
-          opacity: 0.6;
-        }
+        .chat:hover { border-color: rgba(232, 163, 23, 0.3); background: var(--haira-bg-card-hover); }
+        .chat-icon { color: var(--haira-accent); display: flex; flex-shrink: 0; opacity: 0.6; }
         .chat-title {
-          flex: 1;
-          font-size: 0.82rem;
-          font-weight: 500;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          min-width: 0;
+          flex: 1; font-size: 0.82rem; font-weight: 500;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
         }
-        .chat-wf {
-          font-family: var(--haira-mono);
-          font-size: 0.7rem;
-          color: var(--haira-muted);
-          margin-left: 0.4rem;
-        }
-        .chat-time {
-          font-size: 0.72rem;
-          font-family: var(--haira-mono);
-          color: var(--haira-muted);
-          flex-shrink: 0;
-        }
+        .chat-wf { font-family: var(--haira-mono); font-size: 0.7rem; color: var(--haira-muted); margin-left: 0.4rem; }
+        .chat-time { font-size: 0.72rem; font-family: var(--haira-mono); color: var(--haira-muted); flex-shrink: 0; }
         .chat-count {
-          font-size: 0.62rem;
-          color: var(--haira-muted);
-          flex-shrink: 0;
-          padding: 0.08rem 0.35rem;
-          border-radius: 3px;
-          background: var(--haira-bg-elevated);
+          font-size: 0.62rem; color: var(--haira-muted); flex-shrink: 0;
+          padding: 0.08rem 0.35rem; border-radius: 3px; background: var(--haira-bg-elevated);
         }
       </style>
       <div class="container">
@@ -266,8 +102,8 @@ export class HairaIndex extends HTMLElement {
               <div class="wf-left">
                 <span class="badge" style="background:${methodColor(wf.method)}">${wf.method}</span>
                 <div class="wf-info">
-                  <div class="wf-name">${this.esc(wf.title || wf.name)}</div>
-                  <div class="wf-path">${this.esc(wf.path)}</div>
+                  <div class="wf-name">${esc(wf.title || wf.name)}</div>
+                  <div class="wf-path">${esc(wf.path)}</div>
                 </div>
               </div>
               <div class="wf-right">
@@ -283,7 +119,6 @@ export class HairaIndex extends HTMLElement {
       </div>
     `;
 
-    // Fetch recent chats and runs asynchronously
     this.loadChats(shadow);
     this.loadRuns(shadow);
   }
@@ -305,9 +140,9 @@ export class HairaIndex extends HTMLElement {
         ${chats
           .map(
             (chat, i) => `
-          <a class="chat" href="/_ui${this.esc(chat.workflow_path)}?session=${this.esc(chat.id)}" style="animation-delay:${i * 30}ms">
+          <a class="chat" href="/_ui${esc(chat.workflow_path)}?session=${esc(chat.id)}" style="animation-delay:${i * 30}ms">
             <span class="chat-icon">${iconChat}</span>
-            <span class="chat-title">${this.esc(chat.title || "New chat")}<span class="chat-wf">${this.esc(chat.workflow_name)}</span></span>
+            <span class="chat-title">${esc(chat.title || "New chat")}<span class="chat-wf">${esc(chat.workflow_name)}</span></span>
             <span class="chat-time">${this.relativeTime(chat.updated_at)}</span>
             <span class="chat-count">${chat.message_count} msg</span>
           </a>
@@ -316,7 +151,7 @@ export class HairaIndex extends HTMLElement {
           .join("")}
       `;
     } catch {
-      // Silently fail — chats are optional
+      // Silently fail
     }
   }
 
@@ -335,9 +170,9 @@ export class HairaIndex extends HTMLElement {
         ${runs
           .map(
             (run, i) => `
-          <a class="run" href="/_ui${this.esc(run.workflow_path)}?run=${this.esc(run.id)}" style="animation-delay:${i * 30}ms">
+          <a class="run" href="/_ui${esc(run.workflow_path)}?run=${esc(run.id)}" style="animation-delay:${i * 30}ms">
             <span class="run-dot ${run.status}"></span>
-            <span class="run-name">${this.esc(run.workflow_name)}<span class="run-id">${this.shortId(run.id)}</span></span>
+            <span class="run-name">${esc(run.workflow_name)}<span class="run-id">${this.shortId(run.id)}</span></span>
             <span class="run-time">${this.relativeTime(run.started_at)}</span>
             <span class="run-status ${run.status}">${run.status}</span>
           </a>
@@ -346,7 +181,7 @@ export class HairaIndex extends HTMLElement {
           .join("")}
       `;
     } catch {
-      // Silently fail — runs are optional
+      // Silently fail
     }
   }
 
@@ -365,13 +200,8 @@ export class HairaIndex extends HTMLElement {
   }
 
   private shortId(id: string): string {
-    // "run_20260219_143052_001" → "143052_001"
     const parts = id.split("_");
     if (parts.length >= 4) return parts.slice(2).join("_");
     return id;
-  }
-
-  private esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 }

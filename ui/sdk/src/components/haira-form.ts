@@ -1,6 +1,6 @@
-import { baseStyles, methodColor } from "../theme";
-import { submitForm, streamSSE, connectSSE } from "../sse";
-import type { WorkflowMeta, RunDetail } from "../types";
+import { baseCSS, methodColor, esc } from "../core";
+import { submitForm, streamSSE, connectSSE } from "../services/sse-client";
+import type { WorkflowMeta, RunDetail } from "../core/types";
 import type { HairaField } from "./haira-field";
 import type { HairaResult } from "./haira-result";
 import type { HairaPipeline } from "./haira-pipeline";
@@ -10,132 +10,59 @@ export class HairaForm extends HTMLElement {
 
   connectedCallback() {
     this.meta = JSON.parse(this.getAttribute("data-meta") || "{}");
-    this.render();
+    this.renderForm();
   }
 
-  private render() {
+  private renderForm() {
     const m = this.meta;
     const shadow = this.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
-        ${baseStyles}
-        :host {
-          display: block;
-          padding: 2.5rem 1rem 3rem;
-        }
-        .layout {
-          max-width: 960px;
-          margin: 0 auto;
-          width: 100%;
-        }
-        @media (min-width: 768px) {
-          :host {
-            padding: 2.5rem 2rem 3rem;
-          }
-        }
-
-        /* Header */
-        .header {
-          margin-bottom: 1.5rem;
-        }
+        ${baseCSS}
+        :host { display: block; padding: 2.5rem 1rem 3rem; }
+        .layout { max-width: 960px; margin: 0 auto; width: 100%; }
+        @media (min-width: 768px) { :host { padding: 2.5rem 2rem 3rem; } }
+        .header { margin-bottom: 1.5rem; }
         h1 {
-          font-size: 1.3rem;
-          font-weight: 700;
-          color: var(--haira-text);
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          margin-bottom: 0.25rem;
+          font-size: 1.3rem; font-weight: 700; color: var(--haira-text);
+          display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.25rem;
         }
         .method-badge {
-          font-size: 0.6rem;
-          font-weight: 700;
-          padding: 0.15rem 0.45rem;
-          border-radius: 4px;
-          color: #fff;
-          letter-spacing: 0.02em;
-          flex-shrink: 0;
+          font-size: 0.6rem; font-weight: 700; padding: 0.15rem 0.45rem;
+          border-radius: 4px; color: #fff; letter-spacing: 0.02em; flex-shrink: 0;
         }
-        .desc {
-          font-size: 0.85rem;
-          color: var(--haira-muted);
-          line-height: 1.45;
-        }
-        .path {
-          font-family: var(--haira-mono);
-          font-size: 0.78rem;
-          color: var(--haira-muted);
-          opacity: 0.7;
-          margin-top: 0.15rem;
-        }
-
-        /* Form card */
+        .desc { font-size: 0.85rem; color: var(--haira-muted); line-height: 1.45; }
+        .path { font-family: var(--haira-mono); font-size: 0.78rem; color: var(--haira-muted); opacity: 0.7; margin-top: 0.15rem; }
         .card {
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius);
-          padding: 1.25rem;
-          transition: opacity 0.2s;
+          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius); padding: 1.25rem; transition: opacity 0.2s;
         }
-        .card.disabled {
-          opacity: 0.45;
-          pointer-events: none;
-        }
-
-        /* Submit button */
+        .card.disabled { opacity: 0.45; pointer-events: none; }
         .submit-btn {
-          width: 100%;
-          padding: 0.65rem 1.5rem;
-          border: none;
-          background: var(--haira-accent);
-          color: #0a0a0a;
-          border-radius: var(--haira-radius-sm);
-          font-size: 0.88rem;
-          font-weight: 600;
-          cursor: pointer;
-          font-family: var(--haira-font);
-          transition: all 0.15s;
-          margin-top: 0.5rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.4rem;
+          width: 100%; padding: 0.65rem 1.5rem; border: none;
+          background: var(--haira-accent); color: #0a0a0a;
+          border-radius: var(--haira-radius-sm); font-size: 0.88rem; font-weight: 600;
+          cursor: pointer; font-family: var(--haira-font); transition: all 0.15s;
+          margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem;
         }
-        .submit-btn:hover:not(:disabled) {
-          background: var(--haira-accent-light);
-          box-shadow: 0 2px 16px rgba(232, 163, 23, 0.2);
-        }
-        .submit-btn:active:not(:disabled) {
-          transform: scale(0.99);
-        }
-        .submit-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
+        .submit-btn:hover:not(:disabled) { background: var(--haira-accent-light); box-shadow: 0 2px 16px rgba(232, 163, 23, 0.2); }
+        .submit-btn:active:not(:disabled) { transform: scale(0.99); }
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .spinner {
-          display: inline-block;
-          width: 14px;
-          height: 14px;
-          border: 2px solid #0a0a0a;
-          border-top-color: transparent;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
+          display: inline-block; width: 14px; height: 14px;
+          border: 2px solid #0a0a0a; border-top-color: transparent;
+          border-radius: 50%; animation: spin 0.6s linear infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Pipeline + result area */
-        .output-area {
-          margin-top: 0.5rem;
-        }
+        .output-area { margin-top: 0.5rem; }
       </style>
       <div class="layout">
         <div class="header">
           <h1>
-            ${this.esc(m.title || m.name)}
+            ${esc(m.title || m.name)}
             <span class="method-badge" style="background:${methodColor(m.method)}">${m.method}</span>
           </h1>
-          ${m.description ? `<p class="desc">${this.esc(m.description)}</p>` : ""}
-          <p class="path">${this.esc(m.path)}</p>
+          ${m.description ? `<p class="desc">${esc(m.description)}</p>` : ""}
+          <p class="path">${esc(m.path)}</p>
         </div>
         <div class="card" id="card">
           <form id="wf-form">
@@ -147,7 +74,6 @@ export class HairaForm extends HTMLElement {
       </div>
     `;
 
-    // Create fields
     const fieldsContainer = shadow.getElementById("fields")!;
     for (const param of m.params) {
       const field = document.createElement("haira-field") as HairaField;
@@ -156,7 +82,6 @@ export class HairaForm extends HTMLElement {
       fieldsContainer.appendChild(field);
     }
 
-    // Create pipeline and result
     const outputArea = shadow.getElementById("output-area")!;
     const pipeline = document.createElement("haira-pipeline") as HairaPipeline;
     outputArea.appendChild(pipeline);
@@ -167,12 +92,10 @@ export class HairaForm extends HTMLElement {
     const result = document.createElement("haira-result") as HairaResult;
     outputArea.appendChild(result);
 
-    // Submit handler
     const form = shadow.getElementById("wf-form") as HTMLFormElement;
     const btn = shadow.getElementById("submit-btn") as HTMLButtonElement;
     const card = shadow.getElementById("card")!;
 
-    // Check if we're viewing a past run
     const runId = new URLSearchParams(window.location.search).get("run");
     if (runId) {
       this.loadRun(runId, pipeline, result, card, btn);
@@ -185,10 +108,7 @@ export class HairaForm extends HTMLElement {
       card.classList.add("disabled");
       result.hide();
 
-      // Collect field values
-      const fields = fieldsContainer.querySelectorAll(
-        "haira-field",
-      ) as NodeListOf<HairaField>;
+      const fields = fieldsContainer.querySelectorAll("haira-field") as NodeListOf<HairaField>;
       const body: Record<string, unknown> = {};
       let formData: FormData | undefined;
       let hasFile = false;
@@ -209,16 +129,13 @@ export class HairaForm extends HTMLElement {
         btn.disabled = false;
         btn.textContent = "Run";
         card.classList.remove("disabled");
-        // Clear run param so next submit creates a fresh run
         history.replaceState(null, "", window.location.pathname);
       };
 
-      // If workflow has steps, use SSE for live pipeline
       if (m.steps && m.steps.length > 0) {
         pipeline.reset();
         pipeline.show();
 
-        // For file uploads, ensure all fields are in formData
         let sseFormData: FormData | undefined;
         if (hasFile && formData) {
           for (const [k, v] of Object.entries(body)) {
@@ -251,15 +168,8 @@ export class HairaForm extends HTMLElement {
           sseFormData,
         );
       } else {
-        // Simple fetch
         try {
-          const resp = await submitForm(
-            m.path,
-            m.method,
-            body,
-            hasFile,
-            formData,
-          );
+          const resp = await submitForm(m.path, m.method, body, hasFile, formData);
           result.show(resp.data, resp.status >= 400);
         } catch (err) {
           result.show({ error: (err as Error).message }, true);
@@ -285,13 +195,11 @@ export class HairaForm extends HTMLElement {
       return;
     }
 
-    // Show pipeline and replay buffered events
     pipeline.show();
     for (const event of run.steps) {
       pipeline.updateStep(event);
     }
 
-    // Show result if completed/failed
     if (run.status === "completed" && run.result) {
       result.show(run.result, false);
       pipeline.finalize();
@@ -301,7 +209,6 @@ export class HairaForm extends HTMLElement {
       }
       pipeline.finalize();
     } else if (run.status === "running") {
-      // Still in progress — connect to live stream
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>Running...';
       card.classList.add("disabled");
@@ -325,9 +232,5 @@ export class HairaForm extends HTMLElement {
         },
       });
     }
-  }
-
-  private esc(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 }

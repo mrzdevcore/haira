@@ -210,6 +210,7 @@ var validAgentFields = map[string]bool{
 var validUIComponents = map[string]bool{
 	"StatusCard": true, "Confirm": true, "Choices": true, "Table": true,
 	"CodeBlock": true, "Diff": true, "KeyValue": true, "Progress": true,
+	"Chart": true,
 }
 
 func (c *checker) checkProviderFields(provider ast.ProviderDecl) {
@@ -277,7 +278,7 @@ func (c *checker) checkAgentFields(agent ast.AgentDecl) {
 							c.addWarning(
 								fmt.Sprintf("unknown UI component %q", fe.Field.Node),
 								fe.Field.Span,
-								"built-in: StatusCard, Confirm, Choices, Table, CodeBlock, Diff, KeyValue, Progress",
+								"built-in: StatusCard, Confirm, Choices, Table, CodeBlock, Diff, KeyValue, Progress, Chart",
 							)
 						}
 					}

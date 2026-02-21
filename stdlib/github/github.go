@@ -1,15 +1,17 @@
-package haira
+package github
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	haira "haira-go-runtime/haira"
 )
 
 // GithubClient is an authenticated GitHub API client.
 type GithubClient struct {
-	client *HTTPClient
+	client *haira.HTTPClient
 	owner  string
 	repo   string
 }
@@ -47,15 +49,15 @@ func GithubNewClient(token string, opts map[string]any) *GithubFluentBuilder {
 	owner, repo := "", ""
 	if opts != nil {
 		if o, ok := opts["owner"]; ok {
-			owner = Str(o)
+			owner = haira.Str(o)
 		}
 		if r, ok := opts["repo"]; ok {
-			repo = Str(r)
+			repo = haira.Str(r)
 		}
 	}
 
 	cl := &GithubClient{
-		client: HttpClient("https://api.github.com", map[string]any{
+		client: haira.HttpClient("https://api.github.com", map[string]any{
 			"headers": map[string]any{
 				"Authorization": "Bearer " + token,
 				"Accept":        "application/vnd.github+json",
@@ -83,10 +85,10 @@ func (b *GithubFluentBuilder) Branch(name string) *GithubFluentBuilder {
 		b.err = fmt.Errorf("get default branch: %w", err)
 		return b
 	}
-	refData := parseJSON(resp.Body)
+	refData := haira.ParseJSON(resp.Body)
 	sha := ""
 	if obj, ok := refData["object"].(map[string]any); ok {
-		sha = Str(obj["sha"])
+		sha = haira.Str(obj["sha"])
 	}
 	if sha == "" {
 		b.err = fmt.Errorf("could not get default branch SHA")
@@ -102,7 +104,7 @@ func (b *GithubFluentBuilder) Branch(name string) *GithubFluentBuilder {
 		b.err = fmt.Errorf("create branch %q: %w", name, err)
 		return b
 	}
-	// 422 means ref already exists — OK
+	// 422 means ref already exists -- OK
 	if resp.StatusCode != 201 && resp.StatusCode != 422 {
 		b.err = fmt.Errorf("create branch %q: HTTP %d: %s", name, resp.StatusCode, resp.Body)
 	}
@@ -134,7 +136,7 @@ func (b *GithubFluentBuilder) CommitFiles(files map[string]any) *GithubFluentBui
 	for path, content := range files {
 		b.files = append(b.files, githubFileAction{
 			Path:    path,
-			Content: Str(content),
+			Content: haira.Str(content),
 		})
 	}
 	return b
@@ -149,7 +151,7 @@ func (b *GithubFluentBuilder) PullRequest(opts map[string]any) (*GithubPR, error
 	title := "Pull request"
 	if opts != nil {
 		if t, ok := opts["title"]; ok {
-			title = Str(t)
+			title = haira.Str(t)
 		}
 	}
 
@@ -183,11 +185,11 @@ func (b *GithubFluentBuilder) PullRequest(opts map[string]any) (*GithubPR, error
 		return nil, fmt.Errorf("create PR: HTTP %d: %s", resp.StatusCode, resp.Body)
 	}
 
-	prData := parseJSON(resp.Body)
+	prData := haira.ParseJSON(resp.Body)
 	return &GithubPR{
 		client: b.client,
-		Url:    strVal(prData, "html_url"),
-		Number: Str(prData["number"]),
+		Url:    haira.StrVal(prData, "html_url"),
+		Number: haira.Str(prData["number"]),
 		Branch: b.branchName,
 	}, nil
 }
@@ -209,8 +211,8 @@ func (pr *GithubPR) WaitForChecks() error {
 		if runs, ok := result["check_runs"].([]any); ok && len(runs) > 0 {
 			for _, run := range runs {
 				if r, ok := run.(map[string]any); ok {
-					status := Str(r["status"])
-					conclusion := Str(r["conclusion"])
+					status := haira.Str(r["status"])
+					conclusion := haira.Str(r["conclusion"])
 					if status != "completed" {
 						allComplete = false
 					} else if conclusion == "failure" || conclusion == "cancelled" {
@@ -254,14 +256,14 @@ func GithubConnect(token string, opts map[string]any) *GithubClient {
 	owner, repo := "", ""
 	if opts != nil {
 		if o, ok := opts["owner"]; ok {
-			owner = Str(o)
+			owner = haira.Str(o)
 		}
 		if r, ok := opts["repo"]; ok {
-			repo = Str(r)
+			repo = haira.Str(r)
 		}
 	}
 	return &GithubClient{
-		client: HttpClient("https://api.github.com", map[string]any{
+		client: haira.HttpClient("https://api.github.com", map[string]any{
 			"headers": map[string]any{
 				"Authorization": "Bearer " + token,
 				"Accept":        "application/vnd.github+json",
@@ -280,14 +282,14 @@ func (gh *GithubClient) CreateIssue(opts map[string]any) (*GithubIssue, error) {
 	body := map[string]any{}
 	if opts != nil {
 		if t, ok := opts["title"]; ok {
-			title = Str(t)
+			title = haira.Str(t)
 			body["title"] = title
 		}
 		if l, ok := opts["labels"]; ok {
 			body["labels"] = l
 		}
 		if b, ok := opts["body"]; ok {
-			body["body"] = Str(b)
+			body["body"] = haira.Str(b)
 		}
 	}
 	resp, err := gh.client.Post(fmt.Sprintf("/repos/%s/%s/issues", gh.owner, gh.repo), body)
@@ -297,17 +299,17 @@ func (gh *GithubClient) CreateIssue(opts map[string]any) (*GithubIssue, error) {
 	if resp.StatusCode != 201 {
 		return nil, fmt.Errorf("create issue: HTTP %d: %s", resp.StatusCode, resp.Body)
 	}
-	issueData := parseJSON(resp.Body)
+	issueData := haira.ParseJSON(resp.Body)
 	return &GithubIssue{
-		Number: Str(issueData["number"]),
-		Url:    strVal(issueData, "html_url"),
+		Number: haira.Str(issueData["number"]),
+		Url:    haira.StrVal(issueData, "html_url"),
 	}, nil
 }
 
 // AddComment adds a comment to an issue or PR.
 func (gh *GithubClient) AddComment(number any, body string) error {
 	resp, err := gh.client.Post(
-		fmt.Sprintf("/repos/%s/%s/issues/%s/comments", gh.owner, gh.repo, Str(number)),
+		fmt.Sprintf("/repos/%s/%s/issues/%s/comments", gh.owner, gh.repo, haira.Str(number)),
 		map[string]any{"body": body})
 	if err != nil {
 		return fmt.Errorf("add comment: %w", err)
@@ -323,13 +325,13 @@ func (gh *GithubClient) CreatePr(opts map[string]any) (*GithubPR, error) {
 	title, head, base := "Pull request", "main", "main"
 	if opts != nil {
 		if t, ok := opts["title"]; ok {
-			title = Str(t)
+			title = haira.Str(t)
 		}
 		if h, ok := opts["head"]; ok {
-			head = Str(h)
+			head = haira.Str(h)
 		}
 		if b, ok := opts["base"]; ok {
-			base = Str(b)
+			base = haira.Str(b)
 		}
 	}
 	resp, err := gh.client.Post(fmt.Sprintf("/repos/%s/%s/pulls", gh.owner, gh.repo), map[string]any{
@@ -343,11 +345,11 @@ func (gh *GithubClient) CreatePr(opts map[string]any) (*GithubPR, error) {
 	if resp.StatusCode != 201 {
 		return nil, fmt.Errorf("create PR: HTTP %d: %s", resp.StatusCode, resp.Body)
 	}
-	prData := parseJSON(resp.Body)
+	prData := haira.ParseJSON(resp.Body)
 	return &GithubPR{
 		client: gh,
-		Url:    strVal(prData, "html_url"),
-		Number: Str(prData["number"]),
+		Url:    haira.StrVal(prData, "html_url"),
+		Number: haira.Str(prData["number"]),
 		Branch: head,
 	}, nil
 }

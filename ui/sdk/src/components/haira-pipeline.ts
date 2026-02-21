@@ -1,5 +1,5 @@
-import { baseStyles, sharedKeyframes } from "../theme";
-import type { StepEvent, StepStatus } from "../types";
+import { baseCSS } from "../core";
+import type { StepEvent, StepStatus } from "../core/types";
 import type { HairaStep } from "./haira-step";
 
 export class HairaPipeline extends HTMLElement {
@@ -12,69 +12,30 @@ export class HairaPipeline extends HTMLElement {
     const shadow = this.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
-        ${baseStyles}
-        ${sharedKeyframes}
-        :host {
-          display: none;
-          margin-top: 1.25rem;
-        }
-        :host([visible]) {
-          display: block;
-          animation: fadeIn 0.2s ease-out;
-        }
+        ${baseCSS}
+        :host { display: none; margin-top: 1.25rem; }
+        :host([visible]) { display: block; animation: fadeIn 0.2s ease-out; }
         .header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0 0.25rem 0.6rem;
-          font-size: 0.72rem;
-          font-weight: 600;
-          color: var(--haira-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
+          display: flex; align-items: center; gap: 0.5rem;
+          padding: 0 0.25rem 0.6rem; font-size: 0.72rem; font-weight: 600;
+          color: var(--haira-muted); text-transform: uppercase; letter-spacing: 0.06em;
         }
-        .header-line {
-          flex: 1;
-          height: 1px;
-          background: var(--haira-border);
-        }
+        .header-line { flex: 1; height: 1px; background: var(--haira-border); }
         .pipeline {
-          display: flex;
-          flex-direction: column;
-          gap: 1px;
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius);
-          padding: 0.35rem;
-          overflow: hidden;
+          display: flex; flex-direction: column; gap: 1px;
+          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius); padding: 0.35rem; overflow: hidden;
         }
         .summary {
-          display: none;
-          padding: 0.75rem 1rem;
-          font-size: 0.78rem;
-          color: var(--haira-muted);
-          border-top: 1px solid var(--haira-border);
-          margin-top: 0.5rem;
-          border-radius: var(--haira-radius-sm);
-          background: var(--haira-bg-card);
-          text-align: center;
+          display: none; padding: 0.75rem 1rem; font-size: 0.78rem;
+          color: var(--haira-muted); border-top: 1px solid var(--haira-border);
+          margin-top: 0.5rem; border-radius: var(--haira-radius-sm);
+          background: var(--haira-bg-card); text-align: center;
         }
-        .summary.visible {
-          display: block;
-          animation: fadeIn 0.3s ease-out;
-        }
-        .summary .count {
-          color: var(--haira-text-dim);
-          font-weight: 500;
-        }
-        .summary .time {
-          color: var(--haira-accent);
-          font-family: var(--haira-mono);
-          font-weight: 600;
-        }
-        .summary .failed-count {
-          color: var(--haira-error);
-        }
+        .summary.visible { display: block; animation: fadeIn 0.3s ease-out; }
+        .summary .count { color: var(--haira-text-dim); font-weight: 500; }
+        .summary .time { color: var(--haira-accent); font-family: var(--haira-mono); font-weight: 600; }
+        .summary .failed-count { color: var(--haira-error); }
       </style>
       <div class="header">
         <span>Pipeline</span>
@@ -114,7 +75,6 @@ export class HairaPipeline extends HTMLElement {
     const step = this.stepElements[idx];
     if (!step) return;
 
-    // Handle log events without changing step status
     if (event.status === "log" && event.log) {
       step.addLog(event.log.level, event.log.message);
       return;
@@ -154,9 +114,7 @@ export class HairaPipeline extends HTMLElement {
 
     const doneCount = this.stepStatuses.filter((s) => s === "done").length;
     const failedCount = this.stepStatuses.filter((s) => s === "failed").length;
-    const skippedCount = this.stepStatuses.filter(
-      (s) => s === "skipped",
-    ).length;
+    const skippedCount = this.stepStatuses.filter((s) => s === "skipped").length;
     const totalSec = (this.totalDuration / 1000).toFixed(1);
 
     let text = `<span class="count">${doneCount}/${this.steps.length} steps completed`;

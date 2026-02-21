@@ -1,5 +1,5 @@
-import { baseStyles } from "../theme";
-import type { ToolRenderEvent } from "../types";
+import { baseCSS } from "../core";
+import type { ToolRenderEvent } from "../core/types";
 
 const COMPONENT_MAP: Record<string, string> = {
   table: "haira-ui-table",
@@ -11,6 +11,7 @@ const COMPONENT_MAP: Record<string, string> = {
   form: "haira-ui-form-view",
   confirm: "haira-ui-confirm",
   choices: "haira-ui-choices",
+  chart: "haira-ui-chart",
 };
 
 const MAX_DEPTH = 3;
@@ -24,7 +25,6 @@ export class HairaUIRenderer extends HTMLElement {
 
   connectedCallback() {
     this.ensureShadow();
-    // If render() was called before we were connected, replay it now
     if (this.pendingEvent) {
       this.doRender(this.pendingEvent);
       this.pendingEvent = null;
@@ -36,33 +36,21 @@ export class HairaUIRenderer extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.shadowRoot!.innerHTML = `
       <style>
-        ${baseStyles}
+        ${baseCSS}
         :host {
           display: block;
           margin-left: 2.25rem;
           max-width: 560px;
         }
         @media (max-width: 640px) {
-          :host {
-            margin-left: 0;
-            max-width: 100%;
-          }
+          :host { margin-left: 0; max-width: 100%; }
         }
-        .group {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
+        .group { display: flex; flex-direction: column; gap: 0.5rem; }
         .fallback {
-          background: var(--haira-bg-card);
-          border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius);
-          padding: 0.75rem 1rem;
-          font-family: var(--haira-mono);
-          font-size: 0.75rem;
-          color: var(--haira-text-dim);
-          white-space: pre-wrap;
-          overflow-x: auto;
+          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
+          border-radius: var(--haira-radius); padding: 0.75rem 1rem;
+          font-family: var(--haira-mono); font-size: 0.75rem;
+          color: var(--haira-text-dim); white-space: pre-wrap; overflow-x: auto;
         }
       </style>
       <div id="container"></div>
@@ -72,7 +60,6 @@ export class HairaUIRenderer extends HTMLElement {
   render(event: ToolRenderEvent) {
     this.ensureShadow();
     if (!this.isConnected) {
-      // Not in the DOM yet — defer until connectedCallback
       this.pendingEvent = event;
       return;
     }
@@ -87,7 +74,6 @@ export class HairaUIRenderer extends HTMLElement {
       const el = this.renderNode(event.component, event.props, 0);
       if (el) container.appendChild(el);
     } catch {
-      // Fallback: show raw JSON
       const pre = document.createElement("div");
       pre.className = "fallback";
       pre.textContent = JSON.stringify(event.props, null, 2);
@@ -102,7 +88,6 @@ export class HairaUIRenderer extends HTMLElement {
   ): HTMLElement | null {
     if (depth > MAX_DEPTH) return null;
 
-    // Handle group: render children recursively
     if (component === "group") {
       const group = document.createElement("div");
       group.className = "group";
@@ -118,10 +103,8 @@ export class HairaUIRenderer extends HTMLElement {
       return group;
     }
 
-    // Single component
     const tagName = COMPONENT_MAP[component];
     if (!tagName) {
-      // Unknown component — fallback to JSON
       const pre = document.createElement("div");
       pre.className = "fallback";
       pre.textContent = JSON.stringify(props, null, 2);
@@ -131,10 +114,6 @@ export class HairaUIRenderer extends HTMLElement {
     const el = document.createElement(tagName);
     const isRestored = this.hasAttribute("data-restored");
     const finalProps = isRestored ? { ...props, _restored: true } : props;
-    // Store props so setProps can be called after the element is in the DOM.
-    // We use a microtask (Promise.resolve) instead of rAF to guarantee it runs
-    // regardless of scroll position or visibility, while still being async enough
-    // for connectedCallback to fire first.
     Promise.resolve().then(() => {
       (el as unknown as Renderable).setProps(finalProps);
     });

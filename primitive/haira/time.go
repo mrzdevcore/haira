@@ -118,3 +118,8 @@ func TimeSlug() string {
 	t := time.Now().UTC().Format("2006-01-02T15:04:05")
 	return strings.ReplaceAll(strings.ReplaceAll(t, "-", "."), ":", ".")
 }
+
+// TimeTimestamp returns the current time as an ISO 8601 string.
+func TimeTimestamp() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}

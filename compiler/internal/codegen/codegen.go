@@ -394,7 +394,7 @@ func needsFmtImport(file *ast.SourceFile) bool {
 			if it.Body == nil {
 				return true
 			}
-			if it.Body != nil && (blockHasInterpolatedString(*it.Body) || blockHasTry(*it.Body)) {
+			if it.Body != nil && (blockHasInterpolatedString(*it.Body) || blockHasTry(*it.Body) || blockHasErrNilReturn(*it.Body)) {
 				return true
 			}
 		case ast.FunctionDef:
@@ -411,6 +411,23 @@ func needsFmtImport(file *ast.SourceFile) bool {
 			}
 			// Lifecycle hooks, @retry, and step-early-return use fmt.Errorf/fmt.Sprintf
 			if len(it.Hooks) > 0 || blockHasRetryDecorator(it.Body) || blockHasStepHooks(it.Body) || blockHasStepWithReturn(it.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// blockHasErrNilReturn checks if a block contains an `if err != nil { return ... }` pattern.
+// Tool bodies with this pattern generate fmt.Errorf() in the Go output.
+func blockHasErrNilReturn(block ast.Block) bool {
+	for _, stmt := range block.Statements {
+		if ifStmt, ok := stmt.Node.(ast.IfStmt); ok {
+			if isErrNilCheck(ifStmt.Condition) && statementsHaveReturn(ifStmt.ThenBranch.Statements) {
+				return true
+			}
+			// Recurse into nested blocks
+			if blockHasErrNilReturn(ifStmt.ThenBranch) {
 				return true
 			}
 		}

@@ -20,7 +20,19 @@ interface Renderable {
 }
 
 export class HairaUIRenderer extends HTMLElement {
+  private pendingEvent: ToolRenderEvent | null = null;
+
   connectedCallback() {
+    this.ensureShadow();
+    // If render() was called before we were connected, replay it now
+    if (this.pendingEvent) {
+      this.doRender(this.pendingEvent);
+      this.pendingEvent = null;
+    }
+  }
+
+  private ensureShadow() {
+    if (this.shadowRoot) return;
     this.attachShadow({ mode: "open" });
     this.shadowRoot!.innerHTML = `
       <style>
@@ -58,6 +70,16 @@ export class HairaUIRenderer extends HTMLElement {
   }
 
   render(event: ToolRenderEvent) {
+    this.ensureShadow();
+    if (!this.isConnected) {
+      // Not in the DOM yet — defer until connectedCallback
+      this.pendingEvent = event;
+      return;
+    }
+    this.doRender(event);
+  }
+
+  private doRender(event: ToolRenderEvent) {
     const container = this.shadowRoot!.getElementById("container")!;
     container.innerHTML = "";
 
@@ -109,8 +131,11 @@ export class HairaUIRenderer extends HTMLElement {
     const el = document.createElement(tagName);
     const isRestored = this.hasAttribute("data-restored");
     const finalProps = isRestored ? { ...props, _restored: true } : props;
-    // setProps is called after the element is connected to the DOM
-    requestAnimationFrame(() => {
+    // Store props so setProps can be called after the element is in the DOM.
+    // We use a microtask (Promise.resolve) instead of rAF to guarantee it runs
+    // regardless of scroll position or visibility, while still being async enough
+    // for connectedCallback to fire first.
+    Promise.resolve().then(() => {
       (el as unknown as Renderable).setProps(finalProps);
     });
     return el;

@@ -401,9 +401,16 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "connect":
 			return fmt.Sprintf("haira.PostgresConnect(%s)", args), true
 		case "generate_upsert":
+			// 2-arg: postgres.generate_upsert(tables, schema)
+			// 3-arg: postgres.generate_upsert(tables, schema, conflicts)
+			if len(call.Args) >= 3 {
+				return fmt.Sprintf("haira.PostgresGenerateUpsertWithConflicts(%s)", args), true
+			}
 			return fmt.Sprintf("haira.PostgresGenerateUpsert(%s)", args), true
 		case "escape":
 			return fmt.Sprintf("haira.PostgresEscape(%s)", args), true
+		case "quote_identifier":
+			return fmt.Sprintf("haira.QuoteIdentifier(%s)", args), true
 		}
 	case "slack":
 		switch method {
@@ -428,6 +435,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.ExcelOpen(%s)", args), true
 		case "read_sheets":
 			return fmt.Sprintf("haira.ExcelReadSheets(%s)", args), true
+		case "read_config":
+			return fmt.Sprintf("haira.ExcelReadConfig(%s)", args), true
 		}
 	case "log":
 		// log.info/warn/error inside steps → haira.StepLog with injected context
@@ -469,6 +478,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.TimeTick(%s)", args), true
 		case "slug":
 			return "haira.TimeSlug()", true
+		case "timestamp":
+			return "haira.TimeTimestamp()", true
 		}
 	case "fs":
 		switch method {
@@ -535,6 +546,17 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return resolveClientConstructor("haira.GithubNewClient", call), true
 		case "client":
 			return resolveClientConstructor("haira.GithubConnect", call), true
+		}
+	case "ui":
+		switch method {
+		case "key_value":
+			return fmt.Sprintf("haira.UiNewKeyValue(%s)", args), true
+		case "status_card":
+			return fmt.Sprintf("haira.UiNewStatusCard(%s)", args), true
+		case "group":
+			return fmt.Sprintf("haira.UiNewGroup(%s)", args), true
+		case "confirm":
+			return fmt.Sprintf("haira.UiNewConfirm(%s)", args), true
 		}
 	}
 	return "", false

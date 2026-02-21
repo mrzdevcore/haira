@@ -23,6 +23,7 @@ export async function streamSSE(
   body: unknown,
   callbacks: SSECallbacks,
   formData?: FormData,
+  signal?: AbortSignal,
 ): Promise<void> {
   const headers: Record<string, string> = {
     Accept: "text/event-stream",
@@ -38,6 +39,7 @@ export async function streamSSE(
     method: "POST",
     headers,
     body: reqBody,
+    signal,
   });
 
   if (!resp.ok) {
@@ -52,74 +54,79 @@ export async function streamSSE(
   let buf = "";
   let currentEvent = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop()!;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop()!;
 
-    for (const line of lines) {
-      const trimmed = line.trim();
+      for (const line of lines) {
+        const trimmed = line.trim();
 
-      if (trimmed.startsWith("event:")) {
-        currentEvent = trimmed.slice(6).trim();
-        continue;
-      }
-
-      if (!trimmed.startsWith("data:")) continue;
-
-      const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") {
-        callbacks.onDone?.();
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(data);
-
-        switch (currentEvent) {
-          case "run_id":
-            callbacks.onRunId?.(parsed.run_id);
-            break;
-          case "step":
-            callbacks.onStep?.(parsed as StepEvent);
-            break;
-          case "result":
-            callbacks.onResult?.(parsed);
-            break;
-          case "error":
-            callbacks.onError?.(parsed.error || "Unknown error");
-            break;
-          case "delta":
-            callbacks.onDelta?.(parsed.delta);
-            break;
-          case "tool_start":
-            callbacks.onToolStart?.(parsed as ToolEvent);
-            break;
-          case "tool_end":
-            callbacks.onToolEnd?.(parsed as ToolEvent);
-            break;
-          case "tool_render":
-            callbacks.onToolRender?.(parsed as ToolRenderEvent);
-            break;
-          default:
-            // Bare data: lines (legacy protocol) — treat as delta
-            if (parsed.delta) {
-              callbacks.onDelta?.(parsed.delta);
-            }
-            break;
+        if (trimmed.startsWith("event:")) {
+          currentEvent = trimmed.slice(6).trim();
+          continue;
         }
-      } catch {
-        // Non-JSON data line, ignore
+
+        if (!trimmed.startsWith("data:")) continue;
+
+        const data = trimmed.slice(5).trim();
+        if (data === "[DONE]") {
+          callbacks.onDone?.();
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+
+          switch (currentEvent) {
+            case "run_id":
+              callbacks.onRunId?.(parsed.run_id);
+              break;
+            case "step":
+              callbacks.onStep?.(parsed as StepEvent);
+              break;
+            case "result":
+              callbacks.onResult?.(parsed);
+              break;
+            case "error":
+              callbacks.onError?.(parsed.error || "Unknown error");
+              break;
+            case "delta":
+              callbacks.onDelta?.(parsed.delta);
+              break;
+            case "tool_start":
+              callbacks.onToolStart?.(parsed as ToolEvent);
+              break;
+            case "tool_end":
+              callbacks.onToolEnd?.(parsed as ToolEvent);
+              break;
+            case "tool_render":
+              callbacks.onToolRender?.(parsed as ToolRenderEvent);
+              break;
+            default:
+              // Bare data: lines (legacy protocol) — treat as delta
+              if (parsed.delta) {
+                callbacks.onDelta?.(parsed.delta);
+              }
+              break;
+          }
+        } catch {
+          // Non-JSON data line, ignore
+        }
+
+        currentEvent = "";
       }
-
-      currentEvent = "";
     }
-  }
 
-  callbacks.onDone?.();
+    callbacks.onDone?.();
+  } catch (err) {
+    if (signal?.aborted) return; // Intentional abort — no error
+    throw err;
+  }
 }
 
 // connectSSE opens a GET-based SSE connection (for reconnecting to an in-progress run).

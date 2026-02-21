@@ -36,6 +36,7 @@ export class HairaChat extends HTMLElement {
   private meta!: WorkflowMeta;
   private sessionId = "";
   private attachedFile: File | null = null;
+  private streamAbort: AbortController | null = null;
 
   connectedCallback() {
     this.meta = JSON.parse(this.getAttribute("data-meta") || "{}");
@@ -970,6 +971,10 @@ export class HairaChat extends HTMLElement {
       input.value = "";
       input.style.height = "auto";
 
+      // Abort any previous stream
+      self.streamAbort?.abort();
+      self.streamAbort = new AbortController();
+
       // Hide welcome, show messages
       welcome.classList.add("hidden");
       messagesOuter.classList.add("active");
@@ -1034,7 +1039,7 @@ export class HairaChat extends HTMLElement {
               "haira-ui-renderer",
             ) as HairaUIRenderer;
             messagesInner.insertBefore(renderer, typing);
-            requestAnimationFrame(() => renderer.render(event));
+            renderer.render(event);
             messagesOuter.scrollTop = messagesOuter.scrollHeight;
           },
           onToolEnd: (event) => {
@@ -1082,6 +1087,7 @@ export class HairaChat extends HTMLElement {
           },
         },
         formData,
+        self.streamAbort?.signal,
       );
     }
 
@@ -1119,7 +1125,7 @@ export class HairaChat extends HTMLElement {
                 renderer.setAttribute("data-restored", "true");
               }
               messagesInner.insertBefore(renderer, typing);
-              requestAnimationFrame(() => renderer.render(event));
+              renderer.render(event);
             }
           }
         }
@@ -1135,6 +1141,10 @@ export class HairaChat extends HTMLElement {
   }
 
   private switchSession(newSessionId: string) {
+    // Abort any active stream before switching
+    this.streamAbort?.abort();
+    this.streamAbort = null;
+
     this.sessionId = newSessionId;
     const url = new URL(window.location.href);
     url.searchParams.set("session", newSessionId);

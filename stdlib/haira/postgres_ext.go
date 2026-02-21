@@ -38,6 +38,32 @@ func (s *SqlResult) HasSeeds() bool { return s.Seeds != "" }
 // HasOneshots returns whether there are one-shot SQL statements.
 func (s *SqlResult) HasOneshots() bool { return s.Oneshots != "" }
 
+// ToUiCodeBlock converts the SQL result into a UiCodeBlock with tabs for direct UI rendering.
+// The full SQL goes straight to the frontend — the LLM only receives a compact summary.
+func (s *SqlResult) ToUiCodeBlock() UiCodeBlock {
+	var tabs []any
+	if s.Seeds != "" {
+		seedLines := strings.Count(s.Seeds, "\n") + 1
+		tabs = append(tabs, UiCodeTab{
+			Name:     fmt.Sprintf("Seeds (%d lines)", seedLines),
+			Language: "sql",
+			Code:     s.Seeds,
+		})
+	}
+	if s.Oneshots != "" {
+		oneshotLines := strings.Count(s.Oneshots, "\n") + 1
+		tabs = append(tabs, UiCodeTab{
+			Name:     fmt.Sprintf("Oneshots (%d lines)", oneshotLines),
+			Language: "sql",
+			Code:     s.Oneshots,
+		})
+	}
+	return UiCodeBlock{
+		Title: "Generated SQL",
+		Tabs:  tabs,
+	}
+}
+
 // Schema retrieves the schema for the specified tables.
 func (db *DB) Schema(tables []any) (*PgSchema, error) {
 	schema := &PgSchema{Tables: make(map[string]*PgTableSchema)}
@@ -148,7 +174,16 @@ func (db *DB) tableSchema(tableName string) (*PgTableSchema, error) {
 }
 
 // PostgresGenerateUpsert generates INSERT ... ON CONFLICT UPDATE SQL from ExcelTables and PgSchema.
+// Uses PK columns for conflict detection. Tables are split into seeds/oneshots based on
+// their TableType field set by ExcelReadConfig ("configuration" → seeds, "run" → oneshots).
 func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
+	return PostgresGenerateUpsertWithConflicts(tables, schema, nil)
+}
+
+// PostgresGenerateUpsertWithConflicts generates upsert SQL with optional per-table conflict columns.
+// conflicts is a map of table_name → []any (column names). If nil or missing for a table,
+// the primary key columns from the schema are used as the conflict target.
+func PostgresGenerateUpsertWithConflicts(tables *ExcelTables, schema *PgSchema, conflicts map[string]any) *SqlResult {
 	var seeds, oneshots []string
 
 	for _, name := range tables.order {
@@ -158,11 +193,25 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 			continue
 		}
 
-		// Find primary key columns
-		var pkCols []string
-		for _, col := range ts.Order {
-			if info, ok := ts.Columns[col]; ok && info.PrimaryKey {
-				pkCols = append(pkCols, col)
+		// Determine conflict columns: custom override or PK
+		var conflictCols []string
+		if conflicts != nil {
+			if custom, ok := conflicts[name]; ok {
+				switch v := custom.(type) {
+				case []any:
+					for _, c := range v {
+						conflictCols = append(conflictCols, Str(c))
+					}
+				case []string:
+					conflictCols = v
+				}
+			}
+		}
+		if len(conflictCols) == 0 {
+			for _, col := range ts.Order {
+				if info, ok := ts.Columns[col]; ok && info.PrimaryKey {
+					conflictCols = append(conflictCols, col)
+				}
 			}
 		}
 
@@ -181,56 +230,15 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 			continue
 		}
 
-		// Quote identifiers for safe SQL generation
-		quotedTable := QuoteIdentifier(name)
-		quotedInsertCols := make([]string, len(insertCols))
-		for i, col := range insertCols {
-			quotedInsertCols[i] = QuoteIdentifier(col)
+		sql := generateTableUpsert(name, insertCols, conflictCols, sheet.Rows)
+
+		// Split into seeds/oneshots based on table type
+		tableType := tables.tableTypes[name]
+		if tableType == "run" {
+			oneshots = append(oneshots, sql)
+		} else {
+			seeds = append(seeds, sql)
 		}
-
-		// Generate INSERT statements
-		var stmts []string
-		for _, row := range sheet.Rows {
-			values := make([]string, len(insertCols))
-			for i, col := range insertCols {
-				values[i] = PostgresEscape(Str(row[col]))
-			}
-
-			stmt := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-				quotedTable,
-				strings.Join(quotedInsertCols, ", "),
-				strings.Join(values, ", "))
-
-			if len(pkCols) > 0 {
-				// Build ON CONFLICT ... DO UPDATE
-				quotedPKCols := make([]string, len(pkCols))
-				for i, pk := range pkCols {
-					quotedPKCols[i] = QuoteIdentifier(pk)
-				}
-				updateCols := make([]string, 0)
-				for _, col := range insertCols {
-					isPK := false
-					for _, pk := range pkCols {
-						if col == pk {
-							isPK = true
-							break
-						}
-					}
-					if !isPK {
-						qc := QuoteIdentifier(col)
-						updateCols = append(updateCols, fmt.Sprintf("%s = EXCLUDED.%s", qc, qc))
-					}
-				}
-				if len(updateCols) > 0 {
-					stmt += fmt.Sprintf("\n  ON CONFLICT (%s) DO UPDATE SET %s",
-						strings.Join(quotedPKCols, ", "),
-						strings.Join(updateCols, ", "))
-				}
-			}
-			stmts = append(stmts, stmt+";")
-		}
-
-		seeds = append(seeds, fmt.Sprintf("-- %s\n%s", name, strings.Join(stmts, "\n")))
 	}
 
 	seedSQL := strings.Join(seeds, "\n\n")
@@ -241,6 +249,54 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 		Oneshots: oneshotSQL,
 		All:      strings.TrimSpace(seedSQL + "\n\n" + oneshotSQL),
 	}
+}
+
+func generateTableUpsert(tableName string, insertCols, conflictCols []string, rows []map[string]any) string {
+	quotedTable := QuoteIdentifier(tableName)
+	quotedInsertCols := make([]string, len(insertCols))
+	for i, col := range insertCols {
+		quotedInsertCols[i] = QuoteIdentifier(col)
+	}
+
+	// Build all value tuples
+	var valueTuples []string
+	for _, row := range rows {
+		values := make([]string, len(insertCols))
+		for i, col := range insertCols {
+			values[i] = PostgresEscape(Str(row[col]))
+		}
+		valueTuples = append(valueTuples, fmt.Sprintf("  (%s)", strings.Join(values, ", ")))
+	}
+
+	stmt := fmt.Sprintf("INSERT INTO %s (%s)\nVALUES\n%s",
+		quotedTable,
+		strings.Join(quotedInsertCols, ", "),
+		strings.Join(valueTuples, ",\n"))
+
+	if len(conflictCols) > 0 {
+		conflictSet := make(map[string]bool, len(conflictCols))
+		for _, c := range conflictCols {
+			conflictSet[c] = true
+		}
+		quotedConflictCols := make([]string, len(conflictCols))
+		for i, c := range conflictCols {
+			quotedConflictCols[i] = QuoteIdentifier(c)
+		}
+		var updateCols []string
+		for _, col := range insertCols {
+			if !conflictSet[col] {
+				qc := QuoteIdentifier(col)
+				updateCols = append(updateCols, fmt.Sprintf("%s = EXCLUDED.%s", qc, qc))
+			}
+		}
+		if len(updateCols) > 0 {
+			stmt += fmt.Sprintf("\nON CONFLICT (%s) DO UPDATE SET\n  %s",
+				strings.Join(quotedConflictCols, ", "),
+				strings.Join(updateCols, ",\n  "))
+		}
+	}
+
+	return fmt.Sprintf("-- %s\n%s;", tableName, stmt)
 }
 
 // PostgresEscape escapes a string value for safe use in SQL.

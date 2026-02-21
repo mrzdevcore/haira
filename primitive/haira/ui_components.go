@@ -224,3 +224,49 @@ func uiNodeSummary(node UiNode, raw any) string {
 		return fmt.Sprintf("Rendered %s component", node.UiComponentName())
 	}
 }
+
+// --- Constructors for building UI nodes from Haira tool code ---
+
+// UiNewKeyValue builds a UiKeyValue from a title and a map of key-value pairs.
+// Usage in Haira: ui.key_value("Title", {"Key1": "val1", "Key2": "val2"})
+// Optionally accepts a third argument: a map of key → style ("success", "error", "warning", "code").
+func UiNewKeyValue(title string, data map[string]any, styles ...map[string]any) UiKeyValue {
+	var items []any
+	for k, v := range data {
+		style := ""
+		if len(styles) > 0 {
+			if s, ok := styles[0][k]; ok {
+				style = Str(s)
+			}
+		}
+		items = append(items, UiKVItem{Key: k, Value: Str(v), Style: style})
+	}
+	return UiKeyValue{Title: title, Items: items}
+}
+
+// UiNewStatusCard builds a UiStatusCard.
+// Usage in Haira: ui.status_card("success", "Title", "Message")
+func UiNewStatusCard(status, title string, message ...string) UiStatusCard {
+	msg := ""
+	if len(message) > 0 {
+		msg = message[0]
+	}
+	return UiStatusCard{Status: status, Title: title, Message: msg}
+}
+
+// UiNewGroup builds a UiGroup from multiple UiNode children.
+// Usage in Haira: ui.group(node1, node2, ...)
+func UiNewGroup(children ...any) UiGroup {
+	return UiGroup{Children: children}
+}
+
+// UiNewConfirm builds a UiConfirm dialog.
+// Usage in Haira: ui.confirm("Title", "Confirm", "Cancel")
+// Optional 4th argument: message string.
+func UiNewConfirm(title, confirmLabel, denyLabel string, message ...string) UiConfirm {
+	msg := ""
+	if len(message) > 0 {
+		msg = message[0]
+	}
+	return UiConfirm{Title: title, ConfirmLabel: confirmLabel, DenyLabel: denyLabel, Message: msg}
+}

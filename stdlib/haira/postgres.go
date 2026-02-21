@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -18,17 +20,47 @@ type DB struct {
 // connStr is a standard PostgreSQL connection string:
 // "postgresql://user:pass@host:port/dbname?sslmode=disable"
 func PostgresConnect(connStr string) (*DB, error) {
+	if connStr == "" {
+		return nil, fmt.Errorf("postgres connect: empty connection string")
+	}
+
+	// Inject connect_timeout into the connection string so lib/pq enforces
+	// a driver-level timeout on the TCP dial + TLS handshake. This prevents
+	// hanging when the host is unreachable (where context timeout alone may
+	// not help because DNS resolution or the driver dial can block first).
+	connStr = ensureConnectTimeout(connStr, 5)
+
 	conn, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("postgres connect: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
 	if err := conn.PingContext(ctx); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("postgres ping: %w", err)
 	}
 	return &DB{conn: conn}, nil
+}
+
+// ensureConnectTimeout adds connect_timeout to the connection string if not
+// already present. Supports both URL and keyword=value formats.
+func ensureConnectTimeout(connStr string, seconds int) string {
+	// URL format: postgresql://... or postgres://...
+	if u, err := url.Parse(connStr); err == nil && (u.Scheme == "postgresql" || u.Scheme == "postgres") {
+		q := u.Query()
+		if q.Get("connect_timeout") == "" {
+			q.Set("connect_timeout", fmt.Sprintf("%d", seconds))
+			u.RawQuery = q.Encode()
+			return u.String()
+		}
+		return connStr
+	}
+	// Keyword=value format: "host=... port=... dbname=..."
+	if !strings.Contains(connStr, "connect_timeout") {
+		return fmt.Sprintf("%s connect_timeout=%d", connStr, seconds)
+	}
+	return connStr
 }
 
 // Query executes a SQL query and returns rows as a slice of maps.

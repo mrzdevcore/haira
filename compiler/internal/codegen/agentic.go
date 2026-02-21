@@ -364,6 +364,7 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 				goType = HairaTypeToGo(param.Ty.Node)
 			}
 			em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
+			em.DeclareVar(param.Name.Node)
 		}
 		for _, param := range workflow.Params {
 			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
@@ -382,6 +383,7 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 				goType = HairaTypeToGo(param.Ty.Node)
 			}
 			em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
+			em.DeclareVar(param.Name.Node)
 		}
 		for _, param := range workflow.Params {
 			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))
@@ -415,6 +417,7 @@ func EmitWorkflow(em *GoEmitter, workflow ast.WorkflowDecl) {
 				goType = HairaTypeToGo(param.Ty.Node)
 			}
 			em.Line(fmt.Sprintf("%s, _ := params[%q].(%s)", param.Name.Node, param.Name.Node, goType))
+			em.DeclareVar(param.Name.Node)
 		}
 		for _, param := range workflow.Params {
 			em.Line(fmt.Sprintf("_ = %s", param.Name.Node))

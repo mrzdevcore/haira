@@ -1,4 +1,4 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev bundle-runtime help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev bundle-runtime spec help
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
@@ -163,6 +163,10 @@ vscode-package: vscode-build
 	cd editors/vscode-haira && bunx @vscode/vsce package
 	@echo "VS Code extension packaged"
 
+# Build the language specification PDF
+spec:
+	$(MAKE) -C spec/latex
+
 # Quick development cycle: format, vet, test
 dev: fmt vet test
 
@@ -195,5 +199,6 @@ help:
 	@echo "  ui               Build UI SDK bundle (TypeScript → JS)"
 	@echo "  ui-dev           Build UI SDK in watch mode"
 	@echo "  bundle-runtime   Bundle primitive + stdlib into tar.gz for embedding"
+	@echo "  spec             Build the language specification PDF"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

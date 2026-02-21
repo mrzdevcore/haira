@@ -1,445 +1,508 @@
-\contentsline {chapter}{Preface}{13}{chapter*.2}%
-\contentsline {part}{I\hspace {1em}Core Language}{15}{part.1}%
-\contentsline {chapter}{\numberline {1}Overview}{17}{chapter.1}%
-\contentsline {section}{\numberline {1.1}Hello, Agent}{17}{section.1.1}%
-\contentsline {section}{\numberline {1.2}What Haira Replaces}{18}{section.1.2}%
-\contentsline {section}{\numberline {1.3}Language Characteristics}{18}{section.1.3}%
-\contentsline {subsection}{\numberline {1.3.1}Four Agentic Primitives}{18}{subsection.1.3.1}%
-\contentsline {subsection}{\numberline {1.3.2}Explicit Imports}{18}{subsection.1.3.2}%
-\contentsline {subsection}{\numberline {1.3.3}Go-Style Error Handling}{18}{subsection.1.3.3}%
-\contentsline {subsection}{\numberline {1.3.4}Agents and Tools}{19}{subsection.1.3.4}%
-\contentsline {subsection}{\numberline {1.3.5}Workflows with Triggers}{19}{subsection.1.3.5}%
-\contentsline {subsection}{\numberline {1.3.6}Streaming and Conversations}{20}{subsection.1.3.6}%
-\contentsline {section}{\numberline {1.4}Type System}{20}{section.1.4}%
-\contentsline {section}{\numberline {1.5}Control Flow}{20}{section.1.5}%
-\contentsline {section}{\numberline {1.6}Functions}{21}{section.1.6}%
-\contentsline {section}{\numberline {1.7}Concurrency}{21}{section.1.7}%
-\contentsline {section}{\numberline {1.8}Pipe Operator}{22}{section.1.8}%
-\contentsline {section}{\numberline {1.9}A Complete Example}{22}{section.1.9}%
-\contentsline {section}{\numberline {1.10}Implementation Status}{23}{section.1.10}%
-\contentsline {chapter}{\numberline {2}Lexical Structure}{25}{chapter.2}%
-\contentsline {section}{\numberline {2.1}Source Encoding}{25}{section.2.1}%
-\contentsline {section}{\numberline {2.2}Line Structure}{25}{section.2.2}%
-\contentsline {subsection}{\numberline {2.2.1}Line Continuation}{25}{subsection.2.2.1}%
-\contentsline {section}{\numberline {2.3}Comments}{26}{section.2.3}%
-\contentsline {subsection}{\numberline {2.3.1}Single-Line Comments}{26}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}Multi-Line Comments}{26}{subsection.2.3.2}%
-\contentsline {subsection}{\numberline {2.3.3}Documentation Comments}{26}{subsection.2.3.3}%
-\contentsline {section}{\numberline {2.4}Tokens}{26}{section.2.4}%
-\contentsline {section}{\numberline {2.5}Keywords}{26}{section.2.5}%
-\contentsline {section}{\numberline {2.6}Identifiers}{27}{section.2.6}%
-\contentsline {subsection}{\numberline {2.6.1}Naming Conventions}{27}{subsection.2.6.1}%
-\contentsline {section}{\numberline {2.7}Literals}{27}{section.2.7}%
-\contentsline {subsection}{\numberline {2.7.1}Integer Literals}{27}{subsection.2.7.1}%
-\contentsline {subsection}{\numberline {2.7.2}Floating-Point Literals}{28}{subsection.2.7.2}%
-\contentsline {subsection}{\numberline {2.7.3}Boolean Literals}{28}{subsection.2.7.3}%
-\contentsline {subsection}{\numberline {2.7.4}String Literals}{29}{subsection.2.7.4}%
-\contentsline {subsection}{\numberline {2.7.5}String Interpolation}{29}{subsection.2.7.5}%
-\contentsline {subsection}{\numberline {2.7.6}Raw Strings}{29}{subsection.2.7.6}%
-\contentsline {subsection}{\numberline {2.7.7}Triple-Quoted Strings}{30}{subsection.2.7.7}%
-\contentsline {subsection}{\numberline {2.7.8}Nil Literal}{30}{subsection.2.7.8}%
-\contentsline {section}{\numberline {2.8}Operators}{30}{section.2.8}%
-\contentsline {subsection}{\numberline {2.8.1}Arithmetic Operators}{30}{subsection.2.8.1}%
-\contentsline {subsection}{\numberline {2.8.2}Comparison Operators}{31}{subsection.2.8.2}%
-\contentsline {subsection}{\numberline {2.8.3}Logical Operators}{31}{subsection.2.8.3}%
-\contentsline {subsection}{\numberline {2.8.4}Assignment Operators}{31}{subsection.2.8.4}%
-\contentsline {subsection}{\numberline {2.8.5}Bitwise Operators}{31}{subsection.2.8.5}%
-\contentsline {subsection}{\numberline {2.8.6}Bitwise Assignment Operators}{31}{subsection.2.8.6}%
-\contentsline {subsection}{\numberline {2.8.7}Other Operators}{31}{subsection.2.8.7}%
-\contentsline {section}{\numberline {2.9}Delimiters}{31}{section.2.9}%
-\contentsline {section}{\numberline {2.10}Whitespace}{31}{section.2.10}%
-\contentsline {section}{\numberline {2.11}Lexical Grammar Summary}{31}{section.2.11}%
-\contentsline {chapter}{\numberline {3}Types}{35}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Type System Overview}{35}{section.3.1}%
-\contentsline {section}{\numberline {3.2}Primitive Types}{35}{section.3.2}%
-\contentsline {subsection}{\numberline {3.2.1}Integer Types}{35}{subsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.2.2}Floating-Point Types}{36}{subsection.3.2.2}%
-\contentsline {subsection}{\numberline {3.2.3}Boolean Type}{36}{subsection.3.2.3}%
-\contentsline {subsection}{\numberline {3.2.4}String Type}{36}{subsection.3.2.4}%
-\contentsline {section}{\numberline {3.3}Composite Types}{36}{section.3.3}%
-\contentsline {subsection}{\numberline {3.3.1}Arrays}{36}{subsection.3.3.1}%
-\contentsline {subsection}{\numberline {3.3.2}Maps}{37}{subsection.3.3.2}%
-\contentsline {subsection}{\numberline {3.3.3}Tuples}{37}{subsection.3.3.3}%
-\contentsline {section}{\numberline {3.4}Option Types}{38}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Unwrapping Options}{38}{subsection.3.4.1}%
-\contentsline {section}{\numberline {3.5}Struct Types}{38}{section.3.5}%
-\contentsline {subsection}{\numberline {3.5.1}Struct Methods}{39}{subsection.3.5.1}%
-\contentsline {subsection}{\numberline {3.5.2}Nested Structs}{39}{subsection.3.5.2}%
-\contentsline {section}{\numberline {3.6}Enum Types}{40}{section.3.6}%
-\contentsline {subsection}{\numberline {3.6.1}Enums with Associated Data}{40}{subsection.3.6.1}%
-\contentsline {section}{\numberline {3.7}Type Aliases}{41}{section.3.7}%
-\contentsline {section}{\numberline {3.8}Function Types}{41}{section.3.8}%
-\contentsline {section}{\numberline {3.9}Generic Types}{41}{section.3.9}%
-\contentsline {subsection}{\numberline {3.9.1}Type Constraints}{42}{subsection.3.9.1}%
-\contentsline {section}{\numberline {3.10}Stream Types}{42}{section.3.10}%
-\contentsline {subsection}{\numberline {3.10.1}Stream Type Syntax}{42}{subsection.3.10.1}%
-\contentsline {subsection}{\numberline {3.10.2}Consuming Streams}{43}{subsection.3.10.2}%
-\contentsline {subsection}{\numberline {3.10.3}Streams as Return Types}{43}{subsection.3.10.3}%
-\contentsline {subsection}{\numberline {3.10.4}Stream Properties}{43}{subsection.3.10.4}%
-\contentsline {section}{\numberline {3.11}The Error Type}{43}{section.3.11}%
-\contentsline {section}{\numberline {3.12}Type Inference}{44}{section.3.12}%
-\contentsline {section}{\numberline {3.13}Structural Typing}{44}{section.3.13}%
-\contentsline {section}{\numberline {3.14}Type Grammar}{45}{section.3.14}%
-\contentsline {chapter}{\numberline {4}Expressions}{47}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Primary Expressions}{47}{section.4.1}%
-\contentsline {subsection}{\numberline {4.1.1}Literals}{47}{subsection.4.1.1}%
-\contentsline {subsection}{\numberline {4.1.2}Identifiers}{47}{subsection.4.1.2}%
-\contentsline {subsection}{\numberline {4.1.3}Parenthesized Expressions}{47}{subsection.4.1.3}%
-\contentsline {section}{\numberline {4.2}Arithmetic Expressions}{47}{section.4.2}%
-\contentsline {subsection}{\numberline {4.2.1}Integer Division}{48}{subsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.2.2}Modulo}{48}{subsection.4.2.2}%
-\contentsline {section}{\numberline {4.3}Comparison Expressions}{48}{section.4.3}%
-\contentsline {subsection}{\numberline {4.3.1}Equality}{48}{subsection.4.3.1}%
-\contentsline {section}{\numberline {4.4}Logical Expressions}{48}{section.4.4}%
-\contentsline {subsection}{\numberline {4.4.1}Short-Circuit Evaluation}{48}{subsection.4.4.1}%
-\contentsline {section}{\numberline {4.5}Bitwise Expressions}{49}{section.4.5}%
-\contentsline {subsection}{\numberline {4.5.1}Bitwise AND}{49}{subsection.4.5.1}%
-\contentsline {subsection}{\numberline {4.5.2}Bitwise OR}{49}{subsection.4.5.2}%
-\contentsline {subsection}{\numberline {4.5.3}Bitwise XOR}{49}{subsection.4.5.3}%
-\contentsline {subsection}{\numberline {4.5.4}Bitwise NOT}{49}{subsection.4.5.4}%
-\contentsline {subsection}{\numberline {4.5.5}Left Shift}{50}{subsection.4.5.5}%
-\contentsline {subsection}{\numberline {4.5.6}Right Shift}{50}{subsection.4.5.6}%
-\contentsline {subsection}{\numberline {4.5.7}Logical Right Shift}{50}{subsection.4.5.7}%
-\contentsline {subsection}{\numberline {4.5.8}Common Bit Manipulation Patterns}{50}{subsection.4.5.8}%
-\contentsline {subsection}{\numberline {4.5.9}Compound Bitwise Assignment}{51}{subsection.4.5.9}%
-\contentsline {section}{\numberline {4.6}String Expressions}{51}{section.4.6}%
-\contentsline {subsection}{\numberline {4.6.1}Concatenation}{51}{subsection.4.6.1}%
-\contentsline {subsection}{\numberline {4.6.2}String Interpolation}{51}{subsection.4.6.2}%
-\contentsline {section}{\numberline {4.7}Array and Map Expressions}{52}{section.4.7}%
-\contentsline {subsection}{\numberline {4.7.1}Array Literals}{52}{subsection.4.7.1}%
-\contentsline {subsection}{\numberline {4.7.2}Map Literals}{52}{subsection.4.7.2}%
-\contentsline {subsection}{\numberline {4.7.3}Index Access}{52}{subsection.4.7.3}%
-\contentsline {section}{\numberline {4.8}Field Access}{52}{section.4.8}%
-\contentsline {section}{\numberline {4.9}Function Calls}{52}{section.4.9}%
-\contentsline {subsection}{\numberline {4.9.1}Chained Calls}{52}{subsection.4.9.1}%
-\contentsline {section}{\numberline {4.10}Pipe Expressions}{53}{section.4.10}%
-\contentsline {subsection}{\numberline {4.10.1}Pipe with Arguments}{53}{subsection.4.10.1}%
-\contentsline {subsection}{\numberline {4.10.2}Complex Pipelines}{53}{subsection.4.10.2}%
-\contentsline {section}{\numberline {4.11}Range Expressions}{53}{section.4.11}%
-\contentsline {section}{\numberline {4.12}Conditional Expressions}{54}{section.4.12}%
-\contentsline {subsection}{\numberline {4.12.1}If Expression}{54}{subsection.4.12.1}%
-\contentsline {subsection}{\numberline {4.12.2}Match Expression}{54}{subsection.4.12.2}%
-\contentsline {section}{\numberline {4.13}Block Expressions}{54}{section.4.13}%
-\contentsline {section}{\numberline {4.14}Struct Instantiation}{54}{section.4.14}%
-\contentsline {section}{\numberline {4.15}Closure Expressions}{55}{section.4.15}%
-\contentsline {section}{\numberline {4.16}Option Expressions}{55}{section.4.16}%
-\contentsline {subsection}{\numberline {4.16.1}Nil Coalescing}{55}{subsection.4.16.1}%
-\contentsline {subsection}{\numberline {4.16.2}Optional Chaining}{55}{subsection.4.16.2}%
-\contentsline {section}{\numberline {4.17}Type Assertions}{55}{section.4.17}%
-\contentsline {section}{\numberline {4.18}Operator Precedence}{55}{section.4.18}%
-\contentsline {section}{\numberline {4.19}Expression Grammar}{56}{section.4.19}%
-\contentsline {chapter}{\numberline {5}Statements}{59}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Variable Declarations}{59}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}With Inference}{59}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}With Explicit Type}{59}{subsection.5.1.2}%
-\contentsline {subsection}{\numberline {5.1.3}Multiple Declarations}{59}{subsection.5.1.3}%
-\contentsline {subsection}{\numberline {5.1.4}Uninitialized Variables}{59}{subsection.5.1.4}%
-\contentsline {section}{\numberline {5.2}Assignment Statements}{59}{section.5.2}%
-\contentsline {subsection}{\numberline {5.2.1}Multiple Assignment}{60}{subsection.5.2.1}%
-\contentsline {subsection}{\numberline {5.2.2}Field Assignment}{60}{subsection.5.2.2}%
-\contentsline {subsection}{\numberline {5.2.3}Index Assignment}{60}{subsection.5.2.3}%
-\contentsline {section}{\numberline {5.3}Expression Statements}{60}{section.5.3}%
-\contentsline {section}{\numberline {5.4}If Statements}{60}{section.5.4}%
-\contentsline {subsection}{\numberline {5.4.1}Condition Binding}{61}{subsection.5.4.1}%
-\contentsline {section}{\numberline {5.5}For Statements}{61}{section.5.5}%
-\contentsline {subsection}{\numberline {5.5.1}Range-Based For}{61}{subsection.5.5.1}%
-\contentsline {subsection}{\numberline {5.5.2}Collection Iteration}{61}{subsection.5.5.2}%
-\contentsline {subsection}{\numberline {5.5.3}String Iteration}{61}{subsection.5.5.3}%
-\contentsline {section}{\numberline {5.6}While Statements}{62}{section.5.6}%
-\contentsline {section}{\numberline {5.7}Match Statements}{62}{section.5.7}%
-\contentsline {subsection}{\numberline {5.7.1}Basic Matching}{62}{subsection.5.7.1}%
-\contentsline {subsection}{\numberline {5.7.2}Multiple Patterns}{62}{subsection.5.7.2}%
-\contentsline {subsection}{\numberline {5.7.3}Range Patterns}{62}{subsection.5.7.3}%
-\contentsline {subsection}{\numberline {5.7.4}Guard Clauses}{63}{subsection.5.7.4}%
-\contentsline {subsection}{\numberline {5.7.5}Destructuring Patterns}{63}{subsection.5.7.5}%
-\contentsline {subsection}{\numberline {5.7.6}Match Exhaustiveness}{63}{subsection.5.7.6}%
-\contentsline {section}{\numberline {5.8}Block Statements}{64}{section.5.8}%
-\contentsline {section}{\numberline {5.9}Return Statements}{64}{section.5.9}%
-\contentsline {subsection}{\numberline {5.9.1}Implicit Return}{64}{subsection.5.9.1}%
-\contentsline {section}{\numberline {5.10}Break Statements}{64}{section.5.10}%
-\contentsline {subsection}{\numberline {5.10.1}Labeled Break}{65}{subsection.5.10.1}%
-\contentsline {section}{\numberline {5.11}Continue Statements}{65}{section.5.11}%
-\contentsline {subsection}{\numberline {5.11.1}Labeled Continue}{65}{subsection.5.11.1}%
-\contentsline {section}{\numberline {5.12}Import Statements}{65}{section.5.12}%
-\contentsline {section}{\numberline {5.13}Defer Statements}{66}{section.5.13}%
-\contentsline {subsection}{\numberline {5.13.1}Multiple Defers}{66}{subsection.5.13.1}%
-\contentsline {section}{\numberline {5.14}Statement Grammar}{66}{section.5.14}%
-\contentsline {chapter}{\numberline {6}Functions}{69}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Function Declarations}{69}{section.6.1}%
-\contentsline {subsection}{\numberline {6.1.1}Basic Examples}{69}{subsection.6.1.1}%
-\contentsline {subsection}{\numberline {6.1.2}No Return Type}{69}{subsection.6.1.2}%
-\contentsline {section}{\numberline {6.2}Parameters}{70}{section.6.2}%
-\contentsline {subsection}{\numberline {6.2.1}Required Parameters}{70}{subsection.6.2.1}%
-\contentsline {subsection}{\numberline {6.2.2}Default Parameters}{70}{subsection.6.2.2}%
-\contentsline {subsection}{\numberline {6.2.3}Named Arguments}{70}{subsection.6.2.3}%
-\contentsline {subsection}{\numberline {6.2.4}Variadic Parameters}{70}{subsection.6.2.4}%
-\contentsline {section}{\numberline {6.3}Return Values}{71}{section.6.3}%
-\contentsline {subsection}{\numberline {6.3.1}Single Return}{71}{subsection.6.3.1}%
-\contentsline {subsection}{\numberline {6.3.2}Multiple Returns}{71}{subsection.6.3.2}%
-\contentsline {subsection}{\numberline {6.3.3}Implicit Return}{71}{subsection.6.3.3}%
-\contentsline {subsection}{\numberline {6.3.4}Early Return}{71}{subsection.6.3.4}%
-\contentsline {section}{\numberline {6.4}Function Types}{71}{section.6.4}%
-\contentsline {section}{\numberline {6.5}Closures}{72}{section.6.5}%
-\contentsline {subsection}{\numberline {6.5.1}Closure Syntax}{72}{subsection.6.5.1}%
-\contentsline {subsection}{\numberline {6.5.2}Capture Semantics}{72}{subsection.6.5.2}%
-\contentsline {section}{\numberline {6.6}Methods}{73}{section.6.6}%
-\contentsline {subsection}{\numberline {6.6.1}Method Receiver}{74}{subsection.6.6.1}%
-\contentsline {section}{\numberline {6.7}Generic Functions}{74}{section.6.7}%
-\contentsline {subsection}{\numberline {6.7.1}Type Constraints}{74}{subsection.6.7.1}%
-\contentsline {section}{\numberline {6.8}Higher-Order Functions}{75}{section.6.8}%
-\contentsline {section}{\numberline {6.9}Recursion}{75}{section.6.9}%
-\contentsline {subsection}{\numberline {6.9.1}Tail Call Optimization}{75}{subsection.6.9.1}%
-\contentsline {section}{\numberline {6.10}Function Overloading}{76}{section.6.10}%
-\contentsline {section}{\numberline {6.11}The main Function}{76}{section.6.11}%
-\contentsline {section}{\numberline {6.12}Function Grammar}{76}{section.6.12}%
-\contentsline {chapter}{\numberline {7}Error Handling}{77}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Philosophy}{77}{section.7.1}%
-\contentsline {section}{\numberline {7.2}The Error Type}{77}{section.7.2}%
-\contentsline {subsection}{\numberline {7.2.1}Creating Errors}{77}{subsection.7.2.1}%
-\contentsline {section}{\numberline {7.3}Error Return Pattern}{78}{section.7.3}%
-\contentsline {section}{\numberline {7.4}Handling Errors}{78}{section.7.4}%
-\contentsline {subsection}{\numberline {7.4.1}Basic Error Checking}{78}{subsection.7.4.1}%
-\contentsline {subsection}{\numberline {7.4.2}Propagating Errors}{78}{subsection.7.4.2}%
-\contentsline {subsection}{\numberline {7.4.3}Wrapping Errors}{78}{subsection.7.4.3}%
-\contentsline {section}{\numberline {7.5}Error Checking Patterns}{79}{section.7.5}%
-\contentsline {subsection}{\numberline {7.5.1}Guard Pattern}{79}{subsection.7.5.1}%
-\contentsline {subsection}{\numberline {7.5.2}Defer for Cleanup}{79}{subsection.7.5.2}%
-\contentsline {section}{\numberline {7.6}Error Utilities}{80}{section.7.6}%
-\contentsline {subsection}{\numberline {7.6.1}Checking Error Types}{80}{subsection.7.6.1}%
-\contentsline {subsection}{\numberline {7.6.2}Error Chain Traversal}{80}{subsection.7.6.2}%
-\contentsline {section}{\numberline {7.7}Option Types and Errors}{81}{section.7.7}%
-\contentsline {subsection}{\numberline {7.7.1}Converting Between Options and Errors}{81}{subsection.7.7.1}%
-\contentsline {section}{\numberline {7.8}Panic and Recovery}{81}{section.7.8}%
-\contentsline {subsection}{\numberline {7.8.1}When to Use Panic}{82}{subsection.7.8.1}%
-\contentsline {subsection}{\numberline {7.8.2}When to Use Errors}{82}{subsection.7.8.2}%
-\contentsline {section}{\numberline {7.9}Best Practices}{82}{section.7.9}%
-\contentsline {subsection}{\numberline {7.9.1}Return Errors, Don't Log and Continue}{82}{subsection.7.9.1}%
-\contentsline {subsection}{\numberline {7.9.2}Add Context When Wrapping}{83}{subsection.7.9.2}%
-\contentsline {subsection}{\numberline {7.9.3}Handle Errors at the Right Level}{83}{subsection.7.9.3}%
-\contentsline {section}{\numberline {7.10}Error Handling Grammar}{83}{section.7.10}%
-\contentsline {part}{II\hspace {1em}Concurrency and Modules}{85}{part.2}%
-\contentsline {chapter}{\numberline {8}Concurrency}{87}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Concurrency Model}{87}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Spawn}{87}{section.8.2}%
-\contentsline {subsection}{\numberline {8.2.1}Spawning Functions}{87}{subsection.8.2.1}%
-\contentsline {subsection}{\numberline {8.2.2}Spawn Returns Handle}{88}{subsection.8.2.2}%
-\contentsline {section}{\numberline {8.3}Channels}{88}{section.8.3}%
-\contentsline {subsection}{\numberline {8.3.1}Sending and Receiving}{88}{subsection.8.3.1}%
-\contentsline {subsection}{\numberline {8.3.2}Basic Channel Example}{88}{subsection.8.3.2}%
-\contentsline {subsection}{\numberline {8.3.3}Buffered Channels}{89}{subsection.8.3.3}%
-\contentsline {subsection}{\numberline {8.3.4}Closing Channels}{89}{subsection.8.3.4}%
-\contentsline {subsection}{\numberline {8.3.5}Checking Channel State}{89}{subsection.8.3.5}%
-\contentsline {section}{\numberline {8.4}Select}{90}{section.8.4}%
-\contentsline {subsection}{\numberline {8.4.1}Select with Default}{90}{subsection.8.4.1}%
-\contentsline {subsection}{\numberline {8.4.2}Select with Timeout}{90}{subsection.8.4.2}%
-\contentsline {subsection}{\numberline {8.4.3}Select in Loop}{91}{subsection.8.4.3}%
-\contentsline {section}{\numberline {8.5}Common Patterns}{91}{section.8.5}%
-\contentsline {subsection}{\numberline {8.5.1}Worker Pool}{91}{subsection.8.5.1}%
-\contentsline {subsection}{\numberline {8.5.2}Fan-Out, Fan-In}{92}{subsection.8.5.2}%
-\contentsline {subsection}{\numberline {8.5.3}Pipeline}{92}{subsection.8.5.3}%
-\contentsline {subsection}{\numberline {8.5.4}Semaphore}{93}{subsection.8.5.4}%
-\contentsline {section}{\numberline {8.6}Channel Types}{94}{section.8.6}%
-\contentsline {subsection}{\numberline {8.6.1}Directional Channels}{94}{subsection.8.6.1}%
-\contentsline {section}{\numberline {8.7}Synchronization}{95}{section.8.7}%
-\contentsline {subsection}{\numberline {8.7.1}WaitGroup}{95}{subsection.8.7.1}%
-\contentsline {subsection}{\numberline {8.7.2}Mutex}{95}{subsection.8.7.2}%
-\contentsline {section}{\numberline {8.8}Concurrency Grammar}{96}{section.8.8}%
-\contentsline {chapter}{\numberline {9}Modules and Imports}{97}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Module System Overview}{97}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Import Syntax}{97}{section.9.2}%
-\contentsline {subsection}{\numberline {9.2.1}Basic Import}{97}{subsection.9.2.1}%
-\contentsline {subsection}{\numberline {9.2.2}Aliased Import}{97}{subsection.9.2.2}%
-\contentsline {subsection}{\numberline {9.2.3}Selective Import}{98}{subsection.9.2.3}%
-\contentsline {subsection}{\numberline {9.2.4}Glob Import}{98}{subsection.9.2.4}%
-\contentsline {section}{\numberline {9.3}Module Resolution}{98}{section.9.3}%
-\contentsline {subsection}{\numberline {9.3.1}Standard Library}{98}{subsection.9.3.1}%
-\contentsline {subsection}{\numberline {9.3.2}Project-Local Imports}{99}{subsection.9.3.2}%
-\contentsline {subsection}{\numberline {9.3.3}External Packages}{99}{subsection.9.3.3}%
-\contentsline {section}{\numberline {9.4}Module Definitions}{99}{section.9.4}%
-\contentsline {subsection}{\numberline {9.4.1}File as Module}{99}{subsection.9.4.1}%
-\contentsline {subsection}{\numberline {9.4.2}Exporting}{99}{subsection.9.4.2}%
-\contentsline {subsection}{\numberline {9.4.3}Package Initialization}{100}{subsection.9.4.3}%
-\contentsline {section}{\numberline {9.5}Package Structure}{100}{section.9.5}%
-\contentsline {subsection}{\numberline {9.5.1}Single-File Package}{100}{subsection.9.5.1}%
-\contentsline {subsection}{\numberline {9.5.2}Multi-File Package}{100}{subsection.9.5.2}%
-\contentsline {subsection}{\numberline {9.5.3}The mod.haira File}{101}{subsection.9.5.3}%
-\contentsline {section}{\numberline {9.6}Import Order}{101}{section.9.6}%
-\contentsline {section}{\numberline {9.7}Circular Dependencies}{101}{section.9.7}%
-\contentsline {section}{\numberline {9.8}Conditional Imports}{102}{section.9.8}%
-\contentsline {section}{\numberline {9.9}The haira.toml File}{102}{section.9.9}%
-\contentsline {section}{\numberline {9.10}Module Grammar}{102}{section.9.10}%
-\contentsline {chapter}{\numberline {10}Standard Library}{105}{chapter.10}%
-\contentsline {section}{\numberline {10.1}Core Modules}{105}{section.10.1}%
-\contentsline {section}{\numberline {10.2}io Module}{105}{section.10.2}%
-\contentsline {subsection}{\numberline {10.2.1}io Functions}{105}{subsection.10.2.1}%
-\contentsline {section}{\numberline {10.3}string Module}{106}{section.10.3}%
-\contentsline {subsection}{\numberline {10.3.1}string Functions}{106}{subsection.10.3.1}%
-\contentsline {section}{\numberline {10.4}array Module}{107}{section.10.4}%
-\contentsline {section}{\numberline {10.5}map Module}{108}{section.10.5}%
-\contentsline {section}{\numberline {10.6}math Module}{108}{section.10.6}%
-\contentsline {section}{\numberline {10.7}conv Module}{109}{section.10.7}%
-\contentsline {section}{\numberline {10.8}Extended Modules}{110}{section.10.8}%
-\contentsline {subsection}{\numberline {10.8.1}fs Module}{110}{subsection.10.8.1}%
-\contentsline {subsection}{\numberline {10.8.2}os Module}{110}{subsection.10.8.2}%
-\contentsline {subsection}{\numberline {10.8.3}time Module}{111}{subsection.10.8.3}%
-\contentsline {subsection}{\numberline {10.8.4}json Module}{111}{subsection.10.8.4}%
-\contentsline {subsection}{\numberline {10.8.5}http Module}{112}{subsection.10.8.5}%
-\contentsline {subsection}{\numberline {10.8.6}regex Module}{112}{subsection.10.8.6}%
-\contentsline {subsection}{\numberline {10.8.7}crypto Module}{113}{subsection.10.8.7}%
-\contentsline {subsection}{\numberline {10.8.8}net Module}{113}{subsection.10.8.8}%
-\contentsline {section}{\numberline {10.9}Testing Module}{113}{section.10.9}%
-\contentsline {part}{III\hspace {1em}Agentic Orchestration}{115}{part.3}%
-\contentsline {chapter}{\numberline {11}Providers}{117}{chapter.11}%
-\contentsline {section}{\numberline {11.1}Provider Declaration}{117}{section.11.1}%
-\contentsline {subsection}{\numberline {11.1.1}Cloud Providers}{117}{subsection.11.1.1}%
-\contentsline {subsection}{\numberline {11.1.2}Local Providers}{117}{subsection.11.1.2}%
-\contentsline {section}{\numberline {11.2}Provider Fields}{118}{section.11.2}%
-\contentsline {section}{\numberline {11.3}Environment Variables}{118}{section.11.3}%
-\contentsline {section}{\numberline {11.4}Referencing Providers}{118}{section.11.4}%
-\contentsline {section}{\numberline {11.5}Multiple Providers}{118}{section.11.5}%
-\contentsline {section}{\numberline {11.6}Provider Grammar}{119}{section.11.6}%
-\contentsline {chapter}{\numberline {12}Tools}{121}{chapter.12}%
-\contentsline {section}{\numberline {12.1}Tool Declaration}{121}{section.12.1}%
-\contentsline {section}{\numberline {12.2}Basic Examples}{121}{section.12.2}%
-\contentsline {subsection}{\numberline {12.2.1}HTTP Tool}{121}{subsection.12.2.1}%
-\contentsline {subsection}{\numberline {12.2.2}Database Tool}{122}{subsection.12.2.2}%
-\contentsline {subsection}{\numberline {12.2.3}External Service Tool}{122}{subsection.12.2.3}%
-\contentsline {subsection}{\numberline {12.2.4}Agent-Delegating Tool}{122}{subsection.12.2.4}%
-\contentsline {section}{\numberline {12.3}Triple-Quote Description}{122}{section.12.3}%
-\contentsline {section}{\numberline {12.4}Auto-Generated JSON Schema}{123}{section.12.4}%
-\contentsline {section}{\numberline {12.5}Tool Packs (Standard Library)}{123}{section.12.5}%
-\contentsline {section}{\numberline {12.6}Error Handling in Tools}{124}{section.12.6}%
-\contentsline {section}{\numberline {12.7}Tool Grammar}{124}{section.12.7}%
-\contentsline {chapter}{\numberline {13}Agents}{125}{chapter.13}%
-\contentsline {section}{\numberline {13.1}Agent Declaration}{125}{section.13.1}%
-\contentsline {section}{\numberline {13.2}Agent Fields}{125}{section.13.2}%
-\contentsline {subsection}{\numberline {13.2.1}Multiline System Prompts}{125}{subsection.13.2.1}%
-\contentsline {section}{\numberline {13.3}Agent Methods}{126}{section.13.3}%
-\contentsline {subsection}{\numberline {13.3.1}.ask() --- Text In, Text Out}{126}{subsection.13.3.1}%
-\contentsline {subsection}{\numberline {13.3.2}.run() --- Structured In, Structured Out}{126}{subsection.13.3.2}%
-\contentsline {subsection}{\numberline {13.3.3}.stream() --- Text In, Streaming Out}{126}{subsection.13.3.3}%
-\contentsline {section}{\numberline {13.4}Memory}{127}{section.13.4}%
-\contentsline {subsection}{\numberline {13.4.1}No Memory (Default)}{127}{subsection.13.4.1}%
-\contentsline {subsection}{\numberline {13.4.2}Conversation Memory}{127}{subsection.13.4.2}%
-\contentsline {subsection}{\numberline {13.4.3}Summary Memory}{127}{subsection.13.4.3}%
-\contentsline {subsection}{\numberline {13.4.4}Memory Types}{128}{subsection.13.4.4}%
-\contentsline {section}{\numberline {13.5}Sessions}{128}{section.13.5}%
-\contentsline {section}{\numberline {13.6}Tool-Calling Loop}{128}{section.13.6}%
-\contentsline {section}{\numberline {13.7}Error Handling}{129}{section.13.7}%
-\contentsline {section}{\numberline {13.8}Examples}{129}{section.13.8}%
-\contentsline {subsection}{\numberline {13.8.1}Stateless Classifier}{129}{subsection.13.8.1}%
-\contentsline {subsection}{\numberline {13.8.2}Research Agent with Tools}{130}{subsection.13.8.2}%
-\contentsline {subsection}{\numberline {13.8.3}Conversational Assistant}{130}{subsection.13.8.3}%
-\contentsline {section}{\numberline {13.9}Agent Grammar}{130}{section.13.9}%
-\contentsline {chapter}{\numberline {14}Workflows}{133}{chapter.14}%
-\contentsline {section}{\numberline {14.1}Workflow Declaration}{133}{section.14.1}%
-\contentsline {section}{\numberline {14.2}Triggers}{133}{section.14.2}%
-\contentsline {subsection}{\numberline {14.2.1}@webhook --- HTTP Endpoint}{133}{subsection.14.2.1}%
-\contentsline {subsection}{\numberline {14.2.2}@websocket --- Bidirectional Streaming}{134}{subsection.14.2.2}%
-\contentsline {subsection}{\numberline {14.2.3}@cron --- Scheduled Execution}{134}{subsection.14.2.3}%
-\contentsline {subsection}{\numberline {14.2.4}@event --- Event-Driven}{134}{subsection.14.2.4}%
-\contentsline {subsection}{\numberline {14.2.5}@manual --- CLI Only}{134}{subsection.14.2.5}%
-\contentsline {subsection}{\numberline {14.2.6}No Trigger (Sub-Workflow)}{135}{subsection.14.2.6}%
-\contentsline {section}{\numberline {14.3}Sequential Steps}{135}{section.14.3}%
-\contentsline {section}{\numberline {14.4}Parallel Execution}{135}{section.14.4}%
-\contentsline {section}{\numberline {14.5}Branching}{136}{section.14.5}%
-\contentsline {section}{\numberline {14.6}Loops}{136}{section.14.6}%
-\contentsline {section}{\numberline {14.7}Sub-Workflows}{137}{section.14.7}%
-\contentsline {section}{\numberline {14.8}Error Handling}{137}{section.14.8}%
-\contentsline {section}{\numberline {14.9}Running Workflows}{138}{section.14.9}%
-\contentsline {subsection}{\numberline {14.9.1}From main()}{138}{subsection.14.9.1}%
-\contentsline {subsection}{\numberline {14.9.2}Server Mode}{138}{subsection.14.9.2}%
-\contentsline {subsection}{\numberline {14.9.3}CLI}{138}{subsection.14.9.3}%
-\contentsline {section}{\numberline {14.10}Workflow Grammar}{138}{section.14.10}%
-\contentsline {chapter}{\numberline {15}Chatbot Patterns}{139}{chapter.15}%
-\contentsline {section}{\numberline {15.1}Simple REST Chatbot}{139}{section.15.1}%
-\contentsline {section}{\numberline {15.2}Streaming WebSocket Chatbot}{140}{section.15.2}%
-\contentsline {section}{\numberline {15.3}Dual-Mode Chatbot}{140}{section.15.3}%
-\contentsline {section}{\numberline {15.4}RAG Chatbot}{141}{section.15.4}%
-\contentsline {section}{\numberline {15.5}Multi-Agent Routing}{142}{section.15.5}%
-\contentsline {section}{\numberline {15.6}Chatbot with Structured Actions}{143}{section.15.6}%
-\contentsline {section}{\numberline {15.7}Best Practices}{143}{section.15.7}%
-\contentsline {part}{IV\hspace {1em}Implementation}{145}{part.4}%
-\contentsline {chapter}{\numberline {16}Complete Grammar}{147}{chapter.16}%
-\contentsline {section}{\numberline {16.1}Notation}{147}{section.16.1}%
-\contentsline {section}{\numberline {16.2}Lexical Grammar}{147}{section.16.2}%
-\contentsline {subsection}{\numberline {16.2.1}Characters}{147}{subsection.16.2.1}%
-\contentsline {subsection}{\numberline {16.2.2}Whitespace and Comments}{147}{subsection.16.2.2}%
-\contentsline {subsection}{\numberline {16.2.3}Identifiers}{148}{subsection.16.2.3}%
-\contentsline {subsection}{\numberline {16.2.4}Keywords}{148}{subsection.16.2.4}%
-\contentsline {subsection}{\numberline {16.2.5}Literals}{148}{subsection.16.2.5}%
-\contentsline {subsection}{\numberline {16.2.6}Operators}{149}{subsection.16.2.6}%
-\contentsline {subsection}{\numberline {16.2.7}Delimiters}{149}{subsection.16.2.7}%
-\contentsline {section}{\numberline {16.3}Syntactic Grammar}{149}{section.16.3}%
-\contentsline {subsection}{\numberline {16.3.1}Program Structure}{149}{subsection.16.3.1}%
-\contentsline {subsection}{\numberline {16.3.2}Imports}{150}{subsection.16.3.2}%
-\contentsline {subsection}{\numberline {16.3.3}Core Declarations}{150}{subsection.16.3.3}%
-\contentsline {subsection}{\numberline {16.3.4}Attributes}{151}{subsection.16.3.4}%
-\contentsline {subsection}{\numberline {16.3.5}Decorators}{151}{subsection.16.3.5}%
-\contentsline {subsection}{\numberline {16.3.6}Provider Declarations}{151}{subsection.16.3.6}%
-\contentsline {subsection}{\numberline {16.3.7}Tool Declarations}{151}{subsection.16.3.7}%
-\contentsline {subsection}{\numberline {16.3.8}Agent Declarations}{152}{subsection.16.3.8}%
-\contentsline {subsection}{\numberline {16.3.9}Workflow Declarations}{152}{subsection.16.3.9}%
-\contentsline {subsection}{\numberline {16.3.10}Types}{152}{subsection.16.3.10}%
-\contentsline {subsection}{\numberline {16.3.11}Statements}{153}{subsection.16.3.11}%
-\contentsline {subsection}{\numberline {16.3.12}Expressions}{155}{subsection.16.3.12}%
-\contentsline {subsection}{\numberline {16.3.13}Patterns}{156}{subsection.16.3.13}%
-\contentsline {section}{\numberline {16.4}Grammar Summary}{157}{section.16.4}%
-\contentsline {subsection}{\numberline {16.4.1}Entry Points}{157}{subsection.16.4.1}%
-\contentsline {subsection}{\numberline {16.4.2}Precedence (High to Low)}{157}{subsection.16.4.2}%
-\contentsline {subsection}{\numberline {16.4.3}Associativity}{158}{subsection.16.4.3}%
-\contentsline {chapter}{\numberline {17}Compiler Architecture}{159}{chapter.17}%
-\contentsline {section}{\numberline {17.1}Overview}{159}{section.17.1}%
-\contentsline {section}{\numberline {17.2}Lexer}{160}{section.17.2}%
-\contentsline {subsection}{\numberline {17.2.1}Token Types}{160}{subsection.17.2.1}%
-\contentsline {subsection}{\numberline {17.2.2}Keywords}{160}{subsection.17.2.2}%
-\contentsline {subsection}{\numberline {17.2.3}Lexer Implementation}{161}{subsection.17.2.3}%
-\contentsline {section}{\numberline {17.3}Parser}{162}{section.17.3}%
-\contentsline {subsection}{\numberline {17.3.1}AST Nodes}{162}{subsection.17.3.1}%
-\contentsline {subsection}{\numberline {17.3.2}Agentic AST Nodes}{162}{subsection.17.3.2}%
-\contentsline {subsection}{\numberline {17.3.3}Parsing Agentic Constructs}{163}{subsection.17.3.3}%
-\contentsline {section}{\numberline {17.4}Resolver}{164}{section.17.4}%
-\contentsline {subsection}{\numberline {17.4.1}Symbol Table}{164}{subsection.17.4.1}%
-\contentsline {subsection}{\numberline {17.4.2}Provider Resolution}{165}{subsection.17.4.2}%
-\contentsline {subsection}{\numberline {17.4.3}Tool Registration}{165}{subsection.17.4.3}%
-\contentsline {subsection}{\numberline {17.4.4}Agent Validation}{166}{subsection.17.4.4}%
-\contentsline {subsection}{\numberline {17.4.5}Workflow Trigger Validation}{167}{subsection.17.4.5}%
-\contentsline {section}{\numberline {17.5}Type Checker}{168}{section.17.5}%
-\contentsline {subsection}{\numberline {17.5.1}Type Representation}{168}{subsection.17.5.1}%
-\contentsline {subsection}{\numberline {17.5.2}Agent Method Type Checking}{169}{subsection.17.5.2}%
-\contentsline {subsection}{\numberline {17.5.3}Left-Side Type Annotation Inference}{170}{subsection.17.5.3}%
-\contentsline {subsection}{\numberline {17.5.4}Workflow Input/Output Types}{170}{subsection.17.5.4}%
-\contentsline {subsection}{\numberline {17.5.5}Tool Auto-Schema Generation}{170}{subsection.17.5.5}%
-\contentsline {section}{\numberline {17.6}Lowering}{171}{section.17.6}%
-\contentsline {subsection}{\numberline {17.6.1}HIR Structure}{171}{subsection.17.6.1}%
-\contentsline {subsection}{\numberline {17.6.2}Provider Lowering}{172}{subsection.17.6.2}%
-\contentsline {subsection}{\numberline {17.6.3}Tool Lowering}{172}{subsection.17.6.3}%
-\contentsline {subsection}{\numberline {17.6.4}Agent Lowering}{173}{subsection.17.6.4}%
-\contentsline {subsection}{\numberline {17.6.5}Agent Method Call Lowering}{173}{subsection.17.6.5}%
-\contentsline {subsection}{\numberline {17.6.6}Workflow Lowering}{174}{subsection.17.6.6}%
-\contentsline {subsection}{\numberline {17.6.7}Spawn Block Lowering}{175}{subsection.17.6.7}%
-\contentsline {section}{\numberline {17.7}Code Generation}{175}{section.17.7}%
-\contentsline {subsection}{\numberline {17.7.1}Cranelift Integration}{175}{subsection.17.7.1}%
-\contentsline {subsection}{\numberline {17.7.2}Runtime Calls}{176}{subsection.17.7.2}%
-\contentsline {section}{\numberline {17.8}Runtime Library}{177}{section.17.8}%
-\contentsline {subsection}{\numberline {17.8.1}Provider Management}{177}{subsection.17.8.1}%
-\contentsline {subsection}{\numberline {17.8.2}Agent Execution}{177}{subsection.17.8.2}%
-\contentsline {subsection}{\numberline {17.8.3}Workflow Orchestration}{177}{subsection.17.8.3}%
-\contentsline {subsection}{\numberline {17.8.4}Session Management}{178}{subsection.17.8.4}%
-\contentsline {subsection}{\numberline {17.8.5}Stream Handling}{178}{subsection.17.8.5}%
-\contentsline {subsection}{\numberline {17.8.6}JSON Schema Generation}{178}{subsection.17.8.6}%
-\contentsline {section}{\numberline {17.9}Project Structure}{178}{section.17.9}%
-\contentsline {section}{\numberline {17.10}Build Process}{179}{section.17.10}%
-\contentsline {subsection}{\numberline {17.10.1}Build Modes}{179}{subsection.17.10.1}%
-\contentsline {subsection}{\numberline {17.10.2}Server Mode}{180}{subsection.17.10.2}%
-\contentsline {subsection}{\numberline {17.10.3}Check Mode}{180}{subsection.17.10.3}%
-\contentsline {section}{\numberline {17.11}Error Messages}{180}{section.17.11}%
-\contentsline {subsection}{\numberline {17.11.1}Missing Tool Description}{180}{subsection.17.11.1}%
-\contentsline {subsection}{\numberline {17.11.2}Agent Referencing Undefined Provider}{181}{subsection.17.11.2}%
-\contentsline {subsection}{\numberline {17.11.3}Workflow with Invalid Trigger}{181}{subsection.17.11.3}%
-\contentsline {subsection}{\numberline {17.11.4}Type Mismatch in Agent.run() Output}{181}{subsection.17.11.4}%
-\contentsline {subsection}{\numberline {17.11.5}Agent Referencing Undefined Tool}{181}{subsection.17.11.5}%
-\contentsline {subsection}{\numberline {17.11.6}Invalid Cron Expression}{182}{subsection.17.11.6}%
-\contentsline {chapter}{\numberline {A}Reserved Keywords}{183}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Operator Precedence}{185}{appendix.B}%
-\contentsline {chapter}{\numberline {C}Standard Library Reference}{187}{appendix.C}%
+\contentsline {chapter}{Preface}{15}{chapter*.2}%
+\contentsline {part}{I\hspace {1em}Core Language}{17}{part.1}%
+\contentsline {chapter}{\numberline {1}Overview}{19}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Hello, Agent}{19}{section.1.1}%
+\contentsline {section}{\numberline {1.2}What Haira Replaces}{20}{section.1.2}%
+\contentsline {section}{\numberline {1.3}Language Characteristics}{20}{section.1.3}%
+\contentsline {subsection}{\numberline {1.3.1}Four Agentic Primitives}{20}{subsection.1.3.1}%
+\contentsline {subsection}{\numberline {1.3.2}Explicit Imports}{20}{subsection.1.3.2}%
+\contentsline {subsection}{\numberline {1.3.3}Go-Style Error Handling}{20}{subsection.1.3.3}%
+\contentsline {subsection}{\numberline {1.3.4}Agents and Tools}{21}{subsection.1.3.4}%
+\contentsline {subsection}{\numberline {1.3.5}Workflows with Triggers}{21}{subsection.1.3.5}%
+\contentsline {subsection}{\numberline {1.3.6}Streaming and Conversations}{22}{subsection.1.3.6}%
+\contentsline {section}{\numberline {1.4}Type System}{22}{section.1.4}%
+\contentsline {section}{\numberline {1.5}Control Flow}{22}{section.1.5}%
+\contentsline {section}{\numberline {1.6}Functions}{23}{section.1.6}%
+\contentsline {section}{\numberline {1.7}Concurrency}{23}{section.1.7}%
+\contentsline {section}{\numberline {1.8}Pipe Operator}{24}{section.1.8}%
+\contentsline {section}{\numberline {1.9}A Complete Example}{24}{section.1.9}%
+\contentsline {section}{\numberline {1.10}Implementation Status}{25}{section.1.10}%
+\contentsline {chapter}{\numberline {2}Lexical Structure}{27}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Source Encoding}{27}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Line Structure}{27}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}Line Continuation}{27}{subsection.2.2.1}%
+\contentsline {section}{\numberline {2.3}Comments}{28}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}Single-Line Comments}{28}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}Multi-Line Comments}{28}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.3}Documentation Comments}{28}{subsection.2.3.3}%
+\contentsline {section}{\numberline {2.4}Tokens}{28}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Keywords}{28}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Identifiers}{29}{section.2.6}%
+\contentsline {subsection}{\numberline {2.6.1}Naming Conventions}{29}{subsection.2.6.1}%
+\contentsline {section}{\numberline {2.7}Literals}{29}{section.2.7}%
+\contentsline {subsection}{\numberline {2.7.1}Integer Literals}{29}{subsection.2.7.1}%
+\contentsline {subsection}{\numberline {2.7.2}Floating-Point Literals}{30}{subsection.2.7.2}%
+\contentsline {subsection}{\numberline {2.7.3}Boolean Literals}{30}{subsection.2.7.3}%
+\contentsline {subsection}{\numberline {2.7.4}String Literals}{31}{subsection.2.7.4}%
+\contentsline {subsection}{\numberline {2.7.5}String Interpolation}{31}{subsection.2.7.5}%
+\contentsline {subsection}{\numberline {2.7.6}Raw Strings}{31}{subsection.2.7.6}%
+\contentsline {subsection}{\numberline {2.7.7}Triple-Quoted Strings}{32}{subsection.2.7.7}%
+\contentsline {subsection}{\numberline {2.7.8}Nil Literal}{32}{subsection.2.7.8}%
+\contentsline {section}{\numberline {2.8}Operators}{32}{section.2.8}%
+\contentsline {subsection}{\numberline {2.8.1}Arithmetic Operators}{32}{subsection.2.8.1}%
+\contentsline {subsection}{\numberline {2.8.2}Comparison Operators}{33}{subsection.2.8.2}%
+\contentsline {subsection}{\numberline {2.8.3}Logical Operators}{33}{subsection.2.8.3}%
+\contentsline {subsection}{\numberline {2.8.4}Assignment Operators}{33}{subsection.2.8.4}%
+\contentsline {subsection}{\numberline {2.8.5}Bitwise Operators}{33}{subsection.2.8.5}%
+\contentsline {subsection}{\numberline {2.8.6}Bitwise Assignment Operators}{33}{subsection.2.8.6}%
+\contentsline {subsection}{\numberline {2.8.7}Other Operators}{33}{subsection.2.8.7}%
+\contentsline {section}{\numberline {2.9}Delimiters}{33}{section.2.9}%
+\contentsline {section}{\numberline {2.10}Whitespace}{33}{section.2.10}%
+\contentsline {section}{\numberline {2.11}Lexical Grammar Summary}{33}{section.2.11}%
+\contentsline {chapter}{\numberline {3}Types}{37}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Type System Overview}{37}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Primitive Types}{37}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Integer Types}{37}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Floating-Point Types}{38}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Boolean Type}{38}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}String Type}{38}{subsection.3.2.4}%
+\contentsline {section}{\numberline {3.3}Composite Types}{38}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Arrays}{38}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Maps}{39}{subsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.3.3}Tuples}{39}{subsection.3.3.3}%
+\contentsline {section}{\numberline {3.4}Option Types}{40}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Unwrapping Options}{40}{subsection.3.4.1}%
+\contentsline {section}{\numberline {3.5}Struct Types}{40}{section.3.5}%
+\contentsline {subsection}{\numberline {3.5.1}Struct Methods}{41}{subsection.3.5.1}%
+\contentsline {subsection}{\numberline {3.5.2}Nested Structs}{41}{subsection.3.5.2}%
+\contentsline {section}{\numberline {3.6}Enum Types}{42}{section.3.6}%
+\contentsline {subsection}{\numberline {3.6.1}Enums with Associated Data}{42}{subsection.3.6.1}%
+\contentsline {section}{\numberline {3.7}Type Aliases}{43}{section.3.7}%
+\contentsline {section}{\numberline {3.8}Function Types}{43}{section.3.8}%
+\contentsline {section}{\numberline {3.9}Generic Types}{43}{section.3.9}%
+\contentsline {subsection}{\numberline {3.9.1}Type Constraints}{44}{subsection.3.9.1}%
+\contentsline {section}{\numberline {3.10}Stream Types}{44}{section.3.10}%
+\contentsline {subsection}{\numberline {3.10.1}Stream Type Syntax}{44}{subsection.3.10.1}%
+\contentsline {subsection}{\numberline {3.10.2}Consuming Streams}{45}{subsection.3.10.2}%
+\contentsline {subsection}{\numberline {3.10.3}Streams as Return Types}{45}{subsection.3.10.3}%
+\contentsline {subsection}{\numberline {3.10.4}Stream Properties}{45}{subsection.3.10.4}%
+\contentsline {section}{\numberline {3.11}The Error Type}{45}{section.3.11}%
+\contentsline {section}{\numberline {3.12}Type Inference}{46}{section.3.12}%
+\contentsline {section}{\numberline {3.13}Structural Typing}{46}{section.3.13}%
+\contentsline {section}{\numberline {3.14}Type Grammar}{47}{section.3.14}%
+\contentsline {chapter}{\numberline {4}Expressions}{49}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Primary Expressions}{49}{section.4.1}%
+\contentsline {subsection}{\numberline {4.1.1}Literals}{49}{subsection.4.1.1}%
+\contentsline {subsection}{\numberline {4.1.2}Identifiers}{49}{subsection.4.1.2}%
+\contentsline {subsection}{\numberline {4.1.3}Parenthesized Expressions}{49}{subsection.4.1.3}%
+\contentsline {section}{\numberline {4.2}Arithmetic Expressions}{49}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Integer Division}{50}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Modulo}{50}{subsection.4.2.2}%
+\contentsline {section}{\numberline {4.3}Comparison Expressions}{50}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Equality}{50}{subsection.4.3.1}%
+\contentsline {section}{\numberline {4.4}Logical Expressions}{50}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}Short-Circuit Evaluation}{50}{subsection.4.4.1}%
+\contentsline {section}{\numberline {4.5}Bitwise Expressions}{51}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}Bitwise AND}{51}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {4.5.2}Bitwise OR}{51}{subsection.4.5.2}%
+\contentsline {subsection}{\numberline {4.5.3}Bitwise XOR}{51}{subsection.4.5.3}%
+\contentsline {subsection}{\numberline {4.5.4}Bitwise NOT}{51}{subsection.4.5.4}%
+\contentsline {subsection}{\numberline {4.5.5}Left Shift}{52}{subsection.4.5.5}%
+\contentsline {subsection}{\numberline {4.5.6}Right Shift}{52}{subsection.4.5.6}%
+\contentsline {subsection}{\numberline {4.5.7}Logical Right Shift}{52}{subsection.4.5.7}%
+\contentsline {subsection}{\numberline {4.5.8}Common Bit Manipulation Patterns}{52}{subsection.4.5.8}%
+\contentsline {subsection}{\numberline {4.5.9}Compound Bitwise Assignment}{53}{subsection.4.5.9}%
+\contentsline {section}{\numberline {4.6}String Expressions}{53}{section.4.6}%
+\contentsline {subsection}{\numberline {4.6.1}Concatenation}{53}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {4.6.2}String Interpolation}{53}{subsection.4.6.2}%
+\contentsline {section}{\numberline {4.7}Array and Map Expressions}{54}{section.4.7}%
+\contentsline {subsection}{\numberline {4.7.1}Array Literals}{54}{subsection.4.7.1}%
+\contentsline {subsection}{\numberline {4.7.2}Map Literals}{54}{subsection.4.7.2}%
+\contentsline {subsection}{\numberline {4.7.3}Index Access}{54}{subsection.4.7.3}%
+\contentsline {section}{\numberline {4.8}Field Access}{54}{section.4.8}%
+\contentsline {section}{\numberline {4.9}Function Calls}{54}{section.4.9}%
+\contentsline {subsection}{\numberline {4.9.1}Chained Calls}{54}{subsection.4.9.1}%
+\contentsline {section}{\numberline {4.10}Pipe Expressions}{55}{section.4.10}%
+\contentsline {subsection}{\numberline {4.10.1}Pipe with Arguments}{55}{subsection.4.10.1}%
+\contentsline {subsection}{\numberline {4.10.2}Complex Pipelines}{55}{subsection.4.10.2}%
+\contentsline {section}{\numberline {4.11}Range Expressions}{55}{section.4.11}%
+\contentsline {section}{\numberline {4.12}Conditional Expressions}{56}{section.4.12}%
+\contentsline {subsection}{\numberline {4.12.1}If Expression}{56}{subsection.4.12.1}%
+\contentsline {subsection}{\numberline {4.12.2}Match Expression}{56}{subsection.4.12.2}%
+\contentsline {section}{\numberline {4.13}Block Expressions}{56}{section.4.13}%
+\contentsline {section}{\numberline {4.14}Struct Instantiation}{56}{section.4.14}%
+\contentsline {section}{\numberline {4.15}Closure Expressions}{57}{section.4.15}%
+\contentsline {section}{\numberline {4.16}Option Expressions}{57}{section.4.16}%
+\contentsline {subsection}{\numberline {4.16.1}Nil Coalescing}{57}{subsection.4.16.1}%
+\contentsline {subsection}{\numberline {4.16.2}Optional Chaining}{57}{subsection.4.16.2}%
+\contentsline {section}{\numberline {4.17}Type Assertions}{57}{section.4.17}%
+\contentsline {section}{\numberline {4.18}Operator Precedence}{57}{section.4.18}%
+\contentsline {section}{\numberline {4.19}Expression Grammar}{58}{section.4.19}%
+\contentsline {chapter}{\numberline {5}Statements}{61}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Variable Declarations}{61}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}With Inference}{61}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}With Explicit Type}{61}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {5.1.3}Multiple Declarations}{61}{subsection.5.1.3}%
+\contentsline {subsection}{\numberline {5.1.4}Uninitialized Variables}{61}{subsection.5.1.4}%
+\contentsline {section}{\numberline {5.2}Assignment Statements}{61}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Multiple Assignment}{62}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}Field Assignment}{62}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.2.3}Index Assignment}{62}{subsection.5.2.3}%
+\contentsline {section}{\numberline {5.3}Expression Statements}{62}{section.5.3}%
+\contentsline {section}{\numberline {5.4}If Statements}{62}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}Condition Binding}{63}{subsection.5.4.1}%
+\contentsline {section}{\numberline {5.5}For Statements}{63}{section.5.5}%
+\contentsline {subsection}{\numberline {5.5.1}Range-Based For}{63}{subsection.5.5.1}%
+\contentsline {subsection}{\numberline {5.5.2}Collection Iteration}{63}{subsection.5.5.2}%
+\contentsline {subsection}{\numberline {5.5.3}String Iteration}{63}{subsection.5.5.3}%
+\contentsline {section}{\numberline {5.6}While Statements}{64}{section.5.6}%
+\contentsline {section}{\numberline {5.7}Match Statements}{64}{section.5.7}%
+\contentsline {subsection}{\numberline {5.7.1}Basic Matching}{64}{subsection.5.7.1}%
+\contentsline {subsection}{\numberline {5.7.2}Multiple Patterns}{64}{subsection.5.7.2}%
+\contentsline {subsection}{\numberline {5.7.3}Range Patterns}{64}{subsection.5.7.3}%
+\contentsline {subsection}{\numberline {5.7.4}Guard Clauses}{65}{subsection.5.7.4}%
+\contentsline {subsection}{\numberline {5.7.5}Destructuring Patterns}{65}{subsection.5.7.5}%
+\contentsline {subsection}{\numberline {5.7.6}Match Exhaustiveness}{65}{subsection.5.7.6}%
+\contentsline {section}{\numberline {5.8}Block Statements}{66}{section.5.8}%
+\contentsline {section}{\numberline {5.9}Return Statements}{66}{section.5.9}%
+\contentsline {subsection}{\numberline {5.9.1}Implicit Return}{66}{subsection.5.9.1}%
+\contentsline {section}{\numberline {5.10}Break Statements}{66}{section.5.10}%
+\contentsline {subsection}{\numberline {5.10.1}Labeled Break}{67}{subsection.5.10.1}%
+\contentsline {section}{\numberline {5.11}Continue Statements}{67}{section.5.11}%
+\contentsline {subsection}{\numberline {5.11.1}Labeled Continue}{67}{subsection.5.11.1}%
+\contentsline {section}{\numberline {5.12}Import Statements}{67}{section.5.12}%
+\contentsline {section}{\numberline {5.13}Defer Statements}{68}{section.5.13}%
+\contentsline {subsection}{\numberline {5.13.1}Multiple Defers}{68}{subsection.5.13.1}%
+\contentsline {section}{\numberline {5.14}Statement Grammar}{68}{section.5.14}%
+\contentsline {chapter}{\numberline {6}Functions}{71}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Function Declarations}{71}{section.6.1}%
+\contentsline {subsection}{\numberline {6.1.1}Basic Examples}{71}{subsection.6.1.1}%
+\contentsline {subsection}{\numberline {6.1.2}No Return Type}{71}{subsection.6.1.2}%
+\contentsline {section}{\numberline {6.2}Parameters}{72}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}Required Parameters}{72}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}Default Parameters}{72}{subsection.6.2.2}%
+\contentsline {subsection}{\numberline {6.2.3}Named Arguments}{72}{subsection.6.2.3}%
+\contentsline {subsection}{\numberline {6.2.4}Variadic Parameters}{72}{subsection.6.2.4}%
+\contentsline {section}{\numberline {6.3}Return Values}{73}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}Single Return}{73}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}Multiple Returns}{73}{subsection.6.3.2}%
+\contentsline {subsection}{\numberline {6.3.3}Implicit Return}{73}{subsection.6.3.3}%
+\contentsline {subsection}{\numberline {6.3.4}Early Return}{73}{subsection.6.3.4}%
+\contentsline {section}{\numberline {6.4}Function Types}{73}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Closures}{74}{section.6.5}%
+\contentsline {subsection}{\numberline {6.5.1}Closure Syntax}{74}{subsection.6.5.1}%
+\contentsline {subsection}{\numberline {6.5.2}Capture Semantics}{74}{subsection.6.5.2}%
+\contentsline {section}{\numberline {6.6}Methods}{75}{section.6.6}%
+\contentsline {subsection}{\numberline {6.6.1}Method Semantics}{76}{subsection.6.6.1}%
+\contentsline {section}{\numberline {6.7}Generic Functions}{76}{section.6.7}%
+\contentsline {subsection}{\numberline {6.7.1}Type Constraints}{76}{subsection.6.7.1}%
+\contentsline {section}{\numberline {6.8}Higher-Order Functions}{77}{section.6.8}%
+\contentsline {section}{\numberline {6.9}Recursion}{77}{section.6.9}%
+\contentsline {subsection}{\numberline {6.9.1}Tail Call Optimization}{77}{subsection.6.9.1}%
+\contentsline {section}{\numberline {6.10}Function Overloading}{78}{section.6.10}%
+\contentsline {section}{\numberline {6.11}The main Function}{78}{section.6.11}%
+\contentsline {section}{\numberline {6.12}Function Grammar}{78}{section.6.12}%
+\contentsline {chapter}{\numberline {7}Error Handling}{81}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Philosophy}{81}{section.7.1}%
+\contentsline {section}{\numberline {7.2}The Error Type}{81}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}Creating Errors}{81}{subsection.7.2.1}%
+\contentsline {section}{\numberline {7.3}Error Return Pattern}{82}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Handling Errors}{82}{section.7.4}%
+\contentsline {subsection}{\numberline {7.4.1}Basic Error Checking}{82}{subsection.7.4.1}%
+\contentsline {subsection}{\numberline {7.4.2}Propagating Errors}{82}{subsection.7.4.2}%
+\contentsline {subsection}{\numberline {7.4.3}Wrapping Errors}{82}{subsection.7.4.3}%
+\contentsline {section}{\numberline {7.5}Error Checking Patterns}{83}{section.7.5}%
+\contentsline {subsection}{\numberline {7.5.1}Guard Pattern}{83}{subsection.7.5.1}%
+\contentsline {subsection}{\numberline {7.5.2}Defer for Cleanup}{83}{subsection.7.5.2}%
+\contentsline {section}{\numberline {7.6}Error Utilities}{84}{section.7.6}%
+\contentsline {subsection}{\numberline {7.6.1}Checking Error Types}{84}{subsection.7.6.1}%
+\contentsline {subsection}{\numberline {7.6.2}Error Chain Traversal}{84}{subsection.7.6.2}%
+\contentsline {section}{\numberline {7.7}Option Types and Errors}{85}{section.7.7}%
+\contentsline {subsection}{\numberline {7.7.1}Converting Between Options and Errors}{85}{subsection.7.7.1}%
+\contentsline {section}{\numberline {7.8}Panic and Recovery}{85}{section.7.8}%
+\contentsline {subsection}{\numberline {7.8.1}When to Use Panic}{86}{subsection.7.8.1}%
+\contentsline {subsection}{\numberline {7.8.2}When to Use Errors}{86}{subsection.7.8.2}%
+\contentsline {section}{\numberline {7.9}Best Practices}{86}{section.7.9}%
+\contentsline {subsection}{\numberline {7.9.1}Return Errors, Don't Log and Continue}{86}{subsection.7.9.1}%
+\contentsline {subsection}{\numberline {7.9.2}Add Context When Wrapping}{87}{subsection.7.9.2}%
+\contentsline {subsection}{\numberline {7.9.3}Handle Errors at the Right Level}{87}{subsection.7.9.3}%
+\contentsline {section}{\numberline {7.10}Error Handling Grammar}{87}{section.7.10}%
+\contentsline {part}{II\hspace {1em}Concurrency and Modules}{89}{part.2}%
+\contentsline {chapter}{\numberline {8}Concurrency}{91}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Concurrency Model}{91}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Spawn}{91}{section.8.2}%
+\contentsline {subsection}{\numberline {8.2.1}Spawning Functions}{91}{subsection.8.2.1}%
+\contentsline {subsection}{\numberline {8.2.2}Spawn Returns Handle}{92}{subsection.8.2.2}%
+\contentsline {section}{\numberline {8.3}Channels}{92}{section.8.3}%
+\contentsline {subsection}{\numberline {8.3.1}Sending and Receiving}{92}{subsection.8.3.1}%
+\contentsline {subsection}{\numberline {8.3.2}Basic Channel Example}{92}{subsection.8.3.2}%
+\contentsline {subsection}{\numberline {8.3.3}Buffered Channels}{93}{subsection.8.3.3}%
+\contentsline {subsection}{\numberline {8.3.4}Closing Channels}{93}{subsection.8.3.4}%
+\contentsline {subsection}{\numberline {8.3.5}Checking Channel State}{93}{subsection.8.3.5}%
+\contentsline {section}{\numberline {8.4}Select}{94}{section.8.4}%
+\contentsline {subsection}{\numberline {8.4.1}Select with Default}{94}{subsection.8.4.1}%
+\contentsline {subsection}{\numberline {8.4.2}Select with Timeout}{94}{subsection.8.4.2}%
+\contentsline {subsection}{\numberline {8.4.3}Select in Loop}{95}{subsection.8.4.3}%
+\contentsline {section}{\numberline {8.5}Common Patterns}{95}{section.8.5}%
+\contentsline {subsection}{\numberline {8.5.1}Worker Pool}{95}{subsection.8.5.1}%
+\contentsline {subsection}{\numberline {8.5.2}Fan-Out, Fan-In}{96}{subsection.8.5.2}%
+\contentsline {subsection}{\numberline {8.5.3}Pipeline}{96}{subsection.8.5.3}%
+\contentsline {subsection}{\numberline {8.5.4}Semaphore}{97}{subsection.8.5.4}%
+\contentsline {section}{\numberline {8.6}Channel Types}{98}{section.8.6}%
+\contentsline {subsection}{\numberline {8.6.1}Directional Channels}{98}{subsection.8.6.1}%
+\contentsline {section}{\numberline {8.7}Synchronization}{99}{section.8.7}%
+\contentsline {subsection}{\numberline {8.7.1}WaitGroup}{99}{subsection.8.7.1}%
+\contentsline {subsection}{\numberline {8.7.2}Mutex}{99}{subsection.8.7.2}%
+\contentsline {section}{\numberline {8.8}Concurrency Grammar}{100}{section.8.8}%
+\contentsline {chapter}{\numberline {9}Modules and Imports}{101}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Module System Overview}{101}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Import Syntax}{101}{section.9.2}%
+\contentsline {subsection}{\numberline {9.2.1}Basic Import}{101}{subsection.9.2.1}%
+\contentsline {subsection}{\numberline {9.2.2}Aliased Import}{101}{subsection.9.2.2}%
+\contentsline {subsection}{\numberline {9.2.3}Selective Import}{102}{subsection.9.2.3}%
+\contentsline {subsection}{\numberline {9.2.4}Glob Import}{102}{subsection.9.2.4}%
+\contentsline {section}{\numberline {9.3}Module Resolution}{102}{section.9.3}%
+\contentsline {subsection}{\numberline {9.3.1}Standard Library}{102}{subsection.9.3.1}%
+\contentsline {subsection}{\numberline {9.3.2}Project-Local Imports}{103}{subsection.9.3.2}%
+\contentsline {subsection}{\numberline {9.3.3}External Packages}{103}{subsection.9.3.3}%
+\contentsline {section}{\numberline {9.4}Module Definitions}{103}{section.9.4}%
+\contentsline {subsection}{\numberline {9.4.1}File as Module}{103}{subsection.9.4.1}%
+\contentsline {subsection}{\numberline {9.4.2}Visibility: The \texttt {pub} Keyword}{104}{subsection.9.4.2}%
+\contentsline {subsection}{\numberline {9.4.3}Package Initialization}{104}{subsection.9.4.3}%
+\contentsline {section}{\numberline {9.5}Package Structure}{104}{section.9.5}%
+\contentsline {subsection}{\numberline {9.5.1}Single-File Package}{104}{subsection.9.5.1}%
+\contentsline {subsection}{\numberline {9.5.2}Multi-File Package}{105}{subsection.9.5.2}%
+\contentsline {subsection}{\numberline {9.5.3}The mod.haira File}{105}{subsection.9.5.3}%
+\contentsline {section}{\numberline {9.6}Import Order}{105}{section.9.6}%
+\contentsline {section}{\numberline {9.7}Circular Dependencies}{105}{section.9.7}%
+\contentsline {section}{\numberline {9.8}Conditional Imports}{106}{section.9.8}%
+\contentsline {section}{\numberline {9.9}The haira.toml File}{106}{section.9.9}%
+\contentsline {section}{\numberline {9.10}Module Grammar}{107}{section.9.10}%
+\contentsline {chapter}{\numberline {10}Standard Library}{109}{chapter.10}%
+\contentsline {section}{\numberline {10.1}Core Modules}{109}{section.10.1}%
+\contentsline {section}{\numberline {10.2}io Module}{109}{section.10.2}%
+\contentsline {subsection}{\numberline {10.2.1}io Functions}{109}{subsection.10.2.1}%
+\contentsline {section}{\numberline {10.3}string Module}{110}{section.10.3}%
+\contentsline {subsection}{\numberline {10.3.1}string Functions}{110}{subsection.10.3.1}%
+\contentsline {section}{\numberline {10.4}array Module}{111}{section.10.4}%
+\contentsline {section}{\numberline {10.5}map Module}{112}{section.10.5}%
+\contentsline {section}{\numberline {10.6}math Module}{112}{section.10.6}%
+\contentsline {section}{\numberline {10.7}conv Module}{113}{section.10.7}%
+\contentsline {section}{\numberline {10.8}Extended Modules}{114}{section.10.8}%
+\contentsline {subsection}{\numberline {10.8.1}fs Module}{114}{subsection.10.8.1}%
+\contentsline {subsection}{\numberline {10.8.2}os Module}{114}{subsection.10.8.2}%
+\contentsline {subsection}{\numberline {10.8.3}time Module}{115}{subsection.10.8.3}%
+\contentsline {subsection}{\numberline {10.8.4}json Module}{115}{subsection.10.8.4}%
+\contentsline {subsection}{\numberline {10.8.5}http Module}{116}{subsection.10.8.5}%
+\contentsline {subsection}{\numberline {10.8.6}regex Module}{116}{subsection.10.8.6}%
+\contentsline {subsection}{\numberline {10.8.7}crypto Module}{117}{subsection.10.8.7}%
+\contentsline {subsection}{\numberline {10.8.8}net Module}{117}{subsection.10.8.8}%
+\contentsline {section}{\numberline {10.9}Testing Module}{117}{section.10.9}%
+\contentsline {part}{III\hspace {1em}Agentic Orchestration}{119}{part.3}%
+\contentsline {chapter}{\numberline {11}Providers}{121}{chapter.11}%
+\contentsline {section}{\numberline {11.1}Provider Declaration}{121}{section.11.1}%
+\contentsline {subsection}{\numberline {11.1.1}Cloud Providers}{121}{subsection.11.1.1}%
+\contentsline {subsection}{\numberline {11.1.2}Local Providers}{121}{subsection.11.1.2}%
+\contentsline {section}{\numberline {11.2}Provider Fields}{122}{section.11.2}%
+\contentsline {section}{\numberline {11.3}Environment Variables}{122}{section.11.3}%
+\contentsline {section}{\numberline {11.4}Referencing Providers}{122}{section.11.4}%
+\contentsline {section}{\numberline {11.5}Multiple Providers}{122}{section.11.5}%
+\contentsline {section}{\numberline {11.6}Provider Grammar}{123}{section.11.6}%
+\contentsline {chapter}{\numberline {12}Tools}{125}{chapter.12}%
+\contentsline {section}{\numberline {12.1}Tool Declaration}{125}{section.12.1}%
+\contentsline {section}{\numberline {12.2}Basic Examples}{125}{section.12.2}%
+\contentsline {subsection}{\numberline {12.2.1}HTTP Tool}{125}{subsection.12.2.1}%
+\contentsline {subsection}{\numberline {12.2.2}Database Tool}{126}{subsection.12.2.2}%
+\contentsline {subsection}{\numberline {12.2.3}External Service Tool}{126}{subsection.12.2.3}%
+\contentsline {subsection}{\numberline {12.2.4}Agent-Delegating Tool}{126}{subsection.12.2.4}%
+\contentsline {section}{\numberline {12.3}Triple-Quote Description}{126}{section.12.3}%
+\contentsline {section}{\numberline {12.4}Auto-Generated JSON Schema}{127}{section.12.4}%
+\contentsline {section}{\numberline {12.5}Tool Packs (Standard Library)}{127}{section.12.5}%
+\contentsline {section}{\numberline {12.6}Error Handling in Tools}{128}{section.12.6}%
+\contentsline {section}{\numberline {12.7}Tool Grammar}{128}{section.12.7}%
+\contentsline {chapter}{\numberline {13}Agents}{129}{chapter.13}%
+\contentsline {section}{\numberline {13.1}Agent Declaration}{129}{section.13.1}%
+\contentsline {section}{\numberline {13.2}Agent Fields}{129}{section.13.2}%
+\contentsline {subsection}{\numberline {13.2.1}Multiline System Prompts}{129}{subsection.13.2.1}%
+\contentsline {section}{\numberline {13.3}Agent Methods}{130}{section.13.3}%
+\contentsline {subsection}{\numberline {13.3.1}.ask() --- Text In, Text Out}{130}{subsection.13.3.1}%
+\contentsline {subsection}{\numberline {13.3.2}.run() --- Structured In, Structured Out}{130}{subsection.13.3.2}%
+\contentsline {subsection}{\numberline {13.3.3}.stream() --- Text In, Streaming Out}{130}{subsection.13.3.3}%
+\contentsline {section}{\numberline {13.4}Memory}{131}{section.13.4}%
+\contentsline {subsection}{\numberline {13.4.1}No Memory (Default)}{131}{subsection.13.4.1}%
+\contentsline {subsection}{\numberline {13.4.2}Conversation Memory}{131}{subsection.13.4.2}%
+\contentsline {subsection}{\numberline {13.4.3}Summary Memory}{131}{subsection.13.4.3}%
+\contentsline {subsection}{\numberline {13.4.4}Memory Types}{132}{subsection.13.4.4}%
+\contentsline {section}{\numberline {13.5}Sessions}{132}{section.13.5}%
+\contentsline {section}{\numberline {13.6}Handoffs}{132}{section.13.6}%
+\contentsline {subsection}{\numberline {13.6.1}Declaring Handoffs}{132}{subsection.13.6.1}%
+\contentsline {subsection}{\numberline {13.6.2}How Handoffs Work}{133}{subsection.13.6.2}%
+\contentsline {subsection}{\numberline {13.6.3}.ask() --- Automatic Handoffs}{133}{subsection.13.6.3}%
+\contentsline {subsection}{\numberline {13.6.4}.run() --- Manual Handoff Control}{134}{subsection.13.6.4}%
+\contentsline {subsection}{\numberline {13.6.5}Handoff Chains}{134}{subsection.13.6.5}%
+\contentsline {section}{\numberline {13.7}Tool-Calling Loop}{134}{section.13.7}%
+\contentsline {section}{\numberline {13.8}Error Handling}{135}{section.13.8}%
+\contentsline {section}{\numberline {13.9}Examples}{135}{section.13.9}%
+\contentsline {subsection}{\numberline {13.9.1}Stateless Classifier}{135}{subsection.13.9.1}%
+\contentsline {subsection}{\numberline {13.9.2}Research Agent with Tools}{136}{subsection.13.9.2}%
+\contentsline {subsection}{\numberline {13.9.3}Conversational Assistant}{136}{subsection.13.9.3}%
+\contentsline {section}{\numberline {13.10}Agent Grammar}{137}{section.13.10}%
+\contentsline {chapter}{\numberline {14}Workflows}{139}{chapter.14}%
+\contentsline {section}{\numberline {14.1}Workflow Declaration}{139}{section.14.1}%
+\contentsline {section}{\numberline {14.2}Triggers}{139}{section.14.2}%
+\contentsline {subsection}{\numberline {14.2.1}@webhook --- HTTP Endpoint}{139}{subsection.14.2.1}%
+\contentsline {subsection}{\numberline {14.2.2}@websocket --- Bidirectional Streaming}{140}{subsection.14.2.2}%
+\contentsline {subsection}{\numberline {14.2.3}@cron --- Scheduled Execution}{140}{subsection.14.2.3}%
+\contentsline {subsection}{\numberline {14.2.4}@event --- Event-Driven}{140}{subsection.14.2.4}%
+\contentsline {subsection}{\numberline {14.2.5}@manual --- CLI Only}{140}{subsection.14.2.5}%
+\contentsline {subsection}{\numberline {14.2.6}No Trigger (Sub-Workflow)}{141}{subsection.14.2.6}%
+\contentsline {section}{\numberline {14.3}Sequential Steps}{141}{section.14.3}%
+\contentsline {section}{\numberline {14.4}Named Steps}{141}{section.14.4}%
+\contentsline {subsection}{\numberline {14.4.1}Syntax}{141}{subsection.14.4.1}%
+\contentsline {subsection}{\numberline {14.4.2}Transparent Scope}{142}{subsection.14.4.2}%
+\contentsline {subsection}{\numberline {14.4.3}Automatic Telemetry}{142}{subsection.14.4.3}%
+\contentsline {subsection}{\numberline {14.4.4}Parallel Steps}{143}{subsection.14.4.4}%
+\contentsline {subsection}{\numberline {14.4.5}Real-World Example}{143}{subsection.14.4.5}%
+\contentsline {section}{\numberline {14.5}Parallel Execution}{144}{section.14.5}%
+\contentsline {section}{\numberline {14.6}Branching}{145}{section.14.6}%
+\contentsline {section}{\numberline {14.7}Loops}{145}{section.14.7}%
+\contentsline {section}{\numberline {14.8}Sub-Workflows}{146}{section.14.8}%
+\contentsline {section}{\numberline {14.9}Error Handling}{146}{section.14.9}%
+\contentsline {section}{\numberline {14.10}Running Workflows}{147}{section.14.10}%
+\contentsline {subsection}{\numberline {14.10.1}From main()}{147}{subsection.14.10.1}%
+\contentsline {subsection}{\numberline {14.10.2}Server Mode}{147}{subsection.14.10.2}%
+\contentsline {subsection}{\numberline {14.10.3}CLI}{147}{subsection.14.10.3}%
+\contentsline {section}{\numberline {14.11}Orchestration Patterns}{147}{section.14.11}%
+\contentsline {subsection}{\numberline {14.11.1}Sequential Chain}{147}{subsection.14.11.1}%
+\contentsline {subsection}{\numberline {14.11.2}Parallel Fan-Out}{148}{subsection.14.11.2}%
+\contentsline {subsection}{\numberline {14.11.3}Router / Dispatcher}{148}{subsection.14.11.3}%
+\contentsline {subsection}{\numberline {14.11.4}Handoff}{148}{subsection.14.11.4}%
+\contentsline {subsection}{\numberline {14.11.5}Iterative Refinement}{148}{subsection.14.11.5}%
+\contentsline {subsection}{\numberline {14.11.6}Supervisor}{149}{subsection.14.11.6}%
+\contentsline {subsection}{\numberline {14.11.7}Voting / Consensus}{149}{subsection.14.11.7}%
+\contentsline {subsection}{\numberline {14.11.8}Human-in-the-Loop}{149}{subsection.14.11.8}%
+\contentsline {subsection}{\numberline {14.11.9}Pattern Summary}{150}{subsection.14.11.9}%
+\contentsline {section}{\numberline {14.12}Workflow Grammar}{151}{section.14.12}%
+\contentsline {chapter}{\numberline {15}Chatbot Patterns}{153}{chapter.15}%
+\contentsline {section}{\numberline {15.1}Simple REST Chatbot}{153}{section.15.1}%
+\contentsline {section}{\numberline {15.2}Streaming WebSocket Chatbot}{154}{section.15.2}%
+\contentsline {section}{\numberline {15.3}Dual-Mode Chatbot}{154}{section.15.3}%
+\contentsline {section}{\numberline {15.4}RAG Chatbot}{155}{section.15.4}%
+\contentsline {section}{\numberline {15.5}Multi-Agent Routing}{156}{section.15.5}%
+\contentsline {section}{\numberline {15.6}Agent Handoffs}{157}{section.15.6}%
+\contentsline {section}{\numberline {15.7}Chatbot with Structured Actions}{158}{section.15.7}%
+\contentsline {section}{\numberline {15.8}Best Practices}{158}{section.15.8}%
+\contentsline {chapter}{\numberline {16}Generative UI}{161}{chapter.16}%
+\contentsline {section}{\numberline {16.1}Motivation}{161}{section.16.1}%
+\contentsline {section}{\numberline {16.2}The \texttt {@render} Decorator}{161}{section.16.2}%
+\contentsline {section}{\numberline {16.3}Built-in Component Catalog}{162}{section.16.3}%
+\contentsline {subsection}{\numberline {16.3.1}table --- Tabular Data}{162}{subsection.16.3.1}%
+\contentsline {subsection}{\numberline {16.3.2}status-card --- Result Summary}{163}{subsection.16.3.2}%
+\contentsline {subsection}{\numberline {16.3.3}code-block --- Source Code or SQL}{163}{subsection.16.3.3}%
+\contentsline {subsection}{\numberline {16.3.4}diff --- Before/After Comparison}{164}{subsection.16.3.4}%
+\contentsline {subsection}{\numberline {16.3.5}key-value --- Property List}{164}{subsection.16.3.5}%
+\contentsline {subsection}{\numberline {16.3.6}progress --- Multi-Step Progress}{165}{subsection.16.3.6}%
+\contentsline {subsection}{\numberline {16.3.7}form --- Interactive Input}{165}{subsection.16.3.7}%
+\contentsline {subsection}{\numberline {16.3.8}Component Summary}{166}{subsection.16.3.8}%
+\contentsline {section}{\numberline {16.4}Streaming Protocol}{166}{section.16.4}%
+\contentsline {subsection}{\numberline {16.4.1}Current Protocol}{167}{subsection.16.4.1}%
+\contentsline {subsection}{\numberline {16.4.2}Extended Protocol}{167}{subsection.16.4.2}%
+\contentsline {subsection}{\numberline {16.4.3}Dual Consumption}{168}{subsection.16.4.3}%
+\contentsline {section}{\numberline {16.5}Agent Behavior with Generative UI}{168}{section.16.5}%
+\contentsline {section}{\numberline {16.6}Fallback Behavior}{168}{section.16.6}%
+\contentsline {subsection}{\numberline {16.6.1}Non-Chat Contexts}{168}{subsection.16.6.1}%
+\contentsline {subsection}{\numberline {16.6.2}API Consumers}{168}{subsection.16.6.2}%
+\contentsline {section}{\numberline {16.7}Complete Example}{169}{section.16.7}%
+\contentsline {section}{\numberline {16.8}Custom Components}{170}{section.16.8}%
+\contentsline {subsection}{\numberline {16.8.1}Composite Components}{171}{subsection.16.8.1}%
+\contentsline {subsection}{\numberline {16.8.2}Custom Web Components}{171}{subsection.16.8.2}%
+\contentsline {subsection}{\numberline {16.8.3}Component Resolution}{174}{subsection.16.8.3}%
+\contentsline {subsection}{\numberline {16.8.4}Build Process}{175}{subsection.16.8.4}%
+\contentsline {subsection}{\numberline {16.8.5}Referencing Components from Tools}{176}{subsection.16.8.5}%
+\contentsline {subsection}{\numberline {16.8.6}Theme Integration}{176}{subsection.16.8.6}%
+\contentsline {subsection}{\numberline {16.8.7}Interactive Components}{177}{subsection.16.8.7}%
+\contentsline {subsection}{\numberline {16.8.8}Example: Custom Schema Diagram}{178}{subsection.16.8.8}%
+\contentsline {section}{\numberline {16.9}Design Principles}{180}{section.16.9}%
+\contentsline {section}{\numberline {16.10}External Frontend API}{181}{section.16.10}%
+\contentsline {subsection}{\numberline {16.10.1}Discovery: \texttt {GET /\_api/}}{181}{subsection.16.10.1}%
+\contentsline {subsection}{\numberline {16.10.2}Workflow Metadata: \texttt {GET /\_api/\{path\}}}{182}{subsection.16.10.2}%
+\contentsline {subsection}{\numberline {16.10.3}Streaming: \texttt {POST /\{path\}} with SSE}{183}{subsection.16.10.3}%
+\contentsline {subsection}{\numberline {16.10.4}Form Submission: \texttt {POST /\{path\}} with JSON}{183}{subsection.16.10.4}%
+\contentsline {subsection}{\numberline {16.10.5}CORS Support}{184}{subsection.16.10.5}%
+\contentsline {subsection}{\numberline {16.10.6}External Frontend Example}{184}{subsection.16.10.6}%
+\contentsline {subsection}{\numberline {16.10.7}API Parity Guarantee}{186}{subsection.16.10.7}%
+\contentsline {section}{\numberline {16.11}Grammar Extension}{186}{section.16.11}%
+\contentsline {part}{IV\hspace {1em}Implementation}{187}{part.4}%
+\contentsline {chapter}{\numberline {17}Complete Grammar}{189}{chapter.17}%
+\contentsline {section}{\numberline {17.1}Notation}{189}{section.17.1}%
+\contentsline {section}{\numberline {17.2}Lexical Grammar}{189}{section.17.2}%
+\contentsline {subsection}{\numberline {17.2.1}Characters}{189}{subsection.17.2.1}%
+\contentsline {subsection}{\numberline {17.2.2}Whitespace and Comments}{189}{subsection.17.2.2}%
+\contentsline {subsection}{\numberline {17.2.3}Identifiers}{190}{subsection.17.2.3}%
+\contentsline {subsection}{\numberline {17.2.4}Keywords}{190}{subsection.17.2.4}%
+\contentsline {subsection}{\numberline {17.2.5}Literals}{190}{subsection.17.2.5}%
+\contentsline {subsection}{\numberline {17.2.6}Operators}{191}{subsection.17.2.6}%
+\contentsline {subsection}{\numberline {17.2.7}Delimiters}{191}{subsection.17.2.7}%
+\contentsline {section}{\numberline {17.3}Syntactic Grammar}{191}{section.17.3}%
+\contentsline {subsection}{\numberline {17.3.1}Program Structure}{191}{subsection.17.3.1}%
+\contentsline {subsection}{\numberline {17.3.2}Imports}{192}{subsection.17.3.2}%
+\contentsline {subsection}{\numberline {17.3.3}Core Declarations}{192}{subsection.17.3.3}%
+\contentsline {subsection}{\numberline {17.3.4}Attributes}{193}{subsection.17.3.4}%
+\contentsline {subsection}{\numberline {17.3.5}Decorators}{193}{subsection.17.3.5}%
+\contentsline {subsection}{\numberline {17.3.6}Provider Declarations}{193}{subsection.17.3.6}%
+\contentsline {subsection}{\numberline {17.3.7}Tool Declarations}{193}{subsection.17.3.7}%
+\contentsline {subsection}{\numberline {17.3.8}Agent Declarations}{194}{subsection.17.3.8}%
+\contentsline {subsection}{\numberline {17.3.9}Workflow Declarations}{194}{subsection.17.3.9}%
+\contentsline {subsection}{\numberline {17.3.10}Types}{194}{subsection.17.3.10}%
+\contentsline {subsection}{\numberline {17.3.11}Statements}{195}{subsection.17.3.11}%
+\contentsline {subsection}{\numberline {17.3.12}Expressions}{197}{subsection.17.3.12}%
+\contentsline {subsection}{\numberline {17.3.13}Patterns}{199}{subsection.17.3.13}%
+\contentsline {section}{\numberline {17.4}Grammar Summary}{199}{section.17.4}%
+\contentsline {subsection}{\numberline {17.4.1}Entry Points}{199}{subsection.17.4.1}%
+\contentsline {subsection}{\numberline {17.4.2}Precedence (High to Low)}{199}{subsection.17.4.2}%
+\contentsline {subsection}{\numberline {17.4.3}Associativity}{200}{subsection.17.4.3}%
+\contentsline {chapter}{\numberline {18}Compiler Architecture}{201}{chapter.18}%
+\contentsline {section}{\numberline {18.1}Overview}{201}{section.18.1}%
+\contentsline {section}{\numberline {18.2}Lexer}{202}{section.18.2}%
+\contentsline {subsection}{\numberline {18.2.1}Token Types}{202}{subsection.18.2.1}%
+\contentsline {subsection}{\numberline {18.2.2}Keywords}{202}{subsection.18.2.2}%
+\contentsline {subsection}{\numberline {18.2.3}Lexer Implementation}{203}{subsection.18.2.3}%
+\contentsline {section}{\numberline {18.3}Parser}{204}{section.18.3}%
+\contentsline {subsection}{\numberline {18.3.1}AST Nodes}{204}{subsection.18.3.1}%
+\contentsline {subsection}{\numberline {18.3.2}Agentic AST Nodes}{204}{subsection.18.3.2}%
+\contentsline {subsection}{\numberline {18.3.3}Parsing Agentic Constructs}{205}{subsection.18.3.3}%
+\contentsline {section}{\numberline {18.4}Resolver}{206}{section.18.4}%
+\contentsline {subsection}{\numberline {18.4.1}Symbol Table}{206}{subsection.18.4.1}%
+\contentsline {subsection}{\numberline {18.4.2}Provider Resolution}{207}{subsection.18.4.2}%
+\contentsline {subsection}{\numberline {18.4.3}Tool Registration}{207}{subsection.18.4.3}%
+\contentsline {subsection}{\numberline {18.4.4}Agent Validation}{208}{subsection.18.4.4}%
+\contentsline {subsection}{\numberline {18.4.5}Workflow Trigger Validation}{209}{subsection.18.4.5}%
+\contentsline {section}{\numberline {18.5}Type Checker}{210}{section.18.5}%
+\contentsline {subsection}{\numberline {18.5.1}Type Representation}{210}{subsection.18.5.1}%
+\contentsline {subsection}{\numberline {18.5.2}Agent Method Type Checking}{211}{subsection.18.5.2}%
+\contentsline {subsection}{\numberline {18.5.3}Left-Side Type Annotation Inference}{212}{subsection.18.5.3}%
+\contentsline {subsection}{\numberline {18.5.4}Workflow Input/Output Types}{212}{subsection.18.5.4}%
+\contentsline {subsection}{\numberline {18.5.5}Tool Auto-Schema Generation}{212}{subsection.18.5.5}%
+\contentsline {section}{\numberline {18.6}Lowering}{213}{section.18.6}%
+\contentsline {subsection}{\numberline {18.6.1}HIR Structure}{213}{subsection.18.6.1}%
+\contentsline {subsection}{\numberline {18.6.2}Provider Lowering}{214}{subsection.18.6.2}%
+\contentsline {subsection}{\numberline {18.6.3}Tool Lowering}{214}{subsection.18.6.3}%
+\contentsline {subsection}{\numberline {18.6.4}Agent Lowering}{215}{subsection.18.6.4}%
+\contentsline {subsection}{\numberline {18.6.5}Agent Method Call Lowering}{215}{subsection.18.6.5}%
+\contentsline {subsection}{\numberline {18.6.6}Workflow Lowering}{216}{subsection.18.6.6}%
+\contentsline {subsection}{\numberline {18.6.7}Spawn Block Lowering}{217}{subsection.18.6.7}%
+\contentsline {section}{\numberline {18.7}Code Generation}{217}{section.18.7}%
+\contentsline {subsection}{\numberline {18.7.1}Cranelift Integration}{217}{subsection.18.7.1}%
+\contentsline {subsection}{\numberline {18.7.2}Runtime Calls}{218}{subsection.18.7.2}%
+\contentsline {section}{\numberline {18.8}Runtime Library}{219}{section.18.8}%
+\contentsline {subsection}{\numberline {18.8.1}Provider Management}{219}{subsection.18.8.1}%
+\contentsline {subsection}{\numberline {18.8.2}Agent Execution}{219}{subsection.18.8.2}%
+\contentsline {subsection}{\numberline {18.8.3}Workflow Orchestration}{219}{subsection.18.8.3}%
+\contentsline {subsection}{\numberline {18.8.4}Session Management}{220}{subsection.18.8.4}%
+\contentsline {subsection}{\numberline {18.8.5}Stream Handling}{220}{subsection.18.8.5}%
+\contentsline {subsection}{\numberline {18.8.6}JSON Schema Generation}{220}{subsection.18.8.6}%
+\contentsline {section}{\numberline {18.9}Project Structure}{220}{section.18.9}%
+\contentsline {section}{\numberline {18.10}Build Process}{221}{section.18.10}%
+\contentsline {subsection}{\numberline {18.10.1}Build Modes}{221}{subsection.18.10.1}%
+\contentsline {subsection}{\numberline {18.10.2}Server Mode}{222}{subsection.18.10.2}%
+\contentsline {subsection}{\numberline {18.10.3}Check Mode}{222}{subsection.18.10.3}%
+\contentsline {section}{\numberline {18.11}Error Messages}{222}{section.18.11}%
+\contentsline {subsection}{\numberline {18.11.1}Missing Tool Description}{222}{subsection.18.11.1}%
+\contentsline {subsection}{\numberline {18.11.2}Agent Referencing Undefined Provider}{223}{subsection.18.11.2}%
+\contentsline {subsection}{\numberline {18.11.3}Workflow with Invalid Trigger}{223}{subsection.18.11.3}%
+\contentsline {subsection}{\numberline {18.11.4}Type Mismatch in Agent.run() Output}{223}{subsection.18.11.4}%
+\contentsline {subsection}{\numberline {18.11.5}Agent Referencing Undefined Tool}{223}{subsection.18.11.5}%
+\contentsline {subsection}{\numberline {18.11.6}Invalid Cron Expression}{224}{subsection.18.11.6}%
+\contentsline {chapter}{\numberline {A}Reserved Keywords}{225}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Operator Precedence}{227}{appendix.B}%
+\contentsline {chapter}{\numberline {C}Standard Library Reference}{229}{appendix.C}%

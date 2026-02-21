@@ -156,12 +156,12 @@ fn validate_email(email: string) -> bool {
 Declarations are \textbf{private by default}. Use the \keyword{pub} keyword to make them available to importers:
 
 \begin{lstlisting}
-// Public (exported) — available to other modules
+// Public (exported) -- available to other modules
 pub fn create_user(name: string) -> User { }
 pub User { name: string, email: string }
 pub enum Status { Active, Inactive }
 
-// Private (not exported) — file-local only
+// Private (not exported) -- file-local only
 fn validate_email(email: string) -> bool { }
 cache = [:]
 \end{lstlisting}

@@ -9,7 +9,7 @@ provider azure_openai {
 }
 
 agent Summarizer {
-    model: azure_openai
+    provider: azure_openai
     system: "You summarize text concisely into key bullet points."
 }
 

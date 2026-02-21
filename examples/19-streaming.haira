@@ -9,7 +9,7 @@ provider azure_openai {
 }
 
 agent Writer {
-    model: azure_openai
+    provider: azure_openai
     system: "You are a creative writer. Write short, engaging responses."
     memory: conversation(max_turns: 10)
     temperature: 0.9

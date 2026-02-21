@@ -10,21 +10,21 @@ provider azure_openai {
 }
 
 agent BillingAgent {
-    model: azure_openai
+    provider: azure_openai
     system: "You handle billing and payment questions. Be helpful and concise."
     memory: conversation(max_turns: 20)
     temperature: 0.5
 }
 
 agent TechAgent {
-    model: azure_openai
+    provider: azure_openai
     system: "You handle technical support questions. Be helpful and concise."
     memory: conversation(max_turns: 20)
     temperature: 0.5
 }
 
 agent FrontDesk {
-    model: azure_openai
+    provider: azure_openai
     system: """
         You are a front desk agent. Greet users and help with general questions.
         If they have a billing question, hand off to BillingAgent.

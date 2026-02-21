@@ -10,7 +10,7 @@ import "tools/countries"
 import "ui"
 
 agent WeatherAgent {
-    model: azure_openai
+    provider: local_ollama
     system: """
         You are a weather specialist. You provide current weather conditions and forecasts.
         Use the get_weather tool for current conditions and get_forecast for multi-day forecasts.
@@ -26,7 +26,7 @@ agent WeatherAgent {
 }
 
 agent FlightAgent {
-    model: azure_openai
+    provider: local_ollama
     system: """
         You are a flight tracking specialist. You help users find and track live flights.
         Use search_flights to find flights from a country, and track_flight to track a specific callsign.
@@ -42,7 +42,7 @@ agent FlightAgent {
 }
 
 agent TransitAgent {
-    model: azure_openai
+    provider: local_ollama
     system: """
         You are a Paris public transport specialist. You help with Metro schedules and transit status.
         Use get_metro_schedule for next train times and get_traffic_status for line disruptions.
@@ -58,7 +58,7 @@ agent TransitAgent {
 }
 
 agent CountryAgent {
-    model: azure_openai
+    provider: local_ollama
     system: """
         You are a country information specialist. You provide facts about countries
         and can compare two countries side by side.
@@ -75,7 +75,7 @@ agent CountryAgent {
 }
 
 agent Concierge {
-    model: azure_openai
+    provider: local_ollama
     system: """
         You are a friendly travel concierge. You help travelers with various needs.
         You do NOT answer questions directly. Instead, you route users to the right specialist:

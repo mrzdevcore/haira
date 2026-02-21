@@ -23,6 +23,7 @@ type AgentConfig struct {
 	Temperature  float64
 	MaxTokens    int // Maximum tokens for LLM response (0 = provider default)
 	MaxSteps     int // Maximum tool-calling iterations (0 = default 10)
+	Timeout      int // Timeout in seconds for the entire agent call (0 = 120s default)
 	Memory       MemoryConfig
 	MCPClients   []*MCPClient // MCP server connections for external tools
 	OutputSchema string       // JSON Schema for structured output (forces JSON mode)
@@ -42,6 +43,7 @@ type Agent struct {
 }
 
 const handoffToolPrefix = "transfer_to_"
+const maxHandoffDepth = 5
 
 // CreateOpenAIClient creates an openai.Client from a Provider config.
 // Supports Azure OpenAI, OpenAI-compatible endpoints, and standard OpenAI.
@@ -125,7 +127,7 @@ func NewAgent(config AgentConfig) *Agent {
 // Implements the full tool-calling loop: send → tool calls → execute → repeat.
 // If the agent has handoffs, handoff tool calls are followed automatically.
 func (a *Agent) Ask(message string, sessionID string) (string, error) {
-	result, err := a.run(message, sessionID, true)
+	result, err := a.run(message, sessionID, true, 0)
 	if err != nil {
 		return "", err
 	}
@@ -136,7 +138,7 @@ func (a *Agent) Ask(message string, sessionID string) (string, error) {
 // including handoff information. Handoffs are followed automatically.
 // Use this when you need to inspect which agent handled the request.
 func (a *Agent) Run(message string, sessionID string) (*AgentResult, error) {
-	return a.run(message, sessionID, true)
+	return a.run(message, sessionID, true, 0)
 }
 
 // StreamChunk represents a piece of a streaming response.
@@ -159,10 +161,23 @@ type StreamChunk struct {
 // Supports tool calling: emits tool_start/tool_end events during tool execution,
 // then streams the final text response.
 func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
+	return a.streamInternal(message, sessionID, 0)
+}
+
+func (a *Agent) streamInternal(message string, sessionID string, handoffDepth int) <-chan StreamChunk {
 	ch := make(chan StreamChunk, 64)
 	go func() {
 		defer close(ch)
-		ctx := context.Background()
+		if handoffDepth >= maxHandoffDepth {
+			ch <- StreamChunk{Delta: fmt.Sprintf("error: handoff depth limit (%d) exceeded", maxHandoffDepth), Done: true}
+			return
+		}
+		timeout := time.Duration(a.config.Timeout) * time.Second
+		if timeout <= 0 {
+			timeout = 120 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 
 		var messages []openai.ChatCompletionMessage
 		if a.config.System != "" {
@@ -255,7 +270,7 @@ func (a *Agent) Stream(message string, sessionID string) <-chan StreamChunk {
 					// Delegate to target agent's stream and pipe chunks through.
 					// Collect the response so we can store it in our session.
 					var handoffReply strings.Builder
-					targetCh := target.Stream(message, sessionID)
+					targetCh := target.streamInternal(message, sessionID, handoffDepth+1)
 					for chunk := range targetCh {
 						ch <- chunk
 						if chunk.Delta != "" {
@@ -413,8 +428,16 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 }
 
 // run is the internal implementation shared by Ask and Run.
-func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*AgentResult, error) {
-	ctx := context.Background()
+func (a *Agent) run(message string, sessionID string, followHandoffs bool, handoffDepth int) (*AgentResult, error) {
+	if handoffDepth >= maxHandoffDepth {
+		return nil, fmt.Errorf("handoff depth limit (%d) exceeded — possible circular handoff chain", maxHandoffDepth)
+	}
+	timeout := time.Duration(a.config.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = 120 * time.Second // default 2 minutes
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	// Build messages: system + history + new user message
 	var messages []openai.ChatCompletionMessage
@@ -518,7 +541,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool) (*Age
 				if target := a.findHandoffTarget(tc.Function.Name); target != nil {
 					fmt.Fprintf(os.Stderr, "[haira] Handoff: %s → %s\n", a.config.Name, target.config.Name)
 					// Delegate to target agent with the same session
-					result, err := target.run(message, sessionID, true)
+					result, err := target.run(message, sessionID, true, handoffDepth+1)
 					if err != nil {
 						return nil, fmt.Errorf("handoff to %s failed: %w", target.config.Name, err)
 					}

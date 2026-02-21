@@ -189,7 +189,7 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 	em.Line(fmt.Sprintf("Name: %q,", agent.Name.Node))
 	for _, field := range agent.Fields {
 		switch field.Key.Node {
-		case "model":
+		case "provider":
 			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
 				providerVar := goVarName("provider", ident.Name)
 				em.Line(fmt.Sprintf("Provider: %s,", providerVar))
@@ -213,6 +213,8 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 			em.Line(fmt.Sprintf("MaxTokens: %s,", ExprToGo(field.Value)))
 		case "max_steps":
 			em.Line(fmt.Sprintf("MaxSteps: %s,", ExprToGo(field.Value)))
+		case "timeout":
+			em.Line(fmt.Sprintf("Timeout: %s,", ExprToGo(field.Value)))
 		case "memory":
 			if call, ok := field.Value.Node.(ast.CallExpr); ok {
 				if ident, ok := call.Callee.Node.(ast.IdentExpr); ok {

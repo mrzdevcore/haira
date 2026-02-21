@@ -181,6 +181,13 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 			continue
 		}
 
+		// Quote identifiers for safe SQL generation
+		quotedTable := QuoteIdentifier(name)
+		quotedInsertCols := make([]string, len(insertCols))
+		for i, col := range insertCols {
+			quotedInsertCols[i] = QuoteIdentifier(col)
+		}
+
 		// Generate INSERT statements
 		var stmts []string
 		for _, row := range sheet.Rows {
@@ -190,12 +197,16 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 			}
 
 			stmt := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-				name,
-				strings.Join(insertCols, ", "),
+				quotedTable,
+				strings.Join(quotedInsertCols, ", "),
 				strings.Join(values, ", "))
 
 			if len(pkCols) > 0 {
 				// Build ON CONFLICT ... DO UPDATE
+				quotedPKCols := make([]string, len(pkCols))
+				for i, pk := range pkCols {
+					quotedPKCols[i] = QuoteIdentifier(pk)
+				}
 				updateCols := make([]string, 0)
 				for _, col := range insertCols {
 					isPK := false
@@ -206,12 +217,13 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 						}
 					}
 					if !isPK {
-						updateCols = append(updateCols, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
+						qc := QuoteIdentifier(col)
+						updateCols = append(updateCols, fmt.Sprintf("%s = EXCLUDED.%s", qc, qc))
 					}
 				}
 				if len(updateCols) > 0 {
 					stmt += fmt.Sprintf("\n  ON CONFLICT (%s) DO UPDATE SET %s",
-						strings.Join(pkCols, ", "),
+						strings.Join(quotedPKCols, ", "),
 						strings.Join(updateCols, ", "))
 				}
 			}
@@ -231,8 +243,14 @@ func PostgresGenerateUpsert(tables *ExcelTables, schema *PgSchema) *SqlResult {
 	}
 }
 
-// PostgresEscape escapes a string for safe use in SQL.
+// PostgresEscape escapes a string value for safe use in SQL.
 func PostgresEscape(value string) string {
 	escaped := strings.ReplaceAll(value, "'", "''")
 	return "'" + escaped + "'"
+}
+
+// QuoteIdentifier quotes a SQL identifier (table/column name) to prevent injection.
+// Uses PostgreSQL double-quote escaping: internal " becomes "".
+func QuoteIdentifier(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }

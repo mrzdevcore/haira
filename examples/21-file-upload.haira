@@ -12,7 +12,7 @@ provider azure_openai {
 }
 
 agent Summarizer {
-    model: azure_openai
+    provider: azure_openai
     system: "You are a helpful assistant. Summarize the given text clearly and concisely."
     temperature: 0.3
 }

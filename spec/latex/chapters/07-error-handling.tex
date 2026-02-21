@@ -3,12 +3,14 @@
 
 \haira{} uses explicit error handling inspired by Go. Errors are values, not exceptions. Functions that can fail return both a result and an optional error.
 
+For concise code, \haira{} also provides a \code{?} propagation operator and \keyword{try}/\keyword{catch} blocks built on Go's \code{panic}/\code{recover} mechanism.
+
 \section{Philosophy}
 
 \begin{itemize}
     \item \textbf{Errors are values} -- Not special control flow
     \item \textbf{Explicit handling} -- Callers must handle or propagate errors
-    \item \textbf{No hidden control flow} -- No exceptions or stack unwinding
+    \item \textbf{Two modes} -- Verbose-but-clear tuple checking, or concise \code{?} propagation
     \item \textbf{Composable} -- Errors can be wrapped and chained
 \end{itemize}
 
@@ -65,6 +67,8 @@ fn parse_int(s: string) -> (int, Error?) {
 
 \subsection{Basic Error Checking}
 
+The standard pattern: call a function, check the error, handle or return:
+
 \begin{lstlisting}
 result, err = divide(10, 0)
 if err != nil {
@@ -118,6 +122,145 @@ fn load_config(path: string) -> (Config, Error?) {
 }
 \end{lstlisting}
 
+\section{Error Propagation Operator (\code{?})}
+
+The \code{?} operator is syntactic sugar for ``panic on error.'' It extracts the success value from a call that returns \code{(T, Error?)}. If the error is non-nil, it panics.
+
+\begin{lstlisting}
+// These two are equivalent:
+
+// Verbose
+content, err = read_file(path)
+if err != nil {
+    panic(err)
+}
+
+// Concise
+content = read_file(path)?
+\end{lstlisting}
+
+The \code{?} operator makes code much shorter when chaining multiple fallible calls:
+
+\begin{lstlisting}
+fn setup() {
+    config = load_config("app.toml")?
+    db = connect_database(config.db_url)?
+    cache = init_cache(config.cache_url)?
+    // If any call fails, execution stops with a panic
+}
+\end{lstlisting}
+
+\begin{warning}
+The \code{?} operator panics on error. If used outside a \keyword{try} block, an unhandled error will crash the program. Use \code{?} inside \keyword{try}/\keyword{catch} blocks, or in initialization code where failure is fatal.
+\end{warning}
+
+\section{Try/Catch}
+
+The \keyword{try}/\keyword{catch} block recovers from panics caused by the \code{?} operator (or explicit \code{panic()} calls). It compiles to Go's \code{defer}/\code{recover} pattern.
+
+\begin{lstlisting}
+try {
+    config = load_config("app.toml")?
+    db = connect_database(config.db_url)?
+    start_server(db)
+} catch err {
+    io.println("Startup failed: " + err)
+    os.exit(1)
+}
+\end{lstlisting}
+
+The catch variable receives the error as a string. Variables assigned inside the \keyword{try} block are hoisted and remain accessible after the block.
+
+\subsection{Try/Catch in Functions}
+
+\begin{lstlisting}
+fn process_batch(items: [string]) -> int {
+    count = 0
+    for item in items {
+        try {
+            result = parse_item(item)?
+            save_result(result)?
+            count = count + 1
+        } catch err {
+            io.eprintln("Skipping item: " + err)
+        }
+    }
+    return count
+}
+\end{lstlisting}
+
+\subsection{When to Use Each Pattern}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Pattern} & \textbf{Syntax} & \textbf{Use When} \\
+\midrule
+Tuple check & \code{val, err = fn()} & You need to inspect or wrap the error \\
+\code{?} + \code{try/catch} & \code{val = fn()?} & Multiple calls, same error handling \\
+\code{?} without \code{try} & \code{val = fn()?} & Failure is fatal (init, main) \\
+\bottomrule
+\end{tabular}
+\caption{Error handling patterns}
+\end{table}
+
+\section{Orelse Operator}
+
+The \keyword{orelse} operator provides a default value when a fallible call fails:
+
+\begin{lstlisting}
+// If parse fails, use 0 as default
+count = parse_int(input) orelse 0
+
+// If config load fails, use defaults
+config = load_config("app.toml") orelse Config{port: 8080}
+\end{lstlisting}
+
+This is useful for optional operations where a sensible default exists.
+
+\section{Defer and Errdefer}
+
+\subsection{Defer}
+
+Use \keyword{defer} to ensure cleanup happens when the enclosing scope exits, regardless of how it exits:
+
+\begin{lstlisting}
+fn with_file(path: string) -> (string, Error?) {
+    file, err = fs.open(path)
+    if err != nil {
+        return "", err
+    }
+    defer fs.close(file)  // Always closes, even on error
+
+    content, err = fs.read_all(file)
+    if err != nil {
+        return "", err  // file is closed by defer
+    }
+
+    return content, nil  // file is closed by defer
+}
+\end{lstlisting}
+
+\subsection{Errdefer}
+
+The \keyword{errdefer} statement runs cleanup only when the enclosing scope exits via a panic (from \code{?} or explicit \code{panic}). If the scope exits normally, the errdefer does not run.
+
+\begin{lstlisting}
+fn setup_resources() {
+    db = connect_database()?
+    errdefer db.close()  // Only closes if a later ? panics
+
+    cache = connect_cache()?
+    errdefer cache.close()  // Only closes if a later ? panics
+
+    // If migrate fails, both db and cache are closed
+    migrate(db)?
+    start_server(db, cache)
+    // If we get here, errdefers do NOT run -- resources stay open
+}
+\end{lstlisting}
+
 \section{Error Checking Patterns}
 
 \subsection{Guard Pattern}
@@ -146,27 +289,6 @@ fn process(input: string) -> (Output, Error?) {
 }
 \end{lstlisting}
 
-\subsection{Defer for Cleanup}
-
-Use \keyword{defer} to ensure cleanup happens even on error:
-
-\begin{lstlisting}
-fn with_file(path: string) -> (string, Error?) {
-    file, err = fs.open(path)
-    if err != nil {
-        return "", err
-    }
-    defer fs.close(file)  // Always closes, even on error
-
-    content, err = fs.read_all(file)
-    if err != nil {
-        return "", err  // file is closed by defer
-    }
-
-    return content, nil  // file is closed by defer
-}
-\end{lstlisting}
-
 \section{Error Utilities}
 
 \subsection{Checking Error Types}
@@ -177,13 +299,6 @@ fn is_not_found(err: Error?) -> bool {
         return false
     }
     return err.code == 404 or string.contains(err.message, "not found")
-}
-
-fn is_permission_denied(err: Error?) -> bool {
-    if err == nil {
-        return false
-    }
-    return err.code == 403
 }
 \end{lstlisting}
 
@@ -199,16 +314,6 @@ fn root_cause(err: Error?) -> Error? {
         current = current.source
     }
     return current
-}
-
-fn error_chain(err: Error?) -> []Error {
-    errors = []
-    current = err
-    while current != nil {
-        errors = array.push(errors, current)
-        current = current.source
-    }
-    return errors
 }
 \end{lstlisting}
 
@@ -228,29 +333,7 @@ fn get_user(id: int) -> (User, Error?) {
 }
 \end{lstlisting}
 
-\subsection{Converting Between Options and Errors}
-
-\begin{lstlisting}
-// Option to error
-fn require_user(id: int) -> (User, Error?) {
-    user = find_user(id)
-    if user == nil {
-        return User{}, Error{message: "user not found", code: 404}
-    }
-    return user, nil
-}
-
-// Error to option (ignoring error)
-fn try_parse_int(s: string) -> int? {
-    result, err = parse_int(s)
-    if err != nil {
-        return nil
-    }
-    return result
-}
-\end{lstlisting}
-
-\section{Panic and Recovery}
+\section{Panic}
 
 For truly unrecoverable situations, use \code{panic}:
 
@@ -260,127 +343,43 @@ fn assert(condition: bool, message: string) {
         panic(message)
     }
 }
-
-fn unwrap<T>(opt: T?, message: string) -> T {
-    if opt == nil {
-        panic(message)
-    }
-    return opt
-}
 \end{lstlisting}
 
 \begin{warning}
-\code{panic} terminates the program. Use it only for programming errors, not for expected failure conditions. Prefer returning errors for all recoverable situations.
+\code{panic} crashes the program unless caught by \keyword{try}/\keyword{catch}. Use it only for programming errors and invariant violations. Prefer returning errors for all expected failure conditions.
 \end{warning}
-
-\subsection{When to Use Panic}
-
-\begin{itemize}
-    \item Programming bugs (assertions)
-    \item Invariant violations
-    \item Unrecoverable initialization failures
-    \item Unreachable code paths
-\end{itemize}
-
-\subsection{When to Use Errors}
-
-\begin{itemize}
-    \item File not found
-    \item Network failures
-    \item Invalid user input
-    \item Resource exhaustion
-    \item Any expected failure condition
-\end{itemize}
 
 \section{Best Practices}
 
-\subsection{Return Errors, Don't Log and Continue}
-
-\begin{lstlisting}
-// Bad: logs and continues with invalid state
-fn process(data: Data) -> Result {
-    result, err = validate(data)
-    if err != nil {
-        log.error("validation failed: " + err.message)
-        // Continues with unvalidated data!
-    }
-    // ...
-}
-
-// Good: returns error to caller
-fn process(data: Data) -> (Result, Error?) {
-    result, err = validate(data)
-    if err != nil {
-        return Result{}, Error{
-            message: "validation failed",
-            source: err
-        }
-    }
-    // ...
-}
-\end{lstlisting}
-
-\subsection{Add Context When Wrapping}
-
-\begin{lstlisting}
-// Bad: just propagates
-if err != nil {
-    return Result{}, err
-}
-
-// Good: adds context
-if err != nil {
-    return Result{}, Error{
-        message: "failed to process user " + to_string(user_id),
-        source: err
-    }
-}
-\end{lstlisting}
-
-\subsection{Handle Errors at the Right Level}
-
-\begin{lstlisting}
-// Low-level: specific error
-fn read_config_file(path: string) -> ([]byte, Error?) {
-    // Returns "file not found" or "permission denied"
-}
-
-// Mid-level: wrapped with context
-fn load_config(path: string) -> (Config, Error?) {
-    data, err = read_config_file(path)
-    if err != nil {
-        return Config{}, Error{
-            message: "could not load config",
-            source: err
-        }
-    }
-    // Parse...
-}
-
-// High-level: user-friendly handling
-fn main() {
-    config, err = load_config("config.json")
-    if err != nil {
-        io.println("Error: " + err.message)
-        // Could show root_cause for debugging
-        os.exit(1)
-    }
-    // Continue...
-}
-\end{lstlisting}
+\begin{itemize}
+    \item \textbf{Return errors, don't log and continue} -- Propagate failures to the caller
+    \item \textbf{Add context when wrapping} -- Use \code{Error\{message: "context", source: err\}}
+    \item \textbf{Handle at the right level} -- Low-level returns specific errors, high-level decides what to do
+    \item \textbf{Use \code{?} for chain-or-fail sequences} -- Cleaner than repeated \code{if err != nil}
+    \item \textbf{Use \keyword{orelse} for optional operations} -- When a default is acceptable
+    \item \textbf{Use \keyword{errdefer} for resource cleanup} -- Pairs allocation with deallocation
+\end{itemize}
 
 \section{Error Handling Grammar}
 
-Error handling uses standard language constructs:
-
 \begin{lstlisting}[language=EBNF]
-error_return = "(" type "," "Error?" ")" ;
+error_return    = "(" type "," "Error?" ")" ;
 
-error_check = "if" identifier "!=" "nil" block ;
+error_check     = "if" identifier "!=" "nil" block ;
 
-error_create = "Error" "{"
-               "message" ":" expression
-               [ "," "code" ":" expression ]
-               [ "," "source" ":" expression ]
-               "}" ;
+error_create    = "Error" "{"
+                  "message" ":" expression
+                  [ "," "code" ":" expression ]
+                  [ "," "source" ":" expression ]
+                  "}" ;
+
+propagate_expr  = expression "?" ;
+
+orelse_expr     = expression "orelse" expression ;
+
+try_stmt        = "try" block "catch" identifier block ;
+
+defer_stmt      = "defer" expression ;
+
+errdefer_stmt   = "errdefer" expression ;
 \end{lstlisting}

@@ -14,7 +14,7 @@ struct Analysis {
 }
 
 agent Analyzer {
-    model: openai
+    provider: openai
     system: "Analyze text and return structured analysis with sentiment, confidence, topics, and summary."
     output: Analysis
 }

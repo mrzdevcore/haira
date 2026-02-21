@@ -17,7 +17,7 @@ provider local {
 }
 
 agent Greeter {
-    model: local
+    provider: local
     system: "You are a friendly greeter. Keep it short."
 }
 
@@ -123,7 +123,7 @@ tool search(query: string) -> [Result] {
 }
 
 agent Researcher {
-    model: anthropic
+    provider: anthropic
     system: "You are a thorough researcher. Always cite sources."
     tools: [search]
     temperature: 0.2
@@ -164,7 +164,7 @@ Agents support streaming responses and session-based memory for chatbot use case
 
 \begin{lstlisting}
 agent Assistant {
-    model: anthropic
+    provider: anthropic
     system: "You are a helpful assistant."
     memory: conversation(max_turns: 50)
 }
@@ -324,20 +324,20 @@ tool search(query: string) -> [string] {
 }
 
 agent Researcher {
-    model: anthropic
+    provider: anthropic
     system: "You are a thorough researcher."
     tools: [search]
     temperature: 0.2
 }
 
 agent Writer {
-    model: anthropic
+    provider: anthropic
     system: "You are a clear technical writer."
     temperature: 0.7
 }
 
 agent Reviewer {
-    model: anthropic
+    provider: anthropic
     system: "You are a critical but constructive editor."
     temperature: 0.1
 }

@@ -25,7 +25,7 @@ tool get_weather(city: string) -> string {
 }
 
 agent Assistant {
-    model: azure_openai
+    provider: azure_openai
     system: "You are a helpful assistant. Be concise."
     tools: [get_weather]
     memory: conversation(max_turns: 10)

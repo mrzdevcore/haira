@@ -85,6 +85,7 @@ func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection 
 		panic(fmt.Sprintf("pgvector extension: %v", err))
 	}
 
+	qname := QuoteIdentifier(name)
 	createSQL := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			id SERIAL PRIMARY KEY,
@@ -93,15 +94,15 @@ func VectorNewCollection(db *DB, name string, dimensions int) *VectorCollection 
 			metadata JSONB DEFAULT '{}',
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		)
-	`, name, dimensions)
+	`, qname, dimensions)
 	_, err = db.conn.Exec(createSQL)
 	if err != nil {
 		panic(fmt.Sprintf("create collection %q: %v", name, err))
 	}
 
 	indexSQL := fmt.Sprintf(
-		"CREATE INDEX IF NOT EXISTS %s_embedding_idx ON %s USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)",
-		name, name,
+		"CREATE INDEX IF NOT EXISTS %s ON %s USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)",
+		QuoteIdentifier(name+"_embedding_idx"), qname,
 	)
 	db.conn.Exec(indexSQL)
 
@@ -132,7 +133,7 @@ func VectorInsert(coll *VectorCollection, params map[string]any) {
 
 	insertSQL := fmt.Sprintf(
 		"INSERT INTO %s (content, embedding, metadata) VALUES ($1, $2::vector, $3::jsonb)",
-		coll.Table,
+		QuoteIdentifier(coll.Table),
 	)
 	_, err := coll.DB.conn.Exec(insertSQL, content, embeddingStr, metadataJSON)
 	if err != nil {
@@ -167,7 +168,7 @@ func VectorSearch(coll *VectorCollection, params map[string]any) []map[string]an
 
 	searchSQL := fmt.Sprintf(
 		"SELECT content, metadata, embedding <=> $1::vector AS distance FROM %s%s ORDER BY distance LIMIT $2",
-		coll.Table, filter,
+		QuoteIdentifier(coll.Table), filter,
 	)
 
 	rows, err := coll.DB.conn.Query(searchSQL, queryStr, limit)

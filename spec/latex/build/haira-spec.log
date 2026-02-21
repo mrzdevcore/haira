@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.11.7)  21 FEB 2026 13:39
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025/Homebrew) (preloaded format=pdflatex 2025.11.7)  21 FEB 2026 14:47
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1153,17 +1153,8 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [6]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[7]
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 2
-60.
+04.
 
 (/opt/homebrew/Cellar/texlive/20250308_2/share/texmf-dist/tex/latex/lm/t1lmtt.f
 d
@@ -1174,6 +1165,15 @@ Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
 
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 13.59999pt, for example:
+(fancyhdr)                \setlength{\headheight}{13.59999pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
+
+[7]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1866,6 +1866,12 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [82]
+LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <14.4> not available
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 125.
+
+Underfull \vbox (badness 4927) has occurred while \output is active []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1986,9 +1992,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [97]
-Underfull \vbox (badness 1596) has occurred while \output is active []
-
-
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1997,10 +2000,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[98]
-Underfull \vbox (badness 1540) has occurred while \output is active []
-
-
+[98]) (./chapters/09-modules.tex
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2009,7 +2009,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[99]) (./chapters/09-modules.tex
+[99]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2018,13 +2018,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[100]
+[100
+
+]
 Chapter 9.
 
 
-[101
-
-]
+[101]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2207,7 +2207,11 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[122]) (./chapters/12-tools.tex
+[122]
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2216,7 +2220,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[123]
+[123]) (./chapters/12-tools.tex
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2225,9 +2229,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[124
-
-]
+[124]
 Chapter 12.
 
 Overfull \hbox (16.41275pt too wide) in paragraph at lines 43--44
@@ -2237,7 +2239,9 @@ Overfull \hbox (16.41275pt too wide) in paragraph at lines 43--44
 
 
 
-[125]
+[125
+
+]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2280,13 +2284,10 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [130]
-Overfull \hbox (4.86914pt too wide) in paragraph at lines 115--116
+Overfull \hbox (4.86914pt too wide) in paragraph at lines 117--118
 []\T1/lmr/bx/n/10.95 (-20) Signature: \T1/lmtt/m/n/10.95 .stream(prompt: string
 , session: string?) -> stream<string> 
  []
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
@@ -2471,7 +2472,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[150]) (./chapters/15-chatbot-patterns.tex
+[150])
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2492,28 +2493,16 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 [152
 
 ]
-Chapter 15.
-
 
 [153]
 
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[154]
+[154] (./chapters/17-grammar.tex
+Chapter 15.
 
 
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
+[155
 
-[155]
+]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2540,7 +2529,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[158]) (./chapters/16-generative-ui.tex
+[158]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2558,15 +2547,19 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[160
+[160]
 
-]
-Chapter 16.
-LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <14.4> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 33.
 
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 13.59999pt, for example:
+(fancyhdr)                \setlength{\headheight}{13.59999pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [161]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2585,6 +2578,9 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [163]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2602,19 +2598,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[165]
-Overfull \hbox (3.04361pt too wide) in paragraph at lines 298--299
-\T1/lmtt/m/n/10.95 handle_approval] confirm=Yes, push it; comment=Looks good"\T
-1/lmr/m/n/10.95 (-20) , which the agent can
- []
-
-
-LaTeX Warning: `h' float specifier changed to `ht'.
-
-
-Underfull \vbox (badness 2393) has occurred while \output is active []
-
-
+[165]) (./chapters/18-compiler-architecture.tex
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2624,29 +2608,12 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [166]
-Overfull \hbox (3.0774pt too wide) in paragraph at lines 341--342
-\T1/lmr/m/n/10.95 (-20) When a tool has an \T1/lmtt/m/n/10.95 @render \T1/lmr/m
-/n/10.95 (-20) dec-o-ra-tor, the run-time emits \T1/lmtt/m/n/10.95 tool_render 
-\T1/lmr/m/n/10.95 (-20) be-tween \T1/lmtt/m/n/10.95 tool_start
- []
+Chapter 16.
 
 
+[167
 
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[167]
-Overfull \hbox (9.81058pt too wide) in paragraph at lines 403--404
-[]\T1/lmr/m/n/10.95 (-20) When the agent calls \T1/lmtt/m/n/10.95 validate\T1/l
-mr/m/n/10.95 (-20) , the user sees a sta-tus card. When it calls \T1/lmtt/m/n/1
-0.95 push_to_gitlab\T1/lmr/m/n/10.95 (-20) ,
- []
-
-
+]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2656,6 +2623,14 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [168]
+Underfull \hbox (badness 10000) in paragraph at lines 96--97
+
+ []
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2683,7 +2658,12 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [171]
-Underfull \vbox (badness 5403) has occurred while \output is active []
+
+LaTeX Font Warning: Font shape `T1/lmr/bx/sc' undefined
+(Font)              using `T1/lmr/bx/n' instead on input line 285.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
@@ -2695,11 +2675,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [172]
-Overfull \hbox (41.613pt too wide) in paragraph at lines 657--658
-[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][]  
- []
-
-
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2709,6 +2684,20 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [173]
+Overfull \hbox (35.34242pt too wide) in paragraph at lines 363--364
+[]\T1/lmr/bx/n/10.95 (-20) HTTP server \T1/lmr/m/n/10.95 (-20) --- Built on Go'
+s \T1/lmtt/m/n/10.95 net/http\T1/lmr/m/n/10.95 (-20) . Han-dles \T1/lmtt/m/n/10
+.95 @webhook \T1/lmr/m/n/10.95 (-20) (POST/GET/PUT/DELETE)
+ []
+
+
+Overfull \hbox (19.2715pt too wide) in paragraph at lines 365--366
+[]\T1/lmr/bx/n/10.95 (-20) Event bus \T1/lmr/m/n/10.95 (-20) --- In-process eve
+nt dis-patch for \T1/lmtt/m/n/10.95 @event\T1/lmr/m/n/10.95 (-20) -triggered wo
+rk-flows via \T1/lmtt/m/n/10.95 haira.emit()\T1/lmr/m/n/10.95 (-20) . 
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2718,14 +2707,8 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [174]
-Overfull \hbox (2.71281pt too wide) in paragraph at lines 753--754
-[][][][][]  
- []
 
-
-Overfull \hbox (10.11269pt too wide) in paragraph at lines 755--756
-[][] 
- []
+LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
@@ -2737,14 +2720,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [175]
-Overfull \hbox (7.42863pt too wide) in paragraph at lines 837--838
-\T1/lmtt/m/n/10.95 "..." } \T1/lmr/m/n/10.95 (-20) --- the con-ven-tion is \T1/
-lmtt/m/n/10.95 haira-{name} \T1/lmr/m/n/10.95 (-20) (e.g., \T1/lmtt/m/n/10.95 h
-aira-gantt-chart \T1/lmr/m/n/10.95 (-20) for \T1/lmtt/m/n/10.95 gantt-chart.ts\
-T1/lmr/m/n/10.95 (-20) ),
- []
-
-
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2753,7 +2728,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[176]
+[176]) (./chapters/15-chatbot-patterns.tex
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2771,22 +2746,11 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[178]
-Overfull \hbox (41.613pt too wide) in paragraph at lines 997--998
-[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][]  
- []
+[178
 
+]
+Appendix A.
 
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [179]
 
@@ -2816,16 +2780,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [182]
-Underfull \hbox (badness 10000) in paragraph at lines 1192--1193
-[]\T1/lmtt/m/n/10.95 {"tool": "name", "component":
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 1195--1196
-[]\T1/lmtt/m/n/10.95 {"name": "...", "status":
- []
-
-
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2843,10 +2797,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[184]
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-
+[184]) (./chapters/16-generative-ui.tex
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2855,7 +2806,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[185])
+[185]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2864,19 +2815,31 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[186]
-
-[187
+[186
 
 ]
-
-[188] (./chapters/17-grammar.tex
-Chapter 17.
+Appendix B.
 
 
-[189
+[187]
 
-]
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 13.59999pt, for example:
+(fancyhdr)                \setlength{\headheight}{13.59999pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
+
+[188]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 13.59999pt, for example:
+(fancyhdr)                \setlength{\headheight}{13.59999pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
+
+[189]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2895,6 +2858,18 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [191]
+Overfull \hbox (3.04361pt too wide) in paragraph at lines 298--299
+\T1/lmtt/m/n/10.95 handle_approval] confirm=Yes, push it; comment=Looks good"\T
+1/lmr/m/n/10.95 (-20) , which the agent can
+ []
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+
+Underfull \vbox (badness 2393) has occurred while \output is active []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2904,6 +2879,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [192]
+Overfull \hbox (3.0774pt too wide) in paragraph at lines 341--342
+\T1/lmr/m/n/10.95 (-20) When a tool has an \T1/lmtt/m/n/10.95 @render \T1/lmr/m
+/n/10.95 (-20) dec-o-ra-tor, the run-time emits \T1/lmtt/m/n/10.95 tool_render 
+\T1/lmr/m/n/10.95 (-20) be-tween \T1/lmtt/m/n/10.95 tool_start
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2913,6 +2895,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [193]
+Overfull \hbox (9.81058pt too wide) in paragraph at lines 403--404
+[]\T1/lmr/m/n/10.95 (-20) When the agent calls \T1/lmtt/m/n/10.95 validate\T1/l
+mr/m/n/10.95 (-20) , the user sees a sta-tus card. When it calls \T1/lmtt/m/n/1
+0.95 push_to_gitlab\T1/lmr/m/n/10.95 (-20) ,
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2931,9 +2920,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [195]
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2952,7 +2938,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [197]
-Underfull \vbox (badness 10000) has occurred while \output is active []
+Underfull \vbox (badness 5403) has occurred while \output is active []
 
 
 
@@ -2964,6 +2950,11 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [198]
+Overfull \hbox (41.613pt too wide) in paragraph at lines 657--658
+[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][]  
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2972,7 +2963,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[199]) (./chapters/18-compiler-architecture.tex
+[199]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -2982,12 +2973,33 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [200]
-Chapter 18.
+Overfull \hbox (2.71281pt too wide) in paragraph at lines 753--754
+[][][][][]  
+ []
 
 
-[201
+Overfull \hbox (10.11269pt too wide) in paragraph at lines 755--756
+[][] 
+ []
 
-]
+
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 13.59999pt, for example:
+(fancyhdr)                \setlength{\headheight}{13.59999pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
+
+[201]
+Overfull \hbox (7.42863pt too wide) in paragraph at lines 837--838
+\T1/lmtt/m/n/10.95 "..." } \T1/lmr/m/n/10.95 (-20) --- the con-ven-tion is \T1/
+lmtt/m/n/10.95 haira-{name} \T1/lmr/m/n/10.95 (-20) (e.g., \T1/lmtt/m/n/10.95 h
+aira-gantt-chart \T1/lmr/m/n/10.95 (-20) for \T1/lmtt/m/n/10.95 gantt-chart.ts\
+T1/lmr/m/n/10.95 (-20) ),
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -3015,9 +3027,12 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [204]
-Overfull \hbox (29.01288pt too wide) in paragraph at lines 255--256
-[][][][][][][][][][][][][][][][][][][][][][][][][][][][][]  
+Overfull \hbox (41.613pt too wide) in paragraph at lines 997--998
+[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][]  
  []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 
@@ -3047,11 +3062,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [207]
-Overfull \hbox (47.91307pt too wide) in paragraph at lines 367--368
-[][][][][][][][][][][][][][][][][][][][][][][][][][][][]  
- []
-
-
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -3061,6 +3071,16 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [208]
+Underfull \hbox (badness 10000) in paragraph at lines 1192--1193
+[]\T1/lmtt/m/n/10.95 {"tool": "name", "component":
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 1195--1196
+[]\T1/lmtt/m/n/10.95 {"name": "...", "status":
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -3079,6 +3099,9 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [210]
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -3087,7 +3110,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[211]
+[211])
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -3097,20 +3120,12 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [212]
-
-LaTeX Font Warning: Font shape `T1/lmr/bx/sc' undefined
-(Font)              using `T1/lmr/bx/n' instead on input line 648.
+Appendix C.
 
 
+[213
 
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[213]
+]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -3119,14 +3134,11 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[214]
+[214
 
+]
+Appendix D.
 
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [215]
 
@@ -3137,121 +3149,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[216]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[217]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[218]
-Overfull \hbox (4.71901pt too wide) in paragraph at lines 984--985
-[]\T1/lmr/bx/n/10.95 (-20) Local back-ends \T1/lmr/m/n/10.95 (-20) --- Man-ages
- con-nec-tions to lo-cal in-fer-ence servers (Ol-lama, llama.cpp). 
- []
-
-
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[219]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[220]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[221]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[222]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[223])
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[224]
-Appendix A.
-
-
-[225
+[216
 
 ]
+Appendix E.
 
 
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[226
-
-]
-Appendix B.
-
-
-[227]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[228
-
-]
-Appendix C.
-
-
-[229] (build/haira-spec.aux)
+[217] (build/haira-spec.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
@@ -3260,20 +3164,17 @@ L3 programming layer <2025-01-18>
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
 Package rerunfilecheck Info: File `haira-spec.out' has not changed.
-(rerunfilecheck)             Checksum: 222003DBDDCAD79A346C558CC7AF7EDB;75118.
+(rerunfilecheck)             Checksum: 2E16B008E79F27A5EA7D4527C92462B0;72032.
  ) 
 Here is how much of TeX's memory you used:
- 39253 strings out of 473190
- 722203 string characters out of 5704335
- 1418718 words of memory out of 5000000
- 54814 multiletter control sequences out of 15000+600000
- 634216 words of font info for 185 fonts, out of 8000000 for 9000
+ 38238 strings out of 473190
+ 705289 string characters out of 5704335
+ 1418715 words of memory out of 5000000
+ 54483 multiletter control sequences out of 15000+600000
+ 634238 words of font info for 186 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 116i,12n,121p,1007b,2057s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 116i,12n,121p,1007b,2054s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </opt/homebrew/Cellar/texlive/20250308_2/share/texmf-dist/fonts/type1/public/
 lm/lmbx10.pfb></opt/homebrew/Cellar/texlive/20250308_2/share/texmf-dist/fonts/t
 ype1/public/lm/lmbx12.pfb></opt/homebrew/Cellar/texlive/20250308_2/share/texmf-
@@ -3288,10 +3189,10 @@ ype1/public/lm/lmsy10.pfb></opt/homebrew/Cellar/texlive/20250308_2/share/texmf-
 dist/fonts/type1/public/lm/lmtk10.pfb></opt/homebrew/Cellar/texlive/20250308_2/
 share/texmf-dist/fonts/type1/public/lm/lmtt10.pfb></opt/homebrew/Cellar/texlive
 /20250308_2/share/texmf-dist/fonts/type1/public/lm/lmtti10.pfb>
-Output written on build/haira-spec.pdf (229 pages, 1293348 bytes).
+Output written on build/haira-spec.pdf (217 pages, 1213097 bytes).
 PDF statistics:
- 11333 PDF objects out of 12825 (max. 8388607)
- 10966 compressed objects within 110 object streams
- 6971 named destinations out of 7423 (max. 500000)
- 48621 words of extra memory for PDF output out of 51595 (max. 10000000)
+ 10410 PDF objects out of 10688 (max. 8388607)
+ 10064 compressed objects within 101 object streams
+ 6285 named destinations out of 7423 (max. 500000)
+ 48517 words of extra memory for PDF output out of 51595 (max. 10000000)
 

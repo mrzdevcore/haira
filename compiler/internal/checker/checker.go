@@ -44,6 +44,7 @@ type checker struct {
 	file      string
 	inMethod  bool            // true when checking a method body (self is protected)
 	inTest    bool            // true when checking a test body (assert is allowed)
+	inTry     bool            // true when inside a try block (? is safe)
 	returnTy  Type            // expected return type for current function/workflow/tool (nil = not set)
 	agents    map[string]bool // registered agent names
 	providers map[string]bool // registered provider names
@@ -201,9 +202,9 @@ var validProviderFields = map[string]bool{
 }
 
 var validAgentFields = map[string]bool{
-	"model": true, "system": true, "tools": true, "handoffs": true,
+	"provider": true, "system": true, "tools": true, "handoffs": true,
 	"mcp": true, "temperature": true, "max_tokens": true, "max_steps": true,
-	"memory": true, "output": true, "ui": true,
+	"memory": true, "output": true, "ui": true, "timeout": true,
 }
 
 var validUIComponents = map[string]bool{
@@ -224,18 +225,18 @@ func (c *checker) checkProviderFields(provider ast.ProviderDecl) {
 }
 
 func (c *checker) checkAgentFields(agent ast.AgentDecl) {
-	hasModel := false
+	hasProvider := false
 	for _, field := range agent.Fields {
 		if !validAgentFields[field.Key.Node] {
 			c.addWarning(
 				fmt.Sprintf("unknown agent field %q", field.Key.Node),
 				field.Key.Span,
-				"valid fields: model, system, tools, handoffs, ui, mcp, temperature, max_tokens, max_steps, memory, output",
+				"valid fields: provider, system, tools, handoffs, ui, mcp, temperature, max_tokens, max_steps, memory, output, timeout",
 			)
 		}
-		if field.Key.Node == "model" {
-			hasModel = true
-			// Verify model references a known provider
+		if field.Key.Node == "provider" {
+			hasProvider = true
+			// Verify provider references a known provider declaration
 			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
 				if !c.providers[ident.Name] {
 					c.addError(
@@ -294,10 +295,9 @@ func (c *checker) checkAgentFields(agent ast.AgentDecl) {
 				for _, item := range list.Elems {
 					if ident, ok := item.Node.(ast.IdentExpr); ok {
 						if !c.agents[ident.Name] {
-							c.addWarning(
-								fmt.Sprintf("agent %q handoff target %q not yet declared", agent.Name.Node, ident.Name),
+							c.addError(
+								fmt.Sprintf("agent %q handoff target %q is not declared", agent.Name.Node, ident.Name),
 								item.Span,
-								"ensure the agent is declared in this file",
 							)
 						}
 					}
@@ -305,9 +305,9 @@ func (c *checker) checkAgentFields(agent ast.AgentDecl) {
 			}
 		}
 	}
-	if !hasModel {
+	if !hasProvider {
 		c.addError(
-			fmt.Sprintf("agent %q is missing required field 'model'", agent.Name.Node),
+			fmt.Sprintf("agent %q is missing required field 'provider'", agent.Name.Node),
 			agent.Name.Span,
 		)
 	}
@@ -579,7 +579,10 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 		}
 
 	case ast.TryStmt:
+		savedTry := c.inTry
+		c.inTry = true
 		c.checkBlock(s.Body)
+		c.inTry = savedTry
 		env := c.env.Child()
 		env.DefineVar(s.ErrorName.Node, StringType{})
 		saved := c.env
@@ -817,6 +820,13 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 
 	case ast.PropagateExpr:
 		ty = c.inferExpr(e.Inner)
+		if !c.inTry {
+			c.addWarning(
+				"'?' operator used outside a try block -- will panic on error",
+				expr.Span,
+				"wrap in try { ... } catch err { ... } to handle the error, or use 'result, err = call()' pattern",
+			)
+		}
 
 	case ast.OrelseExpr:
 		c.inferExpr(e.Left)

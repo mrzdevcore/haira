@@ -17,7 +17,7 @@ provider anthropic {
 }
 
 agent Assistant {
-    model: anthropic
+    provider: anthropic
     system: "You are a helpful assistant."
     memory: conversation(max_turns: 50)
     temperature: 0.7
@@ -79,7 +79,7 @@ Expose the same agent over both REST (for simple integrations) and WebSocket (fo
 
 \begin{lstlisting}
 agent Assistant {
-    model: anthropic
+    provider: anthropic
     system: "You are a helpful assistant."
     memory: conversation(max_turns: 50)
 }
@@ -144,7 +144,7 @@ tool create_ticket(subject: string, body: string, priority: string = "normal") -
 }
 
 agent SupportBot {
-    model: anthropic
+    provider: anthropic
     system: """
         You are a customer support agent for Acme Corp.
         Use the knowledge base to answer questions.
@@ -171,7 +171,7 @@ Route user messages to specialized agents based on intent:
 
 \begin{lstlisting}
 agent Router {
-    model: anthropic
+    provider: anthropic
     system: """
         Classify the user message into one category: billing, technical, general.
         Reply with just the category name, nothing else.
@@ -180,21 +180,21 @@ agent Router {
 }
 
 agent BillingAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle billing questions. You can look up invoices and process refunds."
     tools: [lookup_invoice, process_refund]
     memory: conversation(max_turns: 30)
 }
 
 agent TechAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle technical support. You can search docs and check system status."
     tools: [search_docs, check_status]
     memory: conversation(max_turns: 30)
 }
 
 agent GeneralAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle general inquiries."
     memory: conversation(max_turns: 30)
 }
@@ -217,7 +217,7 @@ For complex support bots, use handoffs instead of explicit routing. The front de
 
 \begin{lstlisting}
 agent FrontDesk {
-    model: anthropic
+    provider: anthropic
     system: """
         You are a front desk agent. Greet users and help with general questions.
         If they have a billing question, hand off to BillingAgent.
@@ -228,14 +228,14 @@ agent FrontDesk {
 }
 
 agent BillingAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle billing questions. You can look up invoices and process refunds."
     tools: [lookup_invoice, process_refund]
     memory: conversation(max_turns: 30)
 }
 
 agent TechAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle technical support. You can search docs and check system status."
     tools: [search_docs, check_status]
     memory: conversation(max_turns: 30)
@@ -274,7 +274,7 @@ struct Action {
 }
 
 agent UIAssistant {
-    model: anthropic
+    provider: anthropic
     system: """
         You are a UI assistant. When answering, also suggest UI actions.
         For example, if the user asks about their order, suggest navigating

@@ -386,7 +386,7 @@ Agents do not need any changes to use generative UI. The \code{@render} decorato
 
 \begin{lstlisting}
 agent Maltimize {
-    model: azure_openai
+    provider: azure_openai
     system: "You help deploy Excel configs to PostgreSQL."
     tools: [
         read_excel,           // no @render -- text result
@@ -492,7 +492,7 @@ tool dry_run(file_path: string) -> StatusCard {
 // --- Agent ---
 
 agent ConfigAssistant {
-    model: azure_openai
+    provider: azure_openai
     system: "You deploy Excel configs to PostgreSQL via GitLab."
     tools: [read_config, dry_run, push_to_gitlab]
     memory: conversation(max_turns: 20)

@@ -3078,6 +3078,10 @@ func (p *Parser) parseIdentifier() (ast.Spanned[string], bool) {
 		span := p.currentSpan()
 		p.advance()
 		return ast.Spanned[string]{Node: "agent", Span: span}, true
+	case token.Provider:
+		span := p.currentSpan()
+		p.advance()
+		return ast.Spanned[string]{Node: "provider", Span: span}, true
 	default:
 		p.addError("expected identifier, found "+tok.Kind.String(), ast.Span{Start: tok.Start, End: tok.End})
 		return ast.Spanned[string]{}, false

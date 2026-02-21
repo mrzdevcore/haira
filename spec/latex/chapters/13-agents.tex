@@ -1,16 +1,17 @@
 \chapter{Agents}
 \label{ch:agents}
 
-Agents are LLM-powered entities. They have a model, a system prompt, optional tools, and optional memory. Agents are the primary way to interact with language models in \haira{}.
+Agents are LLM-powered entities. They have a provider, a system prompt, optional tools, and optional memory. Agents are the primary way to interact with language models in \haira{}.
 
 \section{Agent Declaration}
 
 \begin{lstlisting}
 agent AgentName {
-    model: provider_name
+    provider: provider_name
     system: "System prompt describing the agent's behavior."
     tools: [tool1, tool2]
     temperature: 0.5
+    timeout: 60
     memory: conversation(max_turns: 50)
 }
 \end{lstlisting}
@@ -23,7 +24,7 @@ agent AgentName {
 \toprule
 \textbf{Field} & \textbf{Type} & \textbf{Required} & \textbf{Description} \\
 \midrule
-\code{model} & identifier & Yes & Provider to use \\
+\code{provider} & identifier & Yes & Provider to use \\
 \code{system} & \type{string} & Yes & System prompt \\
 \code{tools} & \type{[tool]} & No & List of tools the agent can call \\
 \code{temperature} & \type{float} & No & Sampling temperature (0.0--2.0) \\
@@ -31,6 +32,7 @@ agent AgentName {
 \code{max\_steps} & \type{int} & No & Max tool-calling iterations \\
 \code{memory} & memory type & No & Memory configuration (default: \code{none}) \\
 \code{handoffs} & \type{[agent]} & No & Agents this agent can delegate to \\
+\code{timeout} & \type{int} & No & Timeout in seconds (default: 120) \\
 \bottomrule
 \end{tabular}
 \caption{Agent fields}
@@ -42,7 +44,7 @@ For longer system prompts, use triple-quoted strings:
 
 \begin{lstlisting}
 agent SupportBot {
-    model: anthropic
+    provider: anthropic
     system: """
         You are a customer support agent for Acme Corp.
         Use the knowledge base to answer questions.
@@ -124,7 +126,7 @@ By default, agents are stateless --- each call is independent. Adding memory ena
 
 \begin{lstlisting}
 agent Classifier {
-    model: local
+    provider: local
     system: "Classify inputs into categories."
 }
 
@@ -139,7 +141,7 @@ Keeps the last N turns of chat history:
 
 \begin{lstlisting}
 agent Assistant {
-    model: anthropic
+    provider: anthropic
     system: "You are a helpful assistant."
     memory: conversation(max_turns: 50)
 }
@@ -151,9 +153,9 @@ Summarizes older messages to stay within a token budget. Useful for long-running
 
 \begin{lstlisting}
 agent ProjectHelper {
-    model: anthropic
+    provider: anthropic
     system: "You help with long-running software projects."
-    memory: summary(max_tokens: 2000)
+    memory: conversation(max_turns: 50)
 }
 \end{lstlisting}
 
@@ -167,7 +169,6 @@ agent ProjectHelper {
 \midrule
 \code{none} & --- & Stateless (default) \\
 \code{conversation(max\_turns: N)} & N: int & Keeps last N message pairs \\
-\code{summary(max\_tokens: N)} & N: int & Summarizes to fit within N tokens \\
 \bottomrule
 \end{tabular}
 \caption{Built-in memory types}
@@ -215,7 +216,7 @@ Use the \code{handoffs} field to list agents that this agent can delegate to:
 
 \begin{lstlisting}
 agent FrontDesk {
-    model: anthropic
+    provider: anthropic
     system: """
         You are a front desk agent. Greet users and help them.
         If they have a billing question, hand off to BillingAgent.
@@ -226,14 +227,14 @@ agent FrontDesk {
 }
 
 agent BillingAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle billing questions. You can look up invoices and process refunds."
     tools: [lookup_invoice, process_refund]
     memory: conversation(max_turns: 30)
 }
 
 agent TechAgent {
-    model: anthropic
+    provider: anthropic
     system: "You handle technical support. You can search docs and check system status."
     tools: [search_docs, check_status]
     memory: conversation(max_turns: 30)
@@ -292,20 +293,20 @@ Target agents can themselves have handoffs, creating delegation chains. The runt
 
 \begin{lstlisting}
 agent L1Support {
-    model: anthropic
+    provider: anthropic
     system: "You handle basic support. Escalate complex issues to L2."
     handoffs: [L2Support]
 }
 
 agent L2Support {
-    model: anthropic
+    provider: anthropic
     system: "You handle complex technical issues. Escalate critical outages to L3."
     tools: [search_docs, check_status]
     handoffs: [L3Support]
 }
 
 agent L3Support {
-    model: anthropic
+    provider: anthropic
     system: "You handle critical outages. You have full system access."
     tools: [search_docs, check_status, restart_service, page_oncall]
 }
@@ -334,7 +335,7 @@ The \code{max\_steps} field limits how many tool-calling iterations are allowed:
 
 \begin{lstlisting}
 agent Researcher {
-    model: anthropic
+    provider: anthropic
     system: "You are a thorough researcher."
     tools: [search, read_url]
     max_steps: 10      // at most 10 tool calls per request
@@ -368,7 +369,7 @@ Common error cases:
 
 \begin{lstlisting}
 agent Classifier {
-    model: local
+    provider: local
     system: "Classify the input as: positive, negative, or neutral. Reply with just the label."
     temperature: 0.0
 }
@@ -383,7 +384,7 @@ fn main() {
 
 \begin{lstlisting}
 agent Researcher {
-    model: anthropic
+    provider: anthropic
     system: "You are a thorough researcher. Always cite your sources."
     tools: [search, read_url]
     temperature: 0.2
@@ -404,7 +405,7 @@ fn main() {
 
 \begin{lstlisting}
 agent Tutor {
-    model: anthropic
+    provider: anthropic
     system: "You are a patient math tutor. Explain concepts step by step."
     memory: conversation(max_turns: 30)
     temperature: 0.5

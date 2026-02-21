@@ -48,24 +48,6 @@ fn main() {
 }
 \end{lstlisting}
 
-\subsection{Spawn Returns Handle}
-
-\begin{lstlisting}
-fn compute() -> int {
-    time.sleep(1000)
-    return 42
-}
-
-fn main() {
-    handle = spawn compute()
-
-    // Do other work...
-
-    result = await handle  // Wait for result
-    io.println("Result: " + to_string(result))
-}
-\end{lstlisting}
-
 \section{Channels}
 
 Channels are typed conduits for passing values between tasks:
@@ -414,30 +396,6 @@ fn main() {
 \end{lstlisting}
 
 \section{Channel Types}
-
-\subsection{Directional Channels}
-
-Functions can restrict channel direction:
-
-\begin{lstlisting}
-// Send-only channel
-fn producer(out: chan<-int) {
-    out <- 42
-    // <-out  // Error: cannot receive from send-only channel
-}
-
-// Receive-only channel
-fn consumer(in: <-chan<int>) {
-    value = <-in
-    // in <- 42  // Error: cannot send to receive-only channel
-}
-
-fn main() {
-    ch = chan<int>()
-    spawn producer(ch)   // Converts to chan<-int
-    spawn consumer(ch)   // Converts to <-chan<int>
-}
-\end{lstlisting}
 
 \section{Synchronization}
 

@@ -20,7 +20,7 @@ tool greet(name: string) -> string {
 }
 
 agent Assistant {
-    model: azure_openai
+    provider: azure_openai
     system: "You are a helpful assistant with file system access."
     tools: [greet]
     mcp: [filesystem]

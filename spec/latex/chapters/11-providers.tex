@@ -76,12 +76,12 @@ Providers are referenced by name in agent declarations:
 
 \begin{lstlisting}
 agent Writer {
-    model: anthropic         // uses anthropic provider's default model
+    provider: anthropic      // uses anthropic provider
     system: "You are a writer."
 }
 
 agent FastHelper {
-    model: local             // uses local Ollama provider
+    provider: local          // uses local Ollama provider
     system: "You are a fast helper."
 }
 \end{lstlisting}
@@ -104,16 +104,98 @@ provider local {
 
 // Use expensive cloud model for important tasks
 agent Analyst {
-    model: anthropic
+    provider: anthropic
     system: "You analyze data carefully."
 }
 
 // Use cheap local model for simple tasks
 agent Classifier {
-    model: local
+    provider: local
     system: "Classify the input into categories."
 }
 \end{lstlisting}
+
+\section{MCP Providers}
+
+The Model Context Protocol (MCP) enables agents to use tools from external processes. MCP providers spawn a subprocess (or connect via HTTP) and discover its tools automatically.
+
+\subsection{Stdio Transport}
+
+The most common MCP transport. The runtime spawns a subprocess and communicates via JSON-RPC over stdin/stdout:
+
+\begin{lstlisting}
+provider filesystem {
+    transport: "mcp"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+}
+\end{lstlisting}
+
+\subsection{SSE Transport}
+
+For remote MCP servers accessible over HTTP:
+
+\begin{lstlisting}
+provider remote_tools {
+    transport: "sse"
+    endpoint: "http://localhost:9000/sse"
+}
+\end{lstlisting}
+
+\subsection{MCP Provider Fields}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{Required} & \textbf{Description} \\
+\midrule
+\code{transport} & \type{string} & Yes & \code{"mcp"} (stdio) or \code{"sse"} (HTTP) \\
+\code{command} & \type{string} & Stdio only & Executable to spawn \\
+\code{args} & \type{[string]} & No & Command arguments \\
+\code{endpoint} & \type{string} & SSE only & Server URL \\
+\code{env} & \type{map} & No & Environment variables for subprocess \\
+\code{headers} & \type{map} & No & HTTP headers (SSE only) \\
+\bottomrule
+\end{tabular}
+\caption{MCP provider fields}
+\end{table}
+
+\subsection{Using MCP in Agents}
+
+Agents reference MCP providers with the \code{mcp} field. The runtime discovers tools from all listed MCP providers and makes them available alongside regular tools:
+
+\begin{lstlisting}
+agent Assistant {
+    provider: azure_openai
+    system: "You are a helpful assistant with file system access."
+    tools: [greet]              // regular tools
+    mcp: [filesystem]           // MCP tools (auto-discovered)
+    memory: conversation(max_turns: 10)
+}
+\end{lstlisting}
+
+\subsection{MCP Server}
+
+Haira workflows can be exposed as MCP tools for other applications to consume:
+
+\begin{lstlisting}
+import "mcp"
+
+workflow Summarize(text: string) -> { summary: string } {
+    """Summarize the given text into key points."""
+    summary, err = Summarizer.ask(text)
+    if err != nil { return { summary: "Error" } }
+    return { summary: summary }
+}
+
+fn main() {
+    mcp_server = mcp.Server([Summarize])
+    mcp_server.listen(9000)  // SSE on port 9000
+}
+\end{lstlisting}
+
+The \code{mcp.Server} exposes each workflow as an MCP tool. Tool names, descriptions, and input schemas are derived from the workflow declaration. The server supports both SSE (\code{.listen(port)}) and stdio (\code{.serve()}) transports.
 
 \section{Provider Grammar}
 

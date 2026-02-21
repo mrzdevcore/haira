@@ -61,18 +61,6 @@ func Get(obj any, key any) any {
 	return nil
 }
 
-func toInt(v any) int {
-	switch k := v.(type) {
-	case int:
-		return k
-	case float64:
-		return int(k)
-	case string:
-		return -1
-	default:
-		return -1
-	}
-}
 
 // Str converts any value to a string.
 func Str(v any) string {

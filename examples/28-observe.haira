@@ -17,7 +17,7 @@ provider openai {
 }
 
 agent Writer {
-    model: openai
+    provider: openai
     system: "You are a helpful writer. Be concise."
     temperature: 0.7
 }
@@ -28,7 +28,7 @@ tool get_time() -> string {
 }
 
 agent Assistant {
-    model: openai
+    provider: openai
     system: "You are a helpful assistant."
     tools: [get_time]
     memory: conversation(max_turns: 5)

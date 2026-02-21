@@ -1,13 +1,13 @@
 \chapter{Compiler Architecture}
 \label{ch:compiler}
 
-This chapter describes the architecture and implementation of the \haira{} compiler, updated to reflect \haira{}'s identity as an agentic orchestration language.
+This chapter describes the architecture and implementation of the \haira{} compiler.
 
 \section{Overview}
 
-The \haira{} compiler (\code{hairac}) transforms source code into native executables. It is written in Rust and uses Cranelift for code generation. Agentic constructs --- \keyword{provider}, \keyword{tool}, \keyword{agent}, and \keyword{workflow} with \code{@} decorator triggers --- are first-class elements of the compilation pipeline.
+The \haira{} compiler is written in Go and transforms \code{.haira} source files into native binaries by generating Go code and invoking the Go toolchain. Agentic constructs --- \keyword{provider}, \keyword{tool}, \keyword{agent}, and \keyword{workflow} with \code{@} decorator triggers --- are first-class elements of the compilation pipeline.
 
-The compiler pipeline consists of the following stages:
+The compiler pipeline:
 
 \begin{lstlisting}[language={},numbers=none]
 Source (.haira)
@@ -24,622 +24,259 @@ Source (.haira)
        |
        v
    +----------+
-   | Resolver |  --> Resolved AST (imports, symbols, providers)
-   +----------+
-       |
-       v
-   +-------------+
-   | Type Checker|  --> Typed AST (tools, agents, workflows validated)
-   +-------------+
-       |
-       v
-   +----------+
-   | Lowering |  --> HIR (High-level IR)
+   | Resolver |  --> Merged AST (multi-file imports resolved)
    +----------+
        |
        v
    +----------+
-   | Codegen  |  --> Cranelift IR --> Native binary
+   | Checker  |  --> Type info + diagnostics
+   +----------+
+       |
+       v
+   +----------+
+   | Codegen  |  --> Go source code
+   +----------+
+       |
+       v
+   +----------+
+   | go build |  --> Native binary
    +----------+
 \end{lstlisting}
 
+The key design decision: \haira{} compiles \emph{to Go}, not to machine code directly. This means every \haira{} program benefits from Go's battle-tested runtime (goroutines, garbage collector, HTTP stack, TLS) without reimplementing any of it. The generated Go code is readable and can be inspected via \code{haira emit}.
+
 \begin{note}
-There is no ``AI Phase'' in the pipeline. Previous versions of \haira{} included a compile-time AI code generation stage using the \keyword{ai} keyword and a Canonical Intermediate Representation (CIR). These have been removed. \haira{} is now a language for \emph{orchestrating} AI agents at runtime, not for generating code with AI at compile time.
+There is no ``AI Phase'' in the pipeline. All LLM interaction happens at \emph{runtime} through agent method calls. The compiler validates, type-checks, and generates schemas for agentic constructs, then emits runtime library calls.
 \end{note}
 
 \section{Lexer}
 
-The lexer (scanner) converts source text into a stream of tokens.
+The lexer is a hand-written scanner in \code{compiler/internal/lexer/} that converts UTF-8 source text into a stream of tokens.
 
 \subsection{Token Types}
 
-\begin{lstlisting}[language={}]
-enum TokenKind {
-    // Literals
-    IntLit(i64),
-    FloatLit(f64),
-    StringLit(String),
-    TripleQuoteStringLit(String),   // """..."""
-    BoolLit(bool),
+Tokens are defined in \code{compiler/internal/token/}:
 
-    // Identifiers and keywords
-    Ident(String),
-    Keyword(Keyword),
+\begin{lstlisting}[language={},numbers=none]
+// Literals
+Int, Float, String, InterpolatedString, TripleQuoteString
 
-    // Operators
-    Plus, Minus, Star, Slash, Percent,
-    Eq, EqEq, NotEq, Lt, Gt, LtEq, GtEq,
-    And, Or, Not, AndAnd, OrOr, Bang,
-    PlusEq, MinusEq, StarEq, SlashEq,
-    Pipe, DotDot, DotDotEq, Arrow, FatArrow,
-    LeftArrow, Question,
-    At,                              // @ (decorator prefix)
+// Keywords (agentic)
+Provider, Tool, Agent, Workflow
 
-    // Delimiters
-    LParen, RParen, LBracket, RBracket, LBrace, RBrace,
-    Comma, Colon, Dot, Semicolon,
+// Keywords (core)
+Fn, Struct, Enum, Type, Import, Export, From, Pub,
+If, Else, For, While, Match, Return, Break, Continue,
+True, False, None, Some, And, Or, Not, In,
+Spawn, Select, Try, Catch, Defer, Errdefer,
+Step, Test, Assert, Let, Const
 
-    // Special
-    Newline, Eof, Error(String),
-}
+// Keywords (reserved for future)
+Trait, Impl, Async
+
+// Operators
+Plus, Minus, Star, Slash, Percent,
+Eq, EqEq, Ne, Lt, Gt, Le, Ge,
+PlusEq, MinusEq, StarEq, SlashEq, PercentEq,
+Pipe, PipeArrow, Amp, AmpEq, Caret, CaretEq, Tilde,
+Shl, ShlEq, Shr, ShrEq, PipeEq,
+Arrow, FatArrow, DotDot, DotDotEq, Dot, Question, At, Ellipsis
+
+// Delimiters
+LParen, RParen, LBracket, RBracket, LBrace, RBrace, Comma, Colon
 \end{lstlisting}
 
-\subsection{Keywords}
+\subsection{Lexer Features}
 
-The keyword enum includes the four agentic keywords:
-
-\begin{lstlisting}[language={}]
-enum Keyword {
-    // General-purpose keywords
-    And, As, Break, Catch, Chan, Continue, Defer,
-    Else, Enum, False, Fn, For, From, If, Import,
-    In, Match, Nil, Not, Or, Return, Select, Spawn,
-    Struct, True, Try, Type, While,
-
-    // Agentic keywords
-    Agent,
-    Provider,
-    Tool,
-    Workflow,
-}
-\end{lstlisting}
-
-\begin{note}
-The \keyword{ai} keyword from previous versions is no longer part of the language. It is not reserved and may be used as an identifier.
-\end{note}
-
-\subsection{Lexer Implementation}
-
-The lexer is a hand-written scanner that operates on UTF-8 source text:
-
-\begin{lstlisting}[language={}]
-struct Lexer<'a> {
-    source: &'a str,
-    chars: Peekable<CharIndices<'a>>,
-    line: usize,
-    column: usize,
-}
-
-impl<'a> Lexer<'a> {
-    fn next_token(&mut self) -> Token {
-        self.skip_whitespace();
-
-        match self.peek_char() {
-            None => Token::new(TokenKind::Eof, self.span()),
-            Some(c) => match c {
-                '0'..='9' => self.scan_number(),
-                '"' => self.scan_string_or_triple_quote(),
-                'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier(),
-                '@' => self.single_token(TokenKind::At),
-                '+' => self.scan_operator(TokenKind::Plus, TokenKind::PlusEq),
-                // ... other cases
-            }
-        }
-    }
-
-    fn scan_string_or_triple_quote(&mut self) -> Token {
-        if self.match_prefix("\"\"\"") {
-            self.scan_triple_quote_string()
-        } else {
-            self.scan_string()
-        }
-    }
-}
-\end{lstlisting}
-
-The \code{scan\_string\_or\_triple\_quote} method distinguishes between regular strings (\code{"..."}) and triple-quoted strings (\code{"""..."""}) by checking for three consecutive quote characters.
+\begin{itemize}
+    \item \textbf{Numeric literals} --- Decimal, hex (\code{0xFF}), binary (\code{0b1010}), octal (\code{0o77}), with underscores (\code{1\_000\_000})
+    \item \textbf{String interpolation} --- \code{\$\{expr\}} syntax with nested brace tracking
+    \item \textbf{Triple-quoted strings} --- \code{"""..."""} with automatic leading-whitespace dedenting
+    \item \textbf{Nested block comments} --- \code{/* ... /* nested */ ... */}
+    \item \textbf{Escape sequences} --- \code{\\n}, \code{\\t}, \code{\\r}, \code{\\\\}, \code{\\"}, \code{\\\{}, \code{\\\}}
+\end{itemize}
 
 \section{Parser}
 
-The parser constructs an Abstract Syntax Tree (AST) from the token stream using recursive descent with Pratt parsing for expressions.
+The parser in \code{compiler/internal/parser/} uses recursive descent for statements and declarations, combined with Pratt (precedence-climbing) parsing for expressions.
 
 \subsection{AST Nodes}
 
-The core expression and statement nodes remain unchanged from the base language:
+The AST is defined in \code{compiler/internal/ast/} using Go interfaces as sum types. All nodes carry a \code{Span} for error reporting.
 
-\begin{lstlisting}[language={}]
-enum Expr {
-    Literal(Literal),
-    Ident(Ident),
-    Binary(Box<Expr>, BinOp, Box<Expr>),
-    Unary(UnaryOp, Box<Expr>),
-    Call(Box<Expr>, Vec<Expr>),
-    FieldAccess(Box<Expr>, Ident),
-    Index(Box<Expr>, Box<Expr>),
-    If(Box<Expr>, Block, Option<Block>),
-    Match(Box<Expr>, Vec<MatchArm>),
-    Closure(Vec<Param>, Option<Type>, Block),
-    Array(Vec<Expr>),
-    Map(Vec<(Expr, Expr)>),
-    Struct(Ident, Vec<(Ident, Expr)>),
-    Range(Box<Expr>, Box<Expr>, bool),
-    Pipe(Box<Expr>, Box<Expr>),
-}
+\textbf{Top-level declarations:}
 
-enum Stmt {
-    VarDecl(Vec<Ident>, Option<Type>, Vec<Expr>),
-    Assignment(Vec<LValue>, AssignOp, Vec<Expr>),
-    Expr(Expr),
-    If(Expr, Block, Option<Block>),
-    For(Option<Ident>, Ident, Expr, Block),
-    While(Expr, Block),
-    Match(Expr, Vec<MatchArm>),
-    Return(Option<Vec<Expr>>),
-    Break(Option<Ident>),
-    Continue(Option<Ident>),
-    Defer(Box<Stmt>),
-    Spawn(SpawnTarget),
-    Block(Block),
-}
-\end{lstlisting}
+\begin{itemize}
+    \item \code{TypeDef} --- struct with typed fields and optional defaults
+    \item \code{EnumDef} --- enum with variants (optionally carrying fields)
+    \item \code{TypeAlias} --- \code{type Name = Type}
+    \item \code{FunctionDef} --- \code{fn name(params) -> Type \{ body \}}
+    \item \code{MethodDef} --- \code{Type.method(params) -> Type \{ body \}} with implicit \code{self}
+    \item \code{ImportDecl} --- four forms: basic, aliased, selective, glob
+    \item \code{ExportDecl} --- \code{export \{ Name1, Name2 \}}
+    \item \code{ProviderDecl} --- \code{provider name \{ key: value \}}
+    \item \code{ToolDecl} --- tool with params, return type, triple-quoted description, body
+    \item \code{AgentDecl} --- \code{agent name \{ key: value \}}
+    \item \code{WorkflowDecl} --- workflow with optional trigger decorator, params, lifecycle hooks, body
+    \item \code{TestDecl} --- \code{test "name" \{ body \}}
+\end{itemize}
 
-\subsection{Agentic AST Nodes}
+\textbf{Expressions (27 types):} Literals, identifiers, binary/unary ops, calls, method calls, field access, indexing, pipe, lambda, match, if-expressions, lists, maps, struct instances, ranges, error propagation (\code{?}), \code{orelse}, \code{some}/\code{none}, spawn, select, async blocks.
 
-Four new top-level declaration nodes support the agentic constructs:
+\textbf{Statements (14 types):} Assignment, let/const, if/else, for-in, while, return, try/catch, defer/errdefer, match, break/continue, step, assert, expression statements.
 
-\begin{lstlisting}[language={}]
-struct ProviderDecl {
-    name: Ident,
-    fields: Vec<(Ident, Expr)>,
-}
+\textbf{Patterns (6 types):} Wildcard (\code{\_}), literal, identifier, constructor, or-pattern (\code{A | B}), range (\code{1..5}).
 
-struct ToolDecl {
-    name: Ident,
-    params: Vec<Param>,
-    return_type: Option<Type>,
-    description: String,        // from triple-quoted string
-    body: Block,
-}
+\subsection{Operator Precedence}
 
-struct AgentDecl {
-    name: Ident,
-    fields: Vec<(Ident, AgentFieldValue)>,
-}
+The Pratt parser implements 14 precedence levels (lowest to highest):
 
-struct WorkflowDecl {
-    decorators: Vec<Decorator>,
-    name: Ident,
-    params: Vec<Param>,
-    return_type: Option<Type>,
-    body: Block,
-}
-
-struct Decorator {
-    name: Ident,                // e.g., "webhook", "cron", "event"
-    args: Vec<Expr>,            // e.g., "/summarize", "0 9 * * *"
-}
-\end{lstlisting}
-
-\subsection{Parsing Agentic Constructs}
-
-The recursive descent parser is extended to handle the new keywords at the top level:
-
-\begin{lstlisting}[language={}]
-impl Parser<'_> {
-    fn parse_top_level(&mut self) -> Result<Decl, ParseError> {
-        match self.peek_keyword() {
-            Some(Keyword::Fn)       => self.parse_fn_decl(),
-            Some(Keyword::Struct)   => self.parse_struct_decl(),
-            Some(Keyword::Enum)     => self.parse_enum_decl(),
-            Some(Keyword::Type)     => self.parse_type_decl(),
-            Some(Keyword::Import)   => self.parse_import(),
-            Some(Keyword::Provider) => self.parse_provider_decl(),
-            Some(Keyword::Tool)     => self.parse_tool_decl(),
-            Some(Keyword::Agent)    => self.parse_agent_decl(),
-            Some(Keyword::Workflow) => self.parse_workflow_decl(vec![]),
-            _ if self.check(TokenKind::At) => {
-                let decorators = self.parse_decorators()?;
-                self.expect_keyword(Keyword::Workflow)?;
-                self.parse_workflow_decl(decorators)
-            }
-            _ => Err(ParseError::UnexpectedToken(self.peek().clone())),
-        }
-    }
-
-    fn parse_decorators(&mut self) -> Result<Vec<Decorator>, ParseError> {
-        let mut decorators = Vec::new();
-        while self.check(TokenKind::At) {
-            self.advance(); // consume @
-            let name = self.parse_ident()?;
-            let args = if self.check(TokenKind::LParen) {
-                self.parse_call_args()?
-            } else {
-                vec![]
-            };
-            decorators.push(Decorator { name, args });
-        }
-        Ok(decorators)
-    }
-
-    fn parse_tool_decl(&mut self) -> Result<Decl, ParseError> {
-        self.expect_keyword(Keyword::Tool)?;
-        let name = self.parse_ident()?;
-        let params = self.parse_params()?;
-        let return_type = self.parse_optional_return_type()?;
-        self.expect(TokenKind::LBrace)?;
-        let description = self.expect_triple_quote_string()?;
-        let body = self.parse_block_body()?;
-        Ok(Decl::Tool(ToolDecl { name, params, return_type, description, body }))
-    }
-}
-\end{lstlisting}
-
-\begin{implementation}
-The decorator parser greedily consumes all consecutive \code{@}-prefixed lines before the \keyword{workflow} keyword. This means decorators must appear immediately before the workflow declaration with no intervening blank lines or other declarations.
-\end{implementation}
+\begin{table}[h]
+\centering
+\begin{tabular}{cl}
+\toprule
+\textbf{Level} & \textbf{Operators} \\
+\midrule
+1 & \code{orelse} \\
+2 & \code{|>} (pipe) \\
+3 & \code{or} (logical) \\
+4 & \code{and} (logical) \\
+5 & \code{|} (bitwise OR) \\
+6 & \code{\^{}} (bitwise XOR) \\
+7 & \code{\&} (bitwise AND) \\
+8 & \code{==}, \code{!=} \\
+9 & \code{<}, \code{>}, \code{<=}, \code{>=}, \code{..}, \code{..=} \\
+10 & \code{<<}, \code{>>} \\
+11 & \code{+}, \code{-} \\
+12 & \code{*}, \code{/}, \code{\%} \\
+13 & \code{-}, \code{not}, \code{\~{}} (unary) \\
+14 & \code{()}, \code{[]}, \code{.}, \code{?} (postfix) \\
+\bottomrule
+\end{tabular}
+\caption{Operator precedence (lowest to highest)}
+\end{table}
 
 \section{Resolver}
 
-The resolver performs name resolution, import handling, and symbol binding. It is extended to handle agentic constructs.
+The resolver in \code{compiler/internal/resolver/} handles multi-file module resolution:
 
-\subsection{Symbol Table}
+\begin{enumerate}
+    \item Reads the main source file and extracts import declarations.
+    \item Resolves each import: standard library (built-in), project-local (\code{path/file.haira} or \code{path/mod.haira}), or external.
+    \item Recursively resolves transitive imports.
+    \item Detects circular dependencies (compile-time error).
+    \item Filters exports: only \code{pub} items and agentic declarations are visible to importers.
+    \item Produces a \code{Program} with a merged item list in dependency order.
+\end{enumerate}
 
-The symbol table is extended with new symbol kinds for agentic constructs:
-
-\begin{lstlisting}[language={}]
-struct SymbolTable {
-    scopes: Vec<Scope>,
-    current: usize,
-}
-
-struct Scope {
-    symbols: HashMap<String, Symbol>,
-    parent: Option<usize>,
-}
-
-enum Symbol {
-    Variable { ty: TypeId, mutable: bool },
-    Function { sig: FunctionSig },
-    Type { def: TypeDef },
-    Module { exports: HashMap<String, Symbol> },
-    Provider { fields: ProviderFields },
-    Tool { sig: ToolSig, description: String },
-    Agent { fields: AgentFields },
-    Workflow { sig: WorkflowSig, triggers: Vec<Trigger> },
-}
+\begin{lstlisting}[language={},numbers=none]
+// Resolution order for merged items:
+// 1. Transitive module items (deepest dependencies first)
+// 2. Direct import items (in source order)
+// 3. Main file items
 \end{lstlisting}
 
-\subsection{Provider Resolution}
+\section{Checker}
 
-The resolver validates provider declarations:
+The type checker in \code{compiler/internal/checker/} performs semantic analysis in two passes:
 
+\textbf{Pass 1 (Registration):} Walk all top-level items and register:
 \begin{itemize}
-    \item The \code{model} field is required.
-    \item The \code{api\_key} field, if present, must be a string expression (typically an \code{env()} call).
-    \item The \code{backend} field, if present, must be a recognized backend identifier (\code{"ollama"}, \code{"llama.cpp"}).
-    \item Provider names are registered in the module scope for reference by agents.
+    \item Struct types with field types
+    \item Enum types with variants
+    \item Function signatures
+    \item Provider, tool, agent, workflow declarations
+    \item Global variables (inferred from initializers)
 \end{itemize}
 
-\begin{lstlisting}[language={}]
-fn resolve_provider(&mut self, decl: &ProviderDecl) -> Result<(), ResolveError> {
-    // Ensure required fields are present
-    if !decl.has_field("model") {
-        return Err(ResolveError::MissingField {
-            construct: "provider",
-            name: decl.name.clone(),
-            field: "model",
-        });
-    }
-
-    // Register in symbol table
-    self.bind_symbol(
-        &decl.name,
-        Symbol::Provider { fields: self.extract_provider_fields(decl)? },
-    )
-}
-\end{lstlisting}
-
-\subsection{Tool Registration}
-
-The resolver processes tool declarations and prepares metadata for schema generation:
-
+\textbf{Pass 2 (Validation):} Check function/method bodies:
 \begin{itemize}
-    \item The tool name is registered in the module scope.
-    \item Parameter types are recorded for JSON schema generation.
-    \item The triple-quoted description is stored as metadata.
-    \item Default parameter values are validated.
+    \item Type inference for expressions (literals, binary ops, calls, field access, indexing)
+    \item Variable definition tracking (warn on undefined variables)
+    \item Const immutability enforcement
+    \item Agent field validation (model references a provider, tools exist, known fields)
+    \item Enum exhaustiveness warnings in match expressions
+    \item Return type checking
+    \item Method \code{self} binding
 \end{itemize}
 
-\begin{lstlisting}[language={}]
-fn resolve_tool(&mut self, decl: &ToolDecl) -> Result<(), ResolveError> {
-    // Description is mandatory (enforced by parser, double-checked here)
-    if decl.description.is_empty() {
-        return Err(ResolveError::MissingToolDescription(decl.name.clone()));
-    }
+\subsection{Type System}
 
-    // Resolve parameter types and body
-    self.push_scope();
-    for param in &decl.params {
-        self.resolve_type(&param.ty)?;
-        self.bind_local(&param.name, &param.ty)?;
-    }
-    self.resolve_block(&decl.body)?;
-    self.pop_scope();
-
-    // Register tool symbol
-    self.bind_symbol(
-        &decl.name,
-        Symbol::Tool {
-            sig: self.build_tool_sig(decl)?,
-            description: decl.description.clone(),
-        },
-    )
-}
+\begin{lstlisting}[language={},numbers=none]
+Primitive types: int, float, string, bool, any, void, error
+Compound types: [T] (list), {K: V} (map)
+Named types:    struct, enum
+Function types: (T, U) -> V
 \end{lstlisting}
 
-\subsection{Agent Validation}
+\begin{note}
+Generic types are parse-accepted but erased to \code{any} in v1. Full generics are planned for a future release.
+\end{note}
 
-The resolver verifies that agent declarations reference valid providers and tools:
+\subsection{Agentic Validation}
+
+The checker validates agentic declarations:
 
 \begin{itemize}
-    \item The \code{model} field must reference a declared provider.
-    \item Each entry in the \code{tools} list must reference a declared tool.
-    \item The \code{system} field must be a string expression.
-    \item Memory configuration, if present, must use a recognized memory type.
+    \item \textbf{Providers:} Warn on unknown fields. Valid fields: \code{model}, \code{api\_key}, \code{backend}, \code{host}, \code{temperature}, \code{max\_tokens}, \code{transport}, \code{command}, \code{args}, \code{url}.
+    \item \textbf{Agents:} Require \code{model} field referencing a declared provider. Validate tool references. Check handoff targets exist. Warn on unknown fields.
+    \item \textbf{Tools:} Enforce mandatory triple-quoted description (parser-level). Register parameters for schema generation.
+    \item \textbf{Workflows:} Validate decorator triggers. Type-check body.
 \end{itemize}
 
-\begin{lstlisting}[language={}]
-fn resolve_agent(&mut self, decl: &AgentDecl) -> Result<(), ResolveError> {
-    // Validate model references a declared provider
-    let model_field = decl.get_field("model")
-        .ok_or(ResolveError::MissingField {
-            construct: "agent", name: decl.name.clone(), field: "model",
-        })?;
-    self.expect_provider_ref(model_field)?;
+\section{Code Generation}
 
-    // Validate tool references
-    if let Some(tools) = decl.get_field("tools") {
-        for tool_name in tools.as_ident_list()? {
-            self.expect_tool_ref(&tool_name)?;
-        }
-    }
+The code generator in \code{compiler/internal/codegen/} transforms the typed AST into Go source code. This is the core of \haira{}'s compilation strategy: generate idiomatic Go that calls into the \haira{} runtime library.
 
-    // Register agent symbol
-    self.bind_symbol(
-        &decl.name,
-        Symbol::Agent { fields: self.extract_agent_fields(decl)? },
-    )
-}
-\end{lstlisting}
+\subsection{Emission Strategy}
 
-\subsection{Workflow Trigger Validation}
+Code is emitted in 8 ordered passes to satisfy Go's declaration requirements:
 
-The resolver validates workflow decorators:
+\begin{enumerate}
+    \item \textbf{Providers} --- \code{var Claude = \&haira.Provider\{...\}}
+    \item \textbf{Tools} --- Tool functions + registration
+    \item \textbf{Agents} --- Agent variables + initialization functions
+    \item \textbf{Workflows} --- HTTP handler functions + SSE streaming handlers
+    \item \textbf{Top-level variables} --- Global \code{var} declarations
+    \item \textbf{Types and enums} --- Struct definitions, enum iota constants
+    \item \textbf{Methods} --- Receiver methods (dot-attach syntax)
+    \item \textbf{Functions} --- User functions (non-main)
+    \item \textbf{Main function} --- Entry point with agent initialization in topological order
+\end{enumerate}
 
-\begin{itemize}
-    \item \code{@webhook} requires a string literal path argument.
-    \item \code{@cron} requires a valid cron expression string.
-    \item \code{@event} requires a string literal event name.
-    \item \code{@websocket} requires a string literal path argument.
-    \item \code{@manual} takes no arguments.
-    \item Unrecognized decorator names produce an error.
-\end{itemize}
+\subsection{Agent Initialization Order}
 
-\begin{lstlisting}[language={}]
-fn resolve_workflow(&mut self, decl: &WorkflowDecl) -> Result<(), ResolveError> {
-    // Validate each decorator
-    let mut triggers = Vec::new();
-    for decorator in &decl.decorators {
-        let trigger = match decorator.name.as_str() {
-            "webhook"   => self.validate_webhook_trigger(decorator)?,
-            "websocket" => self.validate_websocket_trigger(decorator)?,
-            "cron"      => self.validate_cron_trigger(decorator)?,
-            "event"     => self.validate_event_trigger(decorator)?,
-            "manual"    => self.validate_manual_trigger(decorator)?,
-            unknown     => return Err(ResolveError::UnknownTrigger {
-                name: unknown.to_string(),
-                span: decorator.span,
-            }),
-        };
-        triggers.push(trigger);
-    }
-
-    // Resolve params and body
-    self.push_scope();
-    for param in &decl.params {
-        self.resolve_type(&param.ty)?;
-        self.bind_local(&param.name, &param.ty)?;
-    }
-    self.resolve_block(&decl.body)?;
-    self.pop_scope();
-
-    // Register workflow symbol
-    self.bind_symbol(
-        &decl.name,
-        Symbol::Workflow {
-            sig: self.build_workflow_sig(decl)?,
-            triggers,
-        },
-    )
-}
-\end{lstlisting}
-
-\section{Type Checker}
-
-The type checker verifies type correctness and performs type inference. It is extended to handle the types and patterns introduced by agentic constructs.
-
-\subsection{Type Representation}
-
-The type system includes a new \type{stream<T>} type for streaming agent responses:
-
-\begin{lstlisting}[language={}]
-enum Type {
-    // Primitives
-    Int, I8, I16, I32, I64,
-    UInt, U8, U16, U32, U64,
-    Float, F32, F64,
-    Bool,
-    String,
-
-    // Composites
-    Array(Box<Type>),
-    Map(Box<Type>, Box<Type>),
-    Tuple(Vec<Type>),
-    Option(Box<Type>),
-
-    // Named
-    Struct(StructId),
-    Enum(EnumId),
-
-    // Functions
-    Function(Vec<Type>, Box<Type>),
-
-    // Generics
-    TypeVar(TypeVarId),
-    Generic(GenericId, Vec<Type>),
-
-    // Streaming
-    Stream(Box<Type>),          // stream<T>
-
-    // Special
-    Never,
-    Error,
-}
-\end{lstlisting}
-
-\subsection{Agent Method Type Checking}
-
-Agent methods have specific type signatures that the type checker enforces:
-
-\begin{itemize}
-    \item \code{Agent.ask(prompt: string, session: string?) -> (string, Error?)} --- Text in, text out.
-    \item \code{Agent.run(input: T, session: string?) -> (U, Error?)} --- Structured in, structured out. The output type \code{U} is inferred from the left-side type annotation at the call site.
-    \item \code{Agent.stream(prompt: string, session: string?) -> stream<string>} --- Text in, streaming out.
-\end{itemize}
-
-\begin{lstlisting}[language={}]
-fn check_agent_method_call(
-    &mut self,
-    agent: &Symbol,
-    method: &str,
-    args: &[Expr],
-    expected_return: Option<&Type>,
-) -> Result<Type, TypeError> {
-    match method {
-        "ask" => {
-            self.check_arg_type(&args[0], &Type::String)?;
-            Ok(Type::Tuple(vec![Type::String, Type::Option(Box::new(Type::Error))]))
-        }
-
-        "run" => {
-            let input_ty = self.infer_expr(&args[0])?;
-            self.check_has_json_schema(&input_ty)?;
-
-            // Output type inferred from left-side annotation
-            let output_ty = expected_return
-                .ok_or(TypeError::MissingTypeAnnotation {
-                    hint: "agent.run() requires a type annotation on the left side",
-                })?;
-            self.check_has_json_schema(output_ty)?;
-
-            Ok(Type::Tuple(vec![
-                output_ty.clone(),
-                Type::Option(Box::new(Type::Error)),
-            ]))
-        }
-
-        "stream" => {
-            self.check_arg_type(&args[0], &Type::String)?;
-            Ok(Type::Stream(Box::new(Type::String)))
-        }
-
-        _ => Err(TypeError::NoSuchMethod {
-            ty: "agent",
-            method: method.to_string(),
-        }),
-    }
-}
-\end{lstlisting}
-
-\subsection{Left-Side Type Annotation Inference}
-
-For \code{Agent.run()}, the output type is determined by the type annotation on the left side of the assignment:
+Agents with handoff targets must be initialized after their targets. The codegen performs a topological sort on the handoff graph to determine initialization order:
 
 \begin{lstlisting}
-// The compiler infers that Researcher.run() should produce ResearchResult
-research: ResearchResult, err = Researcher.run(ResearchRequest{
-    topic: "quantum computing"
-})
+// Haira source:
+agent Triage { handoffs: [Billing, Support] }
+agent Billing { provider: Claude }
+agent Support { provider: Claude }
+
+// Generated init order:
+// 1. Billing (no dependencies)
+// 2. Support (no dependencies)
+// 3. Triage  (depends on Billing, Support)
 \end{lstlisting}
 
-The type checker extracts \type{ResearchResult} from the left-side annotation and uses it as the expected output type. It then validates that both \type{ResearchRequest} and \type{ResearchResult} are struct types with JSON-serializable fields, so that the runtime can generate and validate JSON schemas.
+\subsection{Workflow Code Generation}
 
-\subsection{Workflow Input/Output Types}
+Workflows with triggers generate HTTP handlers. Streaming workflows generate both a \code{StreamHandler} (SSE) and a \code{Handler} (JSON fallback):
 
-Workflow parameters define the input type. For triggered workflows, the compiler validates that parameter and return types are JSON-serializable:
+\begin{lstlisting}[language={},numbers=none]
+// @webhook("/summarize")
+// workflow Summarize(req: SumReq) -> Summary { ... }
 
-\begin{lstlisting}[language={}]
-fn check_workflow(&mut self, decl: &WorkflowDecl) -> Result<(), TypeError> {
-    // For triggered workflows, params must be JSON-serializable
-    if !decl.decorators.is_empty() {
-        for param in &decl.params {
-            self.check_json_serializable(&param.ty)?;
-        }
-        if let Some(ret_ty) = &decl.return_type {
-            self.check_json_serializable(ret_ty)?;
-        }
-    }
-
-    // Check body
-    self.push_scope();
-    for param in &decl.params {
-        self.bind_local(&param.name, &param.ty);
-    }
-    let body_ty = self.check_block(&decl.body)?;
-
-    // Verify return type matches
-    if let Some(ret_ty) = &decl.return_type {
-        self.unify(&body_ty, ret_ty)?;
-    }
-    self.pop_scope();
-
-    Ok(())
-}
+// Generates:
+// func SummarizeHandler(w, r)      -- JSON response
+// func SummarizeStreamHandler(w, r) -- SSE streaming
+// Route registration in main()
 \end{lstlisting}
 
-\subsection{Tool Auto-Schema Generation}
+\subsection{Tool Schema Generation}
 
-The type checker produces JSON schema metadata for each tool declaration. This metadata is embedded in the compiled binary and used by the runtime when registering tools with LLM providers:
-
-\begin{lstlisting}[language={}]
-fn generate_tool_schema(&self, decl: &ToolDecl) -> ToolSchema {
-    ToolSchema {
-        name: decl.name.clone(),
-        description: decl.description.clone(),
-        parameters: JsonSchema::Object {
-            properties: decl.params.iter().map(|p| {
-                (p.name.clone(), self.type_to_json_schema(&p.ty))
-            }).collect(),
-            required: decl.params.iter()
-                .filter(|p| p.default.is_none())
-                .map(|p| p.name.clone())
-                .collect(),
-        },
-    }
-}
-\end{lstlisting}
-
-The type-to-schema mapping is:
+Each tool declaration generates a JSON schema from its parameter types:
 
 \begin{table}[h]
 \centering
@@ -652,586 +289,234 @@ The type-to-schema mapping is:
 \type{bool} & \code{"boolean"} \\
 \type{string} & \code{"string"} \\
 \type{[T]} & \code{"array"} with \code{items} \\
-\type{Struct} & \code{"object"} with \code{properties} \\
-\type{T?} & adds \code{"null"} to type union \\
+\type{struct} & \code{"object"} with \code{properties} \\
 \bottomrule
 \end{tabular}
 \caption{Type-to-JSON-schema mapping}
 \end{table}
 
-\section{Lowering}
+\subsection{Import Detection}
 
-Lowering transforms the typed AST into HIR (High-level IR). Agentic constructs are lowered to calls into the \haira{} runtime library.
+The codegen scans the AST to determine which Go imports are needed:
 
-\subsection{HIR Structure}
+\begin{itemize}
+    \item \code{fmt} --- string interpolation, print calls
+    \item \code{encoding/json} --- JSON marshal/unmarshal calls
+    \item \code{sync} --- spawn blocks (WaitGroup)
+    \item \code{haira} --- runtime library (agents, providers, tools, workflows, HTTP)
+\end{itemize}
 
-\begin{lstlisting}[language={}]
-struct HirModule {
-    functions: Vec<HirFunction>,
-    types: Vec<HirType>,
-    constants: Vec<HirConst>,
-    providers: Vec<HirProvider>,
-    tools: Vec<HirTool>,
-    agents: Vec<HirAgent>,
-    workflows: Vec<HirWorkflow>,
-}
+\subsection{Go Compilation}
 
-struct HirFunction {
-    name: Symbol,
-    params: Vec<HirParam>,
-    return_type: HirType,
-    body: Vec<HirStmt>,
-    locals: Vec<HirLocal>,
-}
+After generating Go source code, the codegen:
 
-enum HirStmt {
-    Assign(LocalId, HirExpr),
-    Store(HirPlace, HirExpr),
-    Call(Option<LocalId>, FnId, Vec<HirExpr>),
-    RuntimeCall(Option<LocalId>, RuntimeFn, Vec<HirExpr>),
-    If(HirExpr, BlockId, Option<BlockId>),
-    Loop(BlockId),
-    Break(Option<LoopId>),
-    Continue(Option<LoopId>),
-    Return(Option<HirExpr>),
-}
-\end{lstlisting}
-
-\subsection{Provider Lowering}
-
-A \keyword{provider} declaration is lowered to a runtime configuration call:
-
-\begin{lstlisting}[language={}]
-// Source:
-//   provider anthropic {
-//       api_key: env("ANTHROPIC_API_KEY")
-//       model: "claude-sonnet-4-20250514"
-//   }
-
-// Lowered to:
-HirStmt::RuntimeCall(
-    Some(provider_local),
-    RuntimeFn::RegisterProvider,
-    vec![
-        HirExpr::StringLit("anthropic"),
-        HirExpr::Map(vec![
-            ("api_key", HirExpr::Call(env_fn, vec![HirExpr::StringLit("ANTHROPIC_API_KEY")])),
-            ("model", HirExpr::StringLit("claude-sonnet-4-20250514")),
-        ]),
-    ],
-)
-\end{lstlisting}
-
-\subsection{Tool Lowering}
-
-A \keyword{tool} declaration is lowered to a runtime tool registration that includes the compiled function body and the auto-generated JSON schema:
-
-\begin{lstlisting}[language={}]
-// Source:
-//   tool search(query: string, max_results: int = 5) -> [SearchResult] {
-//       """Search the web for information"""
-//       // ... body ...
-//   }
-
-// Lowered to:
-// 1. The tool body becomes a regular HirFunction
-HirFunction {
-    name: Symbol("__tool_search"),
-    params: vec![param_query, param_max_results],
-    return_type: array_of_search_result,
-    body: /* lowered body */,
-}
-
-// 2. A runtime registration call with the JSON schema
-HirStmt::RuntimeCall(
-    None,
-    RuntimeFn::RegisterTool,
-    vec![
-        HirExpr::StringLit("search"),
-        HirExpr::FnRef(Symbol("__tool_search")),
-        HirExpr::StaticData(tool_json_schema),  // compiled schema bytes
-    ],
-)
-\end{lstlisting}
-
-\subsection{Agent Lowering}
-
-An \keyword{agent} declaration is lowered to a runtime agent instantiation:
-
-\begin{lstlisting}[language={}]
-// Source:
-//   agent Researcher {
-//       model: anthropic
-//       system: "You are a thorough researcher."
-//       tools: [search, read_url]
-//       temperature: 0.2
-//       max_steps: 15
-//   }
-
-// Lowered to:
-HirStmt::RuntimeCall(
-    Some(agent_local),
-    RuntimeFn::CreateAgent,
-    vec![
-        HirExpr::StringLit("Researcher"),
-        HirExpr::ProviderRef("anthropic"),
-        HirExpr::StringLit("You are a thorough researcher."),
-        HirExpr::Array(vec![
-            HirExpr::ToolRef("search"),
-            HirExpr::ToolRef("read_url"),
-        ]),
-        HirExpr::Map(vec![
-            ("temperature", HirExpr::FloatLit(0.2)),
-            ("max_steps", HirExpr::IntLit(15)),
-        ]),
-    ],
-)
-\end{lstlisting}
-
-\subsection{Agent Method Call Lowering}
-
-Agent method calls are lowered to runtime API calls:
-
-\begin{lstlisting}[language={}]
-// Agent.ask() --> runtime ask call
-// answer, err = Researcher.ask("query")
-HirStmt::RuntimeCall(
-    Some(result_local),
-    RuntimeFn::AgentAsk,
-    vec![
-        HirExpr::AgentRef("Researcher"),
-        HirExpr::StringLit("query"),
-        HirExpr::Nil,  // no session
-    ],
-)
-
-// Agent.run() --> runtime run call with output schema
-// result: T, err = Agent.run(input)
-HirStmt::RuntimeCall(
-    Some(result_local),
-    RuntimeFn::AgentRun,
-    vec![
-        HirExpr::AgentRef("Agent"),
-        input_expr,
-        HirExpr::StaticData(input_schema),
-        HirExpr::StaticData(output_schema),
-        HirExpr::Nil,  // no session
-    ],
-)
-
-// Agent.stream() --> runtime stream call
-// for chunk in Agent.stream("prompt") { ... }
-HirStmt::RuntimeCall(
-    Some(stream_local),
-    RuntimeFn::AgentStream,
-    vec![
-        HirExpr::AgentRef("Agent"),
-        HirExpr::StringLit("prompt"),
-        HirExpr::Nil,  // no session
-    ],
-)
-\end{lstlisting}
-
-\subsection{Workflow Lowering}
-
-Workflows are lowered differently based on their triggers:
-
-\begin{lstlisting}[language={}]
-// @webhook("/summarize")
-// workflow Summarizer(url: string) -> Summary { ... }
-
-// Lowered to:
-// 1. The workflow body becomes a regular function
-HirFunction {
-    name: Symbol("__workflow_Summarizer"),
-    params: vec![param_url],
-    return_type: summary_type,
-    body: /* lowered body */,
-}
-
-// 2. A runtime trigger registration
-HirStmt::RuntimeCall(
-    None,
-    RuntimeFn::RegisterWebhook,
-    vec![
-        HirExpr::StringLit("/summarize"),
-        HirExpr::StringLit("POST"),
-        HirExpr::FnRef(Symbol("__workflow_Summarizer")),
-        HirExpr::StaticData(input_schema),
-        HirExpr::StaticData(output_schema),
-    ],
-)
-\end{lstlisting}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{ll}
-\toprule
-\textbf{Trigger} & \textbf{Runtime Registration} \\
-\midrule
-\code{@webhook} & \code{RuntimeFn::RegisterWebhook} --- HTTP handler \\
-\code{@websocket} & \code{RuntimeFn::RegisterWebsocket} --- WebSocket handler \\
-\code{@cron} & \code{RuntimeFn::RegisterCron} --- Cron job \\
-\code{@event} & \code{RuntimeFn::RegisterEvent} --- Event listener \\
-\code{@manual} & \code{RuntimeFn::RegisterManual} --- CLI-only \\
-(none) & No registration --- callable as sub-workflow \\
-\bottomrule
-\end{tabular}
-\caption{Workflow trigger lowering}
-\end{table}
-
-\subsection{Spawn Block Lowering}
-
-A \keyword{spawn} block inside a workflow is lowered to parallel execution runtime calls:
-
-\begin{lstlisting}[language={}]
-// Source:
-//   reviews = spawn {
-//       Reviewer.run(req1)
-//       Reviewer.run(req2)
-//       Reviewer.run(req3)
-//   }
-
-// Lowered to:
-HirStmt::RuntimeCall(
-    Some(reviews_local),
-    RuntimeFn::SpawnAll,
-    vec![
-        HirExpr::Array(vec![
-            HirExpr::Closure(/* Reviewer.run(req1) */),
-            HirExpr::Closure(/* Reviewer.run(req2) */),
-            HirExpr::Closure(/* Reviewer.run(req3) */),
-        ]),
-    ],
-)
-\end{lstlisting}
-
-\section{Code Generation}
-
-Code generation uses Cranelift to produce native machine code.
-
-\subsection{Cranelift Integration}
-
-The code generation stage translates HIR into Cranelift IR, which is then compiled to native code. The process is the same as for non-agentic code --- function bodies, control flow, and expressions are translated directly:
-
-\begin{lstlisting}[language={}]
-fn codegen_function(&mut self, func: &HirFunction) -> Result<(), CodegenError> {
-    let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_ctx);
-
-    // Create entry block
-    let entry = builder.create_block();
-    builder.append_block_params_for_function_params(entry);
-    builder.switch_to_block(entry);
-
-    // Generate parameters
-    for (i, param) in func.params.iter().enumerate() {
-        let val = builder.block_params(entry)[i];
-        self.locals.insert(param.id, val);
-    }
-
-    // Generate body
-    for stmt in &func.body {
-        self.codegen_stmt(&mut builder, stmt)?;
-    }
-
-    builder.seal_all_blocks();
-    builder.finalize();
-
-    Ok(())
-}
-\end{lstlisting}
-
-\subsection{Runtime Calls}
-
-Agentic constructs compile to calls into the \haira{} runtime library (\code{libhaira-runtime}). The code generator emits standard function calls to runtime symbols:
-
-\begin{lstlisting}[language={}]
-fn codegen_runtime_call(
-    &mut self,
-    builder: &mut FunctionBuilder,
-    func: RuntimeFn,
-    args: &[HirExpr],
-) -> Value {
-    let runtime_fn = self.import_runtime_function(func);
-    let arg_values: Vec<Value> = args.iter()
-        .map(|a| self.codegen_expr(builder, a))
-        .collect();
-    let call = builder.ins().call(runtime_fn, &arg_values);
-    builder.inst_results(call)[0]
-}
-\end{lstlisting}
-
-The compiled binary links against \code{libhaira-runtime}, which provides the implementations for all agentic operations (LLM API calls, tool execution, workflow orchestration, etc.). See Section~\ref{sec:runtime} for details.
-
-\begin{note}
-All agentic behavior happens at \emph{runtime}, not compile time. The compiler's role is to validate, type-check, and generate schemas for agentic constructs, then emit calls into the runtime library. The compiled binary is standalone but requires network access to reach LLM providers.
-\end{note}
+\begin{enumerate}
+    \item Creates a temporary Go project directory with \code{go.mod}
+    \item Extracts the embedded runtime bundle (\code{bundle.tar.gz}) containing the haira Go package
+    \item Writes the generated \code{main.go}
+    \item Runs \code{go build} to produce a native binary
+    \item Moves the binary to the output path and cleans up
+\end{enumerate}
 
 \section{Runtime Library}
 \label{sec:runtime}
 
-The \haira{} runtime library (\code{libhaira-runtime}) provides the execution environment for agentic constructs. It is linked into every compiled \haira{} binary that uses providers, tools, agents, or workflows.
+The \haira{} runtime is a Go package (\code{package haira}) bundled into the compiler binary. It provides the execution environment for all agentic constructs.
+
+\subsection{Runtime Structure}
+
+The runtime is split into two layers:
+
+\begin{itemize}
+    \item \textbf{Primitive} (\code{primitive/haira/}) --- Core runtime: agent execution, provider management, tool registry, workflow orchestration, HTTP server, memory, I/O, strings, arrays, maps, math, JSON, regex, file system, time, environment variables.
+    \item \textbf{Stdlib} (\code{stdlib/haira/}) --- External integrations: PostgreSQL, SQLite, vector databases, Excel, Slack, GitHub, GitLab.
+\end{itemize}
+
+Both layers use \code{package haira} and are merged at bundle time into a single Go package, embedded in the compiler binary as \code{bundle.tar.gz}.
 
 \subsection{Provider Management}
 
-The runtime manages provider connections:
+The runtime manages LLM provider connections:
 
 \begin{itemize}
-    \item \textbf{API key resolution} --- Reads API keys from environment variables at startup.
-    \item \textbf{Model selection} --- Routes requests to the correct LLM backend based on provider configuration.
-    \item \textbf{Connection pooling} --- Maintains HTTP connection pools to provider APIs.
-    \item \textbf{Rate limiting} --- Handles provider rate limits with automatic retry and backoff.
-    \item \textbf{Local backends} --- Manages connections to local inference servers (Ollama, llama.cpp).
+    \item API key resolution from environment variables at startup
+    \item Model routing based on provider configuration
+    \item HTTP connection pooling to provider APIs
+    \item Support for Anthropic, OpenAI, Ollama, and MCP (Model Context Protocol) transports
 \end{itemize}
 
-\subsection{Agent Execution}
-
-The runtime implements the agent execution loop:
+\subsection{Agent Execution Loop}
 
 \begin{enumerate}
-    \item Assemble the message payload (system prompt, conversation history, user message).
-    \item Send the request to the LLM provider.
-    \item If the LLM response contains tool calls, execute each tool and collect results.
+    \item Assemble message payload (system prompt, conversation history, user message).
+    \item Send request to the LLM provider.
+    \item If response contains tool calls, execute each tool and collect results.
     \item Send tool results back to the LLM.
-    \item Repeat steps 2--4 until the LLM produces a final response or \code{max\_steps} is reached.
-    \item For \code{.run()} calls, parse the LLM response as structured JSON and deserialize into the expected output type.
-    \item For \code{.stream()} calls, yield tokens as they arrive from the LLM.
+    \item Repeat steps 2--4 until final response or \code{max\_steps} reached.
+    \item For \code{.run()} calls, parse JSON response into the annotated output type.
+    \item For \code{.stream()} calls, yield tokens incrementally via SSE.
 \end{enumerate}
 
 \subsection{Workflow Orchestration}
 
-The runtime provides infrastructure for workflow triggers:
-
 \begin{itemize}
-    \item \textbf{HTTP server} --- An embedded HTTP server (built on a lightweight async runtime) handles \code{@webhook} and \code{@websocket} triggers. Request bodies are deserialized into workflow parameter types; return values are serialized as JSON responses.
-    \item \textbf{Cron scheduler} --- A built-in cron scheduler executes \code{@cron}-triggered workflows on schedule.
-    \item \textbf{Event bus} --- An in-process event bus dispatches \code{@event}-triggered workflows when events are emitted via \code{haira.emit()}.
-    \item \textbf{Manual runner} --- The CLI can invoke \code{@manual} workflows directly with JSON input.
+    \item \textbf{HTTP server} --- Built on Go's \code{net/http}. Handles \code{@webhook} (POST/GET/PUT/DELETE) and \code{@websocket} triggers.
+    \item \textbf{Cron scheduler} --- Executes \code{@cron}-triggered workflows on 5-field UNIX cron schedules.
+    \item \textbf{Event bus} --- In-process event dispatch for \code{@event}-triggered workflows via \code{haira.emit()}.
+    \item \textbf{Step telemetry} --- Named \code{step} blocks emit timing and status events for observability.
+    \item \textbf{Run tracking} --- Each workflow execution gets a unique run ID with step-level SSE streaming.
 \end{itemize}
 
 \subsection{Session Management}
 
-The runtime manages conversation memory scoped by session ID:
-
 \begin{itemize}
     \item Each session maintains an isolated conversation history.
-    \item \code{conversation(max\_turns: N)} memory trims history to the last N message pairs.
-    \item \code{summary(max\_tokens: N)} memory periodically summarizes older messages to stay within the token budget.
-    \item Sessions are stored in-memory by default, with optional persistence backends.
-\end{itemize}
-
-\subsection{Stream Handling}
-
-The runtime provides async token streaming for \code{Agent.stream()}:
-
-\begin{itemize}
-    \item Server-sent events (SSE) from LLM providers are parsed incrementally.
-    \item Tokens are yielded to the caller via an async iterator interface.
-    \item For \code{@websocket} workflows returning \code{stream<string>}, tokens are forwarded directly to the WebSocket connection.
-\end{itemize}
-
-\subsection{JSON Schema Generation}
-
-The runtime uses type metadata embedded by the compiler to:
-
-\begin{itemize}
-    \item Register tool schemas with LLM providers during tool-calling.
-    \item Instruct agents to produce structured output matching a given schema (for \code{.run()} calls).
-    \item Validate and deserialize incoming webhook request bodies.
-    \item Serialize workflow return values as JSON responses.
+    \item \code{conversation(max\_turns: N)} memory trims to the last N message pairs.
+    \item Sessions are stored in-memory by default, with optional persistence via the Store interface.
 \end{itemize}
 
 \section{Project Structure}
 
-The compiler and runtime are organized as a Rust workspace with the following crates:
+The compiler is organized as a Go module:
 
 \begin{lstlisting}[language={},numbers=none]
-haira/
-  Cargo.toml                  # Workspace root
+compiler/
+  main.go                          # CLI entry point
+  internal/
+    token/                         # Token type definitions
+    lexer/                         # Hand-written scanner
+    ast/                           # AST node definitions
+    parser/                        # Recursive descent + Pratt parser
+    resolver/                      # Multi-file import resolution
+    checker/                       # Type checking + semantic analysis
+    codegen/                       # Go code generation
+      codegen.go                   #   8-pass emission orchestrator
+      emitter.go                   #   Output buffer + indentation
+      expressions.go               #   Expression-to-Go conversion
+      statements.go                #   Statement emission
+      agentic.go                   #   Agent/tool/provider/workflow emission
+      stdlib.go                    #   Standard library function mapping
+      types.go                     #   Haira-type-to-Go-type conversion
+      project.go                   #   Temp project setup + go build
+      test_codegen.go              #   Test harness generation
+    driver/                        # Pipeline orchestration
+    errors/                        # Diagnostic system (pretty-printing)
+    formatter/                     # Source code formatter
+    lsp/                           # Language server protocol
+    manifest/                      # package.haira handling
+    runtime/                       # Embedded runtime bundle (bundle.tar.gz)
 
-  crates/
-    haira-lexer/              # Lexical analysis
-    haira-parser/             # Parsing (+ provider, tool, agent, workflow)
-    haira-ast/                # AST definitions (+ agentic nodes)
-    haira-resolver/           # Name resolution (+ provider/agent/tool resolution)
-    haira-types/              # Type system (+ stream<T>)
-    haira-typeck/             # Type checking
-    haira-hir/                # High-level IR
-    haira-codegen/            # Code generation (Cranelift)
-    haira-runtime/            # Runtime library (agents, workflows, providers)
-    haira-driver/             # Compilation driver
-    haira-cli/                # CLI (build, run, serve, check)
-    haira-lsp/                # Language server
+primitive/haira/                   # Core runtime (Go)
+stdlib/haira/                      # External integrations (Go)
+ui/sdk/                            # Web component SDK (TypeScript)
+ui/application/                    # Default HTML templates
 \end{lstlisting}
-
-\begin{note}
-The \code{haira-ai}, \code{haira-cir}, and \code{haira-local-ai} crates from previous versions have been removed. Their responsibilities are replaced by \code{haira-runtime}, which handles all agentic execution at runtime rather than compile time.
-\end{note}
-
-Each crate has a focused responsibility:
 
 \begin{table}[h]
 \centering
 \begin{tabular}{ll}
 \toprule
-\textbf{Crate} & \textbf{Responsibility} \\
+\textbf{Package} & \textbf{Responsibility} \\
 \midrule
-\code{haira-lexer} & Tokenizes source text \\
-\code{haira-parser} & Builds AST from tokens \\
-\code{haira-ast} & Defines all AST node types \\
-\code{haira-resolver} & Resolves imports, symbols, providers, tools, agents \\
-\code{haira-types} & Type definitions and type utilities \\
-\code{haira-typeck} & Type checking and inference \\
-\code{haira-hir} & High-level IR definitions \\
-\code{haira-codegen} & Cranelift code generation \\
-\code{haira-runtime} & Runtime library for agentic execution \\
-\code{haira-driver} & Orchestrates the compilation pipeline \\
-\code{haira-cli} & Command-line interface \\
-\code{haira-lsp} & Language server protocol implementation \\
+\code{token} & Token kind constants and Token struct \\
+\code{lexer} & Tokenizes source text \\
+\code{ast} & AST node types (Go interfaces as sum types) \\
+\code{parser} & Builds AST from tokens \\
+\code{resolver} & Resolves imports and produces merged program \\
+\code{checker} & Type checking, inference, and semantic validation \\
+\code{codegen} & Generates Go source code from typed AST \\
+\code{driver} & Orchestrates the full compilation pipeline \\
+\code{errors} & Diagnostic formatting with source context \\
+\code{formatter} & Haira source code formatting \\
+\code{lsp} & Language server (hover, completion, go-to-definition) \\
+\code{manifest} & Package manifest (package.haira) support \\
 \bottomrule
 \end{tabular}
-\caption{Crate responsibilities}
+\caption{Compiler package responsibilities}
 \end{table}
 
-\section{Build Process}
-
-The \code{haira} CLI provides the following commands:
+\section{CLI Commands}
 
 \begin{lstlisting}[language=bash,numbers=none]
-# Compile to native binary
-haira build main.haira
-
-# Compile and run immediately
-haira run main.haira
-
-# Compile and start server (for trigger-based workflows)
-haira serve main.haira
-
-# Type-check without code generation
-haira check main.haira
-
-# Interactive REPL
-haira repl
+haira build [file] [-o output]   # Compile to native binary
+haira run [file]                  # Compile and execute
+haira check [file]                # Type-check without codegen
+haira emit [file]                 # Show generated Go code
+haira test [file]                 # Run test blocks
+haira fmt [file]                  # Format source in-place
+haira parse [file]                # Show the AST
+haira lex [file]                  # Show tokens
+haira init                        # Create package.haira manifest
+haira lsp                         # Start language server (stdio)
+haira version                     # Show version
 \end{lstlisting}
 
-\subsection{Build Modes}
-
-\begin{lstlisting}[language=bash,numbers=none]
-# Debug build (default) --- fast compilation, includes debug info
-haira build main.haira
-
-# Release build --- optimized, slower compilation
-haira build main.haira --release
-\end{lstlisting}
-
-\subsection{Server Mode}
-
-The \code{haira serve} command compiles the program and starts the runtime server, which listens for webhook requests, WebSocket connections, cron schedules, and events:
-
-\begin{lstlisting}[language=bash,numbers=none]
-# Start server on default port (8080)
-haira serve main.haira
-
-# Start server on a specific port
-haira serve main.haira --port 3000
-
-# Start with environment variables
-ANTHROPIC_API_KEY=sk-... haira serve main.haira
-\end{lstlisting}
-
-\subsection{Check Mode}
-
-The \code{haira check} command runs the full pipeline up to and including type checking, but skips code generation. This is useful for fast feedback during development:
-
-\begin{lstlisting}[language=bash,numbers=none]
-haira check main.haira
-\end{lstlisting}
-
-It validates all agentic constructs --- provider fields, tool descriptions, agent references, workflow triggers, and type compatibility --- without producing a binary.
+If no file is specified, \code{haira} looks for \code{package.haira} in the current directory and uses its entry point.
 
 \section{Error Messages}
 
-The compiler produces detailed, contextual error messages. Errors related to agentic constructs follow the same format as core language errors.
+The compiler produces contextual error messages with source location, underlines, and help text.
 
 \subsection{Missing Tool Description}
 
 \begin{lstlisting}[language={},numbers=none]
-error[E0101]: tool is missing a description
-  --> src/tools.haira:5:1
+error: tool is missing a description
+  --> tools.haira:5:1
    |
 5  | tool search(query: string) -> [Result] {
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ tool declaration
-6  |     resp = http.get("https://api.search.com?q={query}")
-   |     ---- expected a """...""" description as the first element
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: add a triple-quoted description: """Search the web for information"""
+   = help: add a triple-quoted description: """Search the web"""
    = note: tool descriptions are sent to the LLM and cannot be omitted
 \end{lstlisting}
 
 \subsection{Agent Referencing Undefined Provider}
 
 \begin{lstlisting}[language={},numbers=none]
-error[E0102]: undefined provider `openai`
-  --> src/agents.haira:8:12
+error: undefined provider 'openai'
+  --> agents.haira:8:12
    |
-8  |     model: openai
-   |            ^^^^^^ not found in this scope
+8  |     provider: openai
+   |               ^^^^^^ not found in this scope
    |
-   = help: did you mean `anthropic`?
-   = note: declare a provider with: provider openai { model: "gpt-4o" ... }
+   = help: declare a provider with: provider openai { model: "gpt-4o" ... }
+\end{lstlisting}
+
+\subsection{Undefined Variable}
+
+\begin{lstlisting}[language={},numbers=none]
+warning: undefined variable 'foo'
+  --> main.haira:10:5
+   |
+10 |     io.println(foo)
+   |                ^^^
+   |
+   = hint: did you mean to declare it?
 \end{lstlisting}
 
 \subsection{Workflow with Invalid Trigger}
 
 \begin{lstlisting}[language={},numbers=none]
-error[E0103]: unknown trigger `@daily`
-  --> src/workflows.haira:12:1
+error: unknown trigger '@daily'
+  --> workflows.haira:12:1
    |
 12 | @daily
    | ^^^^^^ not a recognized trigger
    |
-   = help: valid triggers are: @webhook, @websocket, @cron, @event, @manual
+   = help: valid triggers: @webhook, @websocket, @cron, @event, @manual
    = help: for daily execution, use: @cron("0 0 * * *")
 \end{lstlisting}
 
-\subsection{Type Mismatch in Agent.run() Output}
+\section{Runtime Bundling}
 
-\begin{lstlisting}[language={},numbers=none]
-error[E0104]: type mismatch in agent.run() output
-  --> src/main.haira:20:5
-   |
-20 |     result: string, err = Analyst.run(request)
-   |             ^^^^^^ expected a struct type, found `string`
-   |
-   = note: agent.run() requires a struct type annotation for structured output
-   = help: define a struct for the output:
-           struct AnalysisResult { summary: string, score: float }
-           result: AnalysisResult, err = Analyst.run(request)
-\end{lstlisting}
+The runtime is bundled into the compiler binary at build time:
 
-\subsection{Agent Referencing Undefined Tool}
+\begin{enumerate}
+    \item \code{make bundle-runtime} copies \code{primitive/haira/*.go} and \code{stdlib/haira/*.go} into a staging directory.
+    \item The UI SDK is built (\code{bun build}) and its output included.
+    \item Everything is archived as \code{bundle.tar.gz}.
+    \item The archive is embedded in the compiler binary via Go's \code{go:embed} directive.
+    \item At compile time, the codegen extracts this bundle into a temporary Go project, writes the generated \code{main.go}, and runs \code{go build}.
+\end{enumerate}
 
-\begin{lstlisting}[language={},numbers=none]
-error[E0105]: undefined tool `search_web`
-  --> src/agents.haira:10:18
-   |
-10 |     tools: [search_web, read_url]
-   |             ^^^^^^^^^^ not found in this scope
-   |
-   = help: did you mean `search`?
-   = note: tools must be declared with the `tool` keyword before being
-           referenced in an agent
-\end{lstlisting}
-
-\subsection{Invalid Cron Expression}
-
-\begin{lstlisting}[language={},numbers=none]
-error[E0106]: invalid cron expression
-  --> src/workflows.haira:3:7
-   |
-3  | @cron("every day")
-   |        ^^^^^^^^^ not a valid cron expression
-   |
-   = help: cron expressions use the format: minute hour day-of-month month day-of-week
-   = help: example: @cron("0 9 * * *") for every day at 9 AM
-\end{lstlisting}
+This approach produces fully standalone binaries: the compiled \haira{} program contains everything it needs, including the full runtime library. No separate runtime installation is required.

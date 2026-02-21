@@ -26,7 +26,7 @@ tool search_docs(query: string) -> string {
 }
 
 agent RAGBot {
-    model: openai
+    provider: openai
     system: "Answer questions using the knowledge base. Always search first."
     tools: [search_docs]
     memory: conversation(max_turns: 10)

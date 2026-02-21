@@ -870,12 +870,12 @@ fn main() {}
 	_, diags := Check(file)
 	found := false
 	for _, d := range diags {
-		if contains(d.Message, "missing required field") && contains(d.Message, "model") {
+		if contains(d.Message, "missing required field") && contains(d.Message, "provider") {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected 'missing required field model' error for agent without model")
+		t.Error("expected 'missing required field provider' error for agent without provider")
 	}
 }
 
@@ -887,7 +887,7 @@ provider openai {
 }
 
 agent Writer {
-	model: openai
+	provider: openai
 	system: "You are a writer."
 	foo: "bar"
 }
@@ -931,7 +931,7 @@ fn main() {}
 func TestAgentUnknownProvider(t *testing.T) {
 	file := parse(t, `
 agent Writer {
-	model: nonexistent
+	provider: nonexistent
 	system: "You are a writer."
 }
 
@@ -957,7 +957,7 @@ provider openai {
 }
 
 agent Assistant {
-	model: openai
+	provider: openai
 	tools: [nonexistent_tool]
 }
 
@@ -988,7 +988,7 @@ tool get_time() -> string {
 }
 
 agent Assistant {
-	model: openai
+	provider: openai
 	system: "You are helpful."
 	tools: [get_time]
 	temperature: 0.7
@@ -1136,6 +1136,100 @@ fn main() {}
 	}
 	if !found {
 		t.Error("expected 'return type mismatch' warning for returning int from string tool")
+	}
+}
+
+func TestPropagateOutsideTryWarning(t *testing.T) {
+	file := parse(t, `
+fn risky() -> string {
+	return "ok"
+}
+
+fn main() {
+	x = risky()?
+}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "outside a try block") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected warning about '?' used outside a try block")
+	}
+}
+
+func TestPropagateInsideTryNoWarning(t *testing.T) {
+	file := parse(t, `
+fn risky() -> string {
+	return "ok"
+}
+
+fn main() {
+	try {
+		x = risky()?
+	} catch err {
+		io.println(err)
+	}
+}
+`)
+	_, diags := Check(file)
+	for _, d := range diags {
+		if contains(d.Message, "outside a try block") {
+			t.Error("should NOT warn about '?' inside a try block")
+		}
+	}
+}
+
+func TestAgentTimeoutField(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+}
+
+agent Writer {
+	provider: openai
+	system: "You are a writer."
+	timeout: 30
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	for _, d := range diags {
+		if contains(d.Message, "unknown agent field") && contains(d.Message, "timeout") {
+			t.Error("timeout should be a valid agent field, but got unknown field warning")
+		}
+	}
+}
+
+func TestAgentHandoffUnknownTarget(t *testing.T) {
+	file := parse(t, `
+provider openai {
+	api_key: env("OPENAI_API_KEY")
+	model: "gpt-4o-mini"
+}
+
+agent Router {
+	provider: openai
+	system: "You route."
+	handoffs: [NonExistent]
+}
+
+fn main() {}
+`)
+	_, diags := Check(file)
+	found := false
+	for _, d := range diags {
+		if contains(d.Message, "handoff target") && contains(d.Message, "NonExistent") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected error about unknown handoff target 'NonExistent'")
 	}
 }
 

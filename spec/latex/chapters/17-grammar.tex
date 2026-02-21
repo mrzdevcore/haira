@@ -115,7 +115,7 @@ arith_op      = "+" | "-" | "*" | "/" | "%" ;
 comp_op       = "==" | "!=" | "<" | ">" | "<=" | ">=" ;
 logic_op      = "&&" | "||" | "!" ;
 bitwise_op    = "&" | "|" | "^" | "~" ;
-shift_op      = "<<" | ">>" | ">>>" ;
+shift_op      = "<<" | ">>" ;
 assign_op     = "=" | "+=" | "-=" | "*=" | "/="
               | "&=" | "|=" | "^=" | "<<=" | ">>=" | ">>>=" ;
 other_op      = "|>" | ".." | "..=" | "<-" | "->" | "=>" | "?" | "@" ;
@@ -337,9 +337,7 @@ pointer_type  = "*" type ;
 
 union_type    = type { "|" type } ;
 
-channel_type  = "chan" "<" type ">"
-              | "chan<-" type
-              | "<-chan<" type ">" ;
+channel_type  = "chan" "<" type ">" ;
 \end{lstlisting}
 
 \begin{note}
@@ -453,7 +451,7 @@ bitwise_xor   = bitwise_and { "^" bitwise_and } ;
 
 bitwise_and   = shift { "&" shift } ;
 
-shift         = additive { ("<<" | ">>" | ">>>") additive } ;
+shift         = additive { ("<<" | ">>") additive } ;
 
 additive      = multiplicative { ("+" | "-") multiplicative } ;
 

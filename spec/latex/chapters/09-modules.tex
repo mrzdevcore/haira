@@ -158,7 +158,7 @@ Declarations are \textbf{private by default}. Use the \keyword{pub} keyword to m
 \begin{lstlisting}
 // Public (exported) -- available to other modules
 pub fn create_user(name: string) -> User { }
-pub User { name: string, email: string }
+pub struct User { name: string, email: string }
 pub enum Status { Active, Inactive }
 
 // Private (not exported) -- file-local only
@@ -285,21 +285,6 @@ import "shared"
 import "shared"
 \end{lstlisting}
 
-\section{Conditional Imports}
-
-Import based on build configuration:
-
-\begin{lstlisting}
-#[cfg(os = "windows")]
-import "windows/api"
-
-#[cfg(os = "linux")]
-import "linux/api"
-
-#[cfg(os = "macos")]
-import "macos/api"
-\end{lstlisting}
-
 \section{The haira.toml File}
 
 Project configuration:
@@ -320,10 +305,6 @@ testing = "github.com/haira-libs/testing@1.0.0"
 [build]
 target = "native"
 optimization = "release"
-
-[ai]
-backend = "llama.cpp"
-model_path = "~/.haira/models/codellama-7b.gguf"
 \end{lstlisting}
 
 \section{Module Grammar}

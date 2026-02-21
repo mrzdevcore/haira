@@ -8,3 +8,8 @@ provider azure_openai {
     input_token_cost: 0.15
     output_token_cost: 0.60
 }
+
+provider local_ollama {
+    model: "gpt-oss:120b-cloud"
+    endpoint: "http://localhost:11434"
+}

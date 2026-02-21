@@ -509,6 +509,7 @@ func spawnToGo(spawn ast.SpawnExpr) string {
 	count := len(spawn.Body.Statements)
 	em.Line("func() []any {")
 	em.Line(fmt.Sprintf("\tresults := make([]any, %d)", count))
+	em.Line(fmt.Sprintf("\terrs := make([]error, %d)", count))
 	em.Line("\tvar wg sync.WaitGroup")
 	em.Line(fmt.Sprintf("\twg.Add(%d)", count))
 	for i, stmt := range spawn.Body.Statements {
@@ -519,12 +520,20 @@ func spawnToGo(spawn ast.SpawnExpr) string {
 		case ast.AssignStmt:
 			exprStr = ExprToGo(s.Value)
 		}
-		em.Line("\tgo func() {")
+		em.Line("\tgo func(idx int) {")
 		em.Line("\t\tdefer wg.Done()")
-		em.Line(fmt.Sprintf("\t\tresults[%d] = %s", i, exprStr))
-		em.Line("\t}()")
+		em.Line("\t\tdefer func() {")
+		em.Line("\t\t\tif r := recover(); r != nil {")
+		em.Line("\t\t\t\terrs[idx] = fmt.Errorf(\"spawn task %d panicked: %v\", idx, r)")
+		em.Line("\t\t\t}")
+		em.Line("\t\t}()")
+		em.Line(fmt.Sprintf("\t\tresults[idx] = %s", exprStr))
+		em.Line(fmt.Sprintf("\t}(%d)", i))
 	}
 	em.Line("\twg.Wait()")
+	em.Line("\tfor _, e := range errs {")
+	em.Line("\t\tif e != nil { panic(e) }")
+	em.Line("\t}")
 	em.Line("\treturn results")
 	em.Line("}()")
 	return strings.TrimSpace(em.String())

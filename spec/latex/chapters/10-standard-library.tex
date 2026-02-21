@@ -456,74 +456,77 @@ captures = regex.captures(pattern, "alice@example")
 // captures[2] = "example"
 \end{lstlisting}
 
-\subsection{crypto Module}
+\subsection{encoding Module}
 
-Cryptographic functions.
+Encoding and decoding utilities.
 
 \begin{lstlisting}
-import "crypto"
+import "encoding"
 
-// Hashing
-crypto.md5("hello")              // Hash as hex string
-crypto.sha256("hello")
-crypto.sha512("hello")
+// Base64
+encoding.base64_encode(data)
+encoding.base64_decode(string)
 
-// HMAC
-crypto.hmac_sha256("message", "key")
-
-// Random
-crypto.random_bytes(32)          // 32 random bytes
-
-// Encoding
-crypto.base64_encode(bytes)
-crypto.base64_decode(string)
-crypto.hex_encode(bytes)
-crypto.hex_decode(string)
+// Hex
+encoding.hex_encode(data)
+encoding.hex_decode(string)
 \end{lstlisting}
 
-\subsection{net Module}
+\section{Testing}
 
-Low-level networking.
+\haira{} has built-in testing support. Tests are declared with the \keyword{test} keyword followed by a name and a block of assertions.
+
+\subsection{Test Blocks}
 
 \begin{lstlisting}
-import "net"
+fn add(a: int, b: int) -> int {
+    return a + b
+}
 
-// TCP client
-conn, err = net.dial("tcp", "example.com:80")
-conn.write("GET / HTTP/1.1\r\n\r\n")
-data, err = conn.read(1024)
-conn.close()
+fn is_even(n: int) -> bool {
+    return n % 2 == 0
+}
 
-// TCP server
-listener, err = net.listen("tcp", ":8080")
-while true {
-    conn, err = listener.accept()
-    spawn handle_connection(conn)
+test "add returns correct sum" {
+    assert add(1, 2) == 3, "1+2 should equal 3"
+    assert add(0, 0) == 0
+    assert add(-1, 1) == 0
+}
+
+test "is_even checks parity" {
+    assert is_even(4)
+    assert not is_even(3)
 }
 \end{lstlisting}
 
-\section{Testing Module}
+\subsection{Assertions}
+
+The \keyword{assert} statement checks a condition. If it fails, the test reports the failure and continues.
 
 \begin{lstlisting}
-import "testing"
+// Boolean assertion
+assert is_valid(input)
 
-fn test_addition(t: testing.T) {
-    result = add(2, 3)
-    t.assert_eq(result, 5)
-}
+// Equality check (reports "got X, want Y" on failure)
+assert result == 42
 
-fn test_division(t: testing.T) {
-    result, err = divide(10, 2)
-    t.assert_nil(err)
-    t.assert_eq(result, 5)
+// Inequality check
+assert a != b
 
-    _, err = divide(10, 0)
-    t.assert_not_nil(err)
-}
+// With custom message
+assert count > 0, "count should be positive"
 \end{lstlisting}
 
-Run tests with:
+\subsection{Running Tests}
 
 \begin{lstlisting}[language=bash,numbers=none]
-$ haira test
+$ haira test file.haira
+\end{lstlisting}
+
+The compiler generates Go test functions and runs them with \code{go test}. Each \keyword{test} block becomes a subtest. Output follows standard test format:
+
+\begin{lstlisting}[language={},numbers=none]
+--- PASS: TestHaira/add_returns_correct_sum (0.00s)
+--- PASS: TestHaira/is_even_checks_parity (0.00s)
+PASS
 \end{lstlisting}

@@ -40,17 +40,38 @@ export class HairaChat extends HTMLElement {
   connectedCallback() {
     this.meta = JSON.parse(this.getAttribute("data-meta") || "{}");
 
-    // Session ID from URL ?session= param, or generate new
+    // Session ID from URL ?session= param, or resume latest, or generate new
     const url = new URL(window.location.href);
     const urlSession = url.searchParams.get("session");
     if (urlSession) {
       this.sessionId = urlSession;
+      this.render();
     } else {
-      this.sessionId = crypto.randomUUID();
-      url.searchParams.set("session", this.sessionId);
-      window.history.replaceState({}, "", url.toString());
+      this.initWithLatestSession(url);
     }
+  }
 
+  private async initWithLatestSession(url: URL) {
+    try {
+      const resp = await fetch(
+        `/_api/chats?workflow=${encodeURIComponent(this.meta.path)}`,
+      );
+      if (resp.ok) {
+        const sessions = await resp.json();
+        if (sessions && sessions.length > 0) {
+          this.sessionId = sessions[0].id;
+          url.searchParams.set("session", this.sessionId);
+          window.history.replaceState({}, "", url.toString());
+          this.render();
+          return;
+        }
+      }
+    } catch {
+      // API unavailable — fall through to new chat
+    }
+    this.sessionId = crypto.randomUUID();
+    url.searchParams.set("session", this.sessionId);
+    window.history.replaceState({}, "", url.toString());
     this.render();
   }
 

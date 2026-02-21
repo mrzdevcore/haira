@@ -63,8 +63,7 @@ func (e *GoEmitter) Line(s string) {
 
 // Linef writes a formatted line.
 func (e *GoEmitter) Linef(format string, args ...any) {
-	e.Line(strings.NewReplacer().Replace(format))
-	// Actually use fmt.Sprintf:
+	e.Line(fmt.Sprintf(format, args...))
 }
 
 // Indent increases indentation.

@@ -64,7 +64,7 @@ func MapValues(m any) []any {
 		}
 		return vals
 	}
-	return nil
+	return []any{}
 }
 
 // MapEntries returns all entries as a list of [key, value] pairs.
@@ -76,7 +76,7 @@ func MapEntries(m any) []any {
 		}
 		return entries
 	}
-	return nil
+	return []any{}
 }
 
 // MapMerge merges two maps. Values from b override values from a.

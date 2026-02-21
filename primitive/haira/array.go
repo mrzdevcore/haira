@@ -333,6 +333,38 @@ func ArrayFlatMap(arr any, fn func(any) any) []any {
 	return result
 }
 
+// Range generates a slice of integers from start to end.
+// If inclusive is true, the range includes end (start..=end).
+// Otherwise, it excludes end (start..end).
+func Range(start, end any, inclusive bool) []any {
+	s := toInt(start)
+	e := toInt(end)
+	if inclusive {
+		e++
+	}
+	if s >= e {
+		return []any{}
+	}
+	result := make([]any, 0, e-s)
+	for i := s; i < e; i++ {
+		result = append(result, i)
+	}
+	return result
+}
+
+func toInt(v any) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
 // isTruthy converts a value to a boolean for filter/find/every/some.
 func isTruthy(v any) bool {
 	if v == nil {

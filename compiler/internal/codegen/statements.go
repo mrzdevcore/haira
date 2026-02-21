@@ -194,7 +194,7 @@ func assignPathToGo(path ast.AssignPath) string {
 	case ast.IdentPath:
 		return p.Name.Node
 	case ast.FieldPath:
-		return assignPathToGo(p.Object) + "." + p.Field.Node
+		return assignPathToGo(p.Object) + "." + SnakeToPascal(p.Field.Node)
 	case ast.IndexPath:
 		return fmt.Sprintf("%s[%s]", assignPathToGo(p.Object), ExprToGo(p.Index))
 	}

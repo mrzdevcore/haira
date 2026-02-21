@@ -94,10 +94,11 @@ func ExprToGo(expr ast.Expr) string {
 					}
 				}
 			}
-			// Heuristic fallback: variables named "err" are errors
+			// Runtime fallback: use haira.ErrorMessage() for safe access
+			// on any variable that might be an error at runtime.
 			if ident, ok := e.Object.Node.(ast.IdentExpr); ok {
-				if ident.Name == "err" || strings.HasSuffix(ident.Name, "_err") {
-					return ExprToGo(e.Object) + ".Error()"
+				if ident.Name == "err" || strings.HasSuffix(ident.Name, "_err") || strings.HasSuffix(ident.Name, "Error") || strings.HasSuffix(ident.Name, "_error") {
+					return fmt.Sprintf("haira.ErrorMessage(%s)", ExprToGo(e.Object))
 				}
 			}
 		}
@@ -157,17 +158,17 @@ func ExprToGo(expr ast.Expr) string {
 	case ast.IfExpr:
 		return ifExprToGo(e.If)
 	case ast.BlockExpr:
-		return "nil /* block-expr */"
+		return blockExprToGo(e)
 	case ast.InstanceExpr:
 		return instanceToGo(e)
 	case ast.RangeExpr:
-		return "nil /* range */"
+		return rangeExprToGo(e)
 	case ast.PropagateExpr:
 		return propagateExprToGo(e)
 	case ast.OrelseExpr:
 		return orelseExprToGo(e)
 	case ast.AsyncExpr:
-		return "nil /* async */"
+		return asyncExprToGo(e)
 	case ast.SpawnExpr:
 		return spawnToGo(e)
 	case ast.SelectExpr:
@@ -525,6 +526,66 @@ func spawnToGo(spawn ast.SpawnExpr) string {
 	}
 	em.Line("\twg.Wait()")
 	em.Line("\treturn results")
+	em.Line("}()")
+	return strings.TrimSpace(em.String())
+}
+
+// blockExprToGo generates an IIFE that evaluates block statements and returns the last expression.
+func blockExprToGo(block ast.BlockExpr) string {
+	em := NewEmitter()
+	em.Line("func() any {")
+	stmts := block.Body.Statements
+	for i, stmt := range stmts {
+		if i == len(stmts)-1 {
+			// Last statement: if it's an expression, return it
+			if es, ok := stmt.Node.(ast.ExprStmt); ok {
+				em.Line(fmt.Sprintf("\treturn %s", ExprToGo(es.Value)))
+				continue
+			}
+		}
+		inner := NewEmitter()
+		EmitStatement(inner, stmt)
+		em.Line("\t" + strings.TrimSpace(inner.String()))
+	}
+	if len(stmts) == 0 {
+		em.Line("\treturn nil")
+	}
+	em.Line("}()")
+	return strings.TrimSpace(em.String())
+}
+
+// rangeExprToGo generates a Go slice for a range expression (e.g., 0..5 → []any{0, 1, 2, 3, 4}).
+// When used as an iterator in for-loops, the for-loop codegen handles ranges directly.
+// This handles the case where a range is used as a standalone expression value.
+func rangeExprToGo(r ast.RangeExpr) string {
+	start := ExprToGo(r.Start)
+	end := ExprToGo(r.End)
+	return fmt.Sprintf("haira.Range(%s, %s, %v)", start, end, r.Inclusive)
+}
+
+// asyncExprToGo generates a goroutine that returns a channel with the result.
+func asyncExprToGo(a ast.AsyncExpr) string {
+	em := NewEmitter()
+	em.Line("func() chan any {")
+	em.Line("\tch := make(chan any, 1)")
+	em.Line("\tgo func() {")
+	stmts := a.Body.Statements
+	for i, stmt := range stmts {
+		if i == len(stmts)-1 {
+			if es, ok := stmt.Node.(ast.ExprStmt); ok {
+				em.Line(fmt.Sprintf("\t\tch <- %s", ExprToGo(es.Value)))
+				continue
+			}
+		}
+		inner := NewEmitter()
+		EmitStatement(inner, stmt)
+		em.Line("\t\t" + strings.TrimSpace(inner.String()))
+	}
+	if len(stmts) == 0 {
+		em.Line("\t\tch <- nil")
+	}
+	em.Line("\t}()")
+	em.Line("\treturn ch")
 	em.Line("}()")
 	return strings.TrimSpace(em.String())
 }

@@ -1,4 +1,6 @@
+// Example 13: Error Handling — multi-return errors and try/catch
 import "io"
+import "conv"
 
 fn divide(a: int, b: int) -> int {
     if b == 0 {
@@ -8,18 +10,24 @@ fn divide(a: int, b: int) -> int {
     return a / b
 }
 
-fn abs(n: int) -> int {
-    if n < 0 {
-        return 0 - n
-    }
-    return n
-}
-
 fn main() {
+    // Basic error guard
     io.println(divide(10, 3))
     io.println(divide(10, 0))
-    io.println(divide(100, 5))
 
-    io.println(abs(-42))
-    io.println(abs(7))
+    // Multi-return error pattern: (value, error)
+    n, err = conv.string_to_int("42")
+    if err != nil {
+        io.println("parse failed")
+    } else {
+        io.println(n)
+    }
+
+    // Handling parse errors gracefully
+    val, err = conv.string_to_int("not_a_number")
+    if err != nil {
+        io.println("Expected error: could not parse")
+    } else {
+        io.println(val)
+    }
 }

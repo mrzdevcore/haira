@@ -14,7 +14,6 @@ fn describe(dir) -> string {
         Direction.South => return "Going south"
         Direction.East => return "Going east"
         Direction.West => return "Going west"
-        _ => return "Unknown"
     }
     return "Unknown"
 }

@@ -1,8 +1,10 @@
 package haira
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -20,7 +22,9 @@ func PostgresConnect(connStr string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgres connect: %w", err)
 	}
-	if err := conn.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := conn.PingContext(ctx); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("postgres ping: %w", err)
 	}
@@ -30,7 +34,9 @@ func PostgresConnect(connStr string) (*DB, error) {
 // Query executes a SQL query and returns rows as a slice of maps.
 // Each map represents a row with column names as keys.
 func (db *DB) Query(query string, args ...any) ([]map[string]any, error) {
-	rows, err := db.conn.Query(query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rows, err := db.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("postgres query: %w", err)
 	}
@@ -74,7 +80,9 @@ func (db *DB) Query(query string, args ...any) ([]map[string]any, error) {
 
 // Execute runs a SQL statement (INSERT, UPDATE, DELETE) and returns rows affected.
 func (db *DB) Execute(query string, args ...any) (int64, error) {
-	result, err := db.conn.Exec(query, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := db.conn.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("postgres execute: %w", err)
 	}

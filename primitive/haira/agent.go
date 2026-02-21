@@ -573,7 +573,16 @@ func (a *Agent) executeTool(tc openai.ToolCall, sessionID string) (openai.ChatCo
 	}
 
 	toolStart := time.Now()
-	result, err := toolDef.Handler(json.RawMessage(tc.Function.Arguments))
+	var result any
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("%v", r)
+			}
+		}()
+		result, err = toolDef.Handler(json.RawMessage(tc.Function.Arguments))
+	}()
 
 	// Record tool execution for observability
 	RecordToolExec(ToolExec{

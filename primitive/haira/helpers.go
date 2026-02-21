@@ -1,15 +1,35 @@
 package haira
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
 
 // parseJSON unmarshals a JSON string into a map. Returns empty map on error.
 func parseJSON(body string) map[string]any {
 	var result map[string]any
-	json.Unmarshal([]byte(body), &result)
+	if err := json.Unmarshal([]byte(body), &result); err != nil {
+		fmt.Fprintf(os.Stderr, "haira: parseJSON error: %v\n", err)
+		return map[string]any{}
+	}
 	if result == nil {
 		return map[string]any{}
 	}
 	return result
+}
+
+// ErrorMessage safely extracts the error message from a value.
+// If the value implements the error interface, returns .Error().
+// Otherwise, returns the fmt.Sprint representation.
+func ErrorMessage(v any) string {
+	if v == nil {
+		return ""
+	}
+	if err, ok := v.(error); ok {
+		return err.Error()
+	}
+	return fmt.Sprint(v)
 }
 
 // strVal safely extracts a string value from a map by key.

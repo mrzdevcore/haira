@@ -243,6 +243,47 @@ export interface ProductCardsProps {
   cards: ProductCardItem[];
 }
 
+// --- ARP Protocol Types (Minimal Mode) ---
+
+export interface ArpMessage {
+  v: number;
+  type: string;
+  session_id?: string;
+  payload?: Record<string, unknown>;
+  components?: ArpComponent[];
+  ops?: ArpPatchOp[];
+  final?: boolean;
+  tool_name?: string;
+}
+
+export interface ArpComponent {
+  id: string;
+  type: string;
+  version?: number;
+  props: Record<string, unknown>;
+  fallback?: ArpComponent;
+}
+
+export interface ArpPatchOp {
+  op: "update" | "insert" | "remove" | "replace" | "reorder";
+  target?: string;
+  path?: string;
+  value?: unknown;
+  after?: string;
+  component?: ArpComponent;
+}
+
+export interface ArpHello {
+  v: number;
+  type: "hello";
+  capabilities: ArpCapabilities;
+}
+
+export interface ArpCapabilities {
+  components: string[];
+  features: string[];
+}
+
 // --- Observe types ---
 
 export interface ObserveUsage {

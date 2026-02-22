@@ -187,60 +187,13 @@ func (s *Server) handleSSE(rw http.ResponseWriter, r *http.Request, wf *Workflow
 	rw.Header().Set("Connection", "keep-alive")
 	flusher.Flush()
 
-	var fullReply strings.Builder
-	var uiEvents []json.RawMessage
-
-	for chunk := range ch {
-		if chunk.Done {
-			// Error with delta — send as error event before [DONE]
-			if chunk.Delta != "" && strings.HasPrefix(chunk.Delta, "error:") {
-				errData, _ := json.Marshal(map[string]string{"error": strings.TrimPrefix(chunk.Delta, "error: ")})
-				fmt.Fprintf(rw, "event: error\ndata: %s\n\n", errData)
-				flusher.Flush()
-			}
-			fmt.Fprintf(rw, "data: [DONE]\n\n")
-			flusher.Flush()
-			break
-		}
-
-		switch chunk.Type {
-		case "tool_start":
-			data, _ := json.Marshal(map[string]any{
-				"tool": chunk.ToolName,
-				"args": chunk.ToolArgs,
-			})
-			fmt.Fprintf(rw, "event: tool_start\ndata: %s\n\n", data)
-		case "tool_render":
-			data, _ := json.Marshal(map[string]any{
-				"tool":      chunk.ToolName,
-				"component": chunk.RenderComponent,
-				"props":     json.RawMessage(chunk.RenderProps),
-			})
-			fmt.Fprintf(rw, "event: tool_render\ndata: %s\n\n", data)
-			// Collect for persistence
-			if sessionID != "" {
-				uiEvents = append(uiEvents, data)
-			}
-		case "tool_end":
-			data, _ := json.Marshal(map[string]any{
-				"tool": chunk.ToolName,
-				"ok":   chunk.ToolOK,
-			})
-			fmt.Fprintf(rw, "event: tool_end\ndata: %s\n\n", data)
-		default:
-			// Normal text delta (Type == "")
-			if chunk.Delta != "" {
-				fullReply.WriteString(chunk.Delta)
-				data, _ := json.Marshal(map[string]string{"delta": chunk.Delta})
-				fmt.Fprintf(rw, "data: %s\n\n", data)
-			}
-		}
-		flusher.Flush()
-	}
+	// Bridge StreamChunks to ARP messages, then write as SSE
+	arpMessages := ArpBridge(sessionID, ch)
+	result := WriteArpSSE(rw, flusher, arpMessages)
 
 	// Persist assistant reply with UI events
-	if sessionID != "" && (fullReply.Len() > 0 || len(uiEvents) > 0) {
-		globalStore.AddMessage(sessionID, "assistant", fullReply.String(), uiEvents)
+	if sessionID != "" && (result.FullReply != "" || len(result.UIEvents) > 0) {
+		globalStore.AddMessage(sessionID, "assistant", result.FullReply, result.UIEvents)
 	}
 }
 
@@ -345,6 +298,15 @@ func sanitizeParams(params map[string]any) map[string]any {
 func (s *Server) registerUIRoutes() {
 	s.mux.HandleFunc("/_ui/assets/haira-ui.js", s.serveUIJS)
 	s.mux.HandleFunc("/_ui/", s.handleUIIndex)
+
+	// ARP WebSocket endpoint
+	s.mux.HandleFunc("/_arp/v1", s.handleArpWebSocket)
+
+	// ARP capability discovery (JSON, no WebSocket required)
+	s.mux.HandleFunc("/_api/arp", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(ArpServerCapabilities())
+	})
 
 	// Run history API
 	s.mux.HandleFunc("/_api/runs", s.handleListRuns)

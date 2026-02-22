@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/go-1.22+-00ADD8.svg" alt="Go 1.22+">
-  <img src="https://img.shields.io/badge/examples-24-2962FF.svg" alt="24 examples">
+  <img src="https://img.shields.io/badge/examples-29-2962FF.svg" alt="29 examples">
 </p>
 
 ---
@@ -57,6 +57,77 @@ fn main() {
 }
 ```
 
+## Architecture
+
+```
+                              ┌─────────────────────────────────────┐
+                              │           .haira source             │
+                              └──────────────┬──────────────────────┘
+                                             │
+                    ┌────────────────────────────────────────────────┐
+                    │                  COMPILER                      │
+                    │                                                │
+                    │   ┌───────┐   ┌────────┐   ┌──────────┐        │
+                    │   │ Lexer │──▶│ Parser │──▶│ Checker  │        │
+                    │   └───────┘   └────────┘   └─────┬────┘        │
+                    │                                  │             │
+                    │                            ┌─────▼──────┐      │
+                    │                            │  Codegen   │      │
+                    │                            │  (Go emit) │      │
+                    │                            └─────┬──────┘      │
+                    └──────────────────────────────────┼─────────────┘
+                                                       │
+                                                  go build
+                                                       │
+                                                       ▼
+                    ┌─────────────────────────────────────────────────┐
+                    │              NATIVE BINARY                      │
+                    │                                                 │
+                    │  ┌─────────────────────────────────────────┐    │
+                    │  │            Haira Runtime                │    │
+                    │  │                                         │    │
+                    │  │  ┌──────────┐  ┌───────┐  ┌──────────┐  │    │
+                    │  │  │ Provider │  │ Agent │  │ Workflow │  │    │
+                    │  │  └──────────┘  └───┬───┘  └────┬─────┘  │    │
+                    │  │                    │           │        │    │
+                    │  │         ┌──────────┴───────────┘        │    │
+                    │  │         │                               │    │
+                    │  │  ┌──────▼──────┐     ┌──────────────┐   │    │
+                    │  │  │ HTTP Server │     │  MCP Server  │   │    │
+                    │  │  │  REST + SSE │     │ stdio / HTTP │   │    │
+                    │  │  └──────┬──────┘     └──────────────┘   │    │
+                    │  │         │                               │    │
+                    │  │  ┌──────▼──────┐     ┌──────────────┐   │    │
+                    │  │  │  ARP Bridge │     │  Observe /   │   │    │
+                    │  │  │ (protocol)  │     │  Langfuse    │   │    │
+                    │  │  └──┬──────┬───┘     └──────────────┘   │    │
+                    │  │     │      │                            │    │
+                    │  └─────┼──────┼────────────────────────────┘    │
+                    │        │      │                                 │
+                    │   ┌────▼──┐ ┌─▼────────┐   ┌───────────────┐    │
+                    │   │  SSE  │ │WebSocket │   │  SQLite Store │    │
+                    │   │(http) │ │(_arp/v1) │   │  (sessions)   │    │
+                    │   └───┬───┘ └────┬─────┘   └───────────────┘    │
+                    └───────┼──────────┼──────────────────────────────┘
+                            │          │
+                            ▼          ▼
+                    ┌──────────────────────────────────┐
+                    │          UI SDK (Lit)            │
+                    │                                  │
+                    │  ┌──────┐ ┌──────┐ ┌──────────┐  │
+                    │  │ Chat │ │ Form │ │Generative│  │
+                    │  │  UI  │ │  UI  │ │UI Comps  │  │
+                    │  └──────┘ └──────┘ └──────────┘  │
+                    │                                  │
+                    │  tables, charts, status cards,   │
+                    │  code blocks, diffs, key-value,  │
+                    │  confirm, choices, forms,        │
+                    │  product cards, progress views   │
+                    └──────────────────────────────────┘
+```
+
+**Data flow:** `.haira` source is compiled through Lexer → Parser → Checker → Go Codegen, then `go build` produces a single native binary. At runtime, the binary embeds the full Haira runtime (agents, providers, tools, workflows, HTTP server, ARP protocol bridge, UI SDK) — zero external dependencies.
+
 ## Why Haira?
 
 | What you replace | With Haira |
@@ -67,14 +138,17 @@ fn main() {
 | Custom chatbot backend | Agent `memory` + `-> stream` + built-in chat UI |
 | YAML/JSON config files | `provider` keyword — config in code |
 | MCP glue code | `mcp.Server()` / `provider { transport: "mcp" }` |
+| Vercel AI SDK + React UI | Generative UI with `ui.*` components |
 
 ## Key Features
 
 - **4 agentic keywords** — `provider`, `tool`, `agent`, `workflow`
 - **Compiles to native binaries** — via Go codegen, single executable output
+- **Generative UI** — agents render rich UI components (tables, charts, status cards, forms) via `ui.*` helpers
+- **ARP (Agentic Rendering Protocol)** — transport-agnostic protocol for agent-to-renderer communication (WebSocket + SSE)
 - **Auto UI** — every workflow gets a form UI at `/_ui/`, streaming workflows get a ChatGPT-style chat UI
 - **RESTful triggers** — `@get`, `@post`, `@put`, `@delete` decorators
-- **Streaming** — `-> stream` workflows served as SSE
+- **Streaming** — `-> stream` workflows served as SSE with WebSocket upgrade
 - **Agent handoffs** — agents delegate to other agents automatically
 - **Agent memory** — `conversation(max_turns: N)` per session
 - **File uploads** — `file` type with multipart handling, auto file picker in UI
@@ -82,6 +156,8 @@ fn main() {
 - **Parallel execution** — `spawn { }` blocks for concurrent agent calls
 - **Pipe operator** — `data |> transform |> output`
 - **MCP support** — consume external tools (`provider { transport: "mcp" }`) and expose workflows as MCP tools (`mcp.Server()`)
+- **Observability** — built-in `observe` module with Langfuse integration
+- **10 stdlib packages** — postgres, sqlite, excel, vector, slack, github, gitlab, algolia, meilisearch, langfuse
 - **Go-style simplicity** — familiar syntax, explicit error handling
 
 ## The Four Primitives
@@ -153,6 +229,52 @@ workflow Support(message: string, session_id: string) -> { reply: string } {
 }
 ```
 
+## Generative UI
+
+Agents can render rich UI components directly into the chat. Tools return `ui.*` helpers that display tables, charts, status cards, and more — no frontend code required:
+
+```haira
+tool query_data(sql: string) -> string {
+    """Execute a SQL query and display results as a table"""
+    rows, err = db.query(sql)
+    if err != nil {
+        return ui.status_card("error", "Query Failed", conv.to_string(err))
+    }
+    headers = keys(rows[0])
+    table_rows = []
+    for row in rows {
+        cells = []
+        for h in headers {
+            cells = array.push(cells, conv.to_string(row[h]))
+        }
+        table_rows = array.push(table_rows, cells)
+    }
+    return ui.table("Results", headers, table_rows)
+}
+
+tool visualize(chart_type: string, title: string, labels: string, datasets: string) -> string {
+    """Create a chart visualization"""
+    return ui.chart(chart_type, title, json.parse(labels), json.parse(datasets))
+}
+```
+
+Available UI components:
+
+| Component | Helper | Description |
+|-----------|--------|-------------|
+| Status Card | `ui.status_card(status, title, message?)` | Success/error/warning/info indicator |
+| Table | `ui.table(title, headers, rows)` | Searchable data table |
+| Chart | `ui.chart(type, title, labels, datasets)` | Line, bar, pie, scatter, area charts |
+| Key-Value | `ui.key_value(title, items)` | Labeled property list |
+| Code Block | `ui.code_block(title, language, code)` | Syntax-highlighted code |
+| Diff | `ui.diff(title, before, after)` | Before/after comparison |
+| Progress | `ui.progress(title, steps)` | Multi-step progress tracker |
+| Form | `ui.form(title, fields)` | Interactive form input |
+| Confirm | `ui.confirm(title, message?)` | Yes/no confirmation dialog |
+| Choices | `ui.choices(title, options)` | Option picker (buttons/list) |
+| Product Cards | `ui.product_cards(title, cards)` | Product card grid with images |
+| Group | `ui.group(child1, child2, ...)` | Compose multiple components |
+
 ## Agent Handoffs
 
 Agents can delegate to specialized agents automatically:
@@ -185,7 +307,11 @@ workflow Stream(message: string, session_id: string) -> stream {
 }
 ```
 
-Clients requesting `Accept: text/event-stream` get SSE chunks. Others get a JSON response. Streaming workflows automatically get a ChatGPT-style chat UI at `/_ui/`.
+Streaming workflows support two transports:
+- **SSE** — clients requesting `Accept: text/event-stream` get SSE chunks
+- **WebSocket** — clients connect to `/_arp/v1` for bidirectional ARP communication
+
+Both transports deliver the same data. The built-in chat UI automatically upgrades to WebSocket when available, falling back to SSE.
 
 ## Workflow Steps & Lifecycle Hooks
 
@@ -307,9 +433,9 @@ Both transports are supported:
 Combine MCP client + server + handoffs for cross-machine agent orchestration:
 
 ```
-Server A (Summarizer)  ←──MCP──→  Server B (Translator)
-       ↑                                ↑
-       └──────── MCP ──── Server C (Orchestrator)
+Server A (Summarizer)  <--MCP-->  Server B (Translator)
+       ^                                ^
+       +-------- MCP ---- Server C (Orchestrator)
 ```
 
 ## Benchmarks
@@ -318,12 +444,12 @@ Measured on Apple Silicon (M-series). Competitor numbers from published benchmar
 
 ### Compiler Performance
 
-| Phase | 24 examples | Per file |
+| Phase | 29 examples | Per file |
 |-------|-------------|----------|
-| Lex | 85ms | ~3.5ms |
-| Parse | 80ms | ~3.3ms |
-| Codegen (emit Go) | 86ms | ~3.6ms |
-| Full build (agentic) | 440ms | — |
+| Lex | 85ms | ~2.9ms |
+| Parse | 80ms | ~2.8ms |
+| Codegen (emit Go) | 86ms | ~3.0ms |
+| Full build (agentic) | 440ms | -- |
 
 ### Runtime Performance
 
@@ -349,15 +475,18 @@ Measured on Apple Silicon (M-series). Competitor numbers from published benchmar
 | Capability | Haira | LangGraph | CrewAI | AutoGen | Vercel AI SDK |
 |------------|-------|-----------|--------|---------|---------------|
 | Custom tools | First-class keyword | Decorator | Decorator/class | Function | Zod schema |
+| Generative UI | Built-in (`ui.*`) | No | No | No | React components |
 | Multi-agent | Handoffs (built-in) | Graph edges | Role delegation | Conversations | Manual |
 | MCP client | Built-in | Via plugin | No | No | Plugin |
 | MCP server | Built-in | No | No | No | No |
 | HTTP server | Built-in | Manual (Flask) | No | No | Via Next.js |
 | SSE streaming | `-> stream` keyword | Manual | No | No | Built-in |
+| WebSocket (ARP) | Built-in | No | No | No | No |
 | Memory/sessions | Language keyword | Checkpointer | Config | Config | Manual |
 | Type safety | Compile-time | Runtime | Runtime | Runtime | TypeScript |
 | Parallel execution | `spawn { }` | `Send()` API | Task config | Group chat | `Promise.all` |
 | Auto UI | Built-in | No | No | No | No |
+| Observability | Built-in + Langfuse | Via callbacks | Via callbacks | Via callbacks | Via callbacks |
 | Deploy | Single binary | Docker + venv | Docker + venv | Docker + node_modules | Docker + node_modules |
 
 ## Getting Started
@@ -398,42 +527,67 @@ make install-local    # installs to ~/.local/bin/haira
 
 ```
 haira/
-├── compiler/                # Compiler (Go)
-│   ├── main.go              # CLI entry point
+├── compiler/                   # Compiler (Go)
+│   ├── main.go                 # CLI: build, run, parse, check, lex, emit, lsp
 │   └── internal/
-│       ├── token/            # Token types
-│       ├── lexer/            # Hand-written scanner
-│       ├── ast/              # AST node types
-│       ├── parser/           # Recursive descent + Pratt parsing
-│       ├── checker/          # Type checker + semantic analysis
-│       ├── codegen/          # Go code generation
-│       ├── lsp/              # Language server protocol
-│       └── driver/           # Pipeline orchestrator
-├── go-runtime/              # Runtime library (Go)
-│   └── haira/
-│       ├── agent.go          # Agent execution, streaming, handoffs
-│       ├── provider.go       # LLM provider config
-│       ├── tool.go           # Tool registry
-│       ├── workflow.go       # Workflow definitions
-│       ├── server.go         # HTTP server with SSE + auto UI routing
-│       ├── mcp_client.go     # MCP client (stdio + SSE transports)
-│       ├── mcp_server.go     # MCP server (stdio + SSE transports)
-│       ├── memory.go         # Session memory store
-│       ├── upload.go         # File upload handling
-│       ├── ui_form.go        # Auto form UI
-│       ├── ui_chat.go        # Auto chat UI
-│       └── ui/               # Embedded HTML templates
-├── examples/                # 24 example programs
-├── poc/                     # Real-world proof of concept
-├── spec/                    # Language specification (17 chapters, LaTeX)
-├── editors/                 # Editor extensions (Zed)
-├── tree-sitter-haira/       # Tree-sitter grammar
+│       ├── token/              # Token types
+│       ├── lexer/              # Hand-written scanner
+│       ├── ast/                # AST node types
+│       ├── parser/             # Recursive descent + Pratt parsing
+│       ├── checker/            # Type checker + semantic analysis
+│       ├── resolver/           # Name resolution
+│       ├── codegen/            # Go code generation
+│       ├── errors/             # Diagnostic system
+│       ├── lsp/                # Language server protocol
+│       ├── driver/             # Pipeline orchestrator
+│       └── runtime/            # Embedded UI bundle (bundle.tar.gz)
+├── primitive/haira/            # Core runtime (Go)
+│   ├── agent.go                # Agent execution, streaming, handoffs
+│   ├── provider.go             # LLM provider config
+│   ├── tool.go                 # Tool registry
+│   ├── workflow.go             # Workflow definitions
+│   ├── server.go               # HTTP server, SSE, auto UI routing
+│   ├── arp.go                  # ARP protocol types + bridge
+│   ├── arp_ws.go               # ARP WebSocket transport
+│   ├── mcp_client.go           # MCP client (stdio + SSE)
+│   ├── mcp_server.go           # MCP server (stdio + SSE)
+│   ├── memory.go               # Session memory store
+│   ├── store.go                # Session persistence interface
+│   ├── observe.go              # Observability / telemetry
+│   ├── upload.go               # File upload handling
+│   └── ui_*.go                 # Generative UI components + tools
+├── stdlib/                     # Standard library (tree-shaken)
+│   ├── postgres/               # PostgreSQL client
+│   ├── sqlite/                 # SQLite store backend
+│   ├── excel/                  # Excel file generation
+│   ├── vector/                 # Vector embeddings + search
+│   ├── slack/                  # Slack integration
+│   ├── github/                 # GitHub API client
+│   ├── gitlab/                 # GitLab API client
+│   ├── algolia/                # Algolia search client
+│   ├── meilisearch/            # Meilisearch client
+│   └── langfuse/               # Langfuse observability exporter
+├── ui/sdk/                     # UI SDK (TypeScript, Lit web components)
+│   └── src/
+│       ├── core/               # Types, styles, ARP client
+│       ├── components/         # Chat, form, generative UI components
+│       ├── pages/              # App shell pages
+│       └── services/           # SSE client
+├── spec/                       # Language specification
+│   ├── latex/                  # 18-chapter spec (LaTeX)
+│   └── arp/                    # ARP protocol spec + component catalog
+├── examples/                   # 29 example programs
+├── poc/                        # Real-world proof of concepts
+│   ├── data-explorer/          # AI-powered data querying + visualization
+│   ├── devops-incident/        # DevOps incident management
+├── editors/zed-haira/          # Zed editor extension
+├── tree-sitter-haira/          # Tree-sitter grammar
 └── Makefile
 ```
 
 ## Examples
 
-All 24 examples compile and run:
+All 29 examples compile and run:
 
 ```bash
 make build-examples    # compile all
@@ -466,6 +620,11 @@ make run-examples      # run non-agentic examples
 | 22-pipeline-ui | Workflow steps with pipeline UI |
 | 23-mcp | MCP client — agent with external tools |
 | 24-mcp-server | MCP server — expose workflows as tools |
+| 25-embeddings | Vector embeddings + similarity search |
+| 26-rag | Retrieval-augmented generation |
+| 27-structured-output | Typed agent output with structs |
+| 28-observe | Observability with Langfuse |
+| 29-testing | Testing workflows |
 
 ## License
 

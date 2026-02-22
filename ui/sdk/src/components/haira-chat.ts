@@ -5,6 +5,7 @@ import { baseStyles, scrollbarStyles } from "../core/styles";
 import { iconStrings, logoSvgStr } from "../core/icons";
 import { formatBytes } from "../core/utils";
 import { streamSSE } from "../services/sse-client";
+import { ArpClient } from "../core/arp-client";
 import type {
   WorkflowMeta,
   ToolRenderEvent,
@@ -716,6 +717,8 @@ export class HairaChat extends LitElement {
   private _fullStreamText = "";
   /** Map tool name -> index in _toolCards */
   private _activeToolMap = new Map<string, number>();
+  /** ARP WebSocket client — null if WebSocket not available */
+  private _arpClient: ArpClient | null = null;
 
   // ---------- Lifecycle ----------
 
@@ -727,6 +730,8 @@ export class HairaChat extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this._streamAbort?.abort();
+    this._arpClient?.disconnect();
+    this._arpClient = null;
   }
 
   private async _initSession() {
@@ -749,6 +754,7 @@ export class HairaChat extends LitElement {
             window.history.replaceState({}, "", url.toString());
             this._loadSession(this._sessionId);
             this._refreshSidebar();
+            this._connectArp();
             return;
           }
         }
@@ -762,6 +768,24 @@ export class HairaChat extends LitElement {
 
     this._loadSession(this._sessionId);
     this._refreshSidebar();
+    this._connectArp();
+  }
+
+  /** Attempt to connect via ARP WebSocket. Falls back to SSE silently. */
+  private _connectArp() {
+    try {
+      this._arpClient = new ArpClient(this._sessionId, {
+        onDelta: (text) => this._handleDelta(text),
+        onToolStart: (tool) => this._handleToolStart(tool),
+        onToolEnd: (tool, ok) => this._handleToolEnd(tool, ok),
+        onRender: (event) => this._handleToolRender(event),
+        onError: (error) => this._handleError(error),
+        onDone: () => this._handleDone(),
+      });
+      this._arpClient.connect();
+    } catch {
+      this._arpClient = null;
+    }
   }
 
   // ---------- Session management ----------
@@ -825,6 +849,11 @@ export class HairaChat extends LitElement {
     this._attachedFile = null;
     this._streamingMsgIndex = -1;
     this._fullStreamText = "";
+
+    // Reconnect ARP client with new session
+    this._arpClient?.disconnect();
+    this._arpClient = null;
+    this._connectArp();
 
     const url = new URL(window.location.href);
     url.searchParams.set("session", newSessionId);
@@ -927,7 +956,130 @@ export class HairaChat extends LitElement {
     this._send();
   }
 
-  // ---------- Send / SSE streaming ----------
+  // ---------- Send / streaming (ARP WebSocket or SSE fallback) ----------
+
+  private _handleToolStart(tool: string) {
+    this._showTyping = false;
+    const displayName = tool
+      .replace(/^render_/, "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const cardState: ToolCardState = {
+      name: tool,
+      displayName,
+      status: "running",
+      startTime: Date.now(),
+    };
+    const idx = this._toolCards.length;
+    this._toolCards = [...this._toolCards, cardState];
+    this._activeToolMap.set(tool, idx);
+
+    this._runningToolCount++;
+    this._totalToolCount++;
+
+    if (!this._panelOpen) {
+      this._panelOpen = true;
+    }
+
+    this.updateComplete.then(() => {
+      if (this._panelBodyEl) {
+        this._panelBodyEl.scrollTop = this._panelBodyEl.scrollHeight;
+      }
+    });
+  }
+
+  private _handleToolRender(event: ToolRenderEvent) {
+    if (this._streamingMsgIndex >= 0) {
+      const msg = this._messages[this._streamingMsgIndex];
+      const uiEvents = [...(msg.uiEvents || []), event];
+      const updated = [...this._messages];
+      updated[this._streamingMsgIndex] = { ...msg, uiEvents };
+      this._messages = updated;
+    } else {
+      this._messages = [
+        ...this._messages,
+        { role: "assistant", content: "", uiEvents: [event] },
+      ];
+      this._streamingMsgIndex = this._messages.length - 1;
+    }
+    this.updateComplete.then(() => this._scrollToBottom());
+  }
+
+  private _handleToolEnd(tool: string, ok: boolean) {
+    const idx = this._activeToolMap.get(tool);
+    if (idx !== undefined) {
+      const card = this._toolCards[idx];
+      const elapsed = ((Date.now() - card.startTime) / 1000).toFixed(1);
+      const updated = [...this._toolCards];
+      updated[idx] = {
+        ...card,
+        status: ok ? "done" : "failed",
+        elapsed: `${elapsed}s`,
+      };
+      this._toolCards = updated;
+      this._activeToolMap.delete(tool);
+    }
+    this._showTyping = true;
+    this._runningToolCount = Math.max(0, this._runningToolCount - 1);
+  }
+
+  private _handleDelta(delta: string) {
+    this._showTyping = false;
+    if (this._streamingMsgIndex < 0) {
+      this._messages = [
+        ...this._messages,
+        { role: "assistant", content: "" },
+      ];
+      this._streamingMsgIndex = this._messages.length - 1;
+    }
+    this._fullStreamText += delta;
+    const updated = [...this._messages];
+    updated[this._streamingMsgIndex] = {
+      ...updated[this._streamingMsgIndex],
+      content: this._fullStreamText,
+    };
+    this._messages = updated;
+    this.updateComplete.then(() => this._scrollToBottom());
+  }
+
+  private _handleError(error: string) {
+    this._showTyping = false;
+    if (this._streamingMsgIndex < 0) {
+      this._messages = [
+        ...this._messages,
+        { role: "assistant", content: `Error: ${error}` },
+      ];
+      this._streamingMsgIndex = this._messages.length - 1;
+    } else {
+      const updated = [...this._messages];
+      updated[this._streamingMsgIndex] = {
+        ...updated[this._streamingMsgIndex],
+        content: `Error: ${error}`,
+      };
+      this._messages = updated;
+    }
+    this._isStreaming = false;
+    this._focusInput();
+  }
+
+  private _handleDone() {
+    this._showTyping = false;
+    if (this._streamingMsgIndex < 0 && this._fullStreamText === "") {
+      this._messages = [
+        ...this._messages,
+        {
+          role: "assistant",
+          content: "No response received. Please check the server logs.",
+        },
+      ];
+    }
+    this._isStreaming = false;
+    this._streamingMsgIndex = -1;
+    this._fullStreamText = "";
+    this._focusInput();
+    this._refreshSidebar();
+  }
 
   private async _send() {
     const text = this._inputEl?.value?.trim() || "";
@@ -959,6 +1111,14 @@ export class HairaChat extends LitElement {
     await this.updateComplete;
     this._scrollToBottom();
 
+    // Use ARP WebSocket when connected and no file attachment (WS doesn't support file upload)
+    if (this._arpClient?.connected && !this._attachedFile) {
+      this._clearFile();
+      this._arpClient.sendText(text);
+      return;
+    }
+
+    // Fallback to SSE
     const m = this.meta;
     const chatParam = m.chatParam || "message";
     let formData: FormData | undefined;
@@ -980,133 +1140,12 @@ export class HairaChat extends LitElement {
       m.path,
       body,
       {
-        onToolStart: (event) => {
-          this._showTyping = false;
-          const displayName = event.tool
-            .replace(/^render_/, "")
-            .replace(/_/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-
-          const cardState: ToolCardState = {
-            name: event.tool,
-            displayName,
-            status: "running",
-            startTime: Date.now(),
-          };
-          const idx = this._toolCards.length;
-          this._toolCards = [...this._toolCards, cardState];
-          this._activeToolMap.set(event.tool, idx);
-
-          this._runningToolCount++;
-          this._totalToolCount++;
-
-          if (!this._panelOpen) {
-            this._panelOpen = true;
-          }
-
-          this.updateComplete.then(() => {
-            if (this._panelBodyEl) {
-              this._panelBodyEl.scrollTop = this._panelBodyEl.scrollHeight;
-            }
-          });
-        },
-
-        onToolRender: (event: ToolRenderEvent) => {
-          // Find the current streaming assistant message or the last assistant
-          // message and append the ui event
-          if (this._streamingMsgIndex >= 0) {
-            const msg = this._messages[this._streamingMsgIndex];
-            const uiEvents = [...(msg.uiEvents || []), event];
-            const updated = [...this._messages];
-            updated[this._streamingMsgIndex] = { ...msg, uiEvents };
-            this._messages = updated;
-          } else {
-            // Create a placeholder assistant message for UI events
-            this._messages = [
-              ...this._messages,
-              { role: "assistant", content: "", uiEvents: [event] },
-            ];
-            this._streamingMsgIndex = this._messages.length - 1;
-          }
-          this.updateComplete.then(() => this._scrollToBottom());
-        },
-
-        onToolEnd: (event) => {
-          const idx = this._activeToolMap.get(event.tool);
-          if (idx !== undefined) {
-            const card = this._toolCards[idx];
-            const elapsed = ((Date.now() - card.startTime) / 1000).toFixed(1);
-            const updated = [...this._toolCards];
-            updated[idx] = {
-              ...card,
-              status: event.ok !== false ? "done" : "failed",
-              elapsed: `${elapsed}s`,
-            };
-            this._toolCards = updated;
-            this._activeToolMap.delete(event.tool);
-          }
-          this._showTyping = true;
-          this._runningToolCount = Math.max(0, this._runningToolCount - 1);
-        },
-
-        onDelta: (delta) => {
-          this._showTyping = false;
-          if (this._streamingMsgIndex < 0) {
-            // Create assistant message
-            this._messages = [
-              ...this._messages,
-              { role: "assistant", content: "" },
-            ];
-            this._streamingMsgIndex = this._messages.length - 1;
-          }
-          this._fullStreamText += delta;
-          const updated = [...this._messages];
-          updated[this._streamingMsgIndex] = {
-            ...updated[this._streamingMsgIndex],
-            content: this._fullStreamText,
-          };
-          this._messages = updated;
-          this.updateComplete.then(() => this._scrollToBottom());
-        },
-
-        onError: (error) => {
-          this._showTyping = false;
-          if (this._streamingMsgIndex < 0) {
-            this._messages = [
-              ...this._messages,
-              { role: "assistant", content: `Error: ${error}` },
-            ];
-            this._streamingMsgIndex = this._messages.length - 1;
-          } else {
-            const updated = [...this._messages];
-            updated[this._streamingMsgIndex] = {
-              ...updated[this._streamingMsgIndex],
-              content: `Error: ${error}`,
-            };
-            this._messages = updated;
-          }
-          this._isStreaming = false;
-          this._focusInput();
-        },
-
-        onDone: () => {
-          this._showTyping = false;
-          if (this._streamingMsgIndex < 0 && this._fullStreamText === "") {
-            this._messages = [
-              ...this._messages,
-              {
-                role: "assistant",
-                content:
-                  "No response received. Please check the server logs.",
-              },
-            ];
-          }
-          this._isStreaming = false;
-          this._streamingMsgIndex = -1;
-          this._fullStreamText = "";
-          this._focusInput();
-          this._refreshSidebar();
-        },
+        onToolStart: (event) => this._handleToolStart(event.tool),
+        onToolRender: (event: ToolRenderEvent) => this._handleToolRender(event),
+        onToolEnd: (event) => this._handleToolEnd(event.tool, event.ok !== false),
+        onDelta: (delta) => this._handleDelta(delta),
+        onError: (error) => this._handleError(error),
+        onDone: () => this._handleDone(),
       },
       formData,
       this._streamAbort?.signal

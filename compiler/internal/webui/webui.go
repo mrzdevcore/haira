@@ -77,17 +77,18 @@ func Run(backend string, port int) error {
 		})
 	}
 
-	// Catch-all: serve loader.html with metadata for all UI routes
+	// Catch-all: serve loader.html for browser navigation, proxy everything else
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Proxy workflow endpoints (POST/PUT/PATCH/DELETE or SSE streams)
-		if r.Method != http.MethodGet || r.Header.Get("Accept") == "text/event-stream" {
-			proxy.ServeHTTP(w, r)
+		// Only serve the SPA page for browser navigation (GET requests that accept text/html).
+		// All other requests (non-GET, fetch/XHR, SSE) are proxied to the backend.
+		if r.Method == http.MethodGet && strings.Contains(r.Header.Get("Accept"), "text/html") {
+			meta := buildPageMeta(backend, r.URL.Path)
+			page := strings.Replace(loaderHTML, "{{META}}", meta, 1)
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(page))
 			return
 		}
-		meta := buildPageMeta(backend, r.URL.Path)
-		page := strings.Replace(loaderHTML, "{{META}}", meta, 1)
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(page))
+		proxy.ServeHTTP(w, r)
 	})
 
 	addr := fmt.Sprintf(":%d", port)
@@ -178,6 +179,7 @@ func buildPageMeta(backend, path string) string {
 				"name":   wf["name"],
 				"method": wf["method"],
 				"path":   wf["path"],
+				"params": []any{},
 			}
 			// Copy optional fields
 			for _, key := range []string{"title", "description", "params", "suggestions"} {

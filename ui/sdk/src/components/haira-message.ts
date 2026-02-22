@@ -439,14 +439,11 @@ export class HairaMessage extends LitElement {
     if (this.role === "user") {
       return html`
         <div class="msg-user">
-          <div class="bubble">
-            ${this.content}
-            ${this.file
+          <div class="bubble">${this.content}${this.file
               ? html`<div class="file-badge">
                   ${unsafeHTML(iconStrings.file)} ${this.file}
                 </div>`
-              : nothing}
-          </div>
+              : nothing}</div>
         </div>
       `;
     }

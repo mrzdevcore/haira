@@ -129,23 +129,22 @@ export class HairaResult extends LitElement {
     `,
   ];
 
-  @state() private _data: unknown = null;
+  @property({ attribute: false })
+  data: unknown = null;
+
   @state() private _isError: boolean = false;
-  @state() private _visible: boolean = false;
   @state() private _copied: boolean = false;
 
-  /** Show the result panel */
+  /** Show the result panel (imperative API) */
   public show(data: unknown, isError: boolean = false): void {
-    this._data = data;
+    this.data = data;
     this._isError = isError;
-    this._visible = true;
     this.removeAttribute("hidden");
   }
 
-  /** Hide the result panel */
+  /** Hide the result panel (imperative API) */
   public hide(): void {
-    this._visible = false;
-    this._data = null;
+    this.data = null;
     this.setAttribute("hidden", "");
   }
 
@@ -167,9 +166,9 @@ export class HairaResult extends LitElement {
 
   private async _copyToClipboard() {
     const text =
-      typeof this._data === "string"
-        ? this._data
-        : JSON.stringify(this._data, null, 2);
+      typeof this.data === "string"
+        ? this.data
+        : JSON.stringify(this.data, null, 2);
     try {
       await navigator.clipboard.writeText(text);
       this._copied = true;
@@ -182,7 +181,7 @@ export class HairaResult extends LitElement {
   }
 
   render() {
-    if (!this._visible || this._data == null) return nothing;
+    if (this.data == null) return nothing;
 
     return html`
       <div class="result">
@@ -209,7 +208,7 @@ export class HairaResult extends LitElement {
   }
 
   private _renderContent() {
-    const data = this._data;
+    const data = this.data;
 
     // Mode 1: Rich message (has message field)
     if (this._isRichMessage(data)) {

@@ -471,7 +471,7 @@ export class HairaForm extends LitElement {
         class="form-card ${this._isRunning ? "disabled" : ""}"
       >
         <div class="form-fields">
-          ${meta.params.map(
+          ${(meta.params || []).map(
             (param) => html`
               <haira-field
                 .name=${param.Name}

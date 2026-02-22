@@ -1,230 +1,253 @@
-import { baseCSS, scrollbarCSS, icons, esc } from "../core";
+import { LitElement, html, css, nothing } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { baseStyles, keyframes, animateInStyles } from "../core/styles";
+import { iconStrings } from "../core/icons";
 
-export class HairaResult extends HTMLElement {
-  private rawText = "";
+@customElement("haira-result")
+export class HairaResult extends LitElement {
+  static styles = [
+    baseStyles,
+    css`
+      :host {
+        display: block;
+        animation: fadeSlideUp 0.25s ease-out;
+      }
+      :host([hidden]) {
+        display: none;
+      }
 
-  connectedCallback() {
-    const shadow = this.attachShadow({ mode: "open" });
-    shadow.innerHTML = `
-      <style>
-        ${baseCSS}
-        :host { display: none; margin-top: 0.75rem; }
-        :host([visible]) { display: block; animation: fadeSlideUp 0.25s ease-out; }
-        .card {
-          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius); overflow: hidden;
-        }
-        .header {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--haira-border);
-        }
-        .header-left { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.78rem; color: var(--haira-muted); }
-        .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-        .dot.success { background: var(--haira-success); }
-        .dot.error { background: var(--haira-error); }
-        .copy-btn {
-          background: none; border: 1px solid transparent; border-radius: 4px;
-          padding: 0.25rem; cursor: pointer; color: var(--haira-muted);
-          display: flex; align-items: center; justify-content: center; transition: all 0.15s;
-        }
-        .copy-btn:hover { color: var(--haira-accent); border-color: var(--haira-border); background: var(--haira-bg-elevated); }
-        .body {
-          padding: 0.85rem; font-size: 0.82rem; line-height: 1.6;
-          color: var(--haira-text-dim); max-height: 600px; overflow-y: auto; ${scrollbarCSS}
-        }
-        .body.rich { white-space: normal; word-break: break-word; font-family: var(--haira-font); }
-        .body.raw { white-space: pre-wrap; word-break: break-word; font-family: var(--haira-mono); font-size: 0.8rem; }
-        .result-section { margin-bottom: 0.75rem; }
-        .result-section:last-child { margin-bottom: 0; }
-        .section-label {
-          font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
-          letter-spacing: 0.05em; color: var(--haira-muted); margin-bottom: 0.3rem;
-        }
-        .section-label.error { color: var(--haira-error); }
-        .section-value { color: var(--haira-text); line-height: 1.55; }
-        .section-value ul { margin: 0.25rem 0 0 0; padding-left: 1.25rem; }
-        .section-value li { margin-bottom: 0.15rem; font-family: var(--haira-mono); font-size: 0.78rem; color: var(--haira-text-dim); }
-        .code-block {
-          background: var(--haira-bg); border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius-sm); padding: 0.65rem 0.85rem; margin-top: 0.35rem;
-          font-family: var(--haira-mono); font-size: 0.75rem; line-height: 1.5;
-          white-space: pre-wrap; word-break: break-all; overflow-x: auto; color: var(--haira-text);
-        }
-        .code-lang { font-size: 0.62rem; text-transform: uppercase; color: var(--haira-muted); letter-spacing: 0.04em; margin-bottom: 0.2rem; font-weight: 600; }
-        .result-kv { display: flex; gap: 0.5rem; padding: 0.2rem 0; }
-        .result-kv .kv-key { font-size: 0.72rem; font-weight: 600; color: var(--haira-muted); min-width: 60px; flex-shrink: 0; }
-        .result-kv .kv-val { color: var(--haira-text); font-size: 0.82rem; }
-      </style>
-      <div class="card">
-        <div class="header">
-          <div class="header-left">
-            <span class="dot" id="dot"></span>
-            <span id="label">Result</span>
-          </div>
-          <button class="copy-btn" id="copy-btn" title="Copy to clipboard">${icons.copy}</button>
-        </div>
-        <div class="body raw" id="body"></div>
-      </div>
-    `;
+      .result {
+        background: var(--haira-bg-card);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius);
+        overflow: hidden;
+      }
 
-    shadow.getElementById("copy-btn")!.addEventListener("click", () => this.copyResult());
+      .result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 0.85rem;
+        border-bottom: 1px solid var(--haira-border);
+        background: var(--haira-bg);
+      }
+      .result-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .status-dot.success {
+        background: var(--haira-success);
+      }
+      .status-dot.error {
+        background: var(--haira-error);
+      }
+      .result-title {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--haira-text);
+      }
+
+      .copy-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: none;
+        border: none;
+        color: var(--haira-muted);
+        cursor: pointer;
+        font-size: 0.7rem;
+        font-family: var(--haira-font);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        transition: all 0.15s;
+      }
+      .copy-btn:hover {
+        background: var(--haira-bg-elevated);
+        color: var(--haira-text);
+      }
+      .copy-btn.copied {
+        color: var(--haira-success);
+      }
+
+      .result-body {
+        padding: 0.75rem 0.85rem;
+      }
+
+      /* Rich message mode */
+      .rich-message {
+        font-size: 0.88rem;
+        line-height: 1.6;
+        color: var(--haira-text);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      /* Key-value mode */
+      .kv-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.3rem 0.85rem;
+      }
+      .kv-key {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--haira-text-dim);
+        white-space: nowrap;
+      }
+      .kv-value {
+        font-size: 0.82rem;
+        color: var(--haira-text);
+        word-break: break-word;
+      }
+
+      /* Raw JSON mode */
+      .raw-json {
+        font-family: var(--haira-mono);
+        font-size: 0.8rem;
+        line-height: 1.5;
+        color: var(--haira-text);
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+      .raw-json::-webkit-scrollbar {
+        width: 5px;
+      }
+      .raw-json::-webkit-scrollbar-thumb {
+        background: var(--haira-muted);
+        border-radius: 3px;
+      }
+    `,
+  ];
+
+  @state() private _data: unknown = null;
+  @state() private _isError: boolean = false;
+  @state() private _visible: boolean = false;
+  @state() private _copied: boolean = false;
+
+  /** Show the result panel */
+  public show(data: unknown, isError: boolean = false): void {
+    this._data = data;
+    this._isError = isError;
+    this._visible = true;
+    this.removeAttribute("hidden");
   }
 
-  show(data: unknown, isError: boolean) {
-    this.setAttribute("visible", "");
-    const body = this.shadowRoot!.getElementById("body")!;
-    const dot = this.shadowRoot!.getElementById("dot")!;
-    const label = this.shadowRoot!.getElementById("label")!;
-    dot.className = `dot ${isError ? "error" : "success"}`;
-    label.textContent = isError ? "Error" : "Result";
+  /** Hide the result panel */
+  public hide(): void {
+    this._visible = false;
+    this._data = null;
+    this.setAttribute("hidden", "");
+  }
 
-    const obj = data as Record<string, unknown>;
-    if (
+  private _isRichMessage(data: unknown): data is { message: string } {
+    return (
       typeof data === "object" &&
       data !== null &&
-      typeof obj.message === "string" &&
-      obj.message.length > 0
-    ) {
-      this.rawText = obj.message as string;
-      body.className = "body rich";
-      body.innerHTML = this.renderMessage(obj.message as string, obj.status as string | undefined);
-      return;
-    }
-
-    if (typeof data === "object" && data !== null && !Array.isArray(data)) {
-      const keys = Object.keys(obj);
-      if (keys.length > 0 && keys.length <= 10 && keys.every((k) => typeof obj[k] !== "object" || obj[k] === null)) {
-        this.rawText = JSON.stringify(data, null, 2);
-        body.className = "body rich";
-        body.innerHTML = keys
-          .map(
-            (k) =>
-              `<div class="result-kv"><span class="kv-key">${esc(k)}</span><span class="kv-val">${esc(String(obj[k] ?? ""))}</span></div>`,
-          )
-          .join("");
-        return;
-      }
-    }
-
-    let text: string;
-    if (typeof data === "string") {
-      text = data;
-    } else {
-      text = JSON.stringify(data, null, 2);
-    }
-    this.rawText = text;
-    body.className = "body raw";
-    body.textContent = text;
+      "message" in data &&
+      typeof (data as any).message === "string"
+    );
   }
 
-  hide() {
-    this.removeAttribute("visible");
+  private _isKeyValueObject(data: unknown): data is Record<string, unknown> {
+    if (typeof data !== "object" || data === null || Array.isArray(data))
+      return false;
+    const keys = Object.keys(data);
+    return keys.length > 0 && keys.length <= 10;
   }
 
-  private renderMessage(message: string, status?: string): string {
-    const lines = message.split("\n");
-    const sections: Array<{
-      type: "heading" | "text" | "list" | "code";
-      label?: string;
-      lang?: string;
-      content: string;
-    }> = [];
-
-    let i = 0;
-    while (i < lines.length) {
-      const line = lines[i];
-
-      const codeMatch = line.match(/^```(\w*)$/);
-      if (codeMatch) {
-        const lang = codeMatch[1] || "";
-        const codeLines: string[] = [];
-        i++;
-        while (i < lines.length && !lines[i].startsWith("```")) {
-          codeLines.push(lines[i]);
-          i++;
-        }
-        i++;
-        sections.push({ type: "code", lang, content: codeLines.join("\n") });
-        continue;
-      }
-
-      const headingMatch = line.match(/^([A-Z][A-Z _]{2,}):(.*)$/);
-      if (headingMatch) {
-        const label = headingMatch[1].trim();
-        const rest = headingMatch[2].trim();
-        const contentLines: string[] = rest ? [rest] : [];
-        i++;
-        while (i < lines.length) {
-          const nextLine = lines[i];
-          if (nextLine.match(/^[A-Z][A-Z _]{2,}:/) || nextLine.startsWith("```")) {
-            break;
-          }
-          contentLines.push(nextLine);
-          i++;
-        }
-        const content = contentLines.join("\n").trim();
-        const contentLinesArr = content.split("\n");
-        const isList = contentLinesArr.length > 1 && contentLinesArr.every((l) => l.startsWith("- ") || l.trim() === "");
-        if (isList) {
-          sections.push({ type: "list", label, content });
-        } else {
-          sections.push({ type: "heading", label, content });
-        }
-        continue;
-      }
-
-      if (line.trim()) {
-        sections.push({ type: "text", content: line });
-      }
-      i++;
-    }
-
-    if (sections.length === 0) {
-      return `<div class="section-value">${esc(message)}</div>`;
-    }
-
-    return sections
-      .map((s) => {
-        switch (s.type) {
-          case "heading":
-            return `<div class="result-section">
-              <div class="section-label${status === "error" && s.label?.includes("CAUSE") ? " error" : ""}">${esc(s.label || "")}</div>
-              <div class="section-value">${esc(s.content)}</div>
-            </div>`;
-          case "list":
-            return `<div class="result-section">
-              <div class="section-label">${esc(s.label || "")}</div>
-              <div class="section-value"><ul>${s.content
-                .split("\n")
-                .filter((l) => l.startsWith("- "))
-                .map((l) => `<li>${esc(l.slice(2))}</li>`)
-                .join("")}</ul></div>
-            </div>`;
-          case "code":
-            return `<div class="result-section">
-              ${s.lang ? `<div class="code-lang">${esc(s.lang)}</div>` : ""}
-              <div class="code-block">${esc(s.content)}</div>
-            </div>`;
-          case "text":
-            return `<div class="section-value">${esc(s.content)}</div>`;
-          default:
-            return "";
-        }
-      })
-      .join("");
-  }
-
-  private async copyResult() {
-    const btn = this.shadowRoot?.getElementById("copy-btn");
-    if (!btn) return;
+  private async _copyToClipboard() {
+    const text =
+      typeof this._data === "string"
+        ? this._data
+        : JSON.stringify(this._data, null, 2);
     try {
-      await navigator.clipboard.writeText(this.rawText);
-      btn.innerHTML = icons.copyDone;
+      await navigator.clipboard.writeText(text);
+      this._copied = true;
       setTimeout(() => {
-        btn.innerHTML = icons.copy;
+        this._copied = false;
       }, 1500);
     } catch {
-      /* clipboard API not available */
+      // Clipboard write failed silently
     }
+  }
+
+  render() {
+    if (!this._visible || this._data == null) return nothing;
+
+    return html`
+      <div class="result">
+        <div class="result-header">
+          <div class="result-header-left">
+            <span class="status-dot ${this._isError ? "error" : "success"}">
+            </span>
+            <span class="result-title">
+              ${this._isError ? "Error" : "Result"}
+            </span>
+          </div>
+          <button
+            class="copy-btn ${this._copied ? "copied" : ""}"
+            @click=${this._copyToClipboard}
+          >
+            ${this._copied
+              ? html`${unsafeHTML(iconStrings.copyDone)} Copied`
+              : html`${unsafeHTML(iconStrings.copy)} Copy`}
+          </button>
+        </div>
+        <div class="result-body">${this._renderContent()}</div>
+      </div>
+    `;
+  }
+
+  private _renderContent() {
+    const data = this._data;
+
+    // Mode 1: Rich message (has message field)
+    if (this._isRichMessage(data)) {
+      return html`<div class="rich-message">${data.message}</div>`;
+    }
+
+    // Mode 2: Key-value (flat object with <= 10 keys)
+    if (this._isKeyValueObject(data)) {
+      const entries = Object.entries(data);
+      // Check if all values are primitives (flat object)
+      const isFlat = entries.every(
+        ([, v]) => typeof v !== "object" || v === null
+      );
+      if (isFlat) {
+        return html`
+          <div class="kv-grid">
+            ${entries.map(
+              ([key, value]) => html`
+                <span class="kv-key">${key}</span>
+                <span class="kv-value">${String(value ?? "\u2014")}</span>
+              `
+            )}
+          </div>
+        `;
+      }
+    }
+
+    // Mode 3: Raw JSON
+    const jsonStr =
+      typeof data === "string"
+        ? data
+        : JSON.stringify(data, null, 2);
+    return html`<div class="raw-json">${jsonStr}</div>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "haira-result": HairaResult;
   }
 }

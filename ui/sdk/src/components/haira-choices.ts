@@ -1,105 +1,234 @@
-import { BaseComponent, animateInCSS, cardCSS } from "../core";
+import { LitElement, html, css, nothing } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { baseStyles, keyframes, animateInStyles } from "../core/styles";
 import type { ChoicesProps } from "../core/types";
 
-export class HairaChoices extends BaseComponent<ChoicesProps> {
-  private answered = false;
+@customElement("haira-ui-choices")
+export class HairaChoices extends LitElement {
+  static styles = [
+    baseStyles,
+    animateInStyles,
+    css`
+      .choices-card {
+        background: var(--haira-bg-card);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius);
+        overflow: hidden;
+      }
 
-  protected render() {
-    return `
-      <div class="card">
-        <div class="title" id="title"></div>
-        <div id="options"></div>
-      </div>`;
+      .choices-header {
+        padding: 0.6rem 0.85rem;
+        border-bottom: 1px solid var(--haira-border);
+        background: var(--haira-bg);
+      }
+      .choices-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--haira-text);
+      }
+
+      .choices-body {
+        padding: 0.65rem 0.85rem;
+      }
+
+      /* Buttons style */
+      .choices-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+      .choice-btn {
+        padding: 0.45rem 0.95rem;
+        background: var(--haira-bg-elevated);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius-sm);
+        color: var(--haira-text);
+        font-family: var(--haira-font);
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .choice-btn:hover:not(:disabled) {
+        background: var(--haira-accent-dim);
+        border-color: var(--haira-accent);
+        color: var(--haira-accent);
+      }
+      .choice-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .choice-btn.selected {
+        background: var(--haira-accent);
+        border-color: var(--haira-accent);
+        color: #fff;
+      }
+
+      /* List style */
+      .choices-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+      .choice-list-item {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.5rem 0.7rem;
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius-sm);
+        cursor: pointer;
+        transition: all 0.15s;
+        background: transparent;
+        color: var(--haira-text);
+        font-family: var(--haira-font);
+        font-size: 0.84rem;
+        font-weight: 500;
+        width: 100%;
+        text-align: left;
+      }
+      .choice-list-item:hover:not(:disabled) {
+        background: var(--haira-bg-elevated);
+        border-color: var(--haira-border-focus);
+      }
+      .choice-list-item:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .choice-list-item.selected {
+        background: var(--haira-accent-dim);
+        border-color: var(--haira-accent);
+        color: var(--haira-accent);
+      }
+
+      .choice-radio {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid var(--haira-border);
+        flex-shrink: 0;
+        position: relative;
+        transition: all 0.15s;
+      }
+      .choice-list-item.selected .choice-radio {
+        border-color: var(--haira-accent);
+      }
+      .choice-list-item.selected .choice-radio::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--haira-accent);
+      }
+
+      .selection-made {
+        padding: 0.55rem 0.85rem;
+        border-top: 1px solid var(--haira-border);
+        font-size: 0.78rem;
+        color: var(--haira-muted);
+        font-style: italic;
+      }
+    `,
+  ];
+
+  @property({ type: String }) title: string = "";
+  @property({ type: Array }) options: string[] = [];
+  @property({ type: String }) variant: ChoicesProps["style"] = "buttons";
+  @property({ type: Boolean }) _restored: boolean = false;
+
+  @state() private _selected: string | null = null;
+
+  /** Set all props at once */
+  public setProps(props: ChoicesProps): void {
+    this.title = props.title;
+    this.options = props.options || [];
+    this.variant = props.style || "buttons";
+    if (props._restored) this._restored = true;
   }
 
-  protected styles() {
-    return `
-      ${animateInCSS}
-      .card { ${cardCSS} padding: 0.55rem 0.75rem; }
-      .title { font-size: 0.78rem; font-weight: 600; color: var(--haira-text); margin-bottom: 0.45rem; }
-      .options-buttons { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-      .opt-btn {
-        background: transparent; border: 1px solid var(--haira-border);
-        color: var(--haira-text-dim); font-family: var(--haira-font);
-        font-size: 0.73rem; padding: 0.3rem 0.7rem; border-radius: 16px;
-        cursor: pointer; transition: all 0.15s;
-      }
-      .opt-btn:hover { border-color: var(--haira-accent); color: var(--haira-accent); background: var(--haira-accent-dim); }
-      .opt-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
-      .opt-btn.selected { opacity: 1; background: var(--haira-accent); color: #1a0e04; border-color: var(--haira-accent); }
-      .options-list { display: flex; flex-direction: column; gap: 0.15rem; }
-      .opt-row {
-        display: flex; align-items: center; gap: 0.45rem;
-        padding: 0.35rem 0.5rem; border-radius: 6px; cursor: pointer;
-        transition: background 0.15s; font-size: 0.75rem; color: var(--haira-text-dim);
-      }
-      .opt-row:hover { background: var(--haira-bg-card-hover); }
-      .opt-radio {
-        width: 14px; height: 14px; border-radius: 50%;
-        border: 2px solid var(--haira-border); flex-shrink: 0;
-        transition: all 0.15s; display: flex; align-items: center; justify-content: center;
-      }
-      .opt-row:hover .opt-radio { border-color: var(--haira-accent); }
-      .opt-row.selected .opt-radio { border-color: var(--haira-accent); background: var(--haira-accent); }
-      .opt-row.selected .opt-radio::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #1a0e04; }
-      .opt-row.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
-      .opt-row.selected.disabled { opacity: 1; }`;
+  private _isDisabled(): boolean {
+    return this._selected !== null || this._restored;
   }
 
-  protected onUpdate() {
-    const { title = "Choose an option", options = [], style = "buttons", _restored } = this.props;
-
-    this.$("title").textContent = title;
-    const container = this.$("options");
-
-    if (_restored) this.answered = true;
-
-    if (style === "list") {
-      container.className = "options-list";
-      container.innerHTML = options
-        .map((opt) => `<div class="opt-row${_restored ? " disabled" : ""}" data-value="${this.escAttr(opt)}">
-          <span class="opt-radio"></span><span>${this.esc(opt)}</span>
-        </div>`)
-        .join("");
-
-      if (!_restored) {
-        container.querySelectorAll(".opt-row").forEach((row) => {
-          row.addEventListener("click", () => this.selectOption((row as HTMLElement).dataset.value || "", container, "list"));
-        });
-      }
-    } else {
-      container.className = "options-buttons";
-      container.innerHTML = options
-        .map((opt) => `<button class="opt-btn" data-value="${this.escAttr(opt)}"${_restored ? " disabled" : ""}>${this.esc(opt)}</button>`)
-        .join("");
-
-      if (!_restored) {
-        container.querySelectorAll(".opt-btn").forEach((btn) => {
-          btn.addEventListener("click", () => this.selectOption((btn as HTMLElement).dataset.value || "", container, "buttons"));
-        });
-      }
-    }
+  private _onSelect(option: string) {
+    if (this._isDisabled()) return;
+    this._selected = option;
+    this.dispatchEvent(
+      new CustomEvent("haira-chat-input", {
+        bubbles: true,
+        composed: true,
+        detail: { text: option },
+      })
+    );
   }
 
-  private selectOption(value: string, container: HTMLElement, style: string) {
-    if (this.answered) return;
-    this.answered = true;
+  private _renderButtons() {
+    const disabled = this._isDisabled();
+    return html`
+      <div class="choices-buttons">
+        ${this.options.map(
+          (opt) => html`
+            <button
+              class="choice-btn ${this._selected === opt ? "selected" : ""}"
+              ?disabled=${disabled}
+              @click=${() => this._onSelect(opt)}
+            >
+              ${opt}
+            </button>
+          `
+        )}
+      </div>
+    `;
+  }
 
-    if (style === "list") {
-      container.querySelectorAll(".opt-row").forEach((row) => {
-        const el = row as HTMLElement;
-        if (el.dataset.value === value) el.classList.add("selected", "disabled");
-        else el.classList.add("disabled");
-      });
-    } else {
-      container.querySelectorAll(".opt-btn").forEach((btn) => {
-        const el = btn as HTMLButtonElement;
-        if (el.dataset.value === value) el.classList.add("selected");
-        el.disabled = true;
-      });
-    }
+  private _renderList() {
+    const disabled = this._isDisabled();
+    return html`
+      <div class="choices-list">
+        ${this.options.map(
+          (opt) => html`
+            <button
+              class="choice-list-item ${this._selected === opt
+                ? "selected"
+                : ""}"
+              ?disabled=${disabled}
+              @click=${() => this._onSelect(opt)}
+            >
+              <span class="choice-radio"></span>
+              ${opt}
+            </button>
+          `
+        )}
+      </div>
+    `;
+  }
 
-    const title = this.$("title")?.textContent || "";
-    this.emit("haira-chat-input", { text: `[User selected "${value}" from choices: ${title}]` });
+  render() {
+    return html`
+      <div class="choices-card">
+        <div class="choices-header">
+          <span class="choices-title">${this.title}</span>
+        </div>
+        <div class="choices-body">
+          ${this.variant === "list" ? this._renderList() : this._renderButtons()}
+        </div>
+        ${this._selected
+          ? html`
+              <div class="selection-made">
+                Selected: ${this._selected}
+              </div>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "haira-ui-choices": HairaChoices;
   }
 }

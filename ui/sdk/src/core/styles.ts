@@ -1,7 +1,7 @@
-// Design tokens and shared styles for the Haira UI SDK.
-// All theme variables, keyframes, and reusable CSS patterns live here.
+import { css } from "lit";
 
-export const themeVars = `
+// Design tokens — dark theme (default)
+export const themeVars = css`
   --haira-bg: #09090b;
   --haira-bg-card: #0f0f12;
   --haira-bg-card-hover: #18181b;
@@ -23,11 +23,13 @@ export const themeVars = `
   --haira-info: #3b82f6;
   --haira-radius: 10px;
   --haira-radius-sm: 6px;
-  --haira-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --haira-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --haira-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --haira-mono: "SF Mono", "Fira Code", "JetBrains Mono", "Cascadia Code",
+    monospace;
 `;
 
-export const lightThemeVars = `
+// Light theme overrides
+export const lightThemeVarsStr = `
   --haira-bg: #ffffff;
   --haira-bg-card: #f7f7f8;
   --haira-bg-card-hover: #eeeff1;
@@ -41,73 +43,130 @@ export const lightThemeVars = `
   --haira-muted: #8a8a8a;
 `;
 
-export const keyframes = `
+// Keyframes
+export const keyframes = css`
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes fadeSlideUp {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   @keyframes pop {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
   }
   @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
   }
   @keyframes bounce {
-    0%, 80%, 100% { transform: translateY(0); }
-    40% { transform: translateY(-6px); }
+    0%,
+    80%,
+    100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(-6px);
+    }
   }
   @keyframes expandDown {
-    from { opacity: 0; max-height: 0; }
-    to { opacity: 1; max-height: 600px; }
+    from {
+      opacity: 0;
+      max-height: 0;
+    }
+    to {
+      opacity: 1;
+      max-height: 600px;
+    }
   }
 `;
 
-/** Base reset + theme applied to :host. Shared by ALL components. */
-export const baseCSS = `
+/** Base reset + theme applied to :host */
+export const baseStyles = css`
   :host {
     ${themeVars}
     font-family: var(--haira-font);
     color: var(--haira-text);
     -webkit-font-smoothing: antialiased;
   }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
   ${keyframes}
 `;
 
-/** Scrollbar styles for scrollable containers. */
-export const scrollbarCSS = `
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--haira-muted); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--haira-accent); }
-  scrollbar-width: thin;
-  scrollbar-color: var(--haira-muted) transparent;
+/** Scrollbar styles */
+export const scrollbarStyles = css`
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--haira-muted);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--haira-accent);
+  }
 `;
 
-/** Card surface — background, border, border-radius. */
-export const cardCSS = `
-  background: var(--haira-bg-card);
-  border: 1px solid var(--haira-border);
-  border-radius: var(--haira-radius);
-  overflow: hidden;
+/** Card surface */
+export const cardStyles = css`
+  .card {
+    background: var(--haira-bg-card);
+    border: 1px solid var(--haira-border);
+    border-radius: var(--haira-radius);
+    overflow: hidden;
+  }
 `;
 
-/** Animate-in for generative UI components. */
-export const animateInCSS = `
+/** Animate-in for generative UI components */
+export const animateInStyles = css`
   :host {
     display: block;
     animation: fadeSlideUp 0.25s ease-out;
@@ -118,24 +177,35 @@ export const animateInCSS = `
 
 export function methodColor(method: string): string {
   switch (method) {
-    case "POST": return "#22c55e";
-    case "GET": return "#3b82f6";
-    case "PUT": return "#f59e0b";
-    case "DELETE": return "#ef4444";
-    default: return "#71717a";
+    case "POST":
+      return "#22c55e";
+    case "GET":
+      return "#3b82f6";
+    case "PUT":
+      return "#f59e0b";
+    case "DELETE":
+      return "#ef4444";
+    default:
+      return "#71717a";
   }
 }
 
 export function uiTypeColor(uiType: string): string {
   switch (uiType) {
-    case "form": return "#3b82f6";
-    case "chat": return "#22c55e";
-    case "stream": return "#e8a317";
-    default: return "#71717a";
+    case "form":
+      return "#3b82f6";
+    case "chat":
+      return "#22c55e";
+    case "stream":
+      return "#e8a317";
+    default:
+      return "#71717a";
   }
 }
 
-export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+export function hexToRgb(
+  hex: string
+): { r: number; g: number; b: number } | null {
   const m = hex.match(/^#?([0-9a-f]{6})$/i);
   if (!m) return null;
   return {

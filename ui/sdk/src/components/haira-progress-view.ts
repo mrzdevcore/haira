@@ -1,71 +1,166 @@
-import { BaseComponent, animateInCSS, cardCSS, icons } from "../core";
+import { LitElement, html, css, nothing } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { baseStyles, keyframes, animateInStyles } from "../core/styles";
+import { iconStrings } from "../core/icons";
 import type { ProgressProps } from "../core/types";
 
-const stepIcons: Record<string, { icon: string; color: string }> = {
-  done:    { icon: icons.stepDone,    color: "var(--haira-success)" },
-  active:  { icon: icons.stepActive,  color: "var(--haira-accent)" },
-  pending: { icon: icons.stepPending, color: "var(--haira-muted)" },
-  failed:  { icon: icons.stepFailed,  color: "var(--haira-error)" },
-};
+@customElement("haira-ui-progress-view")
+export class HairaProgressView extends LitElement {
+  static styles = [
+    baseStyles,
+    animateInStyles,
+    css`
+      .progress-card {
+        background: var(--haira-bg-card);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius);
+        overflow: hidden;
+      }
 
-export class HairaProgressView extends BaseComponent<ProgressProps> {
-  protected render() {
-    return `
-      <div class="card">
-        <div class="title-bar" id="title"></div>
-        <div class="steps" id="steps"></div>
-      </div>`;
-  }
+      .progress-header {
+        padding: 0.55rem 0.85rem;
+        border-bottom: 1px solid var(--haira-border);
+        background: var(--haira-bg);
+      }
+      .progress-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--haira-text);
+      }
 
-  protected styles() {
-    return `
-      ${animateInCSS}
-      .card { ${cardCSS} }
-      .title-bar {
-        padding: 0.6rem 1rem;
-        font-size: 0.8rem;
+      .step-list {
+        padding: 0.65rem 0.85rem;
+        position: relative;
+      }
+
+      /* Connecting line */
+      .step-list::before {
+        content: "";
+        position: absolute;
+        left: calc(0.85rem + 6px);
+        top: 0.85rem;
+        bottom: 0.85rem;
+        width: 2px;
+        background: var(--haira-border);
+      }
+
+      .step-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        position: relative;
+        padding: 0.35rem 0;
+      }
+
+      .step-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        margin-top: 0.15rem;
+        position: relative;
+        z-index: 1;
+      }
+      .step-icon.done {
+        color: var(--haira-success);
+      }
+      .step-icon.running {
+        color: var(--haira-accent);
+      }
+      .step-icon.pending {
+        color: var(--haira-muted);
+      }
+      .step-icon.failed {
+        color: var(--haira-error);
+      }
+
+      .step-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .step-name {
+        font-size: 0.84rem;
         font-weight: 600;
         color: var(--haira-text);
-        border-bottom: 1px solid var(--haira-border);
-        display: none;
       }
-      .steps { padding: 0.6rem 1rem; }
-      .step {
-        display: flex; align-items: flex-start; gap: 0.6rem;
-        position: relative; padding-bottom: 0.75rem;
+      .step-detail {
+        font-size: 0.76rem;
+        color: var(--haira-muted);
+        margin-top: 0.1rem;
       }
-      .step:last-child { padding-bottom: 0; }
-      .step::before {
-        content: ""; position: absolute;
-        left: 6.5px; top: 18px; bottom: 0;
-        width: 1px; background: var(--haira-border);
-      }
-      .step:last-child::before { display: none; }
-      .step-icon { display: flex; flex-shrink: 0; margin-top: 1px; }
-      .step-content { flex: 1; min-width: 0; }
-      .step-name { font-size: 0.8rem; font-weight: 500; line-height: 1.3; }
-      .step-detail { font-size: 0.72rem; color: var(--haira-muted); margin-top: 0.15rem; }
-      @keyframes spin { to { transform: rotate(360deg); } }`;
+    `,
+  ];
+
+  @property({ type: String }) title: string = "";
+  @property({ type: Array }) steps: ProgressProps["steps"] = [];
+
+  /** Set all props at once */
+  public setProps(props: ProgressProps): void {
+    this.title = props.title || "";
+    this.steps = props.steps || [];
   }
 
-  protected onUpdate() {
-    const { title, steps = [] } = this.props;
-    const titleEl = this.$("title");
-    if (title) {
-      titleEl.textContent = title;
-      titleEl.style.display = "";
+  private _getStepIcon(status: string) {
+    switch (status) {
+      case "done":
+      case "complete":
+      case "completed":
+        return html`<span class="step-icon done"
+          >${unsafeHTML(iconStrings.stepDone)}</span
+        >`;
+      case "running":
+      case "active":
+      case "in_progress":
+        return html`<span class="step-icon running"
+          >${unsafeHTML(iconStrings.stepActive)}</span
+        >`;
+      case "failed":
+      case "error":
+        return html`<span class="step-icon failed"
+          >${unsafeHTML(iconStrings.stepFailed)}</span
+        >`;
+      default:
+        return html`<span class="step-icon pending"
+          >${unsafeHTML(iconStrings.stepPending)}</span
+        >`;
     }
-    this.$("steps").innerHTML = steps
-      .map((step) => {
-        const si = stepIcons[step.status] || stepIcons.pending;
-        return `<div class="step">
-          <span class="step-icon" style="color:${si.color}">${si.icon}</span>
-          <div class="step-content">
-            <div class="step-name" style="color:${si.color}">${this.esc(step.name || "")}</div>
-            ${step.detail ? `<div class="step-detail">${this.esc(step.detail)}</div>` : ""}
-          </div>
-        </div>`;
-      })
-      .join("");
+  }
+
+  render() {
+    return html`
+      <div class="progress-card">
+        ${this.title
+          ? html`
+              <div class="progress-header">
+                <span class="progress-title">${this.title}</span>
+              </div>
+            `
+          : nothing}
+        <div class="step-list">
+          ${this.steps.map(
+            (step) => html`
+              <div class="step-item">
+                ${this._getStepIcon(step.status)}
+                <div class="step-body">
+                  <div class="step-name">${step.name}</div>
+                  ${step.detail
+                    ? html`<div class="step-detail">${step.detail}</div>`
+                    : nothing}
+                </div>
+              </div>
+            `
+          )}
+        </div>
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "haira-ui-progress-view": HairaProgressView;
   }
 }

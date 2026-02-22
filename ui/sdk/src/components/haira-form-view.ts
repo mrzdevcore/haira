@@ -1,98 +1,318 @@
-import { BaseComponent, animateInCSS, cardCSS } from "../core";
+import { LitElement, html, css, nothing } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { baseStyles, keyframes, animateInStyles } from "../core/styles";
 import type { FormViewProps } from "../core/types";
 
-export class HairaFormView extends BaseComponent<FormViewProps> {
-  protected render() {
-    return `
-      <div class="card">
-        <div class="title-bar" id="title"></div>
-        <div class="fields" id="fields"></div>
-        <div class="submit-area">
-          <button class="submit-btn" id="submit-btn">Submit</button>
-        </div>
-      </div>`;
-  }
+@customElement("haira-ui-form-view")
+export class HairaFormView extends LitElement {
+  static styles = [
+    baseStyles,
+    animateInStyles,
+    css`
+      .form-card {
+        background: var(--haira-bg-card);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius);
+        overflow: hidden;
+      }
 
-  protected styles() {
-    return `
-      ${animateInCSS}
-      .card { ${cardCSS} }
-      .title-bar {
-        padding: 0.6rem 1rem; font-size: 0.8rem; font-weight: 600;
-        color: var(--haira-text); border-bottom: 1px solid var(--haira-border); display: none;
+      .form-header {
+        padding: 0.55rem 0.85rem;
+        border-bottom: 1px solid var(--haira-border);
+        background: var(--haira-bg);
       }
-      .fields { padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
-      .field-label { font-size: 0.75rem; font-weight: 600; color: var(--haira-text-dim); margin-bottom: 0.2rem; }
-      .field-label .required { color: var(--haira-error); margin-left: 0.2rem; }
-      input, select, textarea {
-        width: 100%; background: var(--haira-bg); border: 1px solid var(--haira-border);
-        color: var(--haira-text); padding: 0.45rem 0.65rem;
-        border-radius: var(--haira-radius-sm); font-size: 0.8rem;
-        font-family: var(--haira-font); outline: none; transition: border-color 0.15s;
+      .form-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--haira-text);
       }
-      input:focus, select:focus, textarea:focus { border-color: var(--haira-border-focus); }
-      textarea { min-height: 60px; resize: vertical; }
+
+      .form-body {
+        padding: 0.75rem 0.85rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+      .field-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--haira-text-dim);
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .field-required {
+        color: var(--haira-error);
+        font-size: 0.72rem;
+      }
+
+      input[type="text"],
+      input[type="number"],
+      textarea {
+        width: 100%;
+        padding: 0.5rem 0.7rem;
+        background: var(--haira-bg-input);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius-sm);
+        color: var(--haira-text);
+        font-family: var(--haira-font);
+        font-size: 0.84rem;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      input:focus,
+      textarea:focus,
+      select:focus {
+        border-color: var(--haira-border-focus);
+      }
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--haira-muted);
+      }
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+      }
+
       select {
-        cursor: pointer; appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right 0.6rem center; padding-right: 2rem;
+        width: 100%;
+        padding: 0.5rem 0.7rem;
+        background: var(--haira-bg-input);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius-sm);
+        color: var(--haira-text);
+        font-family: var(--haira-font);
+        font-size: 0.84rem;
+        outline: none;
+        transition: border-color 0.15s;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.65rem center;
+        padding-right: 2rem;
       }
-      .submit-area { padding: 0.5rem 1rem 0.75rem; border-top: 1px solid var(--haira-border); }
+
+      /* Checkbox for bool fields */
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        user-select: none;
+      }
+      .checkbox-row input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--haira-accent);
+        cursor: pointer;
+      }
+      .checkbox-label {
+        font-size: 0.84rem;
+        color: var(--haira-text);
+      }
+
+      .form-actions {
+        padding: 0.65rem 0.85rem;
+        border-top: 1px solid var(--haira-border);
+        display: flex;
+        justify-content: flex-end;
+      }
       .submit-btn {
-        background: var(--haira-accent); color: #1a0e04; border: none;
-        padding: 0.5rem 1.2rem; border-radius: var(--haira-radius-sm);
-        font-size: 0.8rem; font-weight: 600; font-family: var(--haira-font);
-        cursor: pointer; transition: all 0.15s;
+        padding: 0.5rem 1.2rem;
+        background: var(--haira-accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--haira-radius-sm);
+        font-family: var(--haira-font);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
       }
-      .submit-btn:hover { background: var(--haira-accent-light); box-shadow: 0 2px 12px rgba(232, 163, 23, 0.25); }`;
+      .submit-btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      .submit-btn:active {
+        transform: translateY(0);
+      }
+    `,
+  ];
+
+  @property({ type: String }) title: string = "";
+  @property({ type: Array }) fields: FormViewProps["fields"] = [];
+  @property({ type: String }) submit_label: string = "Submit";
+  @property({ type: String }) submit_action: string = "";
+
+  /** Set all props at once */
+  public setProps(props: FormViewProps): void {
+    this.title = props.title || "";
+    this.fields = props.fields || [];
+    this.submit_label = props.submit_label || "Submit";
+    this.submit_action = props.submit_action || "";
   }
 
-  protected onUpdate() {
-    const { title, fields = [], submit_label = "Submit", submit_action = "" } = this.props;
+  private _collectValues(): Record<string, unknown> {
+    const data: Record<string, unknown> = {};
+    const inputs = this.renderRoot.querySelectorAll("[data-field]");
+    inputs.forEach((el) => {
+      const name = el.getAttribute("data-field") || "";
+      if (el instanceof HTMLInputElement) {
+        if (el.type === "checkbox") {
+          data[name] = el.checked;
+        } else if (el.type === "number") {
+          data[name] = parseFloat(el.value) || 0;
+        } else {
+          data[name] = el.value;
+        }
+      } else if (
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLSelectElement
+      ) {
+        data[name] = el.value;
+      }
+    });
+    return data;
+  }
 
-    const titleEl = this.$("title");
-    if (title) {
-      titleEl.textContent = title;
-      titleEl.style.display = "";
+  private _onSubmit() {
+    const values = this._collectValues();
+    this.dispatchEvent(
+      new CustomEvent("haira-form-submit", {
+        bubbles: true,
+        composed: true,
+        detail: {
+          action: this.submit_action,
+          values,
+        },
+      })
+    );
+  }
+
+  private _renderField(field: FormViewProps["fields"][number]) {
+    const label = field.label || field.name;
+    const fieldType = field.field_type || "text";
+
+    return html`
+      <div class="field-group">
+        <label class="field-label">
+          ${label}
+          ${field.required
+            ? html`<span class="field-required">*</span>`
+            : nothing}
+        </label>
+        ${this._renderFieldInput(field, fieldType)}
+      </div>
+    `;
+  }
+
+  private _renderFieldInput(
+    field: FormViewProps["fields"][number],
+    fieldType: string
+  ) {
+    // Select / dropdown
+    if (field.options && field.options.length > 0) {
+      return html`
+        <select data-field=${field.name}>
+          ${field.options.map(
+            (opt) =>
+              html`<option
+                value=${opt}
+                ?selected=${opt === field.value}
+              >
+                ${opt}
+              </option>`
+          )}
+        </select>
+      `;
     }
 
-    this.$("submit-btn").textContent = submit_label;
+    switch (fieldType) {
+      case "bool":
+      case "boolean":
+      case "checkbox":
+        return html`
+          <label class="checkbox-row">
+            <input
+              type="checkbox"
+              data-field=${field.name}
+              ?checked=${field.value === "true" || field.value === "1"}
+            />
+            <span class="checkbox-label">${field.value ? "Yes" : "No"}</span>
+          </label>
+        `;
 
-    const container = this.$("fields");
-    container.innerHTML = fields
-      .map((field) => {
-        const name = field.name || "";
-        const label = field.label || name;
-        const type = field.field_type || "text";
-        const value = field.value || "";
-        const required = field.required;
-        const options = field.options || [];
+      case "number":
+      case "int":
+      case "float":
+        return html`
+          <input
+            type="number"
+            data-field=${field.name}
+            .value=${field.value || ""}
+            placeholder="Enter a number..."
+            step=${fieldType === "int" ? "1" : "any"}
+            ?required=${field.required}
+          />
+        `;
 
-        let input: string;
-        if (type === "select" && options.length > 0) {
-          input = `<select name="${this.escAttr(name)}">
-            ${options.map((o) => `<option value="${this.escAttr(o)}" ${o === value ? "selected" : ""}>${this.esc(o)}</option>`).join("")}
-          </select>`;
-        } else if (type === "textarea") {
-          input = `<textarea name="${this.escAttr(name)}">${this.esc(value)}</textarea>`;
-        } else {
-          input = `<input type="${this.escAttr(type)}" name="${this.escAttr(name)}" value="${this.escAttr(value)}" ${required ? "required" : ""} />`;
-        }
+      case "textarea":
+      case "text_area":
+        return html`
+          <textarea
+            data-field=${field.name}
+            .value=${field.value || ""}
+            placeholder="Enter text..."
+            ?required=${field.required}
+          ></textarea>
+        `;
 
-        return `<div class="field-group">
-          <div class="field-label">${this.esc(label)}${required ? '<span class="required">*</span>' : ""}</div>
-          ${input}
-        </div>`;
-      })
-      .join("");
+      default:
+        return html`
+          <input
+            type="text"
+            data-field=${field.name}
+            .value=${field.value || ""}
+            placeholder="Enter value..."
+            ?required=${field.required}
+          />
+        `;
+    }
+  }
 
-    this.$("submit-btn").onclick = () => {
-      const formData: Record<string, string> = {};
-      container.querySelectorAll("input, select, textarea").forEach((el) => {
-        const input = el as HTMLInputElement;
-        formData[input.name] = input.value;
-      });
-      this.emit("haira-form-submit", { action: submit_action, data: formData });
-    };
+  render() {
+    return html`
+      <div class="form-card">
+        ${this.title
+          ? html`
+              <div class="form-header">
+                <span class="form-title">${this.title}</span>
+              </div>
+            `
+          : nothing}
+        <div class="form-body">
+          ${this.fields.map((f) => this._renderField(f))}
+        </div>
+        <div class="form-actions">
+          <button class="submit-btn" @click=${this._onSubmit}>
+            ${this.submit_label}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "haira-ui-form-view": HairaFormView;
   }
 }

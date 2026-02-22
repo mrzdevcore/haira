@@ -1,82 +1,120 @@
-import { BaseComponent, animateInCSS, cardCSS } from "../core";
+import { LitElement, html, css, nothing } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { baseStyles, keyframes, animateInStyles } from "../core/styles";
 import type { KeyValueProps } from "../core/types";
 
-const styleColors: Record<string, string> = {
-  success: "var(--haira-success)",
-  error: "var(--haira-error)",
-  warning: "var(--haira-warn)",
-  info: "var(--haira-info)",
-  code: "inherit",
-};
+@customElement("haira-ui-key-value")
+export class HairaKeyValue extends LitElement {
+  static styles = [
+    baseStyles,
+    animateInStyles,
+    css`
+      .kv-card {
+        background: var(--haira-bg-card);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius);
+        overflow: hidden;
+      }
 
-export class HairaKeyValue extends BaseComponent<KeyValueProps> {
-  protected render() {
-    return `
-      <div class="card">
-        <div class="title-bar" id="title"></div>
-        <div class="items" id="items"></div>
-      </div>`;
-  }
-
-  protected styles() {
-    return `
-      ${animateInCSS}
-      .card { ${cardCSS} }
-      .title-bar {
-        padding: 0.6rem 1rem;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: var(--haira-text);
+      .kv-header {
+        padding: 0.55rem 0.85rem;
         border-bottom: 1px solid var(--haira-border);
-        display: none;
+        background: var(--haira-bg);
       }
-      .items { padding: 0.5rem 0; }
-      .item {
+      .kv-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--haira-text);
+      }
+
+      .kv-list {
+        padding: 0.45rem 0;
+      }
+      .kv-row {
         display: flex;
-        align-items: baseline;
-        padding: 0.3rem 1rem;
+        align-items: flex-start;
         gap: 0.75rem;
+        padding: 0.4rem 0.85rem;
+        transition: background 0.12s;
       }
-      .key {
-        font-size: 0.75rem;
+      .kv-row:hover {
+        background: var(--haira-bg-card-hover);
+      }
+
+      .kv-key {
+        font-size: 0.78rem;
         font-weight: 600;
-        color: var(--haira-muted);
+        color: var(--haira-text-dim);
         min-width: 100px;
         flex-shrink: 0;
+        padding-top: 0.05rem;
       }
-      .value {
-        font-size: 0.8rem;
-        color: var(--haira-text-dim);
+      .kv-value {
+        font-size: 0.84rem;
+        color: var(--haira-text);
         word-break: break-word;
+        flex: 1;
       }
-      .value.code {
+
+      /* Style coloring */
+      .kv-value.success {
+        color: var(--haira-success);
+      }
+      .kv-value.error {
+        color: var(--haira-error);
+      }
+      .kv-value.warning {
+        color: var(--haira-warn);
+      }
+      .kv-value.info {
+        color: var(--haira-info);
+      }
+      .kv-value.code {
         font-family: var(--haira-mono);
-        font-size: 0.75rem;
-        background: var(--haira-bg);
-        padding: 0.15rem 0.4rem;
+        font-size: 0.8rem;
+        background: var(--haira-bg-input);
+        padding: 0.2rem 0.45rem;
         border-radius: 4px;
-      }`;
+      }
+    `,
+  ];
+
+  @property({ type: String }) title: string = "";
+  @property({ type: Array }) items: KeyValueProps["items"] = [];
+
+  /** Set all props at once */
+  public setProps(props: KeyValueProps): void {
+    this.title = props.title || "";
+    this.items = props.items || [];
   }
 
-  protected onUpdate() {
-    const { title, items = [] } = this.props;
+  render() {
+    return html`
+      <div class="kv-card">
+        ${this.title
+          ? html`
+              <div class="kv-header">
+                <span class="kv-title">${this.title}</span>
+              </div>
+            `
+          : nothing}
+        <div class="kv-list">
+          ${this.items.map(
+            (item) => html`
+              <div class="kv-row">
+                <span class="kv-key">${item.key}</span>
+                <span class="kv-value ${item.style || ""}">${item.value}</span>
+              </div>
+            `
+          )}
+        </div>
+      </div>
+    `;
+  }
+}
 
-    const titleEl = this.$("title");
-    if (title) {
-      titleEl.textContent = title;
-      titleEl.style.display = "";
-    }
-
-    this.$("items").innerHTML = items
-      .map((item) => {
-        const color = styleColors[item.style || ""] || "";
-        const colorStyle = color && color !== "inherit" ? `color:${color}` : "";
-        const isCode = item.style === "code";
-        return `<div class="item">
-          <span class="key">${this.esc(item.key || "")}</span>
-          <span class="value ${isCode ? "code" : ""}" style="${colorStyle}">${this.esc(item.value || "")}</span>
-        </div>`;
-      })
-      .join("");
+declare global {
+  interface HTMLElementTagNameMap {
+    "haira-ui-key-value": HairaKeyValue;
   }
 }

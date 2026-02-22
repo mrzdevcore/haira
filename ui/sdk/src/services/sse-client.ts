@@ -1,5 +1,4 @@
 // SSE streaming client — handles Server-Sent Events from the Haira backend.
-// Extracted from sse.ts for clean separation of concerns.
 
 import type { StepEvent, ToolRenderEvent } from "../core/types";
 
@@ -21,11 +20,10 @@ export interface SSECallbacks {
   onToolRender?: (event: ToolRenderEvent) => void;
 }
 
-/** Parse an SSE stream, dispatching events to callbacks. */
 async function parseSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   callbacks: SSECallbacks,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ) {
   const decoder = new TextDecoder();
   let buf = "";
@@ -85,14 +83,13 @@ async function parseSSEStream(
               callbacks.onToolRender?.(parsed as ToolRenderEvent);
               break;
             default:
-              // Bare data lines (legacy) — treat as delta
               if (parsed.delta) {
                 callbacks.onDelta?.(parsed.delta);
               }
               break;
           }
         } catch {
-          // Non-JSON data line, ignore
+          // Non-JSON data line
         }
 
         currentEvent = "";
@@ -106,13 +103,13 @@ async function parseSSEStream(
   }
 }
 
-/** POST-based SSE stream for workflow execution. */
+/** POST-based SSE stream for workflow execution */
 export async function streamSSE(
   url: string,
   body: unknown,
   callbacks: SSECallbacks,
   formData?: FormData,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<void> {
   const headers: Record<string, string> = {
     Accept: "text/event-stream",
@@ -124,7 +121,12 @@ export async function streamSSE(
     headers["Content-Type"] = "application/json";
     reqBody = JSON.stringify(body);
   }
-  const resp = await fetch(url, { method: "POST", headers, body: reqBody, signal });
+  const resp = await fetch(url, {
+    method: "POST",
+    headers,
+    body: reqBody,
+    signal,
+  });
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -136,10 +138,10 @@ export async function streamSSE(
   await parseSSEStream(resp.body!.getReader(), callbacks, signal);
 }
 
-/** GET-based SSE connection for reconnecting to an in-progress run. */
+/** GET-based SSE for reconnecting to in-progress run */
 export async function connectSSE(
   url: string,
-  callbacks: SSECallbacks,
+  callbacks: SSECallbacks
 ): Promise<void> {
   const resp = await fetch(url, {
     method: "GET",
@@ -156,13 +158,13 @@ export async function connectSSE(
   await parseSSEStream(resp.body!.getReader(), callbacks);
 }
 
-/** Non-streaming form submission (for GET/DELETE or simple POST). */
+/** Non-streaming form submission */
 export async function submitForm(
   url: string,
   method: string,
   body: unknown,
   hasFile: boolean,
-  formData?: FormData,
+  formData?: FormData
 ): Promise<{ status: number; data: unknown }> {
   let opts: RequestInit;
 

@@ -1,165 +1,281 @@
-import { baseCSS } from "../core";
-import type { StepEvent, StepStatus } from "../core/types";
+import { LitElement, html, css, nothing } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
+import { baseStyles, keyframes, animateInStyles } from "../core/styles";
+import type { StepEvent, StepLogEntry } from "../core/types";
 import type { HairaStep } from "./haira-step";
 
-export class HairaPipeline extends HTMLElement {
-  private steps: string[] = [];
-  private stepElements: HairaStep[] = [];
-  private stepStatuses: StepStatus[] = [];
-  private totalDuration = 0;
+@customElement("haira-pipeline")
+export class HairaPipeline extends LitElement {
+  static styles = [
+    baseStyles,
+    css`
+      :host {
+        display: block;
+        animation: fadeSlideUp 0.2s ease-out;
+      }
+      :host([hidden]) {
+        display: none;
+      }
 
-  connectedCallback() {
-    const shadow = this.attachShadow({ mode: "open" });
-    shadow.innerHTML = `
-      <style>
-        ${baseCSS}
-        :host { display: none; margin-top: 1.25rem; }
-        :host([visible]) { display: block; animation: fadeIn 0.2s ease-out; }
-        .header {
-          display: flex; align-items: center; gap: 0.5rem;
-          padding: 0 0.25rem 0.6rem; font-size: 0.72rem; font-weight: 600;
-          color: var(--haira-muted); text-transform: uppercase; letter-spacing: 0.06em;
-        }
-        .header-line { flex: 1; height: 1px; background: var(--haira-border); }
-        .pipeline {
-          display: flex; flex-direction: column; gap: 1px;
-          background: var(--haira-bg-card); border: 1px solid var(--haira-border);
-          border-radius: var(--haira-radius); padding: 0.35rem; overflow: hidden;
-        }
-        .summary {
-          display: none; padding: 0.75rem 1rem; font-size: 0.78rem;
-          color: var(--haira-muted); border-top: 1px solid var(--haira-border);
-          margin-top: 0.5rem; border-radius: var(--haira-radius-sm);
-          background: var(--haira-bg-card); text-align: center;
-        }
-        .summary.visible { display: block; animation: fadeIn 0.3s ease-out; }
-        .summary .count { color: var(--haira-text-dim); font-weight: 500; }
-        .summary .time { color: var(--haira-accent); font-family: var(--haira-mono); font-weight: 600; }
-        .summary .failed-count { color: var(--haira-error); }
-      </style>
-      <div class="header">
-        <span>Pipeline</span>
-        <span class="header-line"></span>
-      </div>
-      <div class="pipeline" id="pipeline"></div>
-      <div class="summary" id="summary"></div>
-    `;
-  }
+      .pipeline {
+        background: var(--haira-bg-card);
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius);
+        overflow: hidden;
+      }
 
-  setSteps(stepNames: string[]) {
-    this.steps = stepNames;
-    this.stepElements = [];
-    this.stepStatuses = stepNames.map(() => "pending" as StepStatus);
-    this.totalDuration = 0;
-    const container = this.shadowRoot?.getElementById("pipeline");
-    const summary = this.shadowRoot?.getElementById("summary");
-    if (!container) return;
-    container.innerHTML = "";
-    if (summary) {
-      summary.classList.remove("visible");
-      summary.textContent = "";
-    }
+      .pipeline-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.55rem 0.85rem;
+        border-bottom: 1px solid var(--haira-border);
+        background: var(--haira-bg);
+      }
+      .pipeline-title {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--haira-text);
+      }
+      .pipeline-badge {
+        font-size: 0.68rem;
+        font-family: var(--haira-mono);
+        color: var(--haira-muted);
+      }
 
-    stepNames.forEach((name, i) => {
-      const step = document.createElement("haira-step") as HairaStep;
-      step.setAttribute("name", name);
-      step.setAttribute("index", String(i));
-      container.appendChild(step);
-      this.stepElements.push(step);
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.6rem;
+      }
+
+      /* Summary bar */
+      .summary {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.55rem 0.85rem;
+        border-top: 1px solid var(--haira-border);
+        background: var(--haira-bg);
+        font-size: 0.76rem;
+        animation: fadeIn 0.2s ease-out;
+      }
+      .summary-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+      .summary-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .summary-dot.done {
+        background: var(--haira-success);
+      }
+      .summary-dot.failed {
+        background: var(--haira-error);
+      }
+      .summary-dot.skipped {
+        background: var(--haira-muted);
+      }
+      .summary-label {
+        color: var(--haira-text-dim);
+      }
+      .summary-count {
+        font-weight: 700;
+        color: var(--haira-text);
+      }
+      .summary-time {
+        margin-left: auto;
+        font-family: var(--haira-mono);
+        color: var(--haira-muted);
+      }
+    `,
+  ];
+
+  @state() private _stepNames: string[] = [];
+  @state() private _finalized: boolean = false;
+  @state() private _totalTime: number = 0;
+  @state() private _doneCt: number = 0;
+  @state() private _failedCt: number = 0;
+  @state() private _skippedCt: number = 0;
+
+  private _stepStartTime: number = 0;
+
+  /** Initialize the pipeline with step names */
+  public setSteps(names: string[]): void {
+    this._stepNames = names;
+    this._finalized = false;
+    this._totalTime = 0;
+    this._doneCt = 0;
+    this._failedCt = 0;
+    this._skippedCt = 0;
+    this._stepStartTime = Date.now();
+    this.removeAttribute("hidden");
+    this.requestUpdate();
+
+    // Wait for render then set initial pending state
+    this.updateComplete.then(() => {
+      // Steps are rendered by Lit in the template; no imperative creation needed
     });
   }
 
-  updateStep(event: StepEvent) {
-    const idx = this.steps.indexOf(event.name);
-    if (idx === -1) return;
-    const step = this.stepElements[idx];
-    if (!step) return;
+  /** Update a step with a StepEvent */
+  public updateStep(event: StepEvent): void {
+    this.updateComplete.then(() => {
+      const steps = this.renderRoot.querySelectorAll("haira-step");
+      const step = Array.from(steps).find(
+        (s) => (s as HairaStep).name === event.name
+      ) as HairaStep | undefined;
 
-    if (event.status === "log" && event.log) {
-      step.addLog(event.log.level, event.log.message);
-      return;
-    }
+      if (!step) return;
 
-    let status: StepStatus;
-    switch (event.status) {
-      case "start":
-        status = "running";
-        break;
-      case "end":
-        status = "done";
-        if (event.duration_ms) this.totalDuration += event.duration_ms;
-        break;
-      case "failed":
-        status = "failed";
-        break;
-      case "retry":
-        status = "retrying";
-        break;
-      default:
-        return;
-    }
-
-    this.stepStatuses[idx] = status;
-    step.setStatus(status, event.duration_ms, event.error);
-    this.checkCompletion();
-  }
-
-  private checkCompletion() {
-    const allDone = this.stepStatuses.every(
-      (s) => s === "done" || s === "failed" || s === "skipped",
-    );
-    if (!allDone) return;
-    const summary = this.shadowRoot?.getElementById("summary");
-    if (!summary) return;
-
-    const doneCount = this.stepStatuses.filter((s) => s === "done").length;
-    const failedCount = this.stepStatuses.filter((s) => s === "failed").length;
-    const skippedCount = this.stepStatuses.filter((s) => s === "skipped").length;
-    const totalSec = (this.totalDuration / 1000).toFixed(1);
-
-    let text = `<span class="count">${doneCount}/${this.steps.length} steps completed`;
-    if (failedCount > 0)
-      text += ` &middot; <span class="failed-count">${failedCount} failed</span>`;
-    if (skippedCount > 0) text += ` &middot; ${skippedCount} skipped`;
-    text += `</span> &middot; <span class="time">${totalSec}s total</span>`;
-
-    summary.innerHTML = text;
-    summary.classList.add("visible");
-  }
-
-  finalize() {
-    for (let i = 0; i < this.stepStatuses.length; i++) {
-      const s = this.stepStatuses[i];
-      if (s === "running") {
-        this.stepStatuses[i] = "done";
-        this.stepElements[i].setStatus("done");
-      } else if (s === "pending") {
-        this.stepStatuses[i] = "skipped";
-        this.stepElements[i].setStatus("skipped");
+      switch (event.status) {
+        case "start":
+          step.setStatus("running");
+          break;
+        case "end":
+          step.setStatus("done", event.duration_ms);
+          break;
+        case "failed":
+          step.setStatus("failed", event.duration_ms, event.error);
+          break;
+        case "retry":
+          step.setStatus("retrying");
+          if (event.attempt != null) {
+            step.addLog({
+              level: "warn",
+              message: `Retry attempt ${event.attempt}${event.delay_ms ? ` (delay: ${event.delay_ms}ms)` : ""}`,
+            });
+          }
+          break;
+        case "log":
+          if (event.log) {
+            step.addLog(event.log);
+          }
+          break;
       }
-    }
-    this.checkCompletion();
+    });
   }
 
-  reset() {
-    this.totalDuration = 0;
-    this.stepStatuses = this.steps.map(() => "pending" as StepStatus);
-    for (const step of this.stepElements) {
-      step.clearLogs();
-      step.setStatus("pending");
-    }
-    const summary = this.shadowRoot?.getElementById("summary");
-    if (summary) {
-      summary.classList.remove("visible");
-      summary.innerHTML = "";
-    }
+  /** Mark pipeline as complete and show summary */
+  public finalize(): void {
+    this._totalTime = Date.now() - this._stepStartTime;
+    this._finalized = true;
+
+    // Count statuses from step elements
+    this.updateComplete.then(() => {
+      const steps = this.renderRoot.querySelectorAll("haira-step");
+      let done = 0;
+      let failed = 0;
+      let skipped = 0;
+
+      steps.forEach((s) => {
+        const stepEl = s as HairaStep & { _status?: string };
+        // Read the internal status via checking classes or internal state
+        // We need to access the element's status. Since _status is private,
+        // we check via the reflected state in the DOM.
+        const statusEl = s.renderRoot?.querySelector(".step-status-label");
+        const statusText = statusEl?.textContent?.trim().toLowerCase() || "";
+        if (statusText === "done") done++;
+        else if (statusText === "failed") failed++;
+        else if (statusText === "skipped" || statusText === "pending") skipped++;
+      });
+
+      this._doneCt = done;
+      this._failedCt = failed;
+      this._skippedCt = skipped;
+    });
   }
 
-  show() {
-    this.setAttribute("visible", "");
+  /** Reset pipeline to empty state */
+  public reset(): void {
+    this._stepNames = [];
+    this._finalized = false;
+    this._totalTime = 0;
+    this._doneCt = 0;
+    this._failedCt = 0;
+    this._skippedCt = 0;
   }
 
-  hide() {
-    this.removeAttribute("visible");
+  /** Show the pipeline */
+  public show(): void {
+    this.removeAttribute("hidden");
+  }
+
+  /** Hide the pipeline */
+  public hide(): void {
+    this.setAttribute("hidden", "");
+  }
+
+  private _formatDuration(ms: number): string {
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  render() {
+    if (this._stepNames.length === 0) return nothing;
+
+    return html`
+      <div class="pipeline">
+        <div class="pipeline-header">
+          <span class="pipeline-title">Pipeline</span>
+          <span class="pipeline-badge"
+            >${this._stepNames.length} step${this._stepNames.length !== 1 ? "s" : ""}</span
+          >
+        </div>
+
+        <div class="steps">
+          ${this._stepNames.map(
+            (name) => html`<haira-step .name=${name}></haira-step>`
+          )}
+        </div>
+
+        ${this._finalized
+          ? html`
+              <div class="summary">
+                ${this._doneCt > 0
+                  ? html`
+                      <span class="summary-item">
+                        <span class="summary-dot done"></span>
+                        <span class="summary-count">${this._doneCt}</span>
+                        <span class="summary-label">done</span>
+                      </span>
+                    `
+                  : nothing}
+                ${this._failedCt > 0
+                  ? html`
+                      <span class="summary-item">
+                        <span class="summary-dot failed"></span>
+                        <span class="summary-count">${this._failedCt}</span>
+                        <span class="summary-label">failed</span>
+                      </span>
+                    `
+                  : nothing}
+                ${this._skippedCt > 0
+                  ? html`
+                      <span class="summary-item">
+                        <span class="summary-dot skipped"></span>
+                        <span class="summary-count">${this._skippedCt}</span>
+                        <span class="summary-label">skipped</span>
+                      </span>
+                    `
+                  : nothing}
+                <span class="summary-time">
+                  ${this._formatDuration(this._totalTime)}
+                </span>
+              </div>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "haira-pipeline": HairaPipeline;
   }
 }

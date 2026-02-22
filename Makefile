@@ -16,16 +16,14 @@ BUNDLE = $(COMPILER_DIR)/internal/runtime/bundle.tar.gz
 # Default target
 all: build
 
-# Build the UI SDK bundle (TypeScript → JS via Bun)
+# Build the UI SDK bundle (TypeScript → JS via Vite)
 ui:
-	@mkdir -p $(UI_SDK_DIST)
-	cd ui/sdk && bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
+	cd ui/sdk && npx vite build
 	@echo "UI bundle built: $(UI_SDK_DIST)/haira-ui.js"
 
 # Build UI in watch mode (development)
 ui-dev:
-	@mkdir -p $(UI_SDK_DIST)
-	cd ui/sdk && bun build src/index.ts --outfile dist/haira-ui.js --target browser --watch
+	cd ui/sdk && npx vite build --watch
 
 # Stdlib packages to bundle separately (each gets its own Go package)
 STDLIB_PKGS = postgres excel vector slack github gitlab sqlite langfuse

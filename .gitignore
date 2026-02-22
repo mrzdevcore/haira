@@ -38,3 +38,5 @@ poc/maltimize
 editors/zed-haira/extension.wasm
 editors/zed-haira/grammars
 tree-sitter-haira/tree-sitter-haira.wasm
+ui/sdk/node_modules
+node_modules

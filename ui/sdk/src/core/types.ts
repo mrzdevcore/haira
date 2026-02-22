@@ -1,5 +1,4 @@
 // Strict prop interfaces for all UI components.
-// These replace the unsafe Record<string, unknown> pattern.
 
 // --- Workflow metadata (from Go server) ---
 
@@ -54,7 +53,13 @@ export interface StepEvent {
   log?: StepLogEntry;
 }
 
-export type StepStatus = "pending" | "running" | "done" | "failed" | "retrying" | "skipped";
+export type StepStatus =
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "retrying"
+  | "skipped";
 
 // --- Run history ---
 
@@ -211,4 +216,34 @@ export interface ChartProps {
   labels: string[];
   datasets: ChartDataset[];
   height?: number;
+}
+
+// --- Observe types ---
+
+export interface ObserveUsage {
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  llm_calls: number;
+  tool_calls: number;
+  total_latency_ms: number;
+  estimated_cost_usd: number;
+}
+
+export interface ObserveEvent {
+  type: "generation" | "tool";
+  timestamp: string;
+  agent: string;
+  session_id?: string;
+  // generation fields
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  latency_ms?: number;
+  cost_usd?: number;
+  tool_call_count?: number;
+  // tool fields
+  tool_name?: string;
+  success?: boolean;
+  duration_ms?: number;
 }

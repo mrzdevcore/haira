@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -325,15 +326,15 @@ func (s *Server) registerUIRoutes() {
 		s.mux.HandleFunc(uiPath, func(rw http.ResponseWriter, r *http.Request) {
 			switch wf.UIMode {
 			case "chat":
-				s.serveChatUI(rw, wf)
+				s.serveChatUI(rw, r, wf)
 			case "form":
-				s.serveFormUI(rw, wf)
+				s.serveFormUI(rw, r, wf)
 			default:
 				// Auto-detect: stream workflows default to chat, sync to form
 				if wf.IsStream {
-					s.serveChatUI(rw, wf)
+					s.serveChatUI(rw, r, wf)
 				} else {
-					s.serveFormUI(rw, wf)
+					s.serveFormUI(rw, r, wf)
 				}
 			}
 		})
@@ -344,6 +345,37 @@ func (s *Server) serveUIJS(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	rw.Header().Set("Cache-Control", "public, max-age=3600")
 	rw.Write([]byte(uiJS))
+}
+
+// serveHTML writes an HTML page, rewriting paths when served behind a reverse
+// proxy (detected via X-Forwarded-Prefix header). Rewrites asset src paths in
+// HTML and injects a small script to rewrite fetch/WebSocket URLs at runtime.
+func serveHTML(rw http.ResponseWriter, r *http.Request, html string) {
+	if prefix := r.Header.Get("X-Forwarded-Prefix"); prefix != "" {
+		// Rewrite script src in HTML: /_ui/assets/ → /prefix/_ui/assets/
+		html = strings.ReplaceAll(html, `src="/_ui/`, `src="`+prefix+`/_ui/`)
+
+		// Inject a script that patches fetch and WebSocket to prepend the prefix
+		// for absolute API paths. This avoids modifying the JS SDK.
+		patchScript := `<script>window.__hairaPrefix="` + prefix + `";` +
+			`(function(F){window.fetch=function(u,o){` +
+			`if(typeof u==="string"&&u.startsWith("/")&&!u.startsWith("` + prefix + `"))` +
+			`u="` + prefix + `"+u;` +
+			`return F.call(this,u,o)}})(window.fetch);` +
+			`(function(W){window.WebSocket=function(u,p){` +
+			`if(u.includes("/_arp/")){` +
+			`u=u.replace("/_arp/","` + prefix + `/_arp/")}` +
+			`return p?new W(u,p):new W(u)};` +
+			`window.WebSocket.prototype=W.prototype;` +
+			`window.WebSocket.CONNECTING=W.CONNECTING;` +
+			`window.WebSocket.OPEN=W.OPEN;` +
+			`window.WebSocket.CLOSING=W.CLOSING;` +
+			`window.WebSocket.CLOSED=W.CLOSED})(window.WebSocket)</script>`
+
+		html = strings.Replace(html, "</head>", patchScript+"</head>", 1)
+	}
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rw.Write([]byte(html))
 }
 
 func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
@@ -421,8 +453,7 @@ func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
 	}
 	metaJSON, _ := json.Marshal(meta)
 	html := strings.Replace(indexHTML, "{{META}}", string(metaJSON), 1)
-	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	rw.Write([]byte(html))
+	serveHTML(rw, r, html)
 }
 
 // --- Run History API ---
@@ -643,7 +674,13 @@ func (s *Server) handleListWorkflows(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Listen starts the HTTP server on the given port.
+// If HAIRA_PORT is set, it overrides the port argument.
 func (s *Server) Listen(port int) error {
+	if envPort := os.Getenv("HAIRA_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			port = p
+		}
+	}
 	addr := fmt.Sprintf(":%d", port)
 	return http.ListenAndServe(addr, s.mux)
 }

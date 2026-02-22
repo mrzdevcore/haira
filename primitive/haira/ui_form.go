@@ -10,7 +10,7 @@ import (
 //go:embed ui/form.html
 var formHTML string
 
-func (s *Server) serveFormUI(rw http.ResponseWriter, wf *WorkflowDef) {
+func (s *Server) serveFormUI(rw http.ResponseWriter, r *http.Request, wf *WorkflowDef) {
 	hasFile := false
 	for _, p := range wf.Params {
 		if p.Type == "file" {
@@ -34,6 +34,5 @@ func (s *Server) serveFormUI(rw http.ResponseWriter, wf *WorkflowDef) {
 	}
 	metaJSON, _ := json.Marshal(meta)
 	html := strings.Replace(formHTML, "{{META}}", string(metaJSON), 1)
-	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	rw.Write([]byte(html))
+	serveHTML(rw, r, html)
 }

@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haira Architecture — Gen UI + ARP</title>
+<style>
+  :root {
+    --gold: #E8A317;
+    --gold-light: #F0BD4F;
+    --gold-glow: #FDE68A;
+    --dark: #0f0f0f;
+    --dark-2: #1a1a1a;
+    --dark-3: #222;
+    --dark-4: #2a2a2a;
+    --text: #e8e8e8;
+    --text-dim: #999;
+    --border: #333;
+    --blue: #4B9CD3;
+    --green: #4CAF50;
+    --red: #E74C3C;
+    --purple: #9B59B6;
+    --orange: #E67E22;
+    --cyan: #00BCD4;
+    --pink: #E91E63;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* Navigation */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(15, 15, 15, 0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  nav .logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: -0.5px;
+  }
+
+  nav .logo span { color: var(--text); font-weight: 300; }
+
+  nav a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+
+  nav a:hover, nav a.active {
+    color: var(--gold);
+    background: rgba(232, 163, 23, 0.1);
+  }
+
+  /* Sections */
+  section {
+    min-height: 100vh;
+    padding: 100px 48px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 42px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+  }
+
+  h2 {
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: var(--text-dim);
+    margin-bottom: 48px;
+    max-width: 700px;
+  }
+
+  /* Diagram Container */
+  .diagram {
+    background: var(--dark-2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    margin: 32px 0;
+    overflow-x: auto;
+  }
+
+  .diagram svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Diagram Legend */
+  .legend {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  /* Page indicator */
+  .page-num {
+    position: fixed;
+    bottom: 24px;
+    right: 32px;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--dark-3);
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">h<span style="color:var(--gold)">AI</span>ra <span>Architecture</span></div>
+  <a href="#overview" class="active">Overview</a>
+  <a href="#compiler">Compiler</a>
+  <a href="#arp">ARP Protocol</a>
+  <a href="#genui">Gen UI</a>
+  <a href="#comparison">vs AG-UI</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 1: FULL SYSTEM OVERVIEW
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<section id="overview">
+  <h1>Haira System Architecture</h1>
+  <p class="subtitle">From .haira source to running agent with streaming Generative UI — a single compiled binary with zero boilerplate.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg" font-family="Inter, -apple-system, sans-serif">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#666"/>
+        </marker>
+        <marker id="arrow-gold" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#E8A317"/>
+        </marker>
+        <marker id="arrow-blue" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#4B9CD3"/>
+        </marker>
+        <marker id="arrow-green" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#4CAF50"/>
+        </marker>
+        <linearGradient id="gold-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#E8A317"/>
+          <stop offset="100%" stop-color="#F0BD4F"/>
+        </linearGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- Background grid -->
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a1a1a" stroke-width="0.5"/>
+      </pattern>
+      <rect width="1200" height="900" fill="url(#grid)"/>
+
+      <!-- ── LAYER LABELS ── -->
+      <text x="20" y="50" fill="#555" font-size="11" font-weight="600" text-anchor="start">DEVELOPER</text>
+      <text x="20" y="205" fill="#555" font-size="11" font-weight="600" text-anchor="start">COMPILER</text>
+      <text x="20" y="405" fill="#555" font-size="11" font-weight="600" text-anchor="start">RUNTIME</text>
+      <text x="20" y="680" fill="#555" font-size="11" font-weight="600" text-anchor="start">CLIENT</text>
+
+      <!-- Layer dividers -->
+      <line x1="20" y1="170" x2="1180" y2="170" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+      <line x1="20" y1="370" x2="1180" y2="370" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+      <line x1="20" y1="650" x2="1180" y2="650" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+
+      <!-- ═══ DEVELOPER LAYER ═══ -->
+
+      <!-- .haira source file -->
+      <rect x="130" y="60" width="180" height="80" rx="10" fill="#1a1a1a" stroke="url(#gold-grad)" stroke-width="2"/>
+      <text x="220" y="92" fill="var(--gold)" font-size="14" font-weight="700" text-anchor="middle">.haira source</text>
+      <text x="220" y="112" fill="#888" font-size="10" text-anchor="middle">provider, agent, tool,</text>
+      <text x="220" y="126" fill="#888" font-size="10" text-anchor="middle">workflow, struct, fn</text>
+
+      <!-- Examples callout -->
+      <rect x="380" y="70" width="140" height="60" rx="8" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="450" y="95" fill="#777" font-size="11" font-weight="500" text-anchor="middle">29 examples</text>
+      <text x="450" y="112" fill="#555" font-size="10" text-anchor="middle">01-hello → 29-testing</text>
+      <line x1="310" y1="100" x2="380" y2="100" stroke="#444" stroke-width="1" stroke-dasharray="3"/>
+
+      <!-- ═══ COMPILER LAYER ═══ -->
+
+      <!-- Lexer -->
+      <rect x="100" y="210" width="120" height="50" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="160" y="232" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">Lexer</text>
+      <text x="160" y="248" fill="#666" font-size="9" text-anchor="middle">Hand-written scanner</text>
+
+      <!-- Parser -->
+      <rect x="260" y="210" width="120" height="50" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="320" y="232" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">Parser</text>
+      <text x="320" y="248" fill="#666" font-size="9" text-anchor="middle">Recursive descent + Pratt</text>
+
+      <!-- Resolver -->
+      <rect x="420" y="210" width="120" height="50" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="480" y="232" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">Resolver</text>
+      <text x="480" y="248" fill="#666" font-size="9" text-anchor="middle">Multi-pass imports</text>
+
+      <!-- Checker -->
+      <rect x="580" y="210" width="120" height="50" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="640" y="232" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">Checker</text>
+      <text x="640" y="248" fill="#666" font-size="9" text-anchor="middle">Types + Semantics</text>
+
+      <!-- Codegen -->
+      <rect x="740" y="210" width="120" height="50" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="800" y="232" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">Codegen</text>
+      <text x="800" y="248" fill="#666" font-size="9" text-anchor="middle">8-pass Go emission</text>
+
+      <!-- go build -->
+      <rect x="900" y="210" width="120" height="50" rx="8" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1.5"/>
+      <text x="960" y="232" fill="#4CAF50" font-size="11" font-weight="600" text-anchor="middle">go build</text>
+      <text x="960" y="248" fill="#666" font-size="9" text-anchor="middle">Compile to binary</text>
+
+      <!-- Pipeline arrows -->
+      <line x1="220" y1="140" x2="160" y2="210" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="220" y1="235" x2="260" y2="235" stroke="#4B9CD3" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+      <line x1="380" y1="235" x2="420" y2="235" stroke="#4B9CD3" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+      <line x1="540" y1="235" x2="580" y2="235" stroke="#4B9CD3" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+      <line x1="700" y1="235" x2="740" y2="235" stroke="#4B9CD3" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+      <line x1="860" y1="235" x2="900" y2="235" stroke="#4B9CD3" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+      <!-- Codegen detail box -->
+      <rect x="650" y="280" width="300" height="70" rx="8" fill="#111" stroke="#333" stroke-width="1"/>
+      <text x="670" y="300" fill="#666" font-size="9" font-weight="500">EMISSION ORDER</text>
+      <text x="670" y="316" fill="#555" font-size="9">1.Providers  2.Tools  3.Agents  4.Workflows</text>
+      <text x="670" y="332" fill="#555" font-size="9">5.Variables  6.Types  7.Methods  8.Functions</text>
+      <text x="670" y="348" fill="#555" font-size="9">+ main() with server init, workflow registration</text>
+
+      <!-- Binary output -->
+      <rect x="1020" y="280" width="140" height="55" rx="8" fill="#1a1a1a" stroke="url(#gold-grad)" stroke-width="2" filter="url(#glow)"/>
+      <text x="1090" y="303" fill="var(--gold)" font-size="12" font-weight="700" text-anchor="middle">Binary</text>
+      <text x="1090" y="320" fill="#888" font-size="9" text-anchor="middle">Embedded runtime +</text>
+      <text x="1090" y="333" fill="#888" font-size="9" text-anchor="middle">UI bundle + stdlib</text>
+      <line x1="960" y1="260" x2="1060" y2="280" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- ═══ RUNTIME LAYER ═══ -->
+
+      <!-- HTTP Server -->
+      <rect x="100" y="400" width="200" height="100" rx="10" fill="#1a1a1a" stroke="#E8A317" stroke-width="2"/>
+      <text x="200" y="425" fill="var(--gold)" font-size="13" font-weight="700" text-anchor="middle">HTTP Server</text>
+      <text x="200" y="445" fill="#888" font-size="10" text-anchor="middle">server.go</text>
+      <text x="200" y="465" fill="#666" font-size="9" text-anchor="middle">Workflow routing, sessions,</text>
+      <text x="200" y="480" fill="#666" font-size="9" text-anchor="middle">file uploads, auto-UI</text>
+
+      <!-- ARP Bridge -->
+      <rect x="340" y="400" width="200" height="100" rx="10" fill="#1a1a1a" stroke="#E91E63" stroke-width="2"/>
+      <text x="440" y="425" fill="#E91E63" font-size="13" font-weight="700" text-anchor="middle">ARP Bridge</text>
+      <text x="440" y="445" fill="#888" font-size="10" text-anchor="middle">arp.go + arp_ws.go</text>
+      <text x="440" y="465" fill="#666" font-size="9" text-anchor="middle">StreamChunk → ArpMessage</text>
+      <text x="440" y="480" fill="#666" font-size="9" text-anchor="middle">SSE + WebSocket transport</text>
+
+      <!-- Agent Runtime -->
+      <rect x="580" y="400" width="200" height="100" rx="10" fill="#1a1a1a" stroke="#9B59B6" stroke-width="2"/>
+      <text x="680" y="425" fill="#9B59B6" font-size="13" font-weight="700" text-anchor="middle">Agent Runtime</text>
+      <text x="680" y="445" fill="#888" font-size="10" text-anchor="middle">agent.go</text>
+      <text x="680" y="465" fill="#666" font-size="9" text-anchor="middle">Agentic loop, tool calling,</text>
+      <text x="680" y="480" fill="#666" font-size="9" text-anchor="middle">memory, handoffs, streaming</text>
+
+      <!-- Store -->
+      <rect x="100" y="540" width="140" height="70" rx="8" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1.5"/>
+      <text x="170" y="565" fill="#4CAF50" font-size="11" font-weight="600" text-anchor="middle">Store</text>
+      <text x="170" y="582" fill="#666" font-size="9" text-anchor="middle">SQLite / Postgres</text>
+      <text x="170" y="596" fill="#666" font-size="9" text-anchor="middle">Sessions, runs, chat</text>
+
+      <!-- Observability -->
+      <rect x="260" y="540" width="140" height="70" rx="8" fill="#1a1a1a" stroke="#E67E22" stroke-width="1.5"/>
+      <text x="330" y="565" fill="#E67E22" font-size="11" font-weight="600" text-anchor="middle">Observability</text>
+      <text x="330" y="582" fill="#666" font-size="9" text-anchor="middle">observe.go</text>
+      <text x="330" y="596" fill="#666" font-size="9" text-anchor="middle">Tokens, costs, Langfuse</text>
+
+      <!-- Tools -->
+      <rect x="420" y="540" width="140" height="70" rx="8" fill="#1a1a1a" stroke="#00BCD4" stroke-width="1.5"/>
+      <text x="490" y="565" fill="#00BCD4" font-size="11" font-weight="600" text-anchor="middle">Tool System</text>
+      <text x="490" y="582" fill="#666" font-size="9" text-anchor="middle">tool.go</text>
+      <text x="490" y="596" fill="#666" font-size="9" text-anchor="middle">Registry, JSON Schema</text>
+
+      <!-- MCP -->
+      <rect x="580" y="540" width="140" height="70" rx="8" fill="#1a1a1a" stroke="#00BCD4" stroke-width="1.5"/>
+      <text x="650" y="565" fill="#00BCD4" font-size="11" font-weight="600" text-anchor="middle">MCP</text>
+      <text x="650" y="582" fill="#666" font-size="9" text-anchor="middle">Client + Server</text>
+      <text x="650" y="596" fill="#666" font-size="9" text-anchor="middle">External tools/data</text>
+
+      <!-- LLM Providers -->
+      <rect x="820" y="400" width="200" height="100" rx="10" fill="#1a1a1a" stroke="#E67E22" stroke-width="2"/>
+      <text x="920" y="425" fill="#E67E22" font-size="13" font-weight="700" text-anchor="middle">LLM Providers</text>
+      <text x="920" y="445" fill="#888" font-size="10" text-anchor="middle">provider.go</text>
+      <text x="920" y="465" fill="#666" font-size="9" text-anchor="middle">OpenAI, Azure, Ollama,</text>
+      <text x="920" y="480" fill="#666" font-size="9" text-anchor="middle">Groq, Mistral, llama.cpp</text>
+
+      <!-- Stdlib -->
+      <rect x="820" y="540" width="200" height="70" rx="8" fill="#1a1a1a" stroke="#333" stroke-width="1.5"/>
+      <text x="920" y="565" fill="#999" font-size="11" font-weight="600" text-anchor="middle">Stdlib (tree-shaken)</text>
+      <text x="920" y="582" fill="#666" font-size="9" text-anchor="middle">postgres, vector, slack, github</text>
+      <text x="920" y="596" fill="#666" font-size="9" text-anchor="middle">gitlab, excel, algolia, meilisearch</text>
+
+      <!-- Runtime connections -->
+      <line x1="300" y1="450" x2="340" y2="450" stroke="#E8A317" stroke-width="1.5" marker-end="url(#arrow-gold)"/>
+      <line x1="540" y1="450" x2="580" y2="450" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="780" y1="450" x2="820" y2="450" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="170" y1="500" x2="170" y2="540" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="490" y1="500" x2="490" y2="540" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="650" y1="500" x2="650" y2="540" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- Binary to runtime arrow -->
+      <line x1="1090" y1="335" x2="920" y2="400" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow-gold)"/>
+
+      <!-- ═══ CLIENT LAYER ═══ -->
+
+      <!-- Browser / UI SDK -->
+      <rect x="100" y="690" width="240" height="110" rx="10" fill="#1a1a1a" stroke="#E91E63" stroke-width="2"/>
+      <text x="220" y="715" fill="#E91E63" font-size="13" font-weight="700" text-anchor="middle">Browser — UI SDK</text>
+      <text x="220" y="735" fill="#888" font-size="10" text-anchor="middle">Lit Web Components (TypeScript)</text>
+      <text x="220" y="760" fill="#666" font-size="9" text-anchor="middle">haira-app, haira-chat, haira-form</text>
+      <text x="220" y="776" fill="#666" font-size="9" text-anchor="middle">21 Gen UI components</text>
+      <text x="220" y="792" fill="#666" font-size="9" text-anchor="middle">Router, Theme, Session store</text>
+
+      <!-- ARP Client -->
+      <rect x="380" y="690" width="200" height="110" rx="10" fill="#1a1a1a" stroke="#E91E63" stroke-width="2"/>
+      <text x="480" y="715" fill="#E91E63" font-size="13" font-weight="700" text-anchor="middle">ARP Client</text>
+      <text x="480" y="735" fill="#888" font-size="10" text-anchor="middle">arp-client.ts</text>
+      <text x="480" y="760" fill="#666" font-size="9" text-anchor="middle">WebSocket to /_arp/v1</text>
+      <text x="480" y="776" fill="#666" font-size="9" text-anchor="middle">Capability negotiation</text>
+      <text x="480" y="792" fill="#666" font-size="9" text-anchor="middle">Auto-reconnect (exp backoff)</text>
+
+      <!-- Pages -->
+      <rect x="620" y="690" width="200" height="110" rx="10" fill="#1a1a1a" stroke="#555" stroke-width="1.5"/>
+      <text x="720" y="715" fill="#999" font-size="13" font-weight="600" text-anchor="middle">Pages</text>
+      <text x="720" y="740" fill="#666" font-size="9" text-anchor="middle">Home, Workbench, Workflows</text>
+      <text x="720" y="756" fill="#666" font-size="9" text-anchor="middle">Agents, Observe, Settings</text>
+      <text x="720" y="772" fill="#666" font-size="9" text-anchor="middle">Deployments (Orchestrator)</text>
+
+      <!-- Connections: Client ↔ Server -->
+      <!-- SSE line -->
+      <line x1="200" y1="690" x2="200" y2="630" stroke="#E8A317" stroke-width="2" marker-end="url(#arrow-gold)"/>
+      <text x="140" y="660" fill="#E8A317" font-size="9" font-weight="500">HTTP / SSE</text>
+
+      <!-- WebSocket line (bidirectional) -->
+      <line x1="440" y1="500" x2="440" y2="625" stroke="#E91E63" stroke-width="2"/>
+      <line x1="440" y1="625" x2="480" y2="625" stroke="#E91E63" stroke-width="2"/>
+      <line x1="480" y1="625" x2="480" y2="690" stroke="#E91E63" stroke-width="2"/>
+      <!-- Bidirectional arrows -->
+      <polygon points="480,690 475,680 485,680" fill="#E91E63"/>
+      <polygon points="440,500 435,510 445,510" fill="#E91E63"/>
+      <text x="500" y="640" fill="#E91E63" font-size="9" font-weight="500">WebSocket (ARP)</text>
+      <text x="500" y="654" fill="#E91E63" font-size="9">Bidirectional</text>
+
+      <!-- API Routes box -->
+      <rect x="820" y="690" width="200" height="110" rx="10" fill="#111" stroke="#333" stroke-width="1"/>
+      <text x="920" y="715" fill="#777" font-size="12" font-weight="600" text-anchor="middle">Auto Routes</text>
+      <text x="920" y="738" fill="#555" font-size="9" text-anchor="middle">/_ui/{workflow} ... Chat/Form UI</text>
+      <text x="920" y="753" fill="#555" font-size="9" text-anchor="middle">/_arp/v1 ........... ARP WebSocket</text>
+      <text x="920" y="768" fill="#555" font-size="9" text-anchor="middle">/_api/workflows .... Metadata</text>
+      <text x="920" y="783" fill="#555" font-size="9" text-anchor="middle">/_api/runs ......... History</text>
+      <text x="920" y="798" fill="#555" font-size="9" text-anchor="middle">/_api/chats ........ Sessions</text>
+
+      <!-- Title bar -->
+      <rect x="0" y="860" width="1200" height="40" fill="#111"/>
+      <text x="600" y="882" fill="#555" font-size="10" text-anchor="middle">HAIRA — Handcrafted Agentic Integrated Runtime Architecture — .haira → Compiled Binary → Streaming Agent UI</text>
+    </svg>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#E8A317"></div>Haira Core / Gold Path</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4B9CD3"></div>Compiler Pipeline</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E91E63"></div>ARP Protocol</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9B59B6"></div>Agent Runtime</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E67E22"></div>LLM / Observability</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4CAF50"></div>Storage</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00BCD4"></div>Tools / MCP</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 2: COMPILER PIPELINE DETAIL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<section id="compiler">
+  <h2>Compiler Pipeline</h2>
+  <p class="subtitle">6-stage pipeline: .haira source code to standalone binary with embedded runtime, UI, and tree-shaken stdlib.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1200 500" xmlns="http://www.w3.org/2000/svg" font-family="Inter, -apple-system, sans-serif">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#4B9CD3"/>
+        </marker>
+      </defs>
+      <rect width="1200" height="500" fill="#0f0f0f"/>
+
+      <!-- Stage 1: Source -->
+      <rect x="30" y="30" width="160" height="120" rx="12" fill="#1a1a1a" stroke="#E8A317" stroke-width="2"/>
+      <text x="110" y="55" fill="#E8A317" font-size="12" font-weight="700" text-anchor="middle">SOURCE</text>
+      <text x="110" y="78" fill="#888" font-size="10" text-anchor="middle">app.haira</text>
+      <rect x="50" y="90" width="120" height="48" rx="4" fill="#111" stroke="#333"/>
+      <text x="60" y="108" fill="#E8A317" font-size="9" font-family="monospace">provider OpenAI</text>
+      <text x="60" y="120" fill="#9B59B6" font-size="9" font-family="monospace">agent Assistant</text>
+      <text x="60" y="132" fill="#00BCD4" font-size="9" font-family="monospace">workflow /chat</text>
+
+      <!-- Arrow -->
+      <line x1="190" y1="90" x2="230" y2="90" stroke="#4B9CD3" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <!-- Stage 2: Lex -->
+      <rect x="230" y="30" width="130" height="120" rx="12" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="2"/>
+      <text x="295" y="55" fill="#4B9CD3" font-size="12" font-weight="700" text-anchor="middle">LEXER</text>
+      <text x="295" y="78" fill="#888" font-size="10" text-anchor="middle">Tokenize</text>
+      <text x="295" y="100" fill="#555" font-size="9" text-anchor="middle">KW_PROVIDER "OpenAI"</text>
+      <text x="295" y="115" fill="#555" font-size="9" text-anchor="middle">KW_AGENT "Assistant"</text>
+      <text x="295" y="130" fill="#555" font-size="9" text-anchor="middle">KW_WORKFLOW "/chat"</text>
+
+      <line x1="360" y1="90" x2="400" y2="90" stroke="#4B9CD3" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <!-- Stage 3: Parse -->
+      <rect x="400" y="30" width="130" height="120" rx="12" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="2"/>
+      <text x="465" y="55" fill="#4B9CD3" font-size="12" font-weight="700" text-anchor="middle">PARSER</text>
+      <text x="465" y="78" fill="#888" font-size="10" text-anchor="middle">Build AST</text>
+      <text x="465" y="100" fill="#555" font-size="9" text-anchor="middle">ProviderDecl</text>
+      <text x="465" y="115" fill="#555" font-size="9" text-anchor="middle">AgentDecl</text>
+      <text x="465" y="130" fill="#555" font-size="9" text-anchor="middle">WorkflowDecl</text>
+
+      <line x1="530" y1="90" x2="570" y2="90" stroke="#4B9CD3" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <!-- Stage 4: Check -->
+      <rect x="570" y="30" width="130" height="120" rx="12" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="2"/>
+      <text x="635" y="55" fill="#4B9CD3" font-size="12" font-weight="700" text-anchor="middle">CHECKER</text>
+      <text x="635" y="78" fill="#888" font-size="10" text-anchor="middle">Type check</text>
+      <text x="635" y="100" fill="#555" font-size="9" text-anchor="middle">TypeInfo mapping</text>
+      <text x="635" y="115" fill="#555" font-size="9" text-anchor="middle">Diagnostics</text>
+      <text x="635" y="130" fill="#555" font-size="9" text-anchor="middle">Enum exhaustiveness</text>
+
+      <line x1="700" y1="90" x2="740" y2="90" stroke="#4B9CD3" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <!-- Stage 5: Codegen -->
+      <rect x="740" y="30" width="160" height="120" rx="12" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="2"/>
+      <text x="820" y="55" fill="#4B9CD3" font-size="12" font-weight="700" text-anchor="middle">CODEGEN</text>
+      <text x="820" y="78" fill="#888" font-size="10" text-anchor="middle">Emit Go source</text>
+      <rect x="758" y="88" width="124" height="50" rx="4" fill="#111" stroke="#333"/>
+      <text x="768" y="104" fill="#4CAF50" font-size="9" font-family="monospace">func main() {</text>
+      <text x="768" y="116" fill="#4CAF50" font-size="9" font-family="monospace">  haira.NewServer</text>
+      <text x="768" y="128" fill="#4CAF50" font-size="9" font-family="monospace">  .ListenAndServe</text>
+
+      <line x1="900" y1="90" x2="940" y2="90" stroke="#4B9CD3" stroke-width="2" marker-end="url(#arr2)"/>
+
+      <!-- Stage 6: Build -->
+      <rect x="940" y="30" width="160" height="120" rx="12" fill="#1a1a1a" stroke="#4CAF50" stroke-width="2"/>
+      <text x="1020" y="55" fill="#4CAF50" font-size="12" font-weight="700" text-anchor="middle">GO BUILD</text>
+      <text x="1020" y="78" fill="#888" font-size="10" text-anchor="middle">Compile binary</text>
+      <text x="1020" y="100" fill="#555" font-size="9" text-anchor="middle">go mod tidy</text>
+      <text x="1020" y="115" fill="#555" font-size="9" text-anchor="middle">go build -o app</text>
+      <text x="1020" y="130" fill="#555" font-size="9" text-anchor="middle">Single executable</text>
+
+      <!-- ── Build directory detail ── -->
+      <text x="30" y="195" fill="#555" font-size="11" font-weight="600">TEMPORARY BUILD DIRECTORY (/tmp/haira-build-{pid}/)</text>
+
+      <rect x="30" y="210" width="280" height="260" rx="10" fill="#111" stroke="#333" stroke-width="1"/>
+      <text x="50" y="240" fill="#E8A317" font-size="11" font-weight="600">main.go</text>
+      <text x="50" y="258" fill="#555" font-size="9">Generated from AST — all 8 passes</text>
+      <text x="50" y="276" fill="#555" font-size="9">Providers → Tools → Agents → Workflows</text>
+      <text x="50" y="294" fill="#555" font-size="9">Variables → Types → Methods → Functions</text>
+      <text x="50" y="312" fill="#555" font-size="9">main() — server init + registration</text>
+
+      <text x="50" y="340" fill="#4CAF50" font-size="11" font-weight="600">go.mod</text>
+      <text x="50" y="358" fill="#555" font-size="9">module haira-generated</text>
+      <text x="50" y="376" fill="#555" font-size="9">require haira-go-runtime</text>
+
+      <text x="50" y="404" fill="#E91E63" font-size="11" font-weight="600">haira/ (primitive runtime)</text>
+      <text x="50" y="422" fill="#555" font-size="9">35 Go files embedded from bundle.tar.gz</text>
+      <text x="50" y="440" fill="#555" font-size="9">Agent, Server, ARP, Store, Tools, ...</text>
+      <text x="50" y="458" fill="#555" font-size="9">UI bundle (haira-ui.js) + templates</text>
+
+      <!-- Embedded assets box -->
+      <rect x="350" y="210" width="280" height="260" rx="10" fill="#111" stroke="#333" stroke-width="1"/>
+      <text x="370" y="240" fill="#00BCD4" font-size="11" font-weight="600">stdlib/ (tree-shaken)</text>
+      <text x="370" y="262" fill="#555" font-size="9">Only imported packages are included:</text>
+
+      <rect x="370" y="275" width="100" height="22" rx="4" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1"/>
+      <text x="420" y="290" fill="#4CAF50" font-size="9" text-anchor="middle">sqlite/ (auto)</text>
+
+      <rect x="480" y="275" width="80" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="520" y="290" fill="#666" font-size="9" text-anchor="middle">postgres/</text>
+
+      <rect x="370" y="305" width="80" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="410" y="320" fill="#666" font-size="9" text-anchor="middle">vector/</text>
+
+      <rect x="460" y="305" width="70" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="495" y="320" fill="#666" font-size="9" text-anchor="middle">slack/</text>
+
+      <rect x="540" y="305" width="70" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="575" y="320" fill="#666" font-size="9" text-anchor="middle">github/</text>
+
+      <rect x="370" y="335" width="70" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="405" y="350" fill="#666" font-size="9" text-anchor="middle">excel/</text>
+
+      <rect x="450" y="335" width="80" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="490" y="350" fill="#666" font-size="9" text-anchor="middle">langfuse/</text>
+
+      <rect x="540" y="335" width="70" height="22" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="575" y="350" fill="#666" font-size="9" text-anchor="middle">gitlab/</text>
+
+      <text x="370" y="390" fill="#E67E22" font-size="11" font-weight="600">Dependency Graph</text>
+      <text x="370" y="408" fill="#555" font-size="9">vector → postgres (transitive)</text>
+      <text x="370" y="424" fill="#555" font-size="9">excel → postgres (for upsert)</text>
+      <text x="370" y="440" fill="#555" font-size="9">sqlite → auto-included (workflows/server)</text>
+      <text x="370" y="456" fill="#555" font-size="9">langfuse → observer hook (init() pattern)</text>
+
+      <!-- Output binary detail -->
+      <rect x="680" y="210" width="250" height="260" rx="10" fill="#111" stroke="url(#gold-grad)" stroke-width="2"/>
+      <text x="805" y="240" fill="#E8A317" font-size="14" font-weight="700" text-anchor="middle">OUTPUT BINARY</text>
+
+      <text x="700" y="268" fill="#888" font-size="10" font-weight="500">Contains:</text>
+
+      <rect x="700" y="280" width="210" height="24" rx="4" fill="#1a1a1a" stroke="#9B59B6" stroke-width="1"/>
+      <text x="710" y="296" fill="#9B59B6" font-size="9">Compiled agent + workflow logic</text>
+
+      <rect x="700" y="312" width="210" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="710" y="328" fill="#E91E63" font-size="9">ARP runtime (server + bridge)</text>
+
+      <rect x="700" y="344" width="210" height="24" rx="4" fill="#1a1a1a" stroke="#E67E22" stroke-width="1"/>
+      <text x="710" y="360" fill="#E67E22" font-size="9">HTTP server + auto-UI routes</text>
+
+      <rect x="700" y="376" width="210" height="24" rx="4" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1"/>
+      <text x="710" y="392" fill="#4CAF50" font-size="9">Store engine (SQLite default)</text>
+
+      <rect x="700" y="408" width="210" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="710" y="424" fill="#E91E63" font-size="9">UI bundle (haira-ui.js, 21 components)</text>
+
+      <rect x="700" y="440" width="210" height="24" rx="4" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <text x="710" y="456" fill="#888" font-size="9">Zero external dependencies at deploy</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 3: ARP PROTOCOL FLOW
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<section id="arp">
+  <h2>ARP — Agentic Rendering Protocol</h2>
+  <p class="subtitle">Wayland-inspired display protocol for agents. Typed components, capability negotiation, double-buffered rendering, bidirectional input.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg" font-family="Inter, -apple-system, sans-serif">
+      <rect width="1200" height="720" fill="#0f0f0f"/>
+
+      <!-- Column headers -->
+      <rect x="80" y="20" width="200" height="36" rx="8" fill="#E91E63" fill-opacity="0.15" stroke="#E91E63" stroke-width="1"/>
+      <text x="180" y="43" fill="#E91E63" font-size="13" font-weight="700" text-anchor="middle">RENDERER (Client)</text>
+
+      <rect x="500" y="20" width="200" height="36" rx="8" fill="#E91E63" fill-opacity="0.15" stroke="#E91E63" stroke-width="1"/>
+      <text x="600" y="43" fill="#E91E63" font-size="13" font-weight="700" text-anchor="middle">ARP PROTOCOL</text>
+
+      <rect x="920" y="20" width="200" height="36" rx="8" fill="#9B59B6" fill-opacity="0.15" stroke="#9B59B6" stroke-width="1"/>
+      <text x="1020" y="43" fill="#9B59B6" font-size="13" font-weight="700" text-anchor="middle">AGENT (Server)</text>
+
+      <!-- Vertical lifelines -->
+      <line x1="180" y1="60" x2="180" y2="710" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+      <line x1="600" y1="60" x2="600" y2="710" stroke="#E91E63" stroke-width="1" stroke-dasharray="4" opacity="0.3"/>
+      <line x1="1020" y1="60" x2="1020" y2="710" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+
+      <!-- Step 1: WebSocket Connect -->
+      <text x="30" y="100" fill="#555" font-size="10" font-weight="600">1</text>
+      <rect x="50" y="82" width="260" height="28" rx="4" fill="#1a1a1a" stroke="#333"/>
+      <text x="180" y="101" fill="#888" font-size="10" text-anchor="middle">WebSocket connect /_arp/v1</text>
+      <line x1="310" y1="96" x2="1020" y2="96" stroke="#4B9CD3" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+      <!-- Step 2: Hello (capabilities) -->
+      <text x="30" y="145" fill="#555" font-size="10" font-weight="600">2</text>
+      <rect x="350" y="128" width="500" height="45" rx="6" fill="#1a1a1a" stroke="#E91E63" stroke-width="1.5"/>
+      <text x="600" y="148" fill="#E91E63" font-size="11" font-weight="600" text-anchor="middle">ArpHello — Capability Negotiation</text>
+      <text x="600" y="164" fill="#666" font-size="9" text-anchor="middle">{"v":1, "type":"hello", "capabilities":{"components":["text","table","chart","form",...], "features":["streaming","input"]}}</text>
+      <line x1="1020" y1="150" x2="180" y2="150" stroke="#E91E63" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <!-- Step 3: User input -->
+      <text x="30" y="210" fill="#555" font-size="10" font-weight="600">3</text>
+      <rect x="50" y="193" width="260" height="28" rx="4" fill="#1a1a1a" stroke="#4CAF50"/>
+      <text x="180" y="212" fill="#4CAF50" font-size="10" text-anchor="middle">User types message</text>
+
+      <rect x="350" y="230" width="500" height="40" rx="6" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1.5"/>
+      <text x="600" y="248" fill="#4CAF50" font-size="11" font-weight="600" text-anchor="middle">ArpInput — User Message</text>
+      <text x="600" y="262" fill="#666" font-size="9" text-anchor="middle">{"v":1, "type":"input", "session_id":"abc", "input_type":"text", "data":{"text":"Analyze this CSV"}}</text>
+      <line x1="180" y1="250" x2="1020" y2="250" stroke="#4CAF50" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+      <!-- Step 4: Agent processes (tool_start) -->
+      <text x="30" y="310" fill="#555" font-size="10" font-weight="600">4</text>
+      <rect x="860" y="290" width="280" height="30" rx="4" fill="#1a1a1a" stroke="#9B59B6"/>
+      <text x="1000" y="310" fill="#9B59B6" font-size="10" text-anchor="middle">Agent calls tool: analyze_csv</text>
+
+      <rect x="350" y="330" width="500" height="35" rx="6" fill="#1a1a1a" stroke="#E8A317" stroke-width="1"/>
+      <text x="600" y="348" fill="#E8A317" font-size="10" font-weight="600" text-anchor="middle">tool_start</text>
+      <text x="600" y="360" fill="#666" font-size="8" text-anchor="middle">{"v":1, "type":"tool_start", "payload":{"tool":"analyze_csv", "args":"..."}}</text>
+      <line x1="1020" y1="348" x2="180" y2="348" stroke="#E8A317" stroke-width="1.5" marker-end="url(#arrow-gold)"/>
+
+      <!-- Step 5: Render (component) -->
+      <text x="30" y="400" fill="#555" font-size="10" font-weight="600">5</text>
+      <rect x="350" y="380" width="500" height="60" rx="6" fill="#1a1a1a" stroke="#E91E63" stroke-width="2"/>
+      <text x="600" y="400" fill="#E91E63" font-size="11" font-weight="700" text-anchor="middle">RENDER — Typed Component</text>
+      <text x="600" y="418" fill="#666" font-size="9" text-anchor="middle">{"v":1, "type":"render", "components":[{"id":"c_1", "type":"table",</text>
+      <text x="600" y="432" fill="#666" font-size="9" text-anchor="middle">"props":{"headers":["Name","Value"], "rows":[...]}, "fallback":{"type":"text",...}}]}</text>
+      <line x1="1020" y1="410" x2="180" y2="410" stroke="#E91E63" stroke-width="2" marker-end="url(#arrow)"/>
+
+      <!-- Step 5b: Render result on client -->
+      <rect x="50" y="395" width="120" height="30" rx="4" fill="#E91E63" fill-opacity="0.1" stroke="#E91E63"/>
+      <text x="110" y="415" fill="#E91E63" font-size="9" text-anchor="middle">Render table</text>
+
+      <!-- Step 6: Text delta -->
+      <text x="30" y="475" fill="#555" font-size="10" font-weight="600">6</text>
+      <rect x="350" y="460" width="500" height="35" rx="6" fill="#1a1a1a" stroke="#E8A317" stroke-width="1"/>
+      <text x="600" y="478" fill="#E8A317" font-size="10" font-weight="600" text-anchor="middle">delta — Streaming Text</text>
+      <text x="600" y="490" fill="#666" font-size="8" text-anchor="middle">{"v":1, "type":"delta", "payload":{"delta":"Based on the analysis, the data shows..."}}</text>
+      <line x1="1020" y1="478" x2="180" y2="478" stroke="#E8A317" stroke-width="1.5" marker-end="url(#arrow-gold)"/>
+
+      <!-- Step 7: tool_end -->
+      <text x="30" y="530" fill="#555" font-size="10" font-weight="600">7</text>
+      <rect x="350" y="515" width="500" height="30" rx="6" fill="#1a1a1a" stroke="#666" stroke-width="1"/>
+      <text x="600" y="535" fill="#888" font-size="10" text-anchor="middle">tool_end — {"tool":"analyze_csv", "ok":true}</text>
+      <line x1="1020" y1="530" x2="180" y2="530" stroke="#666" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- Step 8: Commit -->
+      <text x="30" y="585" fill="#555" font-size="10" font-weight="600">8</text>
+      <rect x="350" y="560" width="500" height="45" rx="6" fill="#E91E63" fill-opacity="0.08" stroke="#E91E63" stroke-width="2"/>
+      <text x="600" y="580" fill="#E91E63" font-size="12" font-weight="700" text-anchor="middle">COMMIT (final: true)</text>
+      <text x="600" y="596" fill="#666" font-size="9" text-anchor="middle">Atomic — all pending renders applied. Persisted to store.</text>
+      <line x1="1020" y1="583" x2="180" y2="583" stroke="#E91E63" stroke-width="2" marker-end="url(#arrow)"/>
+
+      <!-- Step 9: User input (form) -->
+      <text x="30" y="640" fill="#555" font-size="10" font-weight="600">9</text>
+      <rect x="350" y="625" width="500" height="40" rx="6" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1.5"/>
+      <text x="600" y="643" fill="#4CAF50" font-size="11" font-weight="600" text-anchor="middle">ArpInput — form_submit / action / selection</text>
+      <text x="600" y="658" fill="#666" font-size="9" text-anchor="middle">{"v":1, "type":"input", "input_type":"action", "source_component":"c_1", "data":{"action":"sort","payload":{"col":"Name"}}}</text>
+      <line x1="180" y1="645" x2="1020" y2="645" stroke="#4CAF50" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+      <!-- Wayland analogy note -->
+      <rect x="30" y="680" width="1140" height="30" rx="6" fill="#111" stroke="#333"/>
+      <text x="600" y="700" fill="#555" font-size="10" text-anchor="middle">Inspired by Wayland: Agent = Client | Renderer = Compositor | Surface = Rendering area | Serial = Input validation | Atomic commits = No flickering</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 4: GENERATIVE UI COMPONENT MODEL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<section id="genui">
+  <h2>Generative UI — Component Model</h2>
+  <p class="subtitle">Agents emit typed components. The renderer maps each to a native UI element. Fallback chains ensure graceful degradation.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg" font-family="Inter, -apple-system, sans-serif">
+      <rect width="1200" height="700" fill="#0f0f0f"/>
+
+      <!-- Title: Component Categories -->
+      <text x="600" y="35" fill="#888" font-size="14" font-weight="600" text-anchor="middle">17 CORE COMPONENTS IN 3 CATEGORIES</text>
+
+      <!-- ── Display Components ── -->
+      <rect x="30" y="55" width="370" height="300" rx="12" fill="#1a1a1a" stroke="#E8A317" stroke-width="1.5"/>
+      <text x="215" y="80" fill="#E8A317" font-size="13" font-weight="700" text-anchor="middle">DISPLAY (10)</text>
+      <text x="215" y="96" fill="#555" font-size="9" text-anchor="middle">Agent output — read-only rendering</text>
+
+      <!-- Display component pills -->
+      <rect x="50" y="112" width="90" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="95" y="131" fill="#E8A317" font-size="10" text-anchor="middle">text</text>
+
+      <rect x="150" y="112" width="110" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="205" y="131" fill="#E8A317" font-size="10" text-anchor="middle">status-card</text>
+
+      <rect x="270" y="112" width="90" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="315" y="131" fill="#E8A317" font-size="10" text-anchor="middle">table</text>
+
+      <rect x="50" y="150" width="110" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="105" y="169" fill="#E8A317" font-size="10" text-anchor="middle">code-block</text>
+
+      <rect x="170" y="150" width="70" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="205" y="169" fill="#E8A317" font-size="10" text-anchor="middle">diff</text>
+
+      <rect x="250" y="150" width="100" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="300" y="169" fill="#E8A317" font-size="10" text-anchor="middle">key-value</text>
+
+      <rect x="50" y="188" width="100" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="100" y="207" fill="#E8A317" font-size="10" text-anchor="middle">progress</text>
+
+      <rect x="160" y="188" width="80" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="200" y="207" fill="#E8A317" font-size="10" text-anchor="middle">chart</text>
+
+      <rect x="250" y="188" width="80" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="290" y="207" fill="#E8A317" font-size="10" text-anchor="middle">image</text>
+
+      <rect x="50" y="226" width="100" height="28" rx="6" fill="#111" stroke="#E8A317" stroke-width="1"/>
+      <text x="100" y="245" fill="#E8A317" font-size="10" text-anchor="middle">markdown</text>
+
+      <!-- Fallback chain example -->
+      <text x="50" y="282" fill="#777" font-size="10" font-weight="600">Fallback Chain Example:</text>
+      <rect x="50" y="292" width="60" height="22" rx="4" fill="#E8A317" fill-opacity="0.15" stroke="#E8A317"/>
+      <text x="80" y="307" fill="#E8A317" font-size="9" text-anchor="middle">chart</text>
+      <text x="120" y="307" fill="#555" font-size="10">→</text>
+      <rect x="132" y="292" width="60" height="22" rx="4" fill="#E67E22" fill-opacity="0.15" stroke="#E67E22"/>
+      <text x="162" y="307" fill="#E67E22" font-size="9" text-anchor="middle">table</text>
+      <text x="202" y="307" fill="#555" font-size="10">→</text>
+      <rect x="214" y="292" width="60" height="22" rx="4" fill="#666" fill-opacity="0.15" stroke="#666"/>
+      <text x="244" y="307" fill="#888" font-size="9" text-anchor="middle">text</text>
+      <text x="290" y="307" fill="#444" font-size="9">(universal fallback)</text>
+
+      <!-- ── Input Components ── -->
+      <rect x="420" y="55" width="360" height="300" rx="12" fill="#1a1a1a" stroke="#4CAF50" stroke-width="1.5"/>
+      <text x="600" y="80" fill="#4CAF50" font-size="13" font-weight="700" text-anchor="middle">INPUT (4)</text>
+      <text x="600" y="96" fill="#555" font-size="9" text-anchor="middle">User interaction — bidirectional</text>
+
+      <rect x="440" y="112" width="80" height="28" rx="6" fill="#111" stroke="#4CAF50" stroke-width="1"/>
+      <text x="480" y="131" fill="#4CAF50" font-size="10" text-anchor="middle">form</text>
+
+      <rect x="530" y="112" width="100" height="28" rx="6" fill="#111" stroke="#4CAF50" stroke-width="1"/>
+      <text x="580" y="131" fill="#4CAF50" font-size="10" text-anchor="middle">confirm</text>
+
+      <rect x="640" y="112" width="100" height="28" rx="6" fill="#111" stroke="#4CAF50" stroke-width="1"/>
+      <text x="690" y="131" fill="#4CAF50" font-size="10" text-anchor="middle">choices</text>
+
+      <rect x="440" y="150" width="110" height="28" rx="6" fill="#111" stroke="#4CAF50" stroke-width="1"/>
+      <text x="495" y="169" fill="#4CAF50" font-size="10" text-anchor="middle">text-input</text>
+
+      <!-- Input flow -->
+      <text x="440" y="210" fill="#777" font-size="10" font-weight="600">Input Event Types:</text>
+      <text x="440" y="230" fill="#555" font-size="9">text .......... Free-form text input</text>
+      <text x="440" y="246" fill="#555" font-size="9">form_submit ... Structured form data</text>
+      <text x="440" y="262" fill="#555" font-size="9">action ........ Button click, confirm/deny</text>
+      <text x="440" y="278" fill="#555" font-size="9">selection ..... List/choice selection</text>
+      <text x="440" y="294" fill="#555" font-size="9">file .......... File upload attachment</text>
+      <text x="440" y="310" fill="#555" font-size="9">voice ......... Voice transcript</text>
+      <text x="440" y="326" fill="#555" font-size="9">gesture ....... Touch/swipe (mobile)</text>
+      <text x="440" y="342" fill="#555" font-size="9">navigate ...... Route change / back</text>
+
+      <!-- ── Layout Components ── -->
+      <rect x="800" y="55" width="370" height="300" rx="12" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="985" y="80" fill="#4B9CD3" font-size="13" font-weight="700" text-anchor="middle">LAYOUT (3)</text>
+      <text x="985" y="96" fill="#555" font-size="9" text-anchor="middle">Composition — arrange components</text>
+
+      <rect x="820" y="112" width="80" height="28" rx="6" fill="#111" stroke="#4B9CD3" stroke-width="1"/>
+      <text x="860" y="131" fill="#4B9CD3" font-size="10" text-anchor="middle">group</text>
+
+      <rect x="910" y="112" width="80" height="28" rx="6" fill="#111" stroke="#4B9CD3" stroke-width="1"/>
+      <text x="950" y="131" fill="#4B9CD3" font-size="10" text-anchor="middle">tabs</text>
+
+      <rect x="1000" y="112" width="80" height="28" rx="6" fill="#111" stroke="#4B9CD3" stroke-width="1"/>
+      <text x="1040" y="131" fill="#4B9CD3" font-size="10" text-anchor="middle">split</text>
+
+      <text x="820" y="175" fill="#777" font-size="10" font-weight="600">Layout enables complex views:</text>
+      <rect x="820" y="190" width="330" height="110" rx="6" fill="#111" stroke="#333"/>
+      <text x="840" y="210" fill="#4B9CD3" font-size="9" font-family="monospace">group(direction: "vertical") {</text>
+      <text x="840" y="226" fill="#E8A317" font-size="9" font-family="monospace">  status-card(...)</text>
+      <text x="840" y="242" fill="#4B9CD3" font-size="9" font-family="monospace">  tabs() {</text>
+      <text x="840" y="258" fill="#E8A317" font-size="9" font-family="monospace">    table("Data", ...)</text>
+      <text x="840" y="274" fill="#E8A317" font-size="9" font-family="monospace">    chart("Visualization", ...)</text>
+      <text x="840" y="290" fill="#4B9CD3" font-size="9" font-family="monospace">  }</text>
+
+      <!-- ── Rendering Pipeline ── -->
+      <text x="600" y="395" fill="#888" font-size="14" font-weight="600" text-anchor="middle">RENDERING PIPELINE — Agent to Pixels</text>
+
+      <!-- Pipeline stages -->
+      <rect x="30" y="420" width="180" height="80" rx="10" fill="#1a1a1a" stroke="#9B59B6" stroke-width="2"/>
+      <text x="120" y="450" fill="#9B59B6" font-size="12" font-weight="700" text-anchor="middle">Agent Tool</text>
+      <text x="120" y="468" fill="#666" font-size="9" text-anchor="middle">Returns typed component</text>
+      <text x="120" y="483" fill="#666" font-size="9" text-anchor="middle">via render() in tool fn</text>
+
+      <text x="225" y="460" fill="#555" font-size="16">→</text>
+
+      <rect x="250" y="420" width="180" height="80" rx="10" fill="#1a1a1a" stroke="#E8A317" stroke-width="2"/>
+      <text x="340" y="450" fill="#E8A317" font-size="12" font-weight="700" text-anchor="middle">StreamChunk</text>
+      <text x="340" y="468" fill="#666" font-size="9" text-anchor="middle">type: "tool_render"</text>
+      <text x="340" y="483" fill="#666" font-size="9" text-anchor="middle">component + props</text>
+
+      <text x="445" y="460" fill="#555" font-size="16">→</text>
+
+      <rect x="470" y="420" width="180" height="80" rx="10" fill="#1a1a1a" stroke="#E91E63" stroke-width="2"/>
+      <text x="560" y="450" fill="#E91E63" font-size="12" font-weight="700" text-anchor="middle">ArpBridge()</text>
+      <text x="560" y="468" fill="#666" font-size="9" text-anchor="middle">StreamChunk → ArpMessage</text>
+      <text x="560" y="483" fill="#666" font-size="9" text-anchor="middle">Single translation point</text>
+
+      <text x="665" y="460" fill="#555" font-size="16">→</text>
+
+      <!-- Transport split -->
+      <rect x="700" y="410" width="170" height="40" rx="8" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="785" y="435" fill="#E91E63" font-size="10" text-anchor="middle">WebSocket (/_arp/v1)</text>
+
+      <rect x="700" y="460" width="170" height="40" rx="8" fill="#1a1a1a" stroke="#E8A317" stroke-width="1"/>
+      <text x="785" y="485" fill="#E8A317" font-size="10" text-anchor="middle">SSE (backward compat)</text>
+
+      <text x="885" y="445" fill="#555" font-size="16">→</text>
+
+      <rect x="910" y="420" width="260" height="80" rx="10" fill="#1a1a1a" stroke="#E91E63" stroke-width="2"/>
+      <text x="1040" y="445" fill="#E91E63" font-size="12" font-weight="700" text-anchor="middle">UI Component Renderer</text>
+      <text x="1040" y="465" fill="#666" font-size="9" text-anchor="middle">haira-ui-renderer.ts</text>
+      <text x="1040" y="483" fill="#666" font-size="9" text-anchor="middle">Maps ARP type → Web Component</text>
+
+      <!-- UI Component mapping -->
+      <text x="600" y="540" fill="#888" font-size="12" font-weight="600" text-anchor="middle">UI SDK — 21 Lit Web Components (Self-Registering)</text>
+
+      <rect x="30" y="560" width="1140" height="120" rx="10" fill="#111" stroke="#333" stroke-width="1"/>
+
+      <!-- Component grid -->
+      <rect x="50" y="575" width="130" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="115" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-status-card</text>
+
+      <rect x="190" y="575" width="100" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="240" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-table</text>
+
+      <rect x="300" y="575" width="120" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="360" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-code-block</text>
+
+      <rect x="430" y="575" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="475" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-diff</text>
+
+      <rect x="530" y="575" width="100" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="580" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-chart</text>
+
+      <rect x="640" y="575" width="110" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="695" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-form-view</text>
+
+      <rect x="760" y="575" width="110" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="815" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-confirm</text>
+
+      <rect x="880" y="575" width="110" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="935" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-choices</text>
+
+      <rect x="1000" y="575" width="150" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="1075" y="592" fill="#E91E63" font-size="9" text-anchor="middle">haira-product-cards</text>
+
+      <rect x="50" y="610" width="120" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="110" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-key-value</text>
+
+      <rect x="180" y="610" width="130" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="245" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-progress-view</text>
+
+      <rect x="320" y="610" width="110" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="375" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-message</text>
+
+      <rect x="440" y="610" width="120" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="500" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-tool-card</text>
+
+      <rect x="570" y="610" width="100" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="620" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-pipeline</text>
+
+      <rect x="680" y="610" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="725" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-step</text>
+
+      <rect x="780" y="610" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="825" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-chat</text>
+
+      <rect x="880" y="610" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="925" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-form</text>
+
+      <rect x="980" y="610" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="1025" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-field</text>
+
+      <rect x="1080" y="610" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="1125" y="627" fill="#E91E63" font-size="9" text-anchor="middle">haira-result</text>
+
+      <rect x="50" y="645" width="140" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="120" y="662" fill="#E91E63" font-size="9" text-anchor="middle">haira-ui-renderer</text>
+
+      <rect x="200" y="645" width="90" height="24" rx="4" fill="#1a1a1a" stroke="#E91E63" stroke-width="1"/>
+      <text x="245" y="662" fill="#E91E63" font-size="9" text-anchor="middle">haira-app</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 5: ARP vs AG-UI COMPARISON
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<section id="comparison">
+  <h2>ARP vs AG-UI — Architectural Comparison</h2>
+  <p class="subtitle">AG-UI is an event bus. ARP is a display server. Different mental models, different capabilities.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 1200 880" xmlns="http://www.w3.org/2000/svg" font-family="Inter, -apple-system, sans-serif">
+      <rect width="1200" height="880" fill="#0f0f0f"/>
+
+      <!-- ── LEFT: AG-UI ── -->
+      <rect x="30" y="20" width="550" height="40" rx="8" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="305" y="46" fill="#4B9CD3" font-size="15" font-weight="700" text-anchor="middle">AG-UI (CopilotKit)</text>
+
+      <!-- AG-UI architecture -->
+      <rect x="30" y="80" width="550" height="380" rx="12" fill="#111" stroke="#4B9CD3" stroke-width="1" stroke-dasharray="3"/>
+
+      <!-- Agent backend -->
+      <rect x="60" y="100" width="200" height="60" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="160" y="125" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">Agent Backend</text>
+      <text x="160" y="145" fill="#666" font-size="9" text-anchor="middle">LangGraph / CrewAI / etc</text>
+
+      <!-- AG-UI SDK -->
+      <rect x="310" y="100" width="240" height="60" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="430" y="125" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">AG-UI SDK (TypeScript)</text>
+      <text x="430" y="145" fill="#666" font-size="9" text-anchor="middle">AbstractAgent + HttpAgent</text>
+
+      <!-- Flat event stream -->
+      <text x="305" y="195" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">FLAT EVENT STREAM (17 event types)</text>
+      <rect x="50" y="205" width="510" height="100" rx="8" fill="#0a0a0a" stroke="#333"/>
+
+      <rect x="65" y="215" width="110" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="120" y="229" fill="#4B9CD3" font-size="8" text-anchor="middle">RUN_STARTED</text>
+
+      <rect x="185" y="215" width="130" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="250" y="229" fill="#4B9CD3" font-size="8" text-anchor="middle">TEXT_MESSAGE_CONTENT</text>
+
+      <rect x="325" y="215" width="110" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="380" y="229" fill="#4B9CD3" font-size="8" text-anchor="middle">TOOL_CALL_START</text>
+
+      <rect x="445" y="215" width="100" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="495" y="229" fill="#4B9CD3" font-size="8" text-anchor="middle">STATE_DELTA</text>
+
+      <rect x="65" y="245" width="100" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="115" y="259" fill="#4B9CD3" font-size="8" text-anchor="middle">STEP_STARTED</text>
+
+      <rect x="175" y="245" width="100" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="225" y="259" fill="#4B9CD3" font-size="8" text-anchor="middle">RUN_FINISHED</text>
+
+      <rect x="285" y="245" width="80" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="325" y="259" fill="#4B9CD3" font-size="8" text-anchor="middle">CUSTOM</text>
+
+      <rect x="375" y="245" width="80" height="20" rx="4" fill="#4B9CD3" fill-opacity="0.1" stroke="#4B9CD3" stroke-width="0.5"/>
+      <text x="415" y="259" fill="#4B9CD3" font-size="8" text-anchor="middle">RAW</text>
+
+      <text x="305" y="290" fill="#444" font-size="9" text-anchor="middle">No component model — frontend interprets events</text>
+
+      <!-- React frontend -->
+      <rect x="60" y="320" width="490" height="60" rx="8" fill="#1a1a1a" stroke="#4B9CD3" stroke-width="1.5"/>
+      <text x="305" y="342" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">React Frontend (CopilotKit)</text>
+      <text x="305" y="360" fill="#666" font-size="9" text-anchor="middle">Developer maps tool names → React components manually</text>
+
+      <!-- AG-UI characteristics -->
+      <rect x="60" y="400" width="490" height="45" rx="6" fill="#0a0a0a" stroke="#333"/>
+      <text x="80" y="420" fill="#E74C3C" font-size="9">No capability negotiation</text>
+      <text x="80" y="436" fill="#E74C3C" font-size="9">No atomic commits</text>
+      <text x="260" y="420" fill="#E74C3C" font-size="9">No component model</text>
+      <text x="260" y="436" fill="#E74C3C" font-size="9">No fallback chains</text>
+      <text x="430" y="420" fill="#E74C3C" font-size="9">No security model</text>
+      <text x="430" y="436" fill="#E74C3C" font-size="9">No input serials</text>
+
+      <!-- ── RIGHT: ARP ── -->
+      <rect x="620" y="20" width="550" height="40" rx="8" fill="#E91E63" fill-opacity="0.1" stroke="#E91E63" stroke-width="1.5"/>
+      <text x="895" y="46" fill="#E91E63" font-size="15" font-weight="700" text-anchor="middle">ARP — Agentic Rendering Protocol (Haira)</text>
+
+      <!-- ARP architecture -->
+      <rect x="620" y="80" width="550" height="380" rx="12" fill="#111" stroke="#E91E63" stroke-width="1" stroke-dasharray="3"/>
+
+      <!-- Agent -->
+      <rect x="650" y="100" width="200" height="60" rx="8" fill="#1a1a1a" stroke="#9B59B6" stroke-width="1.5"/>
+      <text x="750" y="125" fill="#9B59B6" font-size="11" font-weight="600" text-anchor="middle">Agent (Haira compiled)</text>
+      <text x="750" y="145" fill="#666" font-size="9" text-anchor="middle">Typed tools emit components</text>
+
+      <!-- ARP Protocol -->
+      <rect x="900" y="100" width="240" height="60" rx="8" fill="#1a1a1a" stroke="#E91E63" stroke-width="1.5"/>
+      <text x="1020" y="125" fill="#E91E63" font-size="11" font-weight="600" text-anchor="middle">ARP Bridge</text>
+      <text x="1020" y="145" fill="#666" font-size="9" text-anchor="middle">StreamChunk → ArpMessage</text>
+
+      <!-- Structured protocol -->
+      <text x="895" y="195" fill="#E91E63" font-size="11" font-weight="600" text-anchor="middle">STRUCTURED COMPONENT PROTOCOL</text>
+      <rect x="640" y="205" width="510" height="100" rx="8" fill="#0a0a0a" stroke="#E91E63" stroke-width="0.5"/>
+
+      <!-- ARP message types -->
+      <rect x="655" y="215" width="75" height="20" rx="4" fill="#E91E63" fill-opacity="0.12" stroke="#E91E63" stroke-width="0.5"/>
+      <text x="692" y="229" fill="#E91E63" font-size="8" text-anchor="middle">hello</text>
+
+      <rect x="740" y="215" width="75" height="20" rx="4" fill="#E91E63" fill-opacity="0.12" stroke="#E91E63" stroke-width="0.5"/>
+      <text x="777" y="229" fill="#E91E63" font-size="8" text-anchor="middle">render</text>
+
+      <rect x="825" y="215" width="75" height="20" rx="4" fill="#E91E63" fill-opacity="0.12" stroke="#E91E63" stroke-width="0.5"/>
+      <text x="862" y="229" fill="#E91E63" font-size="8" text-anchor="middle">patch</text>
+
+      <rect x="910" y="215" width="75" height="20" rx="4" fill="#E91E63" fill-opacity="0.12" stroke="#E91E63" stroke-width="0.5"/>
+      <text x="947" y="229" fill="#E91E63" font-size="8" text-anchor="middle">commit</text>
+
+      <rect x="995" y="215" width="75" height="20" rx="4" fill="#4CAF50" fill-opacity="0.12" stroke="#4CAF50" stroke-width="0.5"/>
+      <text x="1032" y="229" fill="#4CAF50" font-size="8" text-anchor="middle">input</text>
+
+      <rect x="1080" y="215" width="55" height="20" rx="4" fill="#E91E63" fill-opacity="0.12" stroke="#E91E63" stroke-width="0.5"/>
+      <text x="1107" y="229" fill="#E91E63" font-size="8" text-anchor="middle">delta</text>
+
+      <text x="895" y="265" fill="#E91E63" font-size="9" text-anchor="middle">Components: {"id":"c_1", "type":"table", "props":{...}, "fallback":{...}}</text>
+      <text x="895" y="280" fill="#4CAF50" font-size="9" text-anchor="middle">Patches: {"op":"update", "target":"c_1", "path":"/rows", "value":[...]}</text>
+      <text x="895" y="295" fill="#666" font-size="9" text-anchor="middle">Typed components with schema validation + fallback chains</text>
+
+      <!-- Renderer -->
+      <rect x="650" y="320" width="490" height="60" rx="8" fill="#1a1a1a" stroke="#E91E63" stroke-width="1.5"/>
+      <text x="895" y="342" fill="#E91E63" font-size="11" font-weight="600" text-anchor="middle">ARP Renderer (Any platform)</text>
+      <text x="895" y="360" fill="#666" font-size="9" text-anchor="middle">Web (Lit), CLI, Desktop, Mobile — same protocol, different renderers</text>
+
+      <!-- ARP characteristics -->
+      <rect x="650" y="400" width="490" height="45" rx="6" fill="#0a0a0a" stroke="#333"/>
+      <text x="670" y="420" fill="#4CAF50" font-size="9">Capability negotiation</text>
+      <text x="670" y="436" fill="#4CAF50" font-size="9">Atomic commits</text>
+      <text x="845" y="420" fill="#4CAF50" font-size="9">17 typed components</text>
+      <text x="845" y="436" fill="#4CAF50" font-size="9">Fallback chains</text>
+      <text x="1020" y="420" fill="#4CAF50" font-size="9">Agent isolation</text>
+      <text x="1020" y="436" fill="#4CAF50" font-size="9">Serial validation</text>
+
+      <!-- ── COMPARISON TABLE ── -->
+      <text x="600" y="500" fill="#888" font-size="14" font-weight="700" text-anchor="middle">HEAD-TO-HEAD COMPARISON</text>
+
+      <!-- Table header -->
+      <rect x="30" y="520" width="350" height="32" rx="0" fill="#222"/>
+      <text x="205" y="541" fill="#999" font-size="11" font-weight="600" text-anchor="middle">CAPABILITY</text>
+
+      <rect x="380" y="520" width="350" height="32" rx="0" fill="#4B9CD3" fill-opacity="0.1"/>
+      <text x="555" y="541" fill="#4B9CD3" font-size="11" font-weight="600" text-anchor="middle">AG-UI</text>
+
+      <rect x="730" y="520" width="440" height="32" rx="0" fill="#E91E63" fill-opacity="0.1"/>
+      <text x="950" y="541" fill="#E91E63" font-size="11" font-weight="600" text-anchor="middle">ARP (Haira)</text>
+
+      <!-- Rows -->
+      <!-- Row 1 -->
+      <rect x="30" y="552" width="350" height="28" fill="none"/>
+      <text x="50" y="570" fill="#888" font-size="10">Mental Model</text>
+      <text x="555" y="570" fill="#4B9CD3" font-size="10" text-anchor="middle">Event bus</text>
+      <text x="950" y="570" fill="#E91E63" font-size="10" text-anchor="middle">Display server (Wayland)</text>
+
+      <line x1="30" y1="580" x2="1170" y2="580" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 2 -->
+      <text x="50" y="598" fill="#888" font-size="10">Component Model</text>
+      <text x="555" y="598" fill="#E74C3C" font-size="10" text-anchor="middle">None — frontend maps tool names</text>
+      <text x="950" y="598" fill="#4CAF50" font-size="10" text-anchor="middle">17 typed components + fallbacks</text>
+
+      <line x1="30" y1="608" x2="1170" y2="608" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 3 -->
+      <text x="50" y="626" fill="#888" font-size="10">Capability Negotiation</text>
+      <text x="555" y="626" fill="#E74C3C" font-size="10" text-anchor="middle">None</text>
+      <text x="950" y="626" fill="#4CAF50" font-size="10" text-anchor="middle">ArpHello handshake</text>
+
+      <line x1="30" y1="636" x2="1170" y2="636" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 4 -->
+      <text x="50" y="654" fill="#888" font-size="10">Rendering Consistency</text>
+      <text x="555" y="654" fill="#E74C3C" font-size="10" text-anchor="middle">Events arrive individually</text>
+      <text x="950" y="654" fill="#4CAF50" font-size="10" text-anchor="middle">Atomic commit (no flicker)</text>
+
+      <line x1="30" y1="664" x2="1170" y2="664" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 5 -->
+      <text x="50" y="682" fill="#888" font-size="10">Input Model</text>
+      <text x="555" y="682" fill="#888" font-size="10" text-anchor="middle">Messages + tool defs in POST</text>
+      <text x="950" y="682" fill="#4CAF50" font-size="10" text-anchor="middle">8 input types + serial validation</text>
+
+      <line x1="30" y1="692" x2="1170" y2="692" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 6 -->
+      <text x="50" y="710" fill="#888" font-size="10">Security</text>
+      <text x="555" y="710" fill="#888" font-size="10" text-anchor="middle">Delegated to CopilotKit Cloud</text>
+      <text x="950" y="710" fill="#4CAF50" font-size="10" text-anchor="middle">Protocol-level isolation + serials</text>
+
+      <line x1="30" y1="720" x2="1170" y2="720" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 7 -->
+      <text x="50" y="738" fill="#888" font-size="10">Multi-platform Rendering</text>
+      <text x="555" y="738" fill="#888" font-size="10" text-anchor="middle">React-first (Angular emerging)</text>
+      <text x="950" y="738" fill="#4CAF50" font-size="10" text-anchor="middle">Any renderer (web, CLI, desktop, mobile)</text>
+
+      <line x1="30" y1="748" x2="1170" y2="748" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 8 -->
+      <text x="50" y="766" fill="#888" font-size="10">Integration Effort</text>
+      <text x="555" y="766" fill="#4CAF50" font-size="10" text-anchor="middle">SDK + adapter per framework</text>
+      <text x="950" y="766" fill="#E91E63" font-size="10" text-anchor="middle">Zero — compiled into Haira binary</text>
+
+      <line x1="30" y1="776" x2="1170" y2="776" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 9 -->
+      <text x="50" y="794" fill="#888" font-size="10">Ecosystem</text>
+      <text x="555" y="794" fill="#4CAF50" font-size="10" text-anchor="middle">9K stars, 120K installs, 12+ frameworks</text>
+      <text x="950" y="794" fill="#E67E22" font-size="10" text-anchor="middle">New — native to Haira language</text>
+
+      <line x1="30" y1="804" x2="1170" y2="804" stroke="#222" stroke-width="0.5"/>
+
+      <!-- Row 10 -->
+      <text x="50" y="822" fill="#888" font-size="10">State Sync</text>
+      <text x="555" y="822" fill="#4CAF50" font-size="10" text-anchor="middle">RFC 6902 JSON Patch</text>
+      <text x="950" y="822" fill="#4CAF50" font-size="10" text-anchor="middle">Patch ops (update/insert/remove/replace)</text>
+
+      <!-- Bottom tagline -->
+      <rect x="30" y="845" width="1140" height="30" rx="6" fill="#111" stroke="#333"/>
+      <text x="600" y="864" fill="#E8A317" font-size="11" font-weight="600" text-anchor="middle">"AG-UI tells your frontend what happened. ARP tells it what to show."</text>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#E91E63"></div>ARP (Haira)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4B9CD3"></div>AG-UI (CopilotKit)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4CAF50"></div>Advantage</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#E74C3C"></div>Missing / Limitation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#E67E22"></div>Trade-off</div>
+  </div>
+</section>
+
+<div class="page-num">Haira Architecture v0.1 — Feb 2026</div>
+
+<script>
+// Smooth scroll navigation
+document.querySelectorAll('nav a').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    target.scrollIntoView({ behavior: 'smooth' });
+    document.querySelectorAll('nav a').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+  });
+});
+
+// Active section tracking
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      document.querySelectorAll('nav a').forEach(l => {
+        l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

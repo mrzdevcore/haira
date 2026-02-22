@@ -10,7 +10,7 @@ import (
 //go:embed ui/chat.html
 var chatHTML string
 
-func (s *Server) serveChatUI(rw http.ResponseWriter, wf *WorkflowDef) {
+func (s *Server) serveChatUI(rw http.ResponseWriter, r *http.Request, wf *WorkflowDef) {
 	chatParam := findChatParam(wf.Params)
 	settingsParams := filterSettingsParams(wf.Params, chatParam)
 	hasFile := false
@@ -43,8 +43,7 @@ func (s *Server) serveChatUI(rw http.ResponseWriter, wf *WorkflowDef) {
 	}
 	metaJSON, _ := json.Marshal(meta)
 	html := strings.Replace(chatHTML, "{{META}}", string(metaJSON), 1)
-	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	rw.Write([]byte(html))
+	serveHTML(rw, r, html)
 }
 
 // findChatParam finds the primary chat input parameter name.

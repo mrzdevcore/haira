@@ -18,6 +18,10 @@ export default defineConfig({
     proxy: {
       "/_api": "http://localhost:8080",
       "/_observe": "http://localhost:8080",
+      "/_arp": {
+        target: "http://localhost:8080",
+        ws: true,
+      },
     },
   },
 });

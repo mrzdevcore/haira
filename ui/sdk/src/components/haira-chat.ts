@@ -741,7 +741,7 @@ export class HairaChat extends LitElement {
     if (urlSession) {
       this._sessionId = urlSession;
     } else {
-      // Try to resume the latest session
+      // Try to resume the latest session for this workflow
       try {
         const resp = await fetch(
           `/_api/chats?workflow=${encodeURIComponent(this.meta.path)}`
@@ -750,8 +750,7 @@ export class HairaChat extends LitElement {
           const sessions: ChatSessionSummary[] = await resp.json();
           if (sessions && sessions.length > 0) {
             this._sessionId = sessions[0].id;
-            url.searchParams.set("session", this._sessionId);
-            window.history.replaceState({}, "", url.toString());
+            this._setSessionUrl(this._sessionId);
             this._loadSession(this._sessionId);
             this._refreshSidebar();
             this._connectArp();
@@ -762,13 +761,19 @@ export class HairaChat extends LitElement {
         // API unavailable
       }
       this._sessionId = crypto.randomUUID();
-      url.searchParams.set("session", this._sessionId);
-      window.history.replaceState({}, "", url.toString());
+      this._setSessionUrl(this._sessionId);
     }
 
     this._loadSession(this._sessionId);
     this._refreshSidebar();
     this._connectArp();
+  }
+
+  /** Update URL with session ID */
+  private _setSessionUrl(sessionId: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("session", sessionId);
+    window.history.replaceState({}, "", url.toString());
   }
 
   /** Attempt to connect via ARP WebSocket. Falls back to SSE silently. */
@@ -990,6 +995,12 @@ export class HairaChat extends LitElement {
   }
 
   private _handleToolRender(event: ToolRenderEvent) {
+    // Validate the event has the minimum required fields
+    if (!event?.component || !event.props) {
+      console.warn("[Haira] Ignoring invalid tool render event:", event);
+      return;
+    }
+
     if (this._streamingMsgIndex >= 0) {
       const msg = this._messages[this._streamingMsgIndex];
       const uiEvents = [...(msg.uiEvents || []), event];

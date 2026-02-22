@@ -18,13 +18,12 @@ import (
 
 // Orchestrator is the main deployment service.
 type Orchestrator struct {
-	store     *Store
-	procs     *ProcessManager
-	proxy     *ReverseProxy
-	mux       *http.ServeMux
-	dataDir   string
-	indexHTML string // cached console HTML template
-	uiJS     string // cached haira-ui.js bundle
+	store      *Store
+	procs      *ProcessManager
+	proxy      *ReverseProxy
+	mux        *http.ServeMux
+	dataDir    string
+	loaderHTML string // cached micro-loader HTML template
 }
 
 // New creates a new orchestration service.
@@ -49,32 +48,37 @@ func New(dataDir string) (*Orchestrator, error) {
 	proxy := NewReverseProxy()
 	mux := http.NewServeMux()
 
-	// Load UI assets from embedded runtime bundle
-	uiFiles := runtime.UIFiles()
-	indexHTML := string(uiFiles["ui/index.html"])
-	uiJS := string(uiFiles["ui/dist/haira-ui.js"])
+	// Load micro-loader template from embedded CLI files
+	cliFiles := runtime.CLIFiles()
+	loaderHTML := string(cliFiles["loader.html"])
 
 	o := &Orchestrator{
-		store:     store,
-		procs:     procs,
-		proxy:     proxy,
-		mux:       mux,
-		dataDir:   dataDir,
-		indexHTML:  indexHTML,
-		uiJS:      uiJS,
+		store:      store,
+		procs:      procs,
+		proxy:      proxy,
+		mux:        mux,
+		dataDir:    dataDir,
+		loaderHTML: loaderHTML,
 	}
 
-	// Console UI routes (must be before the catch-all proxy)
-	mux.HandleFunc("/_ui/assets/haira-ui.js", o.handleConsoleJS)
-	mux.HandleFunc("/_ui/", o.handleConsoleIndex)
+	// Console UI assets (internal paths)
+	mux.HandleFunc("/_ui/assets/haira-ui.js", o.handleUIJS)
+	mux.HandleFunc("/_ui/config", o.handleUIConfig)
 
 	// API routes
 	mux.HandleFunc("/_api/deploy", o.handleDeploy)
 	mux.HandleFunc("/_api/deployments", o.handleListDeployments)
 	mux.HandleFunc("/_api/deployments/", o.handleDeployment) // /_api/deployments/{name}[/action]
 
-	// Everything else goes to the reverse proxy
-	mux.Handle("/", proxy)
+	// Catch-all: serve console UI for GET requests, proxy everything else
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Proxy to deployed services for non-root paths that look like service routes
+		if r.URL.Path != "/" && !isConsolePath(r.URL.Path) {
+			proxy.ServeHTTP(w, r)
+			return
+		}
+		o.handleConsoleIndex(w, r)
+	})
 
 	return o, nil
 }
@@ -149,11 +153,6 @@ func (o *Orchestrator) shutdown() {
 // --- Console UI Handlers ---
 
 func (o *Orchestrator) handleConsoleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/_ui/" {
-		http.NotFound(w, r)
-		return
-	}
-
 	// Build deployment list for metadata
 	deployments, _ := o.store.List()
 	type depItem struct {
@@ -195,16 +194,33 @@ func (o *Orchestrator) handleConsoleIndex(w http.ResponseWriter, r *http.Request
 		"deployments": items,
 	}
 	metaJSON, _ := json.Marshal(meta)
-	html := strings.Replace(o.indexHTML, "{{META}}", string(metaJSON), 1)
+	html := strings.Replace(o.loaderHTML, "{{META}}", string(metaJSON), 1)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
 }
 
-func (o *Orchestrator) handleConsoleJS(w http.ResponseWriter, r *http.Request) {
+func (o *Orchestrator) handleUIJS(w http.ResponseWriter, r *http.Request) {
+	cliFiles := runtime.CLIFiles()
+	uiJS, ok := cliFiles["haira-ui.js"]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-	w.Write([]byte(o.uiJS))
+	w.Write(uiJS)
+}
+
+func (o *Orchestrator) handleUIConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	cfg := map[string]string{}
+	if uiURL := os.Getenv("HAIRA_UI_URL"); uiURL != "" {
+		cfg["src"] = uiURL
+	} else {
+		cfg["src"] = "/_ui/assets/haira-ui.js"
+	}
+	json.NewEncoder(w).Encode(cfg)
 }
 
 // --- API Handlers ---
@@ -561,6 +577,15 @@ func (o *Orchestrator) streamLogs(w http.ResponseWriter, r *http.Request, logPat
 			}
 		}
 	}
+}
+
+// isConsolePath returns true if the path is a known console UI route.
+func isConsolePath(path string) bool {
+	switch path {
+	case "/", "/deployments", "/settings", "/workflows", "/agents", "/observe":
+		return true
+	}
+	return strings.HasPrefix(path, "/workbench/")
 }
 
 // --- Helpers ---

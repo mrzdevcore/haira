@@ -19,18 +19,35 @@ export class PageWorkbench extends LitElement {
 
   @property({ type: Object }) meta: WorkflowMeta | null = null;
 
-  private _getWorkflowPath(): string {
+  /** Track the current workflow path so we re-render on hash changes */
+  @state() private _currentPath = "";
+
+  connectedCallback() {
+    super.connectedCallback();
+    this._updatePath();
+    window.addEventListener("popstate", this._onRouteChange);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("popstate", this._onRouteChange);
+  }
+
+  private _onRouteChange = () => {
+    this._updatePath();
+  };
+
+  private _updatePath() {
     const route = currentRoute();
     if (route.page === "workbench") {
-      return (route as { page: "workbench"; path: string }).path;
+      this._currentPath = (route as { page: "workbench"; path: string }).path;
     }
-    return this.meta?.path || "";
   }
 
   private _getWorkflowMeta(): WorkflowMeta | null {
     if (!this.meta) return null;
 
-    const path = this._getWorkflowPath();
+    const path = this._currentPath;
     const workflows = this.meta.workflows || [];
     const wf = workflows.find((w) => w.path === path);
 
@@ -77,11 +94,14 @@ export class PageWorkbench extends LitElement {
 
     const mode = wfMeta.mode === "chat" ? "chat" : "form";
 
+    // Use keyed rendering so Lit creates a new element when the workflow changes.
+    // Without this, switching from one chat workflow to another reuses the same
+    // <haira-chat> element — which never re-runs connectedCallback/initSession.
     if (mode === "chat") {
-      return html`<haira-chat .meta=${wfMeta}></haira-chat>`;
+      return html`<haira-chat .meta=${wfMeta} .key=${wfMeta.path}></haira-chat>`;
     }
 
-    return html`<haira-form .meta=${wfMeta}></haira-form>`;
+    return html`<haira-form .meta=${wfMeta} .key=${wfMeta.path}></haira-form>`;
   }
 }
 

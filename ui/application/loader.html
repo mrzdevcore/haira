@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haira</title>
+<style>body{margin:0;background:#09090b;color:#fafaf9;font-family:system-ui}#loader{display:flex;align-items:center;justify-content:center;height:100vh}.l{font-size:.85rem;color:#71717a}code{background:#1a1a1a;padding:2px 6px;border-radius:4px;font-size:.8rem}</style>
+</head>
+<body>
+<script type="application/json" id="haira-meta">{{META}}</script>
+<div id="loader"><span class="l">Loading...</span></div>
+<haira-app></haira-app>
+<script>
+(function(){
+  var el=document.getElementById('loader');
+  function load(src,fb){
+    var s=document.createElement('script');s.type='module';s.src=src;
+    s.onload=function(){el.style.display='none'};
+    if(fb)s.onerror=fb;
+    document.body.appendChild(s);
+  }
+  fetch('/_ui/config').then(function(r){return r.json()}).then(function(c){
+    load(c.src,function(){
+      load('/_ui/assets/haira-ui.js');
+    });
+  }).catch(function(){
+    load('/_ui/assets/haira-ui.js');
+  });
+})();
+</script>
+</body>
+</html>

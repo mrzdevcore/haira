@@ -436,7 +436,7 @@ export class HairaPageHome extends LitElement {
                   </span>
                   <a
                     class="section-link"
-                    href="#/deployments"
+                    href="/deployments"
                     @click=${(e: Event) => {
                       e.preventDefault();
                       navigate({ page: "deployments" });
@@ -552,7 +552,7 @@ export class HairaPageHome extends LitElement {
                   </span>
                   <a
                     class="section-link"
-                    href="#/workflows"
+                    href="/workflows"
                     @click=${(e: Event) => {
                       e.preventDefault();
                       navigate({ page: "workflows" });
@@ -564,7 +564,7 @@ export class HairaPageHome extends LitElement {
                     (wf, i) => html`
                       <a
                         class="workflow-card"
-                        href="#/workbench${wf.path}"
+                        href="/workbench${wf.path}"
                         style=${styleMap({
                           animationDelay: `${200 + i * 40}ms`,
                         })}

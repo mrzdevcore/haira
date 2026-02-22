@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/haira-lang/haira/internal/lsp"
 	"github.com/haira-lang/haira/internal/manifest"
 	"github.com/haira-lang/haira/internal/orchestrator"
+	"github.com/haira-lang/haira/internal/webui"
 )
 
 var version = "dev"
@@ -67,6 +69,8 @@ func main() {
 		err = cmdLogs(rest)
 	case "undeploy":
 		err = cmdUndeploy(rest)
+	case "webui":
+		err = cmdWebUI(rest)
 	case "lsp":
 		err = lsp.RunStdio()
 	case "version", "--version", "-v":
@@ -123,6 +127,16 @@ func cmdRun(args []string) error {
 	if file == "" {
 		return fmt.Errorf("usage: haira run [file]\n  No file specified and no package.haira found")
 	}
+
+	// If HAIRA_UI_URL is not already set, start a local UI asset server
+	// so compiled programs can serve the UI without CDN dependency.
+	// The asset server runs in the background and sets HAIRA_UI_URL for the child process.
+	if os.Getenv("HAIRA_UI_URL") == "" {
+		if cleanup := webui.StartAssetServer(); cleanup != nil {
+			defer cleanup()
+		}
+	}
+
 	return driver.Run(file)
 }
 
@@ -425,6 +439,23 @@ func cmdLogs(args []string) error {
 	return nil
 }
 
+func cmdWebUI(args []string) error {
+	backend := "localhost:8080"
+	port := "3000"
+
+	backend, args = parseFlag(args, "--connect", backend)
+	backend, args = parseFlag(args, "-c", backend)
+	port, args = parseFlag(args, "--port", port)
+	port, _ = parseFlag(args, "-p", port)
+
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("invalid port: %s", port)
+	}
+
+	return webui.Run(backend, p)
+}
+
 func cmdUndeploy(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: haira undeploy <name> [--host HOST:PORT]")
@@ -475,6 +506,7 @@ Commands:
   fmt [file] [files...]       Format source files in-place
   init                        Create a package.haira manifest
   console <host:port>         Connect to a Haira server (interactive terminal)
+  webui [--connect host:port] Serve the Haira UI (connects to a running backend)
   lsp                         Start the language server (LSP)
   version                     Show version
   help                        Show this help

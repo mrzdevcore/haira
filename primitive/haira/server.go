@@ -1,7 +1,6 @@
 package haira
 
 import (
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,12 +9,6 @@ import (
 	"strings"
 	"time"
 )
-
-//go:embed ui/index.html
-var indexHTML string
-
-//go:embed ui/dist/haira-ui.js
-var uiJS string
 
 // Server is an HTTP server that routes requests to workflows.
 type Server struct {
@@ -35,10 +28,8 @@ func NewServer(workflows []*WorkflowDef) *Server {
 		fmt.Fprintf(os.Stderr, "haira: failed to init store: %v\n", err)
 	}
 
-	// Register auto-UI routes (unless disabled)
-	if os.Getenv("HAIRA_DISABLE_UI") == "" {
-		s.registerUIRoutes()
-	}
+	// Register ARP protocol + API routes
+	s.registerProtocolRoutes()
 
 	// Cleanup stale session upload directories in the background
 	StartSessionCleanup(1*time.Hour, 24*time.Hour)
@@ -295,11 +286,8 @@ func sanitizeParams(params map[string]any) map[string]any {
 	return clean
 }
 
-// registerUIRoutes sets up /_ui/ index, per-workflow UI pages, and JS assets.
-func (s *Server) registerUIRoutes() {
-	s.mux.HandleFunc("/_ui/assets/haira-ui.js", s.serveUIJS)
-	s.mux.HandleFunc("/_ui/", s.handleUIIndex)
-
+// registerProtocolRoutes sets up ARP protocol and data API routes.
+func (s *Server) registerProtocolRoutes() {
 	// ARP WebSocket endpoint
 	s.mux.HandleFunc("/_arp/v1", s.handleArpWebSocket)
 
@@ -319,142 +307,8 @@ func (s *Server) registerUIRoutes() {
 	// Chat session API
 	s.mux.HandleFunc("/_api/chats", s.handleListChats)
 	s.mux.HandleFunc("/_api/chats/", s.handleChatRoute)
-
-	for _, w := range s.workflows {
-		wf := w
-		uiPath := "/_ui" + wf.Path
-		s.mux.HandleFunc(uiPath, func(rw http.ResponseWriter, r *http.Request) {
-			switch wf.UIMode {
-			case "chat":
-				s.serveChatUI(rw, r, wf)
-			case "form":
-				s.serveFormUI(rw, r, wf)
-			default:
-				// Auto-detect: stream workflows default to chat, sync to form
-				if wf.IsStream {
-					s.serveChatUI(rw, r, wf)
-				} else {
-					s.serveFormUI(rw, r, wf)
-				}
-			}
-		})
-	}
 }
 
-func (s *Server) serveUIJS(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-	rw.Header().Set("Cache-Control", "public, max-age=3600")
-	rw.Write([]byte(uiJS))
-}
-
-// serveHTML writes an HTML page, rewriting paths when served behind a reverse
-// proxy (detected via X-Forwarded-Prefix header). Rewrites asset src paths in
-// HTML and injects a small script to rewrite fetch/WebSocket URLs at runtime.
-func serveHTML(rw http.ResponseWriter, r *http.Request, html string) {
-	if prefix := r.Header.Get("X-Forwarded-Prefix"); prefix != "" {
-		// Rewrite script src in HTML: /_ui/assets/ → /prefix/_ui/assets/
-		html = strings.ReplaceAll(html, `src="/_ui/`, `src="`+prefix+`/_ui/`)
-
-		// Inject a script that patches fetch and WebSocket to prepend the prefix
-		// for absolute API paths. This avoids modifying the JS SDK.
-		patchScript := `<script>window.__hairaPrefix="` + prefix + `";` +
-			`(function(F){window.fetch=function(u,o){` +
-			`if(typeof u==="string"&&u.startsWith("/")&&!u.startsWith("` + prefix + `"))` +
-			`u="` + prefix + `"+u;` +
-			`return F.call(this,u,o)}})(window.fetch);` +
-			`(function(W){window.WebSocket=function(u,p){` +
-			`if(u.includes("/_arp/")){` +
-			`u=u.replace("/_arp/","` + prefix + `/_arp/")}` +
-			`return p?new W(u,p):new W(u)};` +
-			`window.WebSocket.prototype=W.prototype;` +
-			`window.WebSocket.CONNECTING=W.CONNECTING;` +
-			`window.WebSocket.OPEN=W.OPEN;` +
-			`window.WebSocket.CLOSING=W.CLOSING;` +
-			`window.WebSocket.CLOSED=W.CLOSED})(window.WebSocket)</script>`
-
-		html = strings.Replace(html, "</head>", patchScript+"</head>", 1)
-	}
-	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	rw.Write([]byte(html))
-}
-
-func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
-	// Only serve exact /_ui/ path as index
-	if r.URL.Path != "/_ui/" {
-		http.NotFound(rw, r)
-		return
-	}
-
-	type wfItem struct {
-		Name        string         `json:"name"`
-		Path        string         `json:"path"`
-		Method      string         `json:"method"`
-		UIType      string         `json:"uiType"`
-		Title       string         `json:"title"`
-		Description string         `json:"description,omitempty"`
-		HasFile     bool           `json:"hasFile"`
-		Params      []WorkflowParam `json:"params,omitempty"`
-		ChatParam   string         `json:"chatParam,omitempty"`
-		FileParam   string         `json:"fileParam,omitempty"`
-		Suggestions []string       `json:"suggestions,omitempty"`
-		Accent      string         `json:"accent,omitempty"`
-		Logo        string         `json:"logo,omitempty"`
-		Theme       string         `json:"theme,omitempty"`
-		Avatar      string         `json:"avatar,omitempty"`
-	}
-
-	var items []wfItem
-	for _, wf := range s.workflows {
-		var uiType string
-		switch wf.UIMode {
-		case "chat":
-			uiType = "Chat"
-		case "form":
-			uiType = "Form"
-		default:
-			if wf.IsStream {
-				uiType = "Chat"
-			} else {
-				uiType = "Form"
-			}
-		}
-		hasFile := false
-		fileParam := ""
-		for _, p := range wf.Params {
-			if p.Type == "file" {
-				hasFile = true
-				fileParam = p.Name
-				break
-			}
-		}
-		chatParam := findChatParam(wf.Params)
-		items = append(items, wfItem{
-			Name:        wf.Name,
-			Path:        wf.Path,
-			Method:      wf.Method,
-			UIType:      uiType,
-			Title:       wf.UITitle,
-			Description: wf.UIDescription,
-			HasFile:     hasFile,
-			Params:      wf.Params,
-			ChatParam:   chatParam,
-			FileParam:   fileParam,
-			Suggestions: wf.Suggestions,
-			Accent:      wf.UIAccent,
-			Logo:        wf.UILogo,
-			Theme:       wf.UITheme,
-			Avatar:      wf.UIAvatar,
-		})
-	}
-
-	meta := map[string]any{
-		"mode":      "index",
-		"workflows": items,
-	}
-	metaJSON, _ := json.Marshal(meta)
-	html := strings.Replace(indexHTML, "{{META}}", string(metaJSON), 1)
-	serveHTML(rw, r, html)
-}
 
 // --- Run History API ---
 
@@ -682,5 +536,27 @@ func (s *Server) Listen(port int) error {
 		}
 	}
 	addr := fmt.Sprintf(":%d", port)
-	return http.ListenAndServe(addr, s.mux)
+
+	// Wrap with CORS middleware for cross-origin UI renderers
+	handler := corsMiddleware(s.mux)
+	return http.ListenAndServe(addr, handler)
+}
+
+// corsMiddleware adds CORS headers so external UI renderers (CDN, dev server)
+// can access the ARP and API endpoints.
+func corsMiddleware(next http.Handler) http.Handler {
+	origin := os.Getenv("HAIRA_CORS_ORIGIN")
+	if origin == "" {
+		origin = "*"
+	}
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Access-Control-Allow-Origin", origin)
+		rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		rw.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
+		if r.Method == "OPTIONS" {
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(rw, r)
+	})
 }

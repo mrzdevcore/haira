@@ -72,8 +72,8 @@ export class ArpClient {
       try {
         const msg = JSON.parse(event.data);
         this.handleMessage(msg);
-      } catch {
-        // Ignore malformed messages
+      } catch (err) {
+        console.warn("[ARP] Failed to parse message:", err);
       }
     };
 
@@ -186,14 +186,19 @@ export class ArpClient {
 
       case "render": {
         const arpMsg = msg as ArpMessage;
-        if (arpMsg.components?.length) {
-          const comp = arpMsg.components[0];
+        // Support components at top level or nested in payload
+        const components = arpMsg.components ??
+          (arpMsg.payload as any)?.components;
+        if (components?.length) {
+          const comp = components[0];
           const event: ToolRenderEvent = {
-            tool: arpMsg.tool_name ?? "",
+            tool: arpMsg.tool_name ?? (arpMsg.payload as any)?.tool ?? "",
             component: comp.type,
             props: comp.props,
           };
           this.callbacks.onRender?.(event);
+        } else {
+          console.warn("[ARP] Render message with no components:", msg);
         }
         break;
       }

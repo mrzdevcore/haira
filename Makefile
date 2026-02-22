@@ -30,13 +30,17 @@ STDLIB_PKGS = postgres excel vector slack github gitlab sqlite langfuse algolia 
 
 # Bundle the runtime into a tar.gz for embedding in the compiler
 # Core haira/ package is always included; stdlib packages are separate
+# The UI SDK JS is included under cli/ (used by `haira webui`, NOT by compiled programs).
+# Compiled .haira programs only get the micro-loader HTML template.
 bundle-runtime: ui
 	@echo "Bundling runtime..."
 	@rm -rf .bundle-tmp
-	@mkdir -p .bundle-tmp/haira/ui/dist
+	@mkdir -p .bundle-tmp/haira/ui
+	@mkdir -p .bundle-tmp/cli
 	@cp $(PRIMITIVE_DIR)/haira/*.go .bundle-tmp/haira/
-	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/haira/ui/dist/
-	@cp $(UI_APP_DIR)/*.html .bundle-tmp/haira/ui/
+	@if [ -f $(UI_APP_DIR)/observe.html ]; then cp $(UI_APP_DIR)/observe.html .bundle-tmp/haira/ui/observe.html; fi
+	@cp $(UI_APP_DIR)/loader.html .bundle-tmp/cli/loader.html
+	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/cli/haira-ui.js
 	@for pkg in $(STDLIB_PKGS); do \
 		if [ -d $(STDLIB_DIR)/$$pkg ]; then \
 			mkdir -p .bundle-tmp/$$pkg && \
@@ -183,7 +187,7 @@ ci: vet test build-examples
 help:
 	@echo "Haira Makefile targets:"
 	@echo ""
-	@echo "  build            Build the compiler (primitive + stdlib + UI embedded)"
+	@echo "  build            Build the compiler (primitive + stdlib + ARP server)"
 	@echo "  test             Run Go tests"
 	@echo "  clean            Clean build artifacts"
 	@echo "  fmt              Format code"
@@ -204,7 +208,8 @@ help:
 	@echo "  vscode-package        Package VS Code extension (.vsix)"
 	@echo "  ui               Build UI SDK bundle (TypeScript → JS)"
 	@echo "  ui-dev           Build UI SDK in watch mode"
-	@echo "  bundle-runtime   Bundle primitive + stdlib into tar.gz for embedding"
+	@echo "  bundle-runtime   Bundle primitive + stdlib + loader into tar.gz for embedding"
+	@echo "  ui               Build UI SDK bundle (for npm publishing)"
 	@echo "  spec             Build the language specification PDF"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

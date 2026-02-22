@@ -1,13 +1,27 @@
 {
-  "name": "haira-ui",
+  "name": "@haira/ui",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "description": "Haira UI — ARP renderer for Haira agent applications",
+  "main": "dist/haira-ui.js",
+  "exports": {
+    ".": "./dist/haira-ui.js",
+    "./arp-client": "./src/core/arp-client.ts"
+  },
+  "files": [
+    "dist/",
+    "bin/"
+  ],
+  "bin": {
+    "haira-ui": "./bin/serve.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
+  "keywords": ["haira", "arp", "agentic", "ui", "agent", "renderer"],
+  "license": "MIT",
   "dependencies": {
     "lit": "^3.2.0"
   },

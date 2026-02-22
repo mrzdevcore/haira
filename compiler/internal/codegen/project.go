@@ -131,7 +131,7 @@ func writeProject(dir, mainGo string, usedStdlibPkgs []string) error {
 		}
 	}
 
-	// Write UI files (dist/, HTML templates)
+	// Write UI files (observe.html etc. — loader/JS are CLI-only, not in compiled programs)
 	for relPath, data := range runtime.UIFiles() {
 		fullPath := filepath.Join(hairaDir, relPath)
 		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {

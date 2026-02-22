@@ -220,21 +220,22 @@ export class HairaApp extends LitElement {
 
     // If mode is "form" or "chat", route directly to workbench
     if (this.meta?.mode === "chat" || this.meta?.mode === "form") {
-      if (!window.location.hash || window.location.hash === "#/") {
+      const p = window.location.pathname;
+      if (p === "/" || p === "") {
         navigate({ page: "workbench", path: this.meta.path });
       }
     }
 
     this._route = currentRoute();
-    window.addEventListener("hashchange", this._onHashChange);
+    window.addEventListener("popstate", this._onRouteChange);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("hashchange", this._onHashChange);
+    window.removeEventListener("popstate", this._onRouteChange);
   }
 
-  private _onHashChange = () => {
+  private _onRouteChange = () => {
     this._route = currentRoute();
     this._sidebarOpen = false;
   };
@@ -321,7 +322,7 @@ export class HairaApp extends LitElement {
       <div class="nav-section">General</div>
       <a
         class="nav-item ${this._isActive("home") ? "active" : ""}"
-        href="#/"
+        href="/"
         @click=${this._navClick("home")}
       >
         <span class="nav-icon">${unsafeHTML(iconStrings.home)}</span>
@@ -329,7 +330,7 @@ export class HairaApp extends LitElement {
       </a>
       <a
         class="nav-item ${this._isActive("deployments") ? "active" : ""}"
-        href="#/deployments"
+        href="/deployments"
         @click=${(e: Event) => {
           e.preventDefault();
           navigate({ page: "deployments" });
@@ -372,7 +373,7 @@ export class HairaApp extends LitElement {
       <div class="nav-section">General</div>
       <a
         class="nav-item ${this._isActive("home") ? "active" : ""}"
-        href="#/"
+        href="/"
         @click=${this._navClick("home")}
       >
         <span class="nav-icon">${unsafeHTML(iconStrings.home)}</span>
@@ -380,7 +381,7 @@ export class HairaApp extends LitElement {
       </a>
       <a
         class="nav-item ${this._isActive("workflows") ? "active" : ""}"
-        href="#/workflows"
+        href="/workflows"
         @click=${this._navClick("workflows")}
       >
         <span class="nav-icon">${unsafeHTML(iconStrings.workflow)}</span>
@@ -388,7 +389,7 @@ export class HairaApp extends LitElement {
       </a>
       <a
         class="nav-item ${this._isActive("agents") ? "active" : ""}"
-        href="#/agents"
+        href="/agents"
         @click=${this._navClick("agents")}
       >
         <span class="nav-icon">${unsafeHTML(iconStrings.agent)}</span>
@@ -405,7 +406,7 @@ export class HairaApp extends LitElement {
                   (this._route as { path: string }).path === wf.path
                     ? "active"
                     : ""}"
-                  href="#/workbench${wf.path}"
+                  href="/workbench${wf.path}"
                   @click=${(e: Event) => {
                     e.preventDefault();
                     navigate({ page: "workbench", path: wf.path });
@@ -428,7 +429,7 @@ export class HairaApp extends LitElement {
       <div class="nav-section">System</div>
       <a
         class="nav-item ${this._isActive("observe") ? "active" : ""}"
-        href="#/observe"
+        href="/observe"
         @click=${this._navClick("observe")}
       >
         <span class="nav-icon">${unsafeHTML(iconStrings.observe)}</span>
@@ -436,7 +437,7 @@ export class HairaApp extends LitElement {
       </a>
       <a
         class="nav-item ${this._isActive("settings") ? "active" : ""}"
-        href="#/settings"
+        href="/settings"
         @click=${this._navClick("settings")}
       >
         <span class="nav-icon">${unsafeHTML(iconStrings.settings)}</span>
@@ -452,7 +453,7 @@ export class HairaApp extends LitElement {
         <nav class="sidebar ${this._sidebarOpen ? "open" : ""}">
           <a
             class="sidebar-brand"
-            href="#/"
+            href="/"
             @click=${this._navClick("home")}
           >
             <span class="brand-icon">${unsafeHTML(this.meta?.logo ? `<img src="${this.meta.logo}" alt="" width="22" height="22" style="object-fit:contain">` : logoSvgStr)}</span>

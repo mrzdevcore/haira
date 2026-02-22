@@ -25,6 +25,7 @@ var (
 	once       sync.Once
 	goFiles    map[string][]byte // key = "haira/agent.go" or "postgres/postgres.go"
 	uiFiles    map[string][]byte
+	cliFiles   map[string][]byte // CLI-only files (e.g., haira-ui.js for `haira webui`)
 	goMod      []byte
 	goSum      []byte
 	extractErr error
@@ -35,6 +36,7 @@ func extract() {
 	once.Do(func() {
 		goFiles = make(map[string][]byte)
 		uiFiles = make(map[string][]byte)
+		cliFiles = make(map[string][]byte)
 
 		gz, err := gzip.NewReader(bytes.NewReader(bundleData))
 		if err != nil {
@@ -70,8 +72,12 @@ func extract() {
 				goMod = data
 			case name == "go.sum":
 				goSum = data
+			case strings.HasPrefix(name, "cli/"):
+				// CLI-only files: used by `haira webui`, not compiled programs
+				rel := strings.TrimPrefix(name, "cli/")
+				cliFiles[rel] = data
 			case strings.HasPrefix(name, "haira/ui/"):
-				// UI files: strip "haira/" prefix → "ui/dist/haira-ui.js"
+				// UI files: strip "haira/" prefix → "ui/loader.html"
 				rel := strings.TrimPrefix(name, "haira/")
 				uiFiles[rel] = data
 			case strings.HasSuffix(name, ".go"):
@@ -127,10 +133,18 @@ func StdlibPackages() []string {
 	return pkgs
 }
 
-// UIFiles returns all UI files (HTML + dist/) as a map of relative path → content.
+// UIFiles returns UI files (e.g. observe.html) as a map of relative path → content.
+// These are included in compiled .haira programs.
 func UIFiles() map[string][]byte {
 	extract()
 	return uiFiles
+}
+
+// CLIFiles returns CLI-only files (e.g., haira-ui.js) as a map of filename → content.
+// These are embedded in the haira CLI binary but NOT in compiled .haira programs.
+func CLIFiles() map[string][]byte {
+	extract()
+	return cliFiles
 }
 
 // GoMod returns the runtime go.mod content.

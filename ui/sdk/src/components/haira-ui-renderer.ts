@@ -76,6 +76,9 @@ export class HairaUiRenderer extends LitElement {
     event: ToolRenderEvent,
     depth: number
   ): HTMLElement | null {
+    // Validate event
+    if (!event || !event.component) return null;
+
     // Handle group component with recursive rendering (max depth 3)
     if (event.component === "group") {
       if (depth >= 3) return null;
@@ -111,18 +114,23 @@ export class HairaUiRenderer extends LitElement {
     };
 
     // Support data-restored attribute for _restored prop
-    if (event.props._restored) {
+    if (event.props?._restored) {
       el.setAttribute("data-restored", "");
     }
 
-    // Set props via the setProps method if available, otherwise assign directly
+    // Force synchronous upgrade if the element class is already registered
+    // This avoids the race where setProps is unavailable on a not-yet-upgraded element
+    customElements.upgrade(el);
+
     if (typeof el.setProps === "function") {
       el.setProps(event.props);
     } else {
-      // The element may not be upgraded yet; wait for upgrade then set props
+      // Element class not yet loaded — store props and set them once available
+      const props = event.props;
       customElements.whenDefined(tagName).then(() => {
+        customElements.upgrade(el);
         if (typeof (el as any).setProps === "function") {
-          (el as any).setProps(event.props);
+          (el as any).setProps(props);
         }
       });
     }

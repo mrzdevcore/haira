@@ -8,7 +8,32 @@ permissions:
   contents: write
 
 jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: compiler/go.sum
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install UI dependencies
+        run: cd ui/sdk && bun install --frozen-lockfile || bun install
+
+      - name: Bundle runtime
+        run: make bundle-runtime
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-bundle
+          path: compiler/internal/runtime/bundle.tar.gz
+
   release:
+    needs: bundle
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -31,13 +56,11 @@ jobs:
           go-version: "1.22"
           cache-dependency-path: compiler/go.sum
 
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Build UI bundle
-        run: |
-          cd compiler/internal/runtime/embedded/haira/ui
-          bun install --frozen-lockfile || true
-          bun build src/index.ts --outfile dist/haira-ui.js --minify --target browser
+      - name: Download bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-bundle
+          path: compiler/internal/runtime
 
       - name: Get version
         id: version
@@ -99,6 +122,9 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Remove bundle artifact
+        run: rm -f dist/bundle.tar.gz
 
       - name: Create release
         uses: softprops/action-gh-release@v2

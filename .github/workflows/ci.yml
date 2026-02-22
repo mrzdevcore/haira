@@ -19,6 +19,9 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - name: Install UI dependencies
+        run: cd ui/sdk && bun install --frozen-lockfile || bun install
+
       - name: Vet
         run: cd compiler && go vet ./...
 

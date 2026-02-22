@@ -6,7 +6,7 @@ import { baseStyles, scrollbarStyles, methodColor, uiTypeColor } from "../core/s
 import { iconStrings } from "../core/icons";
 import { relativeTime, shortId } from "../core/utils";
 import { navigate } from "../core/router";
-import type { WorkflowMeta, RunSummary, ChatSessionSummary } from "../core/types";
+import type { WorkflowMeta, RunSummary, ChatSessionSummary, DeploymentItem } from "../core/types";
 
 @customElement("haira-page-home")
 export class HairaPageHome extends LitElement {
@@ -313,12 +313,32 @@ export class HairaPageHome extends LitElement {
   @state() private _agentCount = 0;
   @state() private _runs: RunSummary[] = [];
   @state() private _chats: ChatSessionSummary[] = [];
+  @state() private _deployments: DeploymentItem[] = [];
+
+  private get _isOrchestrator(): boolean {
+    return this.meta?.mode === "orchestrator";
+  }
 
   connectedCallback() {
     super.connectedCallback();
-    this._loadAgents();
-    this._loadRuns();
-    this._loadChats();
+    if (this._isOrchestrator) {
+      this._loadDeployments();
+    } else {
+      this._loadAgents();
+      this._loadRuns();
+      this._loadChats();
+    }
+  }
+
+  private async _loadDeployments() {
+    try {
+      const res = await fetch("/_api/deployments");
+      if (!res.ok) return;
+      const data = await res.json();
+      this._deployments = Array.isArray(data) ? data : [];
+    } catch {
+      this._deployments = [];
+    }
   }
 
   private async _loadAgents() {
@@ -362,7 +382,122 @@ export class HairaPageHome extends LitElement {
     navigate({ page: "workbench", path });
   }
 
+  private _renderOrchestratorHome() {
+    const deps = this._deployments;
+    const running = deps.filter((d) => d.status === "running").length;
+    const stopped = deps.filter((d) => d.status === "stopped").length;
+    const crashed = deps.filter((d) => d.status === "crashed").length;
+
+    return html`
+      <div class="home-container">
+        <div class="page-header">
+          <h1>Haira Orchestrator</h1>
+          <p>Overview of all deployed workflows and agents.</p>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">
+              <span class="stat-icon">${unsafeHTML(iconStrings.workflow)}</span>
+              Total Deployments
+            </span>
+            <span class="stat-value">${deps.length}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">
+              <span class="stat-icon">${unsafeHTML(iconStrings.check)}</span>
+              Running
+            </span>
+            <span class="stat-value" style="color: var(--haira-success)">${running}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">
+              <span class="stat-icon">${unsafeHTML(iconStrings.pending)}</span>
+              Stopped
+            </span>
+            <span class="stat-value">${stopped}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">
+              <span class="stat-icon">${unsafeHTML(iconStrings.x)}</span>
+              Crashed
+            </span>
+            <span class="stat-value" style="color: var(--haira-error)">${crashed}</span>
+          </div>
+        </div>
+
+        ${deps.length > 0
+          ? html`
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">
+                    <span class="section-icon">${unsafeHTML(iconStrings.activity)}</span>
+                    Deployments
+                  </span>
+                  <a
+                    class="section-link"
+                    href="#/deployments"
+                    @click=${(e: Event) => {
+                      e.preventDefault();
+                      navigate({ page: "deployments" });
+                    }}
+                  >Manage ${unsafeHTML(iconStrings.chevronRight)}</a>
+                </div>
+                <div class="workflow-grid">
+                  ${deps.map(
+                    (dep, i) => html`
+                      <a
+                        class="workflow-card"
+                        href="${dep.url}_ui/"
+                        target="_blank"
+                        rel="noopener"
+                        style=${styleMap({
+                          animationDelay: `${200 + i * 40}ms`,
+                        })}
+                      >
+                        <div class="workflow-card-top">
+                          <span
+                            class="method-badge"
+                            style=${styleMap({
+                              color:
+                                dep.status === "running"
+                                  ? "var(--haira-success)"
+                                  : dep.status === "crashed"
+                                    ? "var(--haira-error)"
+                                    : "var(--haira-muted)",
+                              background:
+                                dep.status === "running"
+                                  ? "var(--haira-success)18"
+                                  : dep.status === "crashed"
+                                    ? "var(--haira-error)18"
+                                    : "var(--haira-muted)18",
+                            })}
+                          >${dep.status.toUpperCase()}</span>
+                          <span class="workflow-name">${dep.name}</span>
+                        </div>
+                        <div class="workflow-card-bottom">
+                          <span class="workflow-path">:${dep.port}</span>
+                          <span class="workflow-path">${relativeTime(dep.created_at)}</span>
+                        </div>
+                      </a>
+                    `
+                  )}
+                </div>
+              </div>
+            `
+          : html`
+              <div class="section" style="text-align:center;padding:3rem 1rem;color:var(--haira-muted)">
+                <p style="font-size:0.9rem;margin-bottom:0.5rem">No deployments yet.</p>
+                <p style="font-size:0.8rem">Run <code style="background:var(--haira-bg-card);padding:0.2rem 0.45rem;border-radius:4px;font-family:var(--haira-mono)">haira deploy &lt;file&gt;</code> to get started.</p>
+              </div>
+            `}
+      </div>
+    `;
+  }
+
   render() {
+    if (this._isOrchestrator) return this._renderOrchestratorHome();
+
     const workflows = this.meta?.workflows ?? [];
     const recentRuns = this._runs.slice(0, 8);
     const recentChats = this._chats.slice(0, 8);

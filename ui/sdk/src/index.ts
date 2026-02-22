@@ -36,6 +36,7 @@ import "./pages/workflows";
 import "./pages/agents";
 import "./pages/observe";
 import "./pages/settings";
+import "./pages/deployments";
 
 // App shell (must be last — reads metadata and creates the above)
 import "./components/haira-app";

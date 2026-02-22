@@ -8,7 +8,7 @@ export interface WorkflowParam {
 }
 
 export interface WorkflowMeta {
-  mode: "index" | "form" | "chat";
+  mode: "index" | "form" | "chat" | "orchestrator";
   name: string;
   method: string;
   path: string;
@@ -26,6 +26,18 @@ export interface WorkflowMeta {
   theme?: string;
   avatar?: string;
   workflows?: WorkflowListItem[];
+  deployments?: DeploymentItem[];
+}
+
+export interface DeploymentItem {
+  name: string;
+  status: string; // "running" | "stopped" | "crashed" | "deploying"
+  port: number;
+  pid: number;
+  url: string;
+  restarts: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WorkflowListItem {

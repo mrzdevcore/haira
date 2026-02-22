@@ -7,7 +7,8 @@ export type Route =
   | { page: "workflows" }
   | { page: "agents" }
   | { page: "observe" }
-  | { page: "settings" };
+  | { page: "settings" }
+  | { page: "deployments" };
 
 export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, "") || "/";
@@ -17,6 +18,7 @@ export function parseRoute(hash: string): Route {
   if (h === "/agents") return { page: "agents" };
   if (h === "/observe") return { page: "observe" };
   if (h === "/settings") return { page: "settings" };
+  if (h === "/deployments") return { page: "deployments" };
   if (h.startsWith("/workbench/")) {
     return { page: "workbench", path: h.slice("/workbench".length) };
   }
@@ -44,6 +46,9 @@ export function navigate(route: Route) {
       break;
     case "settings":
       hash = "#/settings";
+      break;
+    case "deployments":
+      hash = "#/deployments";
       break;
   }
   window.location.hash = hash;

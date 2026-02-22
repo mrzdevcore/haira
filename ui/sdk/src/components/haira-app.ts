@@ -206,7 +206,11 @@ export class HairaApp extends LitElement {
 
     if (this.meta) {
       const name = this.meta.title || this.meta.name;
-      document.title = name ? `${name} — Haira` : "Haira Console";
+      if (this.meta.mode === "orchestrator") {
+        document.title = "Haira Orchestrator";
+      } else {
+        document.title = name ? `${name} — Haira` : "Haira Console";
+      }
 
       applyTheme(this, {
         theme: this.meta.theme,
@@ -249,6 +253,8 @@ export class HairaApp extends LitElement {
         return "Observability";
       case "settings":
         return "Settings";
+      case "deployments":
+        return "Deployments";
       default:
         return "Haira";
     }
@@ -293,6 +299,10 @@ export class HairaApp extends LitElement {
         return html`<haira-page-settings
           .meta=${this.meta}
         ></haira-page-settings>`;
+      case "deployments":
+        return html`<haira-page-deployments
+          .meta=${this.meta}
+        ></haira-page-deployments>`;
       default:
         return html`<haira-page-home
           .meta=${this.meta}
@@ -305,8 +315,138 @@ export class HairaApp extends LitElement {
     return r.page !== "workbench";
   }
 
-  render() {
+  private _renderOrchestratorNav() {
+    const deployments = this.meta?.deployments || [];
+    return html`
+      <div class="nav-section">General</div>
+      <a
+        class="nav-item ${this._isActive("home") ? "active" : ""}"
+        href="#/"
+        @click=${this._navClick("home")}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.home)}</span>
+        Overview
+      </a>
+      <a
+        class="nav-item ${this._isActive("deployments") ? "active" : ""}"
+        href="#/deployments"
+        @click=${(e: Event) => {
+          e.preventDefault();
+          navigate({ page: "deployments" });
+        }}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.workflow)}</span>
+        Deployments
+      </a>
+
+      ${deployments.length > 0
+        ? html`
+            <div class="nav-section">Deployed</div>
+            ${deployments.map(
+              (dep) => html`
+                <a
+                  class="nav-item"
+                  href="${dep.url}_ui/"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <span class="nav-icon">${unsafeHTML(
+                    dep.status === "running"
+                      ? iconStrings.check
+                      : dep.status === "crashed"
+                        ? iconStrings.x
+                        : iconStrings.pending
+                  )}</span>
+                  ${dep.name}
+                </a>
+              `
+            )}
+          `
+        : nothing}
+    `;
+  }
+
+  private _renderDefaultNav() {
     const workflows = this.meta?.workflows || [];
+    return html`
+      <div class="nav-section">General</div>
+      <a
+        class="nav-item ${this._isActive("home") ? "active" : ""}"
+        href="#/"
+        @click=${this._navClick("home")}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.home)}</span>
+        Overview
+      </a>
+      <a
+        class="nav-item ${this._isActive("workflows") ? "active" : ""}"
+        href="#/workflows"
+        @click=${this._navClick("workflows")}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.workflow)}</span>
+        Workflows
+      </a>
+      <a
+        class="nav-item ${this._isActive("agents") ? "active" : ""}"
+        href="#/agents"
+        @click=${this._navClick("agents")}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.agent)}</span>
+        Agents
+      </a>
+
+      ${workflows.length > 0
+        ? html`
+            <div class="nav-section">Workbench</div>
+            ${workflows.map(
+              (wf) => html`
+                <a
+                  class="nav-item ${this._route.page === "workbench" &&
+                  (this._route as { path: string }).path === wf.path
+                    ? "active"
+                    : ""}"
+                  href="#/workbench${wf.path}"
+                  @click=${(e: Event) => {
+                    e.preventDefault();
+                    navigate({ page: "workbench", path: wf.path });
+                  }}
+                >
+                  <span class="nav-icon"
+                    >${unsafeHTML(
+                      wf.uiType === "Chat"
+                        ? iconStrings.chat
+                        : iconStrings.workflow
+                    )}</span
+                  >
+                  ${wf.title || wf.name}
+                </a>
+              `
+            )}
+          `
+        : nothing}
+
+      <div class="nav-section">System</div>
+      <a
+        class="nav-item ${this._isActive("observe") ? "active" : ""}"
+        href="#/observe"
+        @click=${this._navClick("observe")}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.observe)}</span>
+        Observability
+      </a>
+      <a
+        class="nav-item ${this._isActive("settings") ? "active" : ""}"
+        href="#/settings"
+        @click=${this._navClick("settings")}
+      >
+        <span class="nav-icon">${unsafeHTML(iconStrings.settings)}</span>
+        Settings
+      </a>
+    `;
+  }
+
+  render() {
+    const isOrchestrator = this.meta?.mode === "orchestrator";
     return html`
       <div class="shell">
         <nav class="sidebar ${this._sidebarOpen ? "open" : ""}">
@@ -322,79 +462,7 @@ export class HairaApp extends LitElement {
           </a>
 
           <div class="sidebar-nav">
-            <div class="nav-section">General</div>
-            <a
-              class="nav-item ${this._isActive("home") ? "active" : ""}"
-              href="#/"
-              @click=${this._navClick("home")}
-            >
-              <span class="nav-icon">${unsafeHTML(iconStrings.home)}</span>
-              Overview
-            </a>
-            <a
-              class="nav-item ${this._isActive("workflows") ? "active" : ""}"
-              href="#/workflows"
-              @click=${this._navClick("workflows")}
-            >
-              <span class="nav-icon">${unsafeHTML(iconStrings.workflow)}</span>
-              Workflows
-            </a>
-            <a
-              class="nav-item ${this._isActive("agents") ? "active" : ""}"
-              href="#/agents"
-              @click=${this._navClick("agents")}
-            >
-              <span class="nav-icon">${unsafeHTML(iconStrings.agent)}</span>
-              Agents
-            </a>
-
-            ${workflows.length > 0
-              ? html`
-                  <div class="nav-section">Workbench</div>
-                  ${workflows.map(
-                    (wf) => html`
-                      <a
-                        class="nav-item ${this._route.page === "workbench" &&
-                        (this._route as { path: string }).path === wf.path
-                          ? "active"
-                          : ""}"
-                        href="#/workbench${wf.path}"
-                        @click=${(e: Event) => {
-                          e.preventDefault();
-                          navigate({ page: "workbench", path: wf.path });
-                        }}
-                      >
-                        <span class="nav-icon"
-                          >${unsafeHTML(
-                            wf.uiType === "Chat"
-                              ? iconStrings.chat
-                              : iconStrings.workflow
-                          )}</span
-                        >
-                        ${wf.title || wf.name}
-                      </a>
-                    `
-                  )}
-                `
-              : nothing}
-
-            <div class="nav-section">System</div>
-            <a
-              class="nav-item ${this._isActive("observe") ? "active" : ""}"
-              href="#/observe"
-              @click=${this._navClick("observe")}
-            >
-              <span class="nav-icon">${unsafeHTML(iconStrings.observe)}</span>
-              Observability
-            </a>
-            <a
-              class="nav-item ${this._isActive("settings") ? "active" : ""}"
-              href="#/settings"
-              @click=${this._navClick("settings")}
-            >
-              <span class="nav-icon">${unsafeHTML(iconStrings.settings)}</span>
-              Settings
-            </a>
+            ${isOrchestrator ? this._renderOrchestratorNav() : this._renderDefaultNav()}
           </div>
         </nav>
 

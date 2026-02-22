@@ -389,11 +389,21 @@ func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	type wfItem struct {
-		Name   string `json:"name"`
-		Path   string `json:"path"`
-		Method string `json:"method"`
-		UIType string `json:"uiType"`
-		Title  string `json:"title"`
+		Name        string         `json:"name"`
+		Path        string         `json:"path"`
+		Method      string         `json:"method"`
+		UIType      string         `json:"uiType"`
+		Title       string         `json:"title"`
+		Description string         `json:"description,omitempty"`
+		HasFile     bool           `json:"hasFile"`
+		Params      []WorkflowParam `json:"params,omitempty"`
+		ChatParam   string         `json:"chatParam,omitempty"`
+		FileParam   string         `json:"fileParam,omitempty"`
+		Suggestions []string       `json:"suggestions,omitempty"`
+		Accent      string         `json:"accent,omitempty"`
+		Logo        string         `json:"logo,omitempty"`
+		Theme       string         `json:"theme,omitempty"`
+		Avatar      string         `json:"avatar,omitempty"`
 	}
 
 	var items []wfItem
@@ -411,12 +421,32 @@ func (s *Server) handleUIIndex(rw http.ResponseWriter, r *http.Request) {
 				uiType = "Form"
 			}
 		}
+		hasFile := false
+		fileParam := ""
+		for _, p := range wf.Params {
+			if p.Type == "file" {
+				hasFile = true
+				fileParam = p.Name
+				break
+			}
+		}
+		chatParam := findChatParam(wf.Params)
 		items = append(items, wfItem{
-			Name:   wf.Name,
-			Path:   wf.Path,
-			Method: wf.Method,
-			UIType: uiType,
-			Title:  wf.UITitle,
+			Name:        wf.Name,
+			Path:        wf.Path,
+			Method:      wf.Method,
+			UIType:      uiType,
+			Title:       wf.UITitle,
+			Description: wf.UIDescription,
+			HasFile:     hasFile,
+			Params:      wf.Params,
+			ChatParam:   chatParam,
+			FileParam:   fileParam,
+			Suggestions: wf.Suggestions,
+			Accent:      wf.UIAccent,
+			Logo:        wf.UILogo,
+			Theme:       wf.UITheme,
+			Avatar:      wf.UIAvatar,
 		})
 	}
 

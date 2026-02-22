@@ -34,6 +34,16 @@ export interface WorkflowListItem {
   method: string;
   uiType: string;
   title: string;
+  description?: string;
+  hasFile?: boolean;
+  params?: WorkflowParam[];
+  chatParam?: string;
+  fileParam?: string;
+  suggestions?: string[];
+  accent?: string;
+  logo?: string;
+  theme?: string;
+  avatar?: string;
 }
 
 // --- Step / Pipeline events ---

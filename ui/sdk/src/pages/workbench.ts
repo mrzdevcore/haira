@@ -43,6 +43,16 @@ export class PageWorkbench extends LitElement {
         path: wf.path,
         method: wf.method,
         title: wf.title || wf.name,
+        description: wf.description || this.meta.description,
+        hasFile: wf.hasFile ?? false,
+        params: wf.params || [],
+        chatParam: wf.chatParam,
+        fileParam: wf.fileParam,
+        suggestions: wf.suggestions,
+        accent: wf.accent || this.meta.accent,
+        logo: wf.logo || this.meta.logo,
+        theme: wf.theme || this.meta.theme,
+        avatar: wf.avatar || this.meta.avatar,
       };
     }
 

@@ -343,6 +343,25 @@ func EmitTool(em *GoEmitter, tool ast.ToolDecl) {
 	em.Line(fmt.Sprintf("Handler:     %s,", handlerName))
 	em.CloseBlock()
 	em.Blank()
+
+	// Direct-call wrapper so other tools/functions can call this tool as a regular function.
+	directName := SnakeToPascal(tool.Name.Node)
+	var directParams []string
+	var mapEntries []string
+	for _, param := range tool.Params {
+		goType := "any"
+		if param.Ty != nil {
+			goType = HairaTypeToGo(param.Ty.Node)
+		}
+		directParams = append(directParams, fmt.Sprintf("%s %s", param.Name.Node, goType))
+		mapEntries = append(mapEntries, fmt.Sprintf("%q: %s", param.Name.Node, param.Name.Node))
+	}
+	em.OpenBlock(fmt.Sprintf("func %s(%s) any", directName, strings.Join(directParams, ", ")))
+	em.Line(fmt.Sprintf("args, _ := json.Marshal(map[string]any{%s})", strings.Join(mapEntries, ", ")))
+	em.Line(fmt.Sprintf("result, _ := %s(args)", handlerName))
+	em.Line("return result")
+	em.CloseBlock()
+	em.Blank()
 }
 
 // EmitWorkflow emits a workflow declaration.

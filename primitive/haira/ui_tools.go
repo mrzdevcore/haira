@@ -234,6 +234,40 @@ var uiToolSpecs = []uiToolSpec{
 			return UiChart{Type: p.Type, Title: p.Title, Labels: labels, Datasets: datasets, Height: p.Height}, nil
 		},
 	},
+	{
+		component:   "ProductCards",
+		toolName:    "render_product_cards",
+		description: "Display products as image cards in a responsive grid. Use for e-commerce product listings, search results with images, or any catalog-style display. Each card shows an image, name, price, and optional brand/badge/description.",
+		schema:      `{"type":"object","properties":{"title":{"type":"string","description":"Grid title (e.g. Search Results, Recommended Products)"},"cards":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","description":"Product name"},"price":{"type":"string","description":"Formatted price (e.g. 29.99 €, $19.99)"},"image":{"type":"string","description":"Product image URL"},"brand":{"type":"string","description":"Brand name"},"description":{"type":"string","description":"Short product description"},"badge":{"type":"string","description":"Badge text (e.g. New, Sale, -20%)"},"url":{"type":"string","description":"Product URL or slug"}},"required":["name","price"]},"description":"Array of product cards"}},"required":["title","cards"]}`,
+		handler: func(args json.RawMessage) (any, error) {
+			var p struct {
+				Title string `json:"title"`
+				Cards []struct {
+					Name        string `json:"name"`
+					Price       string `json:"price"`
+					Image       string `json:"image"`
+					Brand       string `json:"brand"`
+					Description string `json:"description"`
+					Badge       string `json:"badge"`
+					URL         string `json:"url"`
+				} `json:"cards"`
+			}
+			json.Unmarshal(args, &p)
+			cards := make([]any, len(p.Cards))
+			for i, c := range p.Cards {
+				cards[i] = UiProductCardItem{
+					Name:        c.Name,
+					Price:       c.Price,
+					Image:       c.Image,
+					Brand:       c.Brand,
+					Description: c.Description,
+					Badge:       c.Badge,
+					URL:         c.URL,
+				}
+			}
+			return UiProductCards{Title: p.Title, Cards: cards}, nil
+		},
+	},
 }
 
 // RegisterUITools registers ALL built-in UI component tools into a registry.

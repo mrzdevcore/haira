@@ -17,6 +17,7 @@ const COMPONENT_MAP: Record<string, string> = {
   "confirm": "haira-ui-confirm",
   "choices": "haira-ui-choices",
   "chart": "haira-ui-chart",
+  "product-cards": "haira-ui-product-cards",
 };
 
 @customElement("haira-ui-renderer")

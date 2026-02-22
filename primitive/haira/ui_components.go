@@ -165,6 +165,25 @@ type UiChart struct {
 
 func (UiChart) UiComponentName() string { return "chart" }
 
+// --- ProductCards (image card grid) ---
+
+type UiProductCards struct {
+	Title string `json:"title"`
+	Cards []any  `json:"cards"`
+}
+
+func (UiProductCards) UiComponentName() string { return "product-cards" }
+
+type UiProductCardItem struct {
+	Name        string `json:"name"`
+	Price       string `json:"price"`
+	Image       string `json:"image,omitempty"`
+	Brand       string `json:"brand,omitempty"`
+	Description string `json:"description,omitempty"`
+	Badge       string `json:"badge,omitempty"`
+	URL         string `json:"url,omitempty"`
+}
+
 // --- Group (composition) ---
 
 type UiGroup struct {
@@ -240,6 +259,8 @@ func uiNodeSummary(node UiNode, raw any) string {
 		return fmt.Sprintf("Rendered form %q with %d fields", v.Title, len(v.Fields))
 	case UiChart:
 		return fmt.Sprintf("Rendered %s chart %q with %d datasets", v.Type, v.Title, len(v.Datasets))
+	case UiProductCards:
+		return fmt.Sprintf("Rendered %d product cards: %q", len(v.Cards), v.Title)
 	default:
 		return fmt.Sprintf("Rendered %s component", node.UiComponentName())
 	}
@@ -293,10 +314,34 @@ func UiNewConfirm(title, confirmLabel, denyLabel string, message ...string) UiCo
 
 // UiNewChart builds a UiChart from type, labels, and datasets.
 // Usage in Haira: ui.chart("bar", "Revenue", ["Q1","Q2","Q3"], [dataset1, dataset2])
-func UiNewChart(chartType string, title string, labels []any, datasets []any, height ...float64) UiChart {
+func UiNewChart(chartType string, title string, labels any, datasets any, height ...float64) UiChart {
 	h := float64(0)
 	if len(height) > 0 {
 		h = height[0]
 	}
-	return UiChart{Type: chartType, Title: title, Labels: labels, Datasets: datasets, Height: h}
+	return UiChart{Type: chartType, Title: title, Labels: toAnySlice(labels), Datasets: toAnySlice(datasets), Height: h}
+}
+
+// UiNewTable builds a UiTable from a title, headers, and rows.
+// Usage in Haira: ui.table("Title", ["col1","col2"], [["a","b"],["c","d"]])
+func UiNewTable(title string, headers any, rows any) UiTable {
+	return UiTable{Title: title, Headers: toAnySlice(headers), Rows: toAnySlice(rows)}
+}
+
+// UiNewProductCards builds a UiProductCards grid.
+// Usage in Haira: ui.product_cards("Title", cards)
+func UiNewProductCards(title string, cards any) UiProductCards {
+	return UiProductCards{Title: title, Cards: toAnySlice(cards)}
+}
+
+// toAnySlice coerces a value to []any. Accepts []any directly or any as a pass-through.
+func toAnySlice(v any) []any {
+	if v == nil {
+		return nil
+	}
+	if s, ok := v.([]any); ok {
+		return s
+	}
+	// Single value — wrap in slice
+	return []any{v}
 }

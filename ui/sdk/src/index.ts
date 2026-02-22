@@ -19,6 +19,7 @@ import "./components/haira-form-view";
 import "./components/haira-confirm";
 import "./components/haira-choices";
 import "./components/haira-chart";
+import "./components/haira-product-cards";
 import "./components/haira-ui-renderer";
 
 // Workbench components

@@ -1,0 +1,517 @@
+// DevOps Incident Response Agent — Multi-agent incident triage and resolution.
+//
+// A production-grade agentic system that receives alerts, triages incidents by severity,
+// diagnoses root causes, executes runbook actions, and coordinates team communication —
+// all through a single conversational chat interface.
+//
+// Showcases:
+//   - Multi-agent with handoffs (IncidentCommander → Diagnostics, Runbook, Comms)
+//   - Structured output (severity classification)
+//   - Tools calling real APIs (health checks, GitHub issues, Slack notifications)
+//   - Parallel execution (spawn for concurrent multi-service health checks)
+//   - Streaming chat UI with rich components (status cards, key-value)
+//   - Step-based pipeline workflows
+//   - Observability with Langfuse
+//
+// Requires:
+//   GITHUB_TOKEN      — GitHub personal access token
+//   GITHUB_OWNER      — GitHub repo owner (e.g. "acme-corp")
+//   GITHUB_REPO       — GitHub repo name (e.g. "platform")
+//   SLACK_WEBHOOK     — Slack incoming webhook for #incidents
+//   OPENAI_API_KEY    — OpenAI API key (or swap provider)
+//
+// Run: haira run poc/devops-incident/main.haira
+
+import "io"
+import "http"
+import "time"
+import "conv"
+import "string"
+import "slack"
+import "github"
+import "observe"
+import "langfuse"
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+// provider openai {
+//     api_key: env("OPENAI_API_KEY")
+//     model: "gpt-4o"
+// }
+
+provider openai {
+    model: "qwen3-coder:480b-cloud"
+    endpoint: "http://localhost:11434/v1"
+}
+
+// ---------------------------------------------------------------------------
+// Structs
+// ---------------------------------------------------------------------------
+
+struct IncidentClassification {
+    severity: string
+    category: string
+    affected_service: string
+    summary: string
+    recommended_action: string
+}
+
+// ---------------------------------------------------------------------------
+// Service registry — define services to monitor
+// ---------------------------------------------------------------------------
+
+services = [
+    { "name": "api-gateway",   "url": "https://api.example.com/health",     "critical": true },
+    { "name": "auth-service",  "url": "https://auth.example.com/health",    "critical": true },
+    { "name": "user-service",  "url": "https://users.example.com/health",   "critical": false },
+    { "name": "billing",      "url": "https://billing.example.com/health",  "critical": true },
+    { "name": "notifications", "url": "https://notify.example.com/health",  "critical": false },
+    { "name": "search",       "url": "https://search.example.com/health",   "critical": false }
+]
+
+// ---------------------------------------------------------------------------
+// Tools
+// ---------------------------------------------------------------------------
+
+tool check_service_health(service_name: string, url: string) -> string {
+    """
+    Check the health of a single service by making an HTTP GET request to its health endpoint.
+    Returns the service status including response time and HTTP status code.
+    """
+    start = time.now()
+    resp, err = http.get(url)
+    elapsed = time.since(start)
+
+    if err != nil {
+        return ui.group(
+            ui.status_card("error", "${service_name}: DOWN", conv.to_string(err)),
+            ui.key_value("Details", {
+                "Service": service_name,
+                "URL": url,
+                "Status": "UNREACHABLE",
+                "Error": conv.to_string(err),
+                "Checked At": time.timestamp()
+            })
+        )
+    }
+
+    status = "HEALTHY"
+    card_type = "success"
+    if resp.status_code >= 500 {
+        status = "DOWN"
+        card_type = "error"
+    }
+    if resp.status_code >= 400 and resp.status_code < 500 {
+        status = "DEGRADED"
+        card_type = "warning"
+    }
+
+    return ui.group(
+        ui.status_card(card_type, "${service_name}: ${status}"),
+        ui.key_value("Health Check", {
+            "Service": service_name,
+            "HTTP Status": conv.to_string(resp.status_code),
+            "Response Time": elapsed,
+            "Status": status,
+            "Checked At": time.timestamp()
+        })
+    )
+}
+
+tool check_all_services() -> string {
+    """
+    Run health checks against ALL registered services in parallel using spawn.
+    Returns a consolidated status dashboard showing the health of every service.
+    Use this when the user asks for overall system status or during incident triage.
+    """
+    results = spawn {
+        check_service_health(conv.to_string(services[0]["name"]), conv.to_string(services[0]["url"]))
+        check_service_health(conv.to_string(services[1]["name"]), conv.to_string(services[1]["url"]))
+        check_service_health(conv.to_string(services[2]["name"]), conv.to_string(services[2]["url"]))
+        check_service_health(conv.to_string(services[3]["name"]), conv.to_string(services[3]["url"]))
+        check_service_health(conv.to_string(services[4]["name"]), conv.to_string(services[4]["url"]))
+        check_service_health(conv.to_string(services[5]["name"]), conv.to_string(services[5]["url"]))
+    }
+
+    summary = "System Health Dashboard\n\n"
+    for result in results {
+        summary += conv.to_string(result) + "\n"
+    }
+    return summary
+}
+
+tool query_logs(service: string, keywords: string, minutes: int = 30) -> string {
+    """
+    Search recent logs for a service filtered by keywords.
+    Simulates log aggregation (Datadog, Grafana Loki, etc).
+    Returns recent log entries matching the query.
+    """
+    ts = time.timestamp()
+    return ui.group(
+        ui.status_card("info", "Log Query: ${service}"),
+        ui.key_value("Query Parameters", {
+            "Service": service,
+            "Keywords": keywords,
+            "Time Range": "Last " + conv.to_string(minutes) + " minutes",
+            "Timestamp": ts
+        }),
+        ui.status_card("warning", "Sample Logs Found", "[" + ts + "] ERROR " + service + ": Connection pool exhausted - max connections (100) reached\n[" + ts + "] WARN " + service + ": Request latency exceeded 5000ms for /api/v2/orders\n[" + ts + "] ERROR " + service + ": Upstream timeout after 30s connecting to database primary\n[" + ts + "] INFO " + service + ": Circuit breaker OPEN for dependency auth-service\n[" + ts + "] ERROR " + service + ": OOM killed - container memory limit 2Gi exceeded")
+    )
+}
+
+tool check_metrics(service: string) -> string {
+    """
+    Fetch key performance metrics for a service.
+    Simulates metrics aggregation (Prometheus, Datadog, etc).
+    Returns CPU, memory, request rate, error rate, and latency percentiles.
+    """
+    return ui.key_value("Metrics: " + service, {
+        "CPU Usage": "78% (avg 5m)",
+        "Memory": "1.8Gi / 2Gi (90%)",
+        "Request Rate": "2,450 req/s",
+        "Error Rate": "12.3% (threshold: 1%)",
+        "P50 Latency": "45ms",
+        "P95 Latency": "890ms",
+        "P99 Latency": "4,200ms",
+        "Active Connections": "98/100",
+        "Pod Restarts": "3 in last 30m",
+        "Checked At": time.timestamp()
+    })
+}
+
+tool create_incident_issue(title: string, body: string, severity: string) -> string {
+    """
+    Create a GitHub issue to track an incident.
+    Adds appropriate labels based on severity (critical, major, minor).
+    Returns the issue URL for tracking.
+    """
+    labels = ["incident"]
+    if severity == "critical" {
+        labels = ["incident", "critical", "P0"]
+    }
+    if severity == "major" {
+        labels = ["incident", "major", "P1"]
+    }
+    if severity == "minor" {
+        labels = ["incident", "minor", "P2"]
+    }
+
+    gh = github.client(env("GITHUB_TOKEN"), owner: env("GITHUB_OWNER"), repo: env("GITHUB_REPO"))
+    issue, err = gh.create_issue({
+        "title": "[INCIDENT] " + title,
+        "body": body,
+        "labels": labels
+    })
+    if err != nil {
+        return ui.status_card("error", "Failed to Create Issue", conv.to_string(err))
+    }
+
+    return ui.group(
+        ui.status_card("success", "Incident Issue Created"),
+        ui.key_value("Issue Details", {
+            "Issue": "#" + issue.Number,
+            "URL": issue.Url,
+            "Severity": severity,
+            "Labels": conv.to_string(labels),
+            "Created": time.timestamp()
+        })
+    )
+}
+
+tool notify_team(channel: string, message: string, severity: string) -> string {
+    """
+    Send an incident notification to a Slack channel.
+    Formats the message with severity-appropriate styling.
+    Severity: critical, major, minor, resolved.
+    """
+    webhook = env("SLACK_WEBHOOK")
+    if webhook == "" {
+        return ui.status_card("warning", "Slack Not Configured", "Set SLACK_WEBHOOK environment variable to enable notifications.")
+    }
+
+    icon = ":information_source:"
+    if severity == "critical" {
+        icon = ":rotating_light:"
+    }
+    if severity == "major" {
+        icon = ":warning:"
+    }
+    if severity == "minor" {
+        icon = ":large_yellow_circle:"
+    }
+    if severity == "resolved" {
+        icon = ":white_check_mark:"
+    }
+
+    blocks = [
+        slack.header(icon + " Incident Alert - " + string.to_upper(severity)),
+        slack.divider(),
+        slack.section(message),
+        slack.context("Sent by Haira Incident Agent - " + time.timestamp())
+    ]
+
+    send_err = slack.send_blocks(webhook, blocks)
+    if send_err != nil {
+        return ui.status_card("error", "Slack Error", conv.to_string(send_err))
+    }
+
+    return ui.status_card("success", "Team Notified", "Sent to " + channel)
+}
+
+tool execute_runbook(action: string, service: string) -> string {
+    """
+    Execute a predefined runbook action for incident remediation.
+    Available actions: restart, scale_up, rollback, enable_circuit_breaker, flush_cache, drain_connections.
+    This simulates the execution — in production it would call Kubernetes/Terraform APIs.
+    """
+    ts = time.timestamp()
+    detail = ""
+
+    if action == "restart" {
+        detail = "Sent SIGTERM to " + service + " pods, waiting for graceful shutdown. 3/3 pods restarted successfully."
+    }
+    if action == "scale_up" {
+        detail = "Scaled " + service + " from 3 to 6 replicas. New pods scheduled and passing readiness checks."
+    }
+    if action == "rollback" {
+        detail = "Rolled back " + service + " to previous stable version (v2.14.3 -> v2.14.2). Deployment progressing."
+    }
+    if action == "enable_circuit_breaker" {
+        detail = "Circuit breaker enabled for " + service + ". Failing requests will return cached fallback responses."
+    }
+    if action == "flush_cache" {
+        detail = "Redis cache flushed for " + service + ". 2,847 keys evicted. Cache warming in progress."
+    }
+    if action == "drain_connections" {
+        detail = "Connection pool drained for " + service + ". 98 active connections gracefully closed. Pool re-initialized."
+    }
+
+    if detail == "" {
+        return ui.status_card("error", "Unknown Action", "Action '" + action + "' is not a recognized runbook action. Available: restart, scale_up, rollback, enable_circuit_breaker, flush_cache, drain_connections.")
+    }
+
+    return ui.group(
+        ui.status_card("success", "Runbook: " + action),
+        ui.key_value("Execution Details", {
+            "Action": action,
+            "Service": service,
+            "Status": "completed",
+            "Result": detail,
+            "Executed At": ts
+        })
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------
+
+agent Classifier {
+    provider: openai
+    system: """
+        Classify the incident. Return a JSON object with these exact fields:
+        - severity: "critical", "major", or "minor"
+        - category: e.g. "availability", "performance", "security", "data"
+        - affected_service: the primary service affected
+        - summary: one-sentence summary of the incident
+        - recommended_action: the immediate next step to take
+    """
+    output: IncidentClassification
+    temperature: 0.1
+}
+
+agent DiagnosticsAgent {
+    provider: openai
+    system: """
+        You are a senior SRE diagnostics specialist. When investigating an incident:
+        1. Check the health of the affected service and related services.
+        2. Query logs for error patterns, stack traces, and anomalies.
+        3. Check metrics for resource exhaustion, latency spikes, or error rate increases.
+        4. Correlate findings to identify the root cause.
+        5. Provide a clear diagnosis with supporting evidence.
+
+        Always check metrics and logs together — they tell different parts of the story.
+        Be specific about what you find.
+    """
+    tools: [check_service_health, check_all_services, query_logs, check_metrics]
+    ui: ui
+    memory: conversation(max_turns: 20)
+    temperature: 0.2
+    max_steps: 15
+    timeout: 120
+}
+
+agent RunbookAgent {
+    provider: openai
+    system: """
+        You are a DevOps automation specialist. Given a diagnosis:
+        1. Recommend specific runbook actions to remediate the issue.
+        2. Explain why each action will help.
+        3. Execute actions in the correct order (e.g., drain connections before restart).
+        4. Verify the fix by re-checking service health after remediation.
+
+        Available runbook actions:
+        - restart: Rolling restart of service pods
+        - scale_up: Increase replica count (3 to 6)
+        - rollback: Revert to last known good deployment
+        - enable_circuit_breaker: Enable circuit breaker for failing dependencies
+        - flush_cache: Clear and re-warm service cache
+        - drain_connections: Drain and re-initialize connection pool
+
+        Always verify the fix worked after executing actions.
+    """
+    tools: [execute_runbook, check_service_health, check_all_services]
+    ui: ui
+    memory: conversation(max_turns: 15)
+    temperature: 0.2
+    max_steps: 10
+    timeout: 120
+}
+
+agent CommsAgent {
+    provider: openai
+    system: """
+        You are an incident communications coordinator. Your responsibilities:
+        1. Create GitHub issues to track incidents with appropriate severity labels.
+        2. Notify the team on Slack with clear, actionable incident summaries.
+        3. Post resolution updates when incidents are resolved.
+
+        For notifications, always include:
+        - What happened (brief summary)
+        - Impact (which services/users affected)
+        - Current status (investigating, mitigating, resolved)
+        - Next steps (what is being done)
+
+        Keep messages professional and concise. No panic language.
+    """
+    tools: [create_incident_issue, notify_team]
+    ui: ui
+    memory: conversation(max_turns: 15)
+    temperature: 0.3
+    max_steps: 8
+    timeout: 60
+}
+
+agent IncidentCommander {
+    provider: openai
+    system: """
+        You are the Incident Commander — the central coordinator for DevOps incident response.
+        You orchestrate the full incident lifecycle through specialized agents:
+
+        TRIAGE WORKFLOW:
+        1. When a user reports an issue or alert, check the affected service health first.
+        2. Hand off to DiagnosticsAgent to investigate root cause.
+        3. Hand off to RunbookAgent to execute remediation.
+        4. Hand off to CommsAgent to notify the team and create tracking issues.
+
+        QUICK COMMANDS:
+        - "status" -> Check all services health (use your own tools)
+        - "investigate <service>" -> Hand off to DiagnosticsAgent
+        - "fix <service>" -> Hand off to RunbookAgent
+        - "notify" -> Hand off to CommsAgent
+
+        Always start by understanding the problem, then systematically investigate,
+        remediate, and communicate. Keep the user informed at each step.
+        When receiving handoff results, summarize findings before proceeding to next step.
+    """
+    tools: [check_all_services, check_service_health]
+    handoffs: [DiagnosticsAgent, RunbookAgent, CommsAgent]
+    ui: ui
+    memory: conversation(max_turns: 30)
+    temperature: 0.3
+    max_steps: 20
+    timeout: 300
+}
+
+// ---------------------------------------------------------------------------
+// Workflows
+// ---------------------------------------------------------------------------
+
+@webui(
+    title: "Incident Commander",
+    description: "AI-powered DevOps incident response — triage, diagnose, remediate, communicate",
+    mode: "chat",
+    suggestions: [
+        "Check system status",
+        "The API gateway is returning 502 errors",
+        "Billing service latency is spiking to 5 seconds",
+        "Investigate auth-service — users can't log in"
+    ],
+    accent: "#DC2626",
+    avatar: "I"
+)
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> stream {
+    return IncidentCommander.stream(message, session: session_id)
+}
+
+@webui(
+    title: "Incident Triage",
+    description: "Classify and triage an incident report",
+    mode: "form"
+)
+@post("/api/triage")
+workflow Triage(alert: string) -> {
+    severity: string,
+    category: string,
+    affected_service: string,
+    summary: string,
+    recommended_action: string
+} {
+    step "Classify incident" {
+        classification, err = Classifier.run(alert)
+        if err != nil {
+            return {
+                severity: "unknown",
+                category: "unclassified",
+                affected_service: "unknown",
+                summary: "Failed to classify: " + conv.to_string(err),
+                recommended_action: "Manual triage required"
+            }
+        }
+    }
+
+    return {
+        severity: classification.Reply,
+        category: "",
+        affected_service: "",
+        summary: classification.Reply,
+        recommended_action: ""
+    }
+}
+
+@get("/api/health")
+workflow Health() -> { status: string, services: int, uptime: string } {
+    return {
+        status: "operational",
+        services: len(services),
+        uptime: time.timestamp()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+fn main() {
+    observe.use(langfuse.exporter("", "", ""))
+    server = http.Server([Chat, Triage, Health])
+    observe.start(server)
+
+    io.println("Incident Commander running on :9004")
+    io.println("")
+    io.println("  Agents:")
+    io.println("    IncidentCommander -> DiagnosticsAgent, RunbookAgent, CommsAgent")
+    io.println("    Classifier (structured output)")
+    io.println("")
+    io.println("  Endpoints:")
+    io.println("  Chat UI:    http://localhost:9004/_ui/api/chat")
+    io.println("  Triage:     http://localhost:9004/_ui/api/triage")
+    io.println("  Health:     GET /api/health")
+    io.println("  Dashboard:  http://localhost:9004/_observe")
+    io.println("")
+
+    server.listen(9004)
+}

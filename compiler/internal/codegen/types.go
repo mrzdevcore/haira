@@ -20,6 +20,9 @@ var activeWorkflowName string
 // activeStepName holds the current step name during codegen (for log.* calls).
 var activeStepName string
 
+// knownToolNames tracks declared tool names so tool-to-tool calls resolve correctly.
+var knownToolNames map[string]bool
+
 // CheckerTypeToGo converts a checker.Type to a Go type string.
 func CheckerTypeToGo(ty checker.Type) string {
 	if ty == nil {

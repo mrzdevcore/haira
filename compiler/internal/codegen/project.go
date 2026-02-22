@@ -239,6 +239,10 @@ func stdlibGoImport(path string) (string, bool) {
 		return "gitlab", true
 	case "langfuse":
 		return "langfuse", true
+	case "algolia":
+		return "algolia", true
+	case "meilisearch":
+		return "meilisearch", true
 	}
 	return "", false
 }

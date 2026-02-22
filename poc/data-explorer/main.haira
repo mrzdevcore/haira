@@ -1,0 +1,534 @@
+// Data Explorer — AI-driven data querying, visualization & dashboarding.
+//
+// A Metabase-like data exploration experience: connect to databases and search
+// engines (Postgres, Algolia, Meilisearch), ask questions in natural language,
+// get charts, tables, and dashboards back — all through a conversational chat UI.
+//
+// Showcases:
+//   - Multi-source data querying (SQL + full-text search engines)
+//   - AI-driven visualization (agent picks chart types, builds tables)
+//   - Natural language to SQL/search queries
+//   - Rich UI components (tables, charts, key-value cards, status cards)
+//   - Graceful degradation (works with any subset of data sources)
+//
+// Requires (all optional — connect what you have):
+//   DATABASE_URL         — PostgreSQL connection string
+//   ALGOLIA_APP_ID       — Algolia application ID
+//   ALGOLIA_API_KEY      — Algolia search API key
+//   MEILISEARCH_URL      — Meilisearch URL (e.g. http://localhost:7700)
+//   MEILISEARCH_API_KEY  — Meilisearch API key
+//
+// Run: haira run poc/data-explorer/main.haira
+
+import "io"
+import "http"
+import "time"
+import "conv"
+import "string"
+import "json"
+import "array"
+import "map"
+import "postgres"
+import "algolia"
+import "meilisearch"
+import "observe"
+import "langfuse"
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+provider ollama {
+    model: "qwen3-coder:480b-cloud"
+    endpoint: "http://localhost:11434/v1"
+}
+
+// ---------------------------------------------------------------------------
+// Data Sources (all optional — graceful degradation)
+// ---------------------------------------------------------------------------
+
+db, db_err = postgres.connect(env("DATABASE_URL"))
+algolia_client = algolia.client(env("ALGOLIA_APP_ID"), env("ALGOLIA_API_KEY"))
+meili_client = meilisearch.client(env("MEILISEARCH_URL"), env("MEILISEARCH_API_KEY"))
+
+// ---------------------------------------------------------------------------
+// Tools
+// ---------------------------------------------------------------------------
+
+tool explore_sources() -> string {
+    """
+    Show all connected data sources and their status.
+    Call this when the user asks what data is available or wants an overview.
+    Results are rendered directly — you will receive a text summary.
+    """
+    pg_status = "disconnected"
+    pg_detail = ""
+    if db_err == nil {
+        tables, t_err = db.tables()
+        if t_err == nil {
+            pg_status = "connected"
+            pg_detail = conv.to_string(array.len(tables)) + " tables"
+        } else {
+            pg_status = "error"
+            pg_detail = conv.to_string(t_err)
+        }
+    } else {
+        pg_detail = conv.to_string(db_err)
+    }
+
+    algolia_status = "configured"
+    if env("ALGOLIA_APP_ID") == "" {
+        algolia_status = "not configured"
+    }
+
+    meili_status = "configured"
+    if env("MEILISEARCH_URL") == "" {
+        meili_status = "not configured"
+    } else {
+        _, h_err = meili_client.health()
+        if h_err == nil {
+            meili_status = "connected"
+        } else {
+            meili_status = "unreachable"
+        }
+    }
+
+    return ui.group(
+        ui.status_card("info", "Data Sources Overview"),
+        ui.key_value("PostgreSQL", {
+            "Status": pg_status,
+            "Details": pg_detail,
+            "Connection": env("DATABASE_URL")
+        }),
+        ui.key_value("Algolia", {
+            "Status": algolia_status,
+            "App ID": env("ALGOLIA_APP_ID")
+        }),
+        ui.key_value("Meilisearch", {
+            "Status": meili_status,
+            "URL": env("MEILISEARCH_URL")
+        })
+    )
+}
+
+tool db_schema() -> string {
+    """
+    Show the PostgreSQL database schema — all tables and their columns with types.
+    Call this before writing SQL queries so you know the available tables and columns.
+    Results are rendered directly as a table.
+    """
+    if db_err != nil {
+        return ui.status_card("error", "Database Not Connected", conv.to_string(db_err))
+    }
+    rows, err = db.query("SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position")
+    if err != nil {
+        return ui.status_card("error", "Schema Query Failed", conv.to_string(err))
+    }
+    headers = ["Table", "Column", "Type", "Nullable"]
+    table_rows = []
+    for row in rows {
+        table_rows = array.push(table_rows, [
+            conv.to_string(row["table_name"]),
+            conv.to_string(row["column_name"]),
+            conv.to_string(row["data_type"]),
+            conv.to_string(row["is_nullable"])
+        ])
+    }
+    return ui.table("Database Schema", headers, table_rows)
+}
+
+tool query_database(sql: string) -> string {
+    """
+    Execute a read-only SQL query against PostgreSQL and display results as a table.
+    ONLY use SELECT statements — never INSERT, UPDATE, DELETE, DROP, or ALTER.
+    The results are rendered directly as a searchable table. You receive a summary.
+    Always call db_schema first if you don't know the table structure.
+    """
+    if db_err != nil {
+        return ui.status_card("error", "Database Not Connected", conv.to_string(db_err))
+    }
+    // Safety: reject non-SELECT queries
+    normalized = string.trim(string.to_lower(sql))
+    if string.starts_with(normalized, "insert") or string.starts_with(normalized, "update") or string.starts_with(normalized, "delete") or string.starts_with(normalized, "drop") or string.starts_with(normalized, "alter") or string.starts_with(normalized, "truncate") {
+        return ui.status_card("error", "Read-Only Mode", "Only SELECT queries are allowed. Use query_database for reads only.")
+    }
+    rows, err = db.query(sql)
+    if err != nil {
+        return ui.status_card("error", "Query Failed", conv.to_string(err))
+    }
+    if array.len(rows) == 0 {
+        return ui.status_card("info", "No Results", "The query returned 0 rows.")
+    }
+    // Extract headers from first row
+    headers = keys(rows[0])
+    // Build table rows
+    table_rows = []
+    for row in rows {
+        cells = []
+        for h in headers {
+            cells = array.push(cells, conv.to_string(row[h]))
+        }
+        table_rows = array.push(table_rows, cells)
+    }
+    return ui.group(
+        ui.status_card("success", "Query Results", conv.to_string(array.len(rows)) + " rows returned"),
+        ui.table("Results", headers, table_rows)
+    )
+}
+
+tool search_algolia(index: string, query: string, limit: int = 10, filters: string = "") -> string {
+    """
+    Search an Algolia index. Returns results as product cards (with images) or a table.
+    Parameters:
+    - index: the Algolia index name to search
+    - query: the search query text
+    - limit: max results (default 10)
+    - filters: Algolia filter string (e.g. "category:electronics AND price < 100")
+    Results are rendered directly. You receive a summary.
+    """
+    if env("ALGOLIA_APP_ID") == "" {
+        return ui.status_card("warning", "Algolia Not Configured", "Set ALGOLIA_APP_ID and ALGOLIA_API_KEY environment variables.")
+    }
+    opts = { "hitsPerPage": limit }
+    if filters != "" {
+        opts = map.set(opts, "filters", filters)
+    }
+    result, err = algolia_client.search(index, query, opts)
+    if err != nil {
+        return ui.status_card("error", "Algolia Search Failed", conv.to_string(err))
+    }
+    hits = algolia.hits(result)
+    if array.len(hits) == 0 {
+        return ui.status_card("info", "No Results", "Algolia returned 0 hits for \"" + query + "\" in index \"" + index + "\".")
+    }
+    // Render as product cards (images, names, prices)
+    cards = algolia.hits_to_product_cards(hits)
+    return ui.group(
+        ui.key_value("Algolia Search", {
+            "Index": index,
+            "Query": query,
+            "Hits": conv.to_string(array.len(hits)),
+            "Processing Time": conv.to_string(result["processingTimeMs"]) + "ms"
+        }),
+        ui.product_cards("Results: " + index, cards)
+    )
+}
+
+tool search_meilisearch(index: string, query: string, limit: int = 10, filter: string = "") -> string {
+    """
+    Search a Meilisearch index. Returns results as product cards (with images) or a table.
+    Parameters:
+    - index: the Meilisearch index uid to search
+    - query: the search query text
+    - limit: max results (default 10)
+    - filter: Meilisearch filter string (e.g. "genre = horror AND rating > 3")
+    Results are rendered directly. You receive a summary.
+    """
+    if env("MEILISEARCH_URL") == "" {
+        return ui.status_card("warning", "Meilisearch Not Configured", "Set MEILISEARCH_URL and MEILISEARCH_API_KEY environment variables.")
+    }
+    opts = { "limit": limit }
+    if filter != "" {
+        opts = map.set(opts, "filter", filter)
+    }
+    result, err = meili_client.search(index, query, opts)
+    if err != nil {
+        return ui.status_card("error", "Meilisearch Search Failed", conv.to_string(err))
+    }
+    hits = meilisearch.hits(result)
+    if array.len(hits) == 0 {
+        return ui.status_card("info", "No Results", "Meilisearch returned 0 hits for \"" + query + "\" in index \"" + index + "\".")
+    }
+    // Render as product cards (images, names, prices)
+    cards = meilisearch.hits_to_product_cards(hits)
+    return ui.group(
+        ui.key_value("Meilisearch Search", {
+            "Index": index,
+            "Query": query,
+            "Hits": conv.to_string(array.len(hits)),
+            "Processing Time": conv.to_string(result["processingTimeMs"]) + "ms"
+        }),
+        ui.product_cards("Results: " + index, cards)
+    )
+}
+
+tool visualize(chart_type: string, title: string, labels_json: string, datasets_json: string) -> string {
+    """
+    Create a chart visualization from data. Use this AFTER querying data to visualize it.
+    Parameters:
+    - chart_type: "bar", "line", "pie", "area", or "scatter"
+    - title: chart title
+    - labels_json: JSON array of labels, e.g. '["Jan","Feb","Mar"]'
+    - datasets_json: JSON array of dataset objects, each with "label" (string) and "data" (number array).
+      Example: '[{"label":"Revenue","data":[100,200,300]},{"label":"Cost","data":[80,150,200]}]'
+    The chart is rendered directly. You receive a summary.
+    """
+    labels, l_err = json.parse(labels_json)
+    if l_err != nil {
+        return ui.status_card("error", "Invalid Labels JSON", conv.to_string(l_err))
+    }
+    datasets, d_err = json.parse(datasets_json)
+    if d_err != nil {
+        return ui.status_card("error", "Invalid Datasets JSON", conv.to_string(d_err))
+    }
+    return ui.chart(chart_type, title, labels, datasets)
+}
+
+tool compare_sources(query: string) -> string {
+    """
+    Search all connected data sources with the same query and show results side-by-side.
+    Useful for comparing data across Postgres (via full-text), Algolia, and Meilisearch.
+    Call this when the user wants to compare search results across engines.
+    """
+    results = []
+
+    // Postgres full-text search (if connected)
+    if db_err == nil {
+        pg_rows, pg_err = db.query("SELECT * FROM pg_tables WHERE schemaname = 'public' AND tablename ILIKE '%" + query + "%' LIMIT 10")
+        if pg_err == nil and array.len(pg_rows) > 0 {
+            results = array.push(results, ui.key_value("PostgreSQL", {
+                "Matching Tables": conv.to_string(array.len(pg_rows)),
+                "Query": query
+            }))
+        } else {
+            results = array.push(results, ui.status_card("info", "PostgreSQL", "No table names match \"" + query + "\""))
+        }
+    } else {
+        results = array.push(results, ui.status_card("warning", "PostgreSQL", "Not connected"))
+    }
+
+    // Algolia (if configured — search first available index)
+    if env("ALGOLIA_APP_ID") != "" {
+        indices, idx_err = algolia_client.list_indices()
+        if idx_err == nil and array.len(indices) > 0 {
+            first_index = conv.to_string(indices[0]["name"])
+            a_result, a_err = algolia_client.search(first_index, query, { "hitsPerPage": 5 })
+            if a_err == nil {
+                a_hits = algolia.hits(a_result)
+                results = array.push(results, ui.key_value("Algolia: " + first_index, {
+                    "Hits": conv.to_string(array.len(a_hits)),
+                    "Processing Time": conv.to_string(a_result["processingTimeMs"]) + "ms"
+                }))
+            } else {
+                results = array.push(results, ui.status_card("error", "Algolia", conv.to_string(a_err)))
+            }
+        } else {
+            results = array.push(results, ui.status_card("info", "Algolia", "No indices available"))
+        }
+    } else {
+        results = array.push(results, ui.status_card("warning", "Algolia", "Not configured"))
+    }
+
+    // Meilisearch (if configured — search first available index)
+    if env("MEILISEARCH_URL") != "" {
+        m_indexes, m_err = meili_client.list_indexes()
+        if m_err == nil and array.len(m_indexes) > 0 {
+            first_uid = conv.to_string(m_indexes[0]["uid"])
+            m_result, m_err2 = meili_client.search(first_uid, query, { "limit": 5 })
+            if m_err2 == nil {
+                m_hits = meilisearch.hits(m_result)
+                results = array.push(results, ui.key_value("Meilisearch: " + first_uid, {
+                    "Hits": conv.to_string(array.len(m_hits)),
+                    "Processing Time": conv.to_string(m_result["processingTimeMs"]) + "ms"
+                }))
+            } else {
+                results = array.push(results, ui.status_card("error", "Meilisearch", conv.to_string(m_err2)))
+            }
+        } else {
+            results = array.push(results, ui.status_card("info", "Meilisearch", "No indexes available"))
+        }
+    } else {
+        results = array.push(results, ui.status_card("warning", "Meilisearch", "Not configured"))
+    }
+
+    return ui.group(
+        ui.status_card("info", "Cross-Source Comparison", "Query: \"" + query + "\""),
+        results[0],
+        results[1],
+        results[2]
+    )
+}
+
+tool list_algolia_indices() -> string {
+    """
+    List all available Algolia indices with their record counts.
+    Call this when the user wants to know which Algolia indices are available to search.
+    """
+    if env("ALGOLIA_APP_ID") == "" {
+        return ui.status_card("warning", "Algolia Not Configured", "Set ALGOLIA_APP_ID and ALGOLIA_API_KEY.")
+    }
+    indices, err = algolia_client.list_indices()
+    if err != nil {
+        return ui.status_card("error", "Failed to List Indices", conv.to_string(err))
+    }
+    if array.len(indices) == 0 {
+        return ui.status_card("info", "No Indices", "No Algolia indices found for this application.")
+    }
+    headers = ["Name", "Records", "Last Updated"]
+    rows = []
+    for idx in indices {
+        rows = array.push(rows, [
+            conv.to_string(idx["name"]),
+            conv.to_string(idx["entries"]),
+            conv.to_string(idx["updatedAt"])
+        ])
+    }
+    return ui.table("Algolia Indices", headers, rows)
+}
+
+tool list_meilisearch_indexes() -> string {
+    """
+    List all available Meilisearch indexes with their document counts.
+    Call this when the user wants to know which Meilisearch indexes are available to search.
+    """
+    if env("MEILISEARCH_URL") == "" {
+        return ui.status_card("warning", "Meilisearch Not Configured", "Set MEILISEARCH_URL and MEILISEARCH_API_KEY.")
+    }
+    indexes, err = meili_client.list_indexes()
+    if err != nil {
+        return ui.status_card("error", "Failed to List Indexes", conv.to_string(err))
+    }
+    if array.len(indexes) == 0 {
+        return ui.status_card("info", "No Indexes", "No Meilisearch indexes found.")
+    }
+    headers = ["UID", "Primary Key", "Created At", "Updated At"]
+    rows = []
+    for idx in indexes {
+        rows = array.push(rows, [
+            conv.to_string(idx["uid"]),
+            conv.to_string(idx["primaryKey"]),
+            conv.to_string(idx["createdAt"]),
+            conv.to_string(idx["updatedAt"])
+        ])
+    }
+    return ui.table("Meilisearch Indexes", headers, rows)
+}
+
+// ---------------------------------------------------------------------------
+// Agent
+// ---------------------------------------------------------------------------
+
+agent DataExplorer {
+    provider: ollama
+    system: """
+        You are the Data Explorer — an AI-powered data analyst and dashboard builder.
+        You help users explore, query, and visualize data from multiple sources.
+
+        AVAILABLE DATA SOURCES:
+        - PostgreSQL — run SQL queries to analyze structured data
+        - Algolia — full-text search across indexed records
+        - Meilisearch — fast full-text search with filtering
+
+        WORKFLOW:
+        1. START — Call explore_sources to show the user what's connected.
+        2. EXPLORE — Call db_schema, list_algolia_indices, or list_meilisearch_indexes
+           to understand what data is available.
+        3. QUERY — Use query_database for SQL, search_algolia, or search_meilisearch.
+        4. VISUALIZE — After getting query results, use the visualize tool to create
+           charts (bar, line, pie, area, scatter) from the data.
+        5. COMPARE — Use compare_sources when the user wants cross-engine results.
+
+        CRITICAL DISPLAY RULES:
+        - Tools render data UI directly (tables, status cards, charts, key-value).
+          The user ALREADY SEES the rendered output on their screen.
+        - NEVER repeat, summarize, or describe the data that a tool just displayed.
+          Do NOT list values, counts, statuses, or details that appear in the rendered UI.
+        - After a tool call, ONLY add a SHORT sentence (max 1-2 sentences) about
+          what to do NEXT or a brief analytical insight. Example:
+          "I see 82 tables. Want me to explore a specific one or run a query?"
+        - NEVER output raw JSON, data tables, or structured data as text.
+        - You CAN and SHOULD use: render_confirm, render_choices yourself for interactions.
+        - For SQL queries, ALWAYS check the schema first with db_schema.
+        - ONLY run SELECT queries — never modify data.
+        - When the user asks to "show me" or "visualize" data, query it first,
+          then create a chart with the visualize tool.
+        - When building charts, extract labels and datasets from query results.
+        - If a data source is not configured, inform the user and work with what's available.
+    """
+    tools: [explore_sources, db_schema, query_database, search_algolia, search_meilisearch, visualize, compare_sources, list_algolia_indices, list_meilisearch_indexes]
+    ui: ui
+    memory: conversation(max_turns: 30)
+    temperature: 0.3
+    max_steps: 20
+    timeout: 300
+}
+
+// ---------------------------------------------------------------------------
+// Workflows
+// ---------------------------------------------------------------------------
+
+@webui(
+    title: "Data Explorer",
+    description: "AI-powered data querying, visualization & dashboarding across Postgres, Algolia, and Meilisearch",
+    mode: "chat",
+    suggestions: [
+        "What data sources are available?",
+        "Show me the database schema",
+        "Query the top 10 rows from the largest table",
+        "Search Algolia for 'shoes' and visualize results",
+        "Compare search results across all engines",
+        "Create a bar chart of record counts per table"
+    ],
+    accent: "#E8A317",
+    avatar: "D"
+)
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> stream {
+    return DataExplorer.stream(message, session: session_id)
+}
+
+@get("/api/health")
+workflow Health() -> { status: string, postgres: string, algolia: string, meilisearch: string } {
+    pg = "disconnected"
+    if db_err == nil {
+        pg = "connected"
+    }
+    alg = "not configured"
+    if env("ALGOLIA_APP_ID") != "" {
+        alg = "configured"
+    }
+    meili = "not configured"
+    if env("MEILISEARCH_URL") != "" {
+        meili = "configured"
+    }
+    return { status: "operational", postgres: pg, algolia: alg, meilisearch: meili }
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+fn main() {
+    io.println("Data Explorer — AI-Powered Data Querying & Visualization")
+    io.println("")
+
+    // Show connection status
+    if db_err != nil {
+        io.println("  [Postgres]     Not connected (set DATABASE_URL)")
+    } else {
+        io.println("  [Postgres]     Connected")
+    }
+    if env("ALGOLIA_APP_ID") == "" {
+        io.println("  [Algolia]      Not configured (set ALGOLIA_APP_ID + ALGOLIA_API_KEY)")
+    } else {
+        io.println("  [Algolia]      Configured (App: " + env("ALGOLIA_APP_ID") + ")")
+    }
+    if env("MEILISEARCH_URL") == "" {
+        io.println("  [Meilisearch]  Not configured (set MEILISEARCH_URL + MEILISEARCH_API_KEY)")
+    } else {
+        io.println("  [Meilisearch]  Configured (" + env("MEILISEARCH_URL") + ")")
+    }
+
+    io.println("")
+
+    observe.use(langfuse.exporter("", "", ""))
+    server = http.Server([Chat, Health])
+    observe.start(server)
+
+    io.println("  Chat UI:    http://localhost:9005/_ui/api/chat")
+    io.println("  Health:     GET /api/health")
+    io.println("  Observe:    http://localhost:9005/_observe")
+    io.println("")
+
+    server.listen(9005)
+}

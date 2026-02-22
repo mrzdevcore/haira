@@ -27,6 +27,14 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 
 	activeSourceFile = file
 
+	// Collect tool names so tool-to-tool calls resolve correctly.
+	knownToolNames = make(map[string]bool)
+	for _, item := range file.Items {
+		if t, ok := item.Node.(ast.ToolDecl); ok {
+			knownToolNames[t.Name.Node] = true
+		}
+	}
+
 	em.Line("package main")
 	em.Blank()
 
@@ -554,6 +562,10 @@ func needsSyncImport(file *ast.SourceFile) bool {
 			if blockHasSpawn(it.Body) {
 				return true
 			}
+		case ast.ToolDecl:
+			if it.Body != nil && blockHasSpawn(*it.Body) {
+				return true
+			}
 		}
 	}
 	return false
@@ -744,7 +756,7 @@ func SnakeToPascal(name string) string {
 // separate stdlib package (not part of the core haira package).
 func stdlibGoPackage(path string) (string, bool) {
 	switch path {
-	case "postgres", "excel", "vector", "slack", "github", "gitlab", "langfuse":
+	case "postgres", "excel", "vector", "slack", "github", "gitlab", "langfuse", "algolia", "meilisearch":
 		return path, true
 	}
 	return "", false

@@ -170,12 +170,13 @@ export class HairaTable extends LitElement {
   /** Set all props at once */
   public setProps(props: TableProps): void {
     this.title = props.title || "";
-    this.headers = props.headers || [];
-    this.rows = props.rows || [];
-    this.tabs = props.tabs || [];
-    this.highlight = props.highlight || [];
+    this.headers = (props.headers || []) as string[];
+    this.rows = (props.rows || []) as string[][];
+    this.tabs = (props.tabs || []) as TabData[];
+    this.highlight = (props.highlight || []) as number[];
     this._activeTab = 0;
     this._search = "";
+    this.requestUpdate();
   }
 
   private _currentHeaders(): string[] {
@@ -204,7 +205,7 @@ export class HairaTable extends LitElement {
     if (!this._search) return rows;
     const q = this._search.toLowerCase();
     return rows.filter((row) =>
-      row.some((cell) => cell.toLowerCase().includes(q))
+      row.some((cell) => String(cell ?? "").toLowerCase().includes(q))
     );
   }
 

@@ -228,6 +228,21 @@ export interface ChartProps {
   height?: number;
 }
 
+export interface ProductCardItem {
+  name: string;
+  price: string;
+  image?: string;
+  brand?: string;
+  description?: string;
+  badge?: string;
+  url?: string;
+}
+
+export interface ProductCardsProps {
+  title?: string;
+  cards: ProductCardItem[];
+}
+
 // --- Observe types ---
 
 export interface ObserveUsage {

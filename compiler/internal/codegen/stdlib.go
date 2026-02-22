@@ -553,6 +553,28 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "client":
 			return resolveClientConstructor("github.GithubConnect", call), true
 		}
+	case "algolia":
+		switch method {
+		case "client":
+			return fmt.Sprintf("algolia.AlgoliaNewClient(%s)", args), true
+		case "hits":
+			return fmt.Sprintf("algolia.AlgoliaHits(%s)", args), true
+		case "hits_to_table":
+			return fmt.Sprintf("algolia.AlgoliaHitsToTable(%s)", args), true
+		case "hits_to_product_cards":
+			return fmt.Sprintf("algolia.AlgoliaHitsToProductCards(%s)", args), true
+		}
+	case "meilisearch":
+		switch method {
+		case "client":
+			return fmt.Sprintf("meilisearch.MeilisearchNewClient(%s)", args), true
+		case "hits":
+			return fmt.Sprintf("meilisearch.MeilisearchHits(%s)", args), true
+		case "hits_to_table":
+			return fmt.Sprintf("meilisearch.MeilisearchHitsToTable(%s)", args), true
+		case "hits_to_product_cards":
+			return fmt.Sprintf("meilisearch.MeilisearchHitsToProductCards(%s)", args), true
+		}
 	case "ui":
 		switch method {
 		case "key_value":
@@ -565,6 +587,10 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.UiNewConfirm(%s)", args), true
 		case "chart":
 			return fmt.Sprintf("haira.UiNewChart(%s)", args), true
+		case "table":
+			return fmt.Sprintf("haira.UiNewTable(%s)", args), true
+		case "product_cards":
+			return fmt.Sprintf("haira.UiNewProductCards(%s)", args), true
 		}
 	}
 	return "", false
@@ -715,7 +741,7 @@ func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
-		"observe", "fs", "gitlab", "github", "langfuse":
+		"observe", "fs", "gitlab", "github", "langfuse", "algolia", "meilisearch":
 		return true
 	}
 	return false

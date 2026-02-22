@@ -1019,6 +1019,7 @@ var stdlibModules = map[string]bool{
 	"env": true, "postgres": true, "slack": true, "excel": true, "log": true,
 	"mcp": true, "ui": true, "vector": true, "observe": true, "fs": true,
 	"gitlab": true, "github": true, "langfuse": true,
+	"algolia": true, "meilisearch": true,
 }
 
 func isStdlibModule(name string) bool {

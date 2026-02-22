@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/haira-lang/haira/internal/console"
 	"github.com/haira-lang/haira/internal/driver"
 	"github.com/haira-lang/haira/internal/lsp"
 	"github.com/haira-lang/haira/internal/manifest"
@@ -44,6 +45,8 @@ func main() {
 		err = cmdFmt(rest)
 	case "init":
 		err = cmdInit(rest)
+	case "console":
+		err = cmdConsole(rest)
 	case "lsp":
 		err = lsp.RunStdio()
 	case "version", "--version", "-v":
@@ -167,6 +170,13 @@ func cmdFmt(args []string) error {
 	return nil
 }
 
+func cmdConsole(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haira console <host:port>\n  Connect to a running Haira server")
+	}
+	return console.Run(args[0], args[1:])
+}
+
 func cmdInit(args []string) error {
 	// Check if package.haira already exists
 	if manifest.Find(".") != "" {
@@ -204,6 +214,7 @@ Commands:
   test [file] [flags...]      Run test blocks
   fmt [file] [files...]       Format source files in-place
   init                        Create a package.haira manifest
+  console <host:port>         Connect to a Haira server (interactive terminal)
   lsp                         Start the language server (LSP)
   version                     Show version
   help                        Show this help

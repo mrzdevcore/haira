@@ -308,6 +308,9 @@ func (s *Server) registerUIRoutes() {
 		json.NewEncoder(rw).Encode(ArpServerCapabilities())
 	})
 
+	// Workflow discovery API (used by haira console and custom clients)
+	s.mux.HandleFunc("/_api/workflows", s.handleListWorkflows)
+
 	// Run history API
 	s.mux.HandleFunc("/_api/runs", s.handleListRuns)
 	s.mux.HandleFunc("/_api/runs/", s.handleRunRoute)
@@ -598,6 +601,45 @@ func (s *Server) handleChatRoute(rw http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// --- Workflow Discovery API ---
+
+func (s *Server) handleListWorkflows(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	type wfInfo struct {
+		Name        string         `json:"name"`
+		Path        string         `json:"path"`
+		Method      string         `json:"method"`
+		IsStream    bool           `json:"is_stream"`
+		ChatParam   string         `json:"chat_param,omitempty"`
+		Title       string         `json:"title,omitempty"`
+		Description string         `json:"description,omitempty"`
+		Params      []WorkflowParam `json:"params,omitempty"`
+		Suggestions []string       `json:"suggestions,omitempty"`
+	}
+	var list []wfInfo
+	for _, wf := range s.workflows {
+		info := wfInfo{
+			Name:        wf.Name,
+			Path:        wf.Path,
+			Method:      wf.Method,
+			IsStream:    wf.IsStream || wf.StreamHandler != nil,
+			Title:       wf.UITitle,
+			Description: wf.UIDescription,
+			Params:      wf.Params,
+			Suggestions: wf.Suggestions,
+		}
+		if info.IsStream {
+			info.ChatParam = findChatParam(wf.Params)
+		}
+		list = append(list, info)
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(list)
 }
 
 // Listen starts the HTTP server on the given port.

@@ -1,0 +1,627 @@
+# Agentic Rendering Protocol — Core Component Catalog
+# Version: 0.1 Draft
+#
+# This file defines the core ARP components — their props, input types,
+# and fallback chains. Process with `arp-scanner` alongside the protocol
+# file to generate complete language bindings.
+#
+# Component categories:
+#   display — Show information to the user
+#   input   — Collect information from the user
+#   layout  — Arrange other components
+
+components:
+
+  # ===========================================================================
+  # DISPLAY COMPONENTS
+  # ===========================================================================
+
+  text:
+    version: 1
+    category: display
+    fallback: null  # Terminal fallback — every renderer MUST support this
+    description: "Plain or markdown text content. The universal baseline component."
+    props:
+      content:
+        type: string
+        required: true
+        description: "Text content"
+      format:
+        type: string
+        required: false
+        enum: [plain, markdown]
+        default: plain
+        description: "Text format. 'markdown' enables rich rendering."
+
+  status-card:
+    version: 1
+    category: display
+    fallback: text
+    description: "Status indicator with colored badge, title, message, and expandable sections."
+    props:
+      status:
+        type: string
+        required: true
+        enum: [success, error, warning, info]
+        description: "Status level, determines visual indicator color"
+      title:
+        type: string
+        required: true
+        description: "Card heading"
+      message:
+        type: string
+        required: false
+        description: "Summary message below the title"
+      sections:
+        type: Section[]
+        required: false
+        description: "Expandable detail sections"
+    types:
+      Section:
+        description: "A detail section within a status card"
+        fields:
+          label:
+            type: string
+            description: "Section heading"
+          content:
+            type: string
+            description: "Section content (markdown supported)"
+          style:
+            type: string
+            enum: [default, code, error, success]
+            default: default
+            description: "Visual style for the content"
+
+  table:
+    version: 1
+    category: display
+    fallback: text
+    description: "Tabular data with headers, rows, optional search, and row highlighting."
+    props:
+      title:
+        type: string
+        required: false
+        description: "Table heading"
+      headers:
+        type: string[]
+        required: true
+        description: "Column header labels"
+      rows:
+        type: string[][]
+        required: true
+        description: "Row data. Each row is an array of cell values."
+      highlight:
+        type: uint[]
+        required: false
+        description: "Row indices to visually highlight (0-based)"
+      searchable:
+        type: bool
+        required: false
+        default: false
+        description: "Show a search/filter input above the table"
+      sortable:
+        type: bool
+        required: false
+        default: false
+        description: "Allow column sorting by clicking headers"
+    input_types:
+      - type: selection
+        description: "User selected one or more rows"
+        data_schema:
+          selected:
+            type: uint[]
+            description: "Selected row indices"
+
+  code-block:
+    version: 1
+    category: display
+    fallback: text
+    description: "Syntax-highlighted code block with optional title and copy button."
+    props:
+      title:
+        type: string
+        required: false
+        description: "Block heading (e.g., 'Generated SQL')"
+      language:
+        type: string
+        required: true
+        description: "Programming language for syntax highlighting"
+      code:
+        type: string
+        required: true
+        description: "The code content"
+
+  diff:
+    version: 1
+    category: display
+    fallback: code-block
+    description: "Before/after text comparison view."
+    props:
+      title:
+        type: string
+        required: false
+        description: "Diff heading"
+      before:
+        type: string
+        required: true
+        description: "Original text"
+      after:
+        type: string
+        required: true
+        description: "Modified text"
+      before_label:
+        type: string
+        required: false
+        default: "Before"
+        description: "Label for the original panel"
+      after_label:
+        type: string
+        required: false
+        default: "After"
+        description: "Label for the modified panel"
+      language:
+        type: string
+        required: false
+        description: "Language for syntax highlighting (both panels)"
+
+  key-value:
+    version: 1
+    category: display
+    fallback: text
+    description: "Labeled property list for metadata, summaries, and configuration."
+    props:
+      title:
+        type: string
+        required: false
+        description: "List heading"
+      items:
+        type: KVItem[]
+        required: true
+        description: "Key-value pairs to display"
+    types:
+      KVItem:
+        description: "A single key-value pair"
+        fields:
+          key:
+            type: string
+            description: "Label"
+          value:
+            type: string
+            description: "Value"
+          style:
+            type: string
+            enum: [default, success, error, warning, muted]
+            default: default
+            description: "Visual style for the value"
+
+  progress:
+    version: 1
+    category: display
+    fallback: text
+    description: "Multi-step progress tracker with status indicators."
+    props:
+      title:
+        type: string
+        required: false
+        description: "Progress heading"
+      steps:
+        type: Step[]
+        required: true
+        description: "Steps to display"
+    types:
+      Step:
+        description: "A single step in a progress sequence"
+        fields:
+          name:
+            type: string
+            description: "Step label"
+          status:
+            type: string
+            enum: [done, active, pending, failed]
+            description: "Step status"
+          detail:
+            type: string
+            default: ""
+            description: "Optional detail text (e.g., duration, error message)"
+
+  chart:
+    version: 1
+    category: display
+    fallback: table
+    description: "Data visualization supporting line, bar, pie, scatter, and area charts."
+    props:
+      type:
+        type: string
+        required: true
+        enum: [line, bar, pie, scatter, area]
+        description: "Chart type"
+      title:
+        type: string
+        required: false
+        description: "Chart heading"
+      labels:
+        type: string[]
+        required: true
+        description: "X-axis labels (or pie segment labels)"
+      datasets:
+        type: Dataset[]
+        required: true
+        description: "Data series to plot"
+      height:
+        type: uint
+        required: false
+        description: "Chart height in logical pixels"
+    types:
+      Dataset:
+        description: "A single data series"
+        fields:
+          label:
+            type: string
+            description: "Series label (shown in legend)"
+          data:
+            type: float[]
+            description: "Data values"
+          color:
+            type: string?
+            description: "Series color (CSS color value)"
+
+  image:
+    version: 1
+    category: display
+    fallback: text
+    description: "Image display with alt text."
+    props:
+      src:
+        type: string
+        required: true
+        description: "Image URL or base64 data URI"
+      alt:
+        type: string
+        required: true
+        description: "Alt text (used by text fallback and accessibility)"
+      width:
+        type: uint
+        required: false
+        description: "Display width in logical pixels"
+      height:
+        type: uint
+        required: false
+        description: "Display height in logical pixels"
+      caption:
+        type: string
+        required: false
+        description: "Image caption displayed below"
+
+  markdown:
+    version: 1
+    category: display
+    fallback: text
+    description: "Rich markdown content block. Supports CommonMark."
+    props:
+      content:
+        type: string
+        required: true
+        description: "Markdown source text"
+
+
+  # ===========================================================================
+  # INPUT COMPONENTS
+  # ===========================================================================
+
+  form:
+    version: 1
+    category: input
+    fallback: text
+    description: >
+      Interactive form for collecting structured user input. Supports
+      text, textarea, select, checkbox, number, date, email, password,
+      and file field types.
+    props:
+      title:
+        type: string
+        required: false
+        description: "Form heading"
+      description:
+        type: string
+        required: false
+        description: "Form description text"
+      fields:
+        type: FormField[]
+        required: true
+        description: "Form fields to display"
+      submit_label:
+        type: string
+        required: false
+        default: "Submit"
+        description: "Submit button label"
+      submit_action:
+        type: string
+        required: false
+        description: "Action identifier sent with the form_submit input"
+    types:
+      FormField:
+        description: "A single form field"
+        fields:
+          name:
+            type: string
+            description: "Field identifier (used as key in submitted data)"
+          label:
+            type: string
+            description: "Display label"
+          field_type:
+            type: string
+            enum: [text, textarea, select, checkbox, number, date, email, password, file]
+            description: "Field input type"
+          value:
+            type: string
+            default: ""
+            description: "Default value"
+          options:
+            type: string[]
+            default: []
+            description: "Options for 'select' field type"
+          required:
+            type: bool
+            default: false
+            description: "Whether the field must be filled"
+          placeholder:
+            type: string
+            default: ""
+            description: "Placeholder text"
+          validation:
+            type: string?
+            description: "Validation pattern (regex) for the field"
+    input_types:
+      - type: form_submit
+        description: "User submitted the form"
+        data_schema:
+          action:
+            type: string?
+            description: "The submit_action value"
+          fields:
+            type: any
+            description: "Object with field name → value mapping"
+
+  confirm:
+    version: 1
+    category: input
+    fallback: text
+    description: "Binary confirmation dialog (yes/no, approve/reject)."
+    props:
+      title:
+        type: string
+        required: true
+        description: "Confirmation question"
+      message:
+        type: string
+        required: false
+        description: "Additional context"
+      confirm_label:
+        type: string
+        required: false
+        default: "Confirm"
+        description: "Positive action button label"
+      deny_label:
+        type: string
+        required: false
+        default: "Cancel"
+        description: "Negative action button label"
+      destructive:
+        type: bool
+        required: false
+        default: false
+        description: "Whether the confirm action is destructive (visual hint)"
+    input_types:
+      - type: action
+        description: "User clicked confirm or deny"
+        data_schema:
+          action:
+            type: string
+            enum: [confirm, deny]
+
+  choices:
+    version: 1
+    category: input
+    fallback: text
+    description: "Option picker displayed as buttons or a list."
+    props:
+      title:
+        type: string
+        required: false
+        description: "Picker heading"
+      options:
+        type: Choice[]
+        required: true
+        description: "Available choices"
+      style:
+        type: string
+        required: false
+        enum: [buttons, list, cards]
+        default: buttons
+        description: "Visual style for the options"
+      multi_select:
+        type: bool
+        required: false
+        default: false
+        description: "Allow selecting multiple options"
+    types:
+      Choice:
+        description: "A single choice option"
+        fields:
+          label:
+            type: string
+            description: "Display label"
+          value:
+            type: string
+            description: "Value sent when selected"
+          description:
+            type: string?
+            description: "Optional description below the label"
+          icon:
+            type: string?
+            description: "Optional icon (emoji or icon name)"
+          disabled:
+            type: bool
+            default: false
+            description: "Whether this option is disabled"
+    input_types:
+      - type: selection
+        description: "User selected one or more options"
+        data_schema:
+          selected:
+            type: string[]
+            description: "Array of selected option values"
+
+  text-input:
+    version: 1
+    category: input
+    fallback: text
+    description: "Free text input field for open-ended responses."
+    props:
+      label:
+        type: string
+        required: false
+        description: "Input label"
+      placeholder:
+        type: string
+        required: false
+        description: "Placeholder text"
+      max_length:
+        type: uint
+        required: false
+        description: "Maximum input length"
+      multiline:
+        type: bool
+        required: false
+        default: false
+        description: "Allow multi-line input"
+      submit_label:
+        type: string
+        required: false
+        default: "Send"
+        description: "Submit button label"
+    input_types:
+      - type: text
+        description: "User submitted text"
+        data_schema:
+          text:
+            type: string
+            description: "The submitted text"
+
+
+  # ===========================================================================
+  # LAYOUT COMPONENTS
+  # ===========================================================================
+
+  group:
+    version: 1
+    category: layout
+    fallback: null  # Children rendered sequentially as fallback
+    description: >
+      Container for composing multiple components. Maximum nesting
+      depth is 3 levels.
+    props:
+      direction:
+        type: string
+        required: false
+        enum: [vertical, horizontal]
+        default: vertical
+        description: "Layout direction"
+      gap:
+        type: string
+        required: false
+        enum: [none, small, medium, large]
+        default: medium
+        description: "Spacing between children"
+      children:
+        type: Component[]
+        required: true
+        description: "Child components to arrange"
+
+  tabs:
+    version: 1
+    category: layout
+    fallback: group
+    description: "Tabbed container showing one child at a time."
+    props:
+      tabs:
+        type: TabDef[]
+        required: true
+        description: "Tab definitions"
+      active_tab:
+        type: uint
+        required: false
+        default: 0
+        description: "Initially active tab index"
+    types:
+      TabDef:
+        description: "A single tab definition"
+        fields:
+          label:
+            type: string
+            description: "Tab label"
+          icon:
+            type: string?
+            description: "Optional tab icon"
+          component:
+            type: Component
+            description: "The component to display when this tab is active"
+    input_types:
+      - type: action
+        description: "User switched tabs"
+        data_schema:
+          action:
+            type: string
+            value: "tab_change"
+          tab_index:
+            type: uint
+            description: "The index of the newly selected tab"
+
+  split:
+    version: 1
+    category: layout
+    fallback: group
+    description: "Side-by-side or top-bottom layout with two panels."
+    props:
+      direction:
+        type: string
+        required: false
+        enum: [horizontal, vertical]
+        default: horizontal
+        description: "Split direction"
+      ratio:
+        type: string
+        required: false
+        default: "1:1"
+        description: "Panel size ratio (e.g., '1:2', '3:1', '1:1')"
+      left:
+        type: Component
+        required: true
+        description: "Left (or top) panel component"
+      right:
+        type: Component
+        required: true
+        description: "Right (or bottom) panel component"
+
+
+# =============================================================================
+# Fallback Chain Summary
+# =============================================================================
+#
+# chart        → table → text
+# diff         → code-block → text
+# image        → text
+# markdown     → text
+# status-card  → text
+# table        → text
+# code-block   → text
+# key-value    → text
+# progress     → text
+# form         → text
+# confirm      → text
+# choices      → text
+# text-input   → text
+# tabs         → group → (children sequential)
+# split        → group → (children sequential)
+# group        → (children sequential)
+# text         → (terminal — always supported)

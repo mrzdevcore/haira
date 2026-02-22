@@ -1,0 +1,548 @@
+# Agentic Rendering Protocol — Core Protocol Definition
+# Version: 0.1 Draft
+#
+# This file defines the core ARP interfaces, requests, events, and types.
+# Process with `arp-scanner` to generate language-specific bindings.
+#
+# Modeled after Wayland's protocol XML (wayland.xml), but in YAML.
+
+protocol: arp-core
+version: 1
+
+# =============================================================================
+# Interfaces
+# =============================================================================
+
+interfaces:
+
+  # ---------------------------------------------------------------------------
+  # ArpDisplay — Bootstrap object (implicit object ID 0)
+  # ---------------------------------------------------------------------------
+  # Analogous to wl_display. Every connection starts with this object.
+  # The agent uses it to obtain the registry and synchronize state.
+
+  ArpDisplay:
+    version: 1
+    description: >
+      The bootstrap object, implicitly available as object ID 0 on every
+      connection. Provides access to the registry and synchronization.
+    requests:
+      get_registry:
+        description: "Obtain the global registry for capability discovery"
+        args:
+          new_id:
+            type: new_id
+            interface: ArpRegistry
+      sync:
+        description: >
+          Request a synchronization callback. The renderer sends 'done'
+          on the callback after processing all prior messages.
+        args:
+          callback_id:
+            type: new_id
+            interface: ArpCallback
+    events:
+      error:
+        description: "Fatal protocol error"
+        args:
+          object_id:
+            type: object_id
+            description: "The object that caused the error"
+          code:
+            type: uint
+            description: "Error code"
+          message:
+            type: string
+            description: "Human-readable error description"
+
+  # ---------------------------------------------------------------------------
+  # ArpCallback — Synchronization callback
+  # ---------------------------------------------------------------------------
+
+  ArpCallback:
+    version: 1
+    description: "One-shot callback for synchronization"
+    events:
+      done:
+        description: "All prior messages have been processed"
+        args:
+          callback_data:
+            type: uint
+            description: "Request-specific data (typically 0)"
+
+  # ---------------------------------------------------------------------------
+  # ArpRegistry — Capability advertisement
+  # ---------------------------------------------------------------------------
+  # Analogous to wl_registry. The renderer sends global events for each
+  # capability it supports. The agent binds to the ones it needs.
+
+  ArpRegistry:
+    version: 1
+    description: >
+      Global registry for capability discovery. The renderer advertises
+      available interfaces and components as global events. The agent
+      selectively binds to what it needs.
+    requests:
+      bind:
+        description: "Bind to a global capability, creating a typed object"
+        args:
+          name:
+            type: uint
+            description: "The global name (from the global event)"
+          interface:
+            type: string
+            description: "The interface name to bind"
+          version:
+            type: uint
+            description: "The version to bind (agent's supported version)"
+          new_id:
+            type: new_id
+            description: "Object ID for the new bound object"
+    events:
+      global:
+        description: "A global capability is available"
+        args:
+          name:
+            type: uint
+            description: "Unique numeric name for this global instance"
+          interface:
+            type: string
+            description: >
+              Interface name. Core interfaces use PascalCase (ArpCompositor).
+              Components use 'component:name' prefix.
+              Features use 'feature:name' prefix.
+              Limits use 'limit:name' prefix.
+          version:
+            type: uint
+            description: "Maximum supported version"
+      global_remove:
+        description: "A global capability has been removed"
+        args:
+          name:
+            type: uint
+            description: "The name of the removed global"
+
+  # ---------------------------------------------------------------------------
+  # ArpCompositor — Surface factory
+  # ---------------------------------------------------------------------------
+  # Analogous to wl_compositor. Creates surfaces for the agent.
+
+  ArpCompositor:
+    version: 1
+    description: "Factory for creating rendering surfaces"
+    requests:
+      create_surface:
+        description: "Create a new rendering surface"
+        args:
+          new_id:
+            type: new_id
+            interface: ArpSurface
+
+  # ---------------------------------------------------------------------------
+  # ArpSurface — Rendering surface
+  # ---------------------------------------------------------------------------
+  # Analogous to wl_surface. The primary rendering primitive.
+  # Agents render components to surfaces and commit atomically.
+
+  ArpSurface:
+    version: 1
+    description: >
+      A rendering surface owned by an agent. Supports double-buffered
+      rendering with atomic commits, incremental patches, and streaming.
+    requests:
+      render:
+        description: >
+          Set the complete component tree for this surface. Accumulates
+          in pending state until commit.
+        args:
+          components:
+            type: Component[]
+            description: "The component tree to display"
+      patch:
+        description: >
+          Incrementally update the current component tree. Accumulates
+          in pending state until commit.
+        args:
+          ops:
+            type: PatchOp[]
+            description: "Patch operations to apply"
+      commit:
+        description: >
+          Atomically apply all pending render/patch operations. The
+          renderer displays the result and sends frame_ack.
+        args:
+          final:
+            type: bool
+            default: false
+            description: >
+              If true, indicates no more updates are expected until
+              the next user interaction (end of streaming).
+      set_title:
+        description: "Set the surface title (displayed in window title, tab, etc.)"
+        args:
+          title:
+            type: string
+      transfer:
+        description: >
+          Transfer this surface to another agent session. The renderer
+          mediates the transfer. The current agent loses ownership.
+        args:
+          to_session:
+            type: string
+            description: "Target session ID"
+          retain_content:
+            type: bool
+            description: "Whether to preserve the current component tree"
+      destroy:
+        description: "Destroy this surface and release its resources"
+    events:
+      frame_ack:
+        description: >
+          Acknowledges a commit. The agent should not send more than
+          max_pending_commits without receiving acknowledgment.
+        args:
+          commit_seq:
+            type: uint
+            description: "The seq of the commit being acknowledged"
+      configure:
+        description: >
+          The renderer configures the surface with available viewport
+          size and state. The agent MUST respond with a commit.
+        args:
+          width:
+            type: uint
+            description: "Available width in logical pixels"
+          height:
+            type: uint
+            description: "Available height in logical pixels"
+          states:
+            type: string[]
+            description: >
+              Current states: activated, suspended, resizing, fullscreen
+      closed:
+        description: "The renderer has closed this surface"
+      transferred:
+        description: "This surface has been transferred to another agent"
+      surface_acquired:
+        description: "A surface has been transferred to this agent"
+        args:
+          components:
+            type: Component[]?
+            description: "The component tree from the previous owner (if retain_content)"
+
+  # ---------------------------------------------------------------------------
+  # ArpShell — Surface role assignment
+  # ---------------------------------------------------------------------------
+  # Analogous to xdg_wm_base / xdg_shell. Assigns roles to surfaces.
+
+  ArpShell:
+    version: 1
+    description: >
+      Assigns roles to surfaces. A surface must have a role before
+      it can display content.
+    requests:
+      get_toplevel:
+        description: "Assign the toplevel role (primary application surface)"
+        args:
+          surface_id:
+            type: object_id
+            interface: ArpSurface
+          new_id:
+            type: new_id
+            interface: ArpToplevel
+      get_popup:
+        description: "Assign the popup role (contextual surface)"
+        args:
+          surface_id:
+            type: object_id
+            interface: ArpSurface
+          parent_id:
+            type: object_id
+            interface: ArpSurface
+          new_id:
+            type: new_id
+            interface: ArpPopup
+          trigger_serial:
+            type: uint
+            description: "Input serial that triggered this popup (for validation)"
+      get_overlay:
+        description: "Assign the overlay role (floating notification surface)"
+        args:
+          surface_id:
+            type: object_id
+            interface: ArpSurface
+          new_id:
+            type: new_id
+            interface: ArpOverlay
+
+  # ---------------------------------------------------------------------------
+  # ArpToplevel — Toplevel surface role
+  # ---------------------------------------------------------------------------
+
+  ArpToplevel:
+    version: 1
+    description: "A toplevel (primary) surface role"
+    requests:
+      set_title:
+        description: "Set the toplevel title"
+        args:
+          title:
+            type: string
+    events:
+      configure:
+        description: "Renderer configures the toplevel"
+        args:
+          width:
+            type: uint
+          height:
+            type: uint
+          states:
+            type: string[]
+      close:
+        description: "Renderer requests the agent close this toplevel"
+
+  # ---------------------------------------------------------------------------
+  # ArpPopup — Popup surface role
+  # ---------------------------------------------------------------------------
+
+  ArpPopup:
+    version: 1
+    description: "A popup (contextual) surface role, anchored to a parent"
+    events:
+      configure:
+        description: "Renderer configures the popup position"
+        args:
+          x:
+            type: int
+          y:
+            type: int
+          width:
+            type: uint
+          height:
+            type: uint
+      popup_done:
+        description: "The popup has been dismissed (user clicked outside, etc.)"
+
+  # ---------------------------------------------------------------------------
+  # ArpOverlay — Overlay surface role
+  # ---------------------------------------------------------------------------
+
+  ArpOverlay:
+    version: 1
+    description: "A floating overlay surface (notification, toast)"
+    requests:
+      set_anchor:
+        description: "Anchor the overlay to a position relative to a surface"
+        args:
+          surface_id:
+            type: object_id
+            interface: ArpSurface
+          position:
+            type: string
+            description: >
+              Anchor position: top-left, top-center, top-right,
+              center-left, center, center-right,
+              bottom-left, bottom-center, bottom-right
+      set_timeout:
+        description: "Auto-dismiss after N milliseconds (0 = no auto-dismiss)"
+        args:
+          timeout_ms:
+            type: uint
+    events:
+      configure:
+        description: "Renderer configures the overlay bounds"
+        args:
+          bounds:
+            type: Rect
+      dismissed:
+        description: "The overlay has been dismissed"
+
+  # ---------------------------------------------------------------------------
+  # ArpInput — Input events
+  # ---------------------------------------------------------------------------
+  # Analogous to wl_seat + wl_keyboard + wl_pointer combined.
+  # ARP's input is higher-level (form submits, actions, selections)
+  # rather than raw keyboard/mouse events.
+
+  ArpInput:
+    version: 1
+    description: >
+      Input channel. The renderer sends structured input events to the
+      agent. Events are scoped to the agent's own surfaces only.
+    requests:
+      ack:
+        description: "Acknowledge receipt and processing of an input event"
+        args:
+          serial:
+            type: uint
+            description: "The serial of the input event being acknowledged"
+    events:
+      input:
+        description: "User input event targeting a surface or component"
+        args:
+          surface_id:
+            type: object_id
+            description: "The surface that received the input"
+          source_component:
+            type: string?
+            description: "Component ID that generated the input (null for surface-level)"
+          serial:
+            type: uint
+            description: "Input serial for validation and ordering"
+          type:
+            type: string
+            description: >
+              Input type: form_submit, action, selection, text, file,
+              gesture, voice, navigate, resize
+          data:
+            type: any
+            description: "Type-specific input data"
+      focus:
+        description: "A surface has gained input focus"
+        args:
+          surface_id:
+            type: object_id
+      unfocus:
+        description: "A surface has lost input focus"
+        args:
+          surface_id:
+            type: object_id
+
+  # ---------------------------------------------------------------------------
+  # ArpSession — Session management
+  # ---------------------------------------------------------------------------
+
+  ArpSession:
+    version: 1
+    description: >
+      Manages the interaction session between a user and an agent.
+      Sessions persist across connection interruptions.
+    requests:
+      create:
+        description: "Create or join a session"
+        args:
+          session_id:
+            type: string
+            description: "Unique session identifier"
+          metadata:
+            type: any
+            description: "Agent metadata (name, version, etc.)"
+      state_update:
+        description: "Update the session state (informational for renderer)"
+        args:
+          state:
+            type: any
+            description: "Arbitrary state object"
+      destroy:
+        description: "End the session"
+    events:
+      resumed:
+        description: "A previously active session has been resumed"
+        args:
+          session_id:
+            type: string
+          last_commit_seq:
+            type: uint
+            description: "The seq of the last commit the renderer displayed"
+          state:
+            type: any
+            description: "The last known session state"
+
+
+# =============================================================================
+# Types
+# =============================================================================
+
+types:
+
+  Component:
+    description: "A renderable UI component with typed props"
+    fields:
+      id:
+        type: string
+        description: "Unique identifier within the surface"
+      type:
+        type: string
+        description: "Component type name (must match an advertised component global)"
+      version:
+        type: uint
+        default: 1
+        description: "Component schema version"
+      props:
+        type: any
+        description: "Component-specific properties"
+      fallback:
+        type: Component?
+        description: "Fallback component for unsupported renderers"
+
+  PatchOp:
+    description: "An incremental update operation on the component tree"
+    fields:
+      op:
+        type: string
+        enum: [update, insert, remove, replace, reorder]
+        description: "Operation type"
+      target:
+        type: string?
+        description: "Target component ID (for update, remove, replace, reorder)"
+      path:
+        type: string?
+        description: "Dot-separated property path (for update)"
+      value:
+        type: any?
+        description: "New value (for update)"
+      after:
+        type: string?
+        description: "Insert after this component ID (null = prepend) (for insert, reorder)"
+      component:
+        type: Component?
+        description: "New component (for insert, replace)"
+
+  Rect:
+    description: "A rectangle defined by position and size"
+    fields:
+      x:
+        type: int
+      y:
+        type: int
+      width:
+        type: uint
+      height:
+        type: uint
+
+
+# =============================================================================
+# Error Codes
+# =============================================================================
+
+errors:
+  INVALID_OBJECT:
+    code: 1
+    description: "The target object ID does not exist"
+  INVALID_METHOD:
+    code: 2
+    description: "The operation is not valid for this object's interface"
+  INVALID_SERIAL:
+    code: 3
+    description: "The input serial is invalid or expired"
+  RESOURCE_LIMIT:
+    code: 4
+    description: "A resource limit has been exceeded"
+  SURFACE_DESTROYED:
+    code: 5
+    description: "The target surface has been destroyed"
+  ROLE_CONFLICT:
+    code: 6
+    description: "The surface already has a role assigned"
+  VERSION_MISMATCH:
+    code: 7
+    description: "The requested version is not supported"
+  SESSION_NOT_FOUND:
+    code: 8
+    description: "The session ID does not exist"
+  TRANSFER_DENIED:
+    code: 9
+    description: "Surface transfer was denied by the renderer"
+  COMPONENT_UNSUPPORTED:
+    code: 10
+    description: "The component type is not supported and no fallback was provided"

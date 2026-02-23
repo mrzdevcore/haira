@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"sync/atomic"
-	"syscall"
 )
 
 // ---------------------------------------------------------------------------
@@ -144,9 +144,14 @@ func (t *Terminal) Height() int {
 }
 
 // WatchResize listens for SIGWINCH and updates terminal dimensions.
+// No-op on Windows (no SIGWINCH).
 func (t *Terminal) WatchResize() {
+	sig := winchSignal()
+	if sig == nil {
+		return
+	}
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, winchSignal())
+	signal.Notify(ch, sig)
 	go func() {
 		for range ch {
 			if cols, rows, err := getWinsize(t.fd); err == nil {
@@ -158,9 +163,10 @@ func (t *Terminal) WatchResize() {
 }
 
 // SetupCleanExit ensures the terminal is restored on SIGTERM/SIGHUP.
+// On Windows, listens for os.Interrupt only.
 func (t *Terminal) SetupCleanExit() {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGHUP)
+	signal.Notify(ch, cleanExitSignals()...)
 	go func() {
 		<-ch
 		t.Restore()
@@ -170,20 +176,27 @@ func (t *Terminal) SetupCleanExit() {
 
 // HandleSuspend handles Ctrl+Z (SIGTSTP) by restoring terminal state,
 // then re-enabling raw mode on SIGCONT.
+// No-op on Windows (no job control signals).
 func (t *Terminal) HandleSuspend() {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	susp := suspendSignal()
+	cont := continueSignal()
+	if susp == nil || cont == nil {
+		return
+	}
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, suspendSignal(), continueSignal())
+	signal.Notify(ch, susp, cont)
 	go func() {
 		for sig := range ch {
-			if sig == suspendSignal() {
+			if sig == susp {
 				t.Restore()
-				// Re-send SIGTSTP to actually suspend the process
 				signal.Stop(ch)
-				syscall.Kill(syscall.Getpid(), syscall.SIGTSTP)
+				sendSuspendSignal()
 			} else {
-				// SIGCONT — re-enable raw mode
 				t.EnableRaw()
-				signal.Notify(ch, suspendSignal(), continueSignal())
+				signal.Notify(ch, susp, cont)
 			}
 		}
 	}()

@@ -66,3 +66,13 @@ func continueSignal() os.Signal {
 func winchSignal() os.Signal {
 	return syscall.SIGWINCH
 }
+
+// cleanExitSignals returns signals that should trigger a clean exit on darwin.
+func cleanExitSignals() []os.Signal {
+	return []os.Signal{syscall.SIGTERM, syscall.SIGHUP}
+}
+
+// sendSuspendSignal sends SIGTSTP to the current process.
+func sendSuspendSignal() {
+	syscall.Kill(syscall.Getpid(), syscall.SIGTSTP)
+}

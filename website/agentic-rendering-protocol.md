@@ -365,17 +365,16 @@ New components follow a three-phase lifecycle inspired by Wayland:
   margin-bottom: 2rem;
 }
 .blog-title {
-  font-size: 4rem;
+  font-size: clamp(2.5rem, 5.5vw, 4rem);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1.08;
-  white-space: nowrap;
+  line-height: 1.2;
   background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold-glow) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin: 0 0 1.5rem;
-  padding: 0 1rem;
+  padding: 0 1rem 0.1em;
 }
 .blog-subtitle {
   font-size: 1.25rem;
@@ -659,7 +658,7 @@ New components follow a three-phase lifecycle inspired by Wayland:
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .blog-hero { padding: 4rem 1.5rem 3rem; }
-  .blog-title { font-size: 2.5rem; white-space: normal; }
+  .blog-title { font-size: 2rem; }
   .blog-subtitle { font-size: 1.0625rem; }
   .blog-body { padding: 0 1.25rem 4rem; }
   .blog-body p { font-size: 1rem; }

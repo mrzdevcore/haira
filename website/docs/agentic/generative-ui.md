@@ -1,3 +1,8 @@
+---
+title: "Generative UI"
+description: "Agents render rich UI components — tables, charts, forms, status cards — inline."
+---
+
 # Generative UI
 
 Every Haira workflow automatically gets a web UI — no frontend code needed.

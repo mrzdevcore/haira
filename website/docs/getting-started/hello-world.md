@@ -1,3 +1,8 @@
+---
+title: "Hello World"
+description: "Write and run your first Haira program."
+---
+
 # Hello World
 
 Let's write your first Haira program.

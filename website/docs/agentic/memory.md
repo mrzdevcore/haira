@@ -1,3 +1,8 @@
+---
+title: "Memory & Sessions"
+description: "Conversation memory, session persistence, and summary memory for agents."
+---
+
 # Memory & Sessions
 
 Agents in Haira have built-in memory management for multi-turn conversations.

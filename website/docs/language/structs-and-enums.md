@@ -1,3 +1,8 @@
+---
+title: "Structs & Enums"
+description: "Define structured data with structs and algebraic types with enums in Haira."
+---
+
 # Structs & Enums
 
 ## Structs

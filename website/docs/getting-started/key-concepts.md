@@ -1,3 +1,8 @@
+---
+title: "Key Concepts"
+description: "Core concepts of the Haira programming language — providers, tools, agents, and workflows."
+---
+
 # Key Concepts
 
 Haira is built around **four agentic keywords** that are part of the language itself — not a library.

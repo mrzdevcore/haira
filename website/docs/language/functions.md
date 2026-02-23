@@ -1,3 +1,8 @@
+---
+title: "Functions"
+description: "Function declarations, parameters, return types, and closures in Haira."
+---
+
 # Functions
 
 ## Defining Functions

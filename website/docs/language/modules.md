@@ -1,3 +1,8 @@
+---
+title: "Modules & Imports"
+description: "Module system, import forms, and code organization in Haira."
+---
+
 # Modules & Imports
 
 ## Import Forms

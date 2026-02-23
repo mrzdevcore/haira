@@ -1,3 +1,8 @@
+---
+title: "ARP Protocol"
+description: "Agentic Rendering Protocol — transport-agnostic communication between agents and renderers."
+---
+
 # ARP — Agent Rendering Protocol
 
 ARP is a transport-agnostic, bidirectional protocol for communication between agent backends and frontend renderers. It solves the "generative UI" problem — how does a streaming agent tell a frontend "render a table/chart/form here" alongside plain text?

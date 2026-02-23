@@ -1,3 +1,8 @@
+---
+title: "Variables & Types"
+description: "Variable declarations, primitive types, lists, maps, and type inference in Haira."
+---
+
 # Variables & Types
 
 ## Variable Declaration

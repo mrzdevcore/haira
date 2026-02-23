@@ -1,3 +1,8 @@
+---
+title: "Concurrency"
+description: "Parallel execution with spawn blocks and concurrent agent calls in Haira."
+---
+
 # Concurrency
 
 ## Spawn Blocks

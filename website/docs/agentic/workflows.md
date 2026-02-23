@@ -1,3 +1,8 @@
+---
+title: "Workflows"
+description: "Expose agents as HTTP endpoints with workflow triggers and lifecycle hooks."
+---
+
 # Workflows
 
 Workflows are functions decorated with HTTP triggers. They define your API endpoints and orchestrate agents.

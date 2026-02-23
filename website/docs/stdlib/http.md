@@ -1,3 +1,8 @@
+---
+title: "HTTP & Server"
+description: "HTTP client, server, and REST endpoint handling in Haira."
+---
+
 # HTTP & Server
 
 ## HTTP Client

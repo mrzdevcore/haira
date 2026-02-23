@@ -1,3 +1,8 @@
+---
+title: "JSON"
+description: "JSON parsing and serialization in Haira."
+---
+
 # JSON
 
 ## Parsing JSON

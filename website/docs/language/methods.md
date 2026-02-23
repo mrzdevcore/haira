@@ -1,3 +1,8 @@
+---
+title: "Methods"
+description: "Attach methods to types with dot syntax and implicit self in Haira."
+---
+
 # Methods
 
 Methods are functions attached to types using dot-syntax.

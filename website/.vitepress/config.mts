@@ -10,17 +10,64 @@ export default defineConfig({
     languages: [hairaGrammar as any],
   },
 
+  sitemap: {
+    hostname: 'https://haira.dev',
+  },
+
   head: [
     ['meta', { name: 'theme-color', content: '#E8A317' }],
     ['meta', { property: 'og:type', content: 'website' }],
-    ['meta', { property: 'og:title', content: 'Haira — The programming language for AI agents' }],
-    ['meta', { property: 'og:description', content: 'Build agents and workflows, not boilerplate. Four keywords. One binary.' }],
-    ['meta', { property: 'og:url', content: 'https://haira.dev' }],
+    ['meta', { property: 'og:site_name', content: 'Haira' }],
+    ['meta', { property: 'og:image', content: 'https://raw.githubusercontent.com/mrzdevcore/haira/main/assets/banner.svg' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:image', content: 'https://raw.githubusercontent.com/mrzdevcore/haira/main/assets/banner.svg' }],
+    ['meta', { name: 'twitter:title', content: 'Haira — The programming language for AI agents' }],
+    ['meta', { name: 'twitter:description', content: 'Build agents and workflows, not boilerplate. Four keywords. One binary.' }],
+    ['meta', { name: 'author', content: 'mrzdevcore' }],
+    ['meta', { name: 'keywords', content: 'haira, programming language, AI agents, workflows, LLM, generative UI, agentic, compiled language, Go' }],
     ['link', { rel: 'icon', type: 'image/svg+xml', href: 'https://raw.githubusercontent.com/mrzdevcore/haira/main/assets/icon.svg' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
     ['link', { href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap', rel: 'stylesheet' }],
+    ['script', { type: 'application/ld+json' }, JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareSourceCode',
+      'name': 'Haira',
+      'description': 'The programming language for AI agents and workflows. Build agents and workflows, not boilerplate.',
+      'url': 'https://haira.dev',
+      'codeRepository': 'https://github.com/mrzdevcore/haira',
+      'programmingLanguage': 'Haira',
+      'license': 'https://opensource.org/licenses/Apache-2.0',
+      'author': {
+        '@type': 'Person',
+        'name': 'mrzdevcore',
+        'url': 'https://github.com/mrzdevcore'
+      }
+    })],
   ],
+
+  transformPageData(pageData) {
+    const canonicalUrl = `https://haira.dev/${pageData.relativePath}`
+      .replace(/index\.md$/, '')
+      .replace(/\.md$/, '')
+
+    pageData.frontmatter.head ??= []
+    pageData.frontmatter.head.push(
+      ['link', { rel: 'canonical', href: canonicalUrl }],
+      ['meta', { property: 'og:url', content: canonicalUrl }],
+    )
+
+    if (pageData.frontmatter.title) {
+      pageData.frontmatter.head.push(
+        ['meta', { property: 'og:title', content: `${pageData.frontmatter.title} | Haira` }],
+      )
+    }
+    if (pageData.frontmatter.description) {
+      pageData.frontmatter.head.push(
+        ['meta', { property: 'og:description', content: pageData.frontmatter.description }],
+      )
+    }
+  },
 
   outDir: '../docs',
   cleanUrls: true,

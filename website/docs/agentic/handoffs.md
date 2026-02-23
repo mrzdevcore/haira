@@ -1,3 +1,8 @@
+---
+title: "Agent Handoffs"
+description: "Route between specialized agents automatically with the handoffs field."
+---
+
 # Agent Handoffs
 
 Agent handoffs let you route conversations between specialized agents. A front desk agent can automatically forward to billing, tech support, or other specialists.

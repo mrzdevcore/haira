@@ -1,3 +1,8 @@
+---
+title: "Streaming"
+description: "SSE streaming workflows with real-time token delivery and WebSocket upgrade."
+---
+
 # Streaming
 
 Haira supports Server-Sent Events (SSE) streaming for real-time LLM responses.

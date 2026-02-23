@@ -1,3 +1,8 @@
+---
+title: "Grammar"
+description: "Formal grammar specification for the Haira programming language."
+---
+
 # Grammar Reference
 
 This is a simplified reference of Haira's grammar. For the complete formal specification, see [Chapter 17 of the spec](https://github.com/mrzdevcore/haira/tree/main/spec).

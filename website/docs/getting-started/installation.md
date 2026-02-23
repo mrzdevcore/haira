@@ -1,3 +1,8 @@
+---
+title: "Installation"
+description: "Install Haira and set up your development environment."
+---
+
 # Installation
 
 ## Quick Install

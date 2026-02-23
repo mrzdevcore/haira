@@ -1,3 +1,8 @@
+---
+title: "Providers"
+description: "Configure LLM providers — OpenAI, Anthropic, Azure, Ollama, and any OpenAI-compatible API."
+---
+
 # Providers
 
 A provider configures an LLM backend — API credentials, model, and optional parameters.

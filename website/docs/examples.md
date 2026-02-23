@@ -1,3 +1,8 @@
+---
+title: "Examples"
+description: "29 example programs demonstrating Haira language features and agentic patterns."
+---
+
 # Examples
 
 Complete examples from the [examples directory](https://github.com/mrzdevcore/haira/tree/main/examples).

@@ -1,3 +1,8 @@
+---
+title: "Tools"
+description: "Define type-checked tools with LLM-visible descriptions for your agents."
+---
+
 # Tools
 
 Tools are functions that agents can call. The LLM decides when and how to use them based on the docstring.

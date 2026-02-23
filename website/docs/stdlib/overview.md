@@ -1,3 +1,8 @@
+---
+title: "Standard Library"
+description: "Overview of Haira's built-in and importable standard library packages."
+---
+
 # Standard Library
 
 Haira includes a rich standard library. Only imported packages are included in compiled binaries (tree-shaking).

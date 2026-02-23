@@ -1,3 +1,8 @@
+---
+title: "Pipe Operator"
+description: "Chain function calls with the |> pipe operator in Haira."
+---
+
 # Pipe Operator
 
 The pipe operator `|>` chains function calls, passing the result of the left side as the first argument to the right side.

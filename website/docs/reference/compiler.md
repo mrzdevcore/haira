@@ -1,3 +1,8 @@
+---
+title: "Compiler Architecture"
+description: "Haira compiler pipeline — lexer, parser, checker, Go codegen, and binary output."
+---
+
 # Compiler Architecture
 
 Haira compiles to Go, which then compiles to a native binary.

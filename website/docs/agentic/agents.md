@@ -1,3 +1,8 @@
+---
+title: "Agents"
+description: "Create AI agents with providers, tools, memory, and system prompts."
+---
+
 # Agents
 
 An agent is an LLM entity with a provider, system prompt, optional tools, and memory configuration.

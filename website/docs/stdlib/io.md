@@ -1,3 +1,8 @@
+---
+title: "IO & File System"
+description: "File reading, writing, and console I/O in Haira."
+---
+
 # IO & File System
 
 ## Console IO

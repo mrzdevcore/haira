@@ -1,3 +1,8 @@
+---
+title: "Error Handling"
+description: "Try/catch, error propagation with ?, and idiomatic error handling in Haira."
+---
+
 # Error Handling
 
 Haira uses Go-style error handling with a `value, error` pattern.

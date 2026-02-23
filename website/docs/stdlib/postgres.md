@@ -1,3 +1,8 @@
+---
+title: "Postgres"
+description: "PostgreSQL database client for queries, transactions, and connection management."
+---
+
 # Postgres
 
 ## Connection

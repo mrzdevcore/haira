@@ -1,3 +1,8 @@
+---
+title: "Strings"
+description: "String manipulation functions — split, join, replace, trim, and more."
+---
+
 # Strings
 
 ## String Operations

@@ -1,3 +1,8 @@
+---
+title: "Pattern Matching"
+description: "Match expressions with or-patterns, range patterns, and guards in Haira."
+---
+
 # Pattern Matching
 
 Haira's `match` expression supports powerful pattern matching.

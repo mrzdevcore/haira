@@ -205,19 +205,19 @@ publish:
 	fi
 	@echo "=== Haira publish pipeline ($(PUBLISH_VERSION)) ==="
 	@echo ""
-	@# --- Step 1: vet ---
-	@echo "[1/5] Vet..."
+	@# --- Step 1: bundle runtime (must run before any Go command due to go:embed) ---
+	@echo "[1/5] Bundle runtime..."
+	@$(MAKE) --no-print-directory bundle-runtime
+	@echo ""
+	@# --- Step 2: vet ---
+	@echo "[2/5] Vet..."
 	@cd $(COMPILER_DIR) && go vet ./...
 	@echo "      OK"
 	@echo ""
-	@# --- Step 2: test ---
-	@echo "[2/5] Test..."
+	@# --- Step 3: test ---
+	@echo "[3/5] Test..."
 	@cd $(COMPILER_DIR) && go test ./...
 	@echo "      OK"
-	@echo ""
-	@# --- Step 3: bundle runtime ---
-	@echo "[3/5] Bundle runtime..."
-	@$(MAKE) --no-print-directory bundle-runtime
 	@echo ""
 	@# --- Step 4: build (production) ---
 	@echo "[4/5] Build (CGO_ENABLED=0, stripped)..."

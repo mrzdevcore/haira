@@ -356,6 +356,25 @@
   box-shadow: 0 0 0.375rem #22c55e;
 }
 
+.hero-disclaimer {
+  display: inline-block;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #ca8a04;
+  background: rgba(202, 138, 4, 0.08);
+  border: 1px solid rgba(202, 138, 4, 0.2);
+  margin-bottom: 1.25rem;
+}
+
+.dark .hero-disclaimer {
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.06);
+  border-color: rgba(250, 204, 21, 0.15);
+}
+
 .hero-title {
   font-size: clamp(2.25rem, 5vw, 3.75rem);
   font-weight: 800;
@@ -413,7 +432,6 @@
   color: var(--vp-c-text-2);
   margin: 0 0 2.5rem;
   text-align: center;
-  white-space: nowrap;
 }
 
 .hero-subtitle strong {
@@ -619,6 +637,8 @@
 }
 
 /* Code window — always dark themed for readability */
+.showcase-code { min-width: 0; }
+
 .code-window {
   border-radius: 1rem;
   overflow: hidden;
@@ -628,6 +648,7 @@
     0 0 0 1px rgba(0, 0, 0, 0.05),
     0 0.25rem 0.5rem -0.25rem var(--surface-shadow),
     0 1rem 3rem -0.75rem var(--surface-shadow-lg);
+  min-width: 0;
 }
 
 .code-window-bar {
@@ -654,6 +675,7 @@
 .code-body {
   padding: 1.5rem;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .code-body pre {
@@ -662,6 +684,8 @@
   line-height: 1.75;
   font-family: var(--vp-font-family-mono);
   color: var(--code-text);
+  white-space: pre;
+  overflow-x: auto;
 }
 
 .code-body code { background: none; padding: 0; color: inherit; }
@@ -854,6 +878,10 @@
   flex-direction: column;
   gap: 1rem;
 }
+
+/* GenUI / showcase — prevent grid overflow */
+.genui-code { min-width: 0; }
+.genui-preview { overflow: hidden; min-width: 0; }
 
 /* Mock status card */
 .mock-status-card {
@@ -1362,7 +1390,7 @@
   .hero-tagline { gap: 0.5rem; }
   .hero-tag { font-size: 0.75rem; padding: 0.25rem 0.75rem; }
   .hero-tag-dot { width: 0.1875rem; height: 0.1875rem; }
-  .hero-subtitle { font-size: 0.9375rem; line-height: 1.6; margin-bottom: 1.75rem; white-space: normal; }
+  .hero-subtitle { font-size: 0.9375rem; line-height: 1.6; margin-bottom: 1.75rem; }
   .hero-actions { gap: 0.5rem; margin-bottom: 1.5rem; }
   .hero-btn { padding: 0.625rem 1.25rem; font-size: 0.875rem; }
   .hero-install { flex-direction: column; gap: 0.5rem; padding: 0.75rem; width: 100%; max-width: 20rem; }

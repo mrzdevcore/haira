@@ -12,7 +12,17 @@
   <img src="https://img.shields.io/badge/examples-29-2962FF.svg" alt="29 examples">
 </p>
 
+<p align="center">
+  <a href="https://haira.dev">Website</a> &middot;
+  <a href="https://haira.dev/docs/getting-started/installation">Documentation</a> &middot;
+  <a href="https://haira.dev/docs/examples">Examples</a> &middot;
+  <a href="https://haira.dev/agentic-rendering-protocol">ARP Protocol</a> &middot;
+  <a href="https://haira.dev/generative-ui">Generative UI</a>
+</p>
+
 ---
+
+> **Note:** Haira is under heavy development and not yet production-ready. APIs and syntax may change. Use at your own risk.
 
 Haira is a compiled language designed from the ground up for building agentic applications. Providers, tools, agents, and workflows are part of the language itself — not frameworks bolted on top. Write your agent logic, compile it to a native binary, and ship it.
 
@@ -491,11 +501,17 @@ Measured on Apple Silicon (M-series). Competitor numbers from published benchmar
 
 ## Getting Started
 
-### Requirements
+For full documentation, visit **[haira.dev/docs](https://haira.dev/docs/getting-started/installation)**.
 
-- Go 1.22+
+### Quick Install
 
-### Build
+```bash
+curl -fsSL https://haira.dev/install.sh | sh
+```
+
+### Build from Source
+
+Requires Go 1.22+.
 
 ```bash
 make build
@@ -517,7 +533,7 @@ make build
 ./compiler/haira check examples/01-hello.haira
 ```
 
-### Install
+### Install Locally
 
 ```bash
 make install-local    # installs to ~/.local/bin/haira
@@ -625,6 +641,13 @@ make run-examples      # run non-agentic examples
 | 27-structured-output | Typed agent output with structs |
 | 28-observe | Observability with Langfuse |
 | 29-testing | Testing workflows |
+
+## Learn More
+
+- **[Website](https://haira.dev)** — landing page and overview
+- **[Documentation](https://haira.dev/docs/getting-started/installation)** — installation, language guide, agentic features, stdlib reference
+- **[ARP Protocol](https://haira.dev/agentic-rendering-protocol)** — transport-agnostic protocol for agent-to-renderer communication
+- **[Generative UI](https://haira.dev/generative-ui)** — agents that render rich, interactive components
 
 ## License
 

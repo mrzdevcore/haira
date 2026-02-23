@@ -32,6 +32,8 @@ export default defineConfig({
     nav: [
       { text: 'Docs', link: '/docs/getting-started/installation' },
       { text: 'Examples', link: '/docs/examples' },
+      { text: 'ARP', link: '/agentic-rendering-protocol' },
+      { text: 'Generative UI', link: '/generative-ui' },
       {
         text: 'v0.3.0',
         items: [

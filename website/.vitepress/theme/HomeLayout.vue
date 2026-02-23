@@ -25,6 +25,9 @@ const isHome = computed(() => page.value.relativePath === 'index.md')
         <section class="hero">
           <div class="hero-glow" />
           <div class="hero-content">
+            <div class="hero-disclaimer">
+              Haira is under heavy development and not yet production-ready. APIs and syntax may change.
+            </div>
             <div class="hero-badge">
               <span class="hero-badge-dot" />
               Open Source &middot; Apache 2.0
@@ -464,6 +467,7 @@ const isHome = computed(() => page.value.relativePath === 'index.md')
                   <a href="/docs/agentic/agents">Agents</a>
                   <a href="/docs/agentic/workflows">Workflows</a>
                   <a href="/docs/agentic/generative-ui">Generative UI</a>
+                  <a href="/agentic-rendering-protocol">ARP Protocol</a>
                 </div>
                 <div class="footer-col">
                   <h5>Community</h5>

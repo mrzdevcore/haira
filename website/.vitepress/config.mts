@@ -33,7 +33,7 @@ export default defineConfig({
       { text: 'Docs', link: '/docs/getting-started/installation' },
       { text: 'Examples', link: '/docs/examples' },
       {
-        text: 'v0.1',
+        text: 'v0.3.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/mrzdevcore/haira/releases' },
         ]

@@ -1,0 +1,203 @@
+{
+  "name": "haira",
+  "scopeName": "source.haira",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#decorators" },
+    { "include": "#keywords" },
+    { "include": "#agentic-keywords" },
+    { "include": "#definition-keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#function-calls" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.haira",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.haira",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.haira",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.haira",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.haira",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.haira",
+              "match": "\\\\."
+            },
+            {
+              "name": "meta.interpolation.haira",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": { "name": "punctuation.definition.interpolation.begin.haira" }
+              },
+              "endCaptures": {
+                "0": { "name": "punctuation.definition.interpolation.end.haira" }
+              },
+              "patterns": [
+                { "include": "source.haira" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.haira",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.binary.haira",
+          "match": "\\b0b[01]+\\b"
+        },
+        {
+          "name": "constant.numeric.hex.haira",
+          "match": "\\b0x[0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.haira",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "decorators": {
+      "patterns": [
+        {
+          "name": "entity.name.function.decorator.haira",
+          "match": "@[a-zA-Z_][a-zA-Z0-9_]*"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.haira",
+          "match": "\\b(if|else|for|while|return|match|in|try|catch|break|continue|defer|spawn|step|select)\\b"
+        },
+        {
+          "name": "keyword.other.haira",
+          "match": "\\b(import|export|from|pub|self)\\b"
+        }
+      ]
+    },
+    "agentic-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.haira",
+          "match": "\\b(provider|tool|agent|workflow)\\b"
+        }
+      ]
+    },
+    "definition-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.haira",
+          "match": "\\b(fn|struct|type|enum)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.haira",
+          "match": "\\b(int|float|string|bool|file|error|nil|stream)\\b"
+        },
+        {
+          "name": "entity.name.type.haira",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.haira",
+          "match": "\\b(true|false|nil)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.pipe.haira",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.arrow.haira",
+          "match": "->|=>"
+        },
+        {
+          "name": "keyword.operator.range.haira",
+          "match": "\\.\\.(=)?"
+        },
+        {
+          "name": "keyword.operator.haira",
+          "match": "(==|!=|<=|>=|<|>|&&|\\|\\||!)"
+        },
+        {
+          "name": "keyword.operator.assignment.haira",
+          "match": "(\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|<<=|>>=|=)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.haira",
+          "match": "(\\+|-|\\*|/|%)"
+        },
+        {
+          "name": "keyword.operator.bitwise.haira",
+          "match": "(&|\\||\\^|~|<<|>>)"
+        },
+        {
+          "name": "keyword.operator.error.haira",
+          "match": "\\?"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+          "captures": {
+            "1": { "name": "entity.name.function.haira" }
+          }
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.haira",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

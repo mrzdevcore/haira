@@ -1,0 +1,48 @@
+{
+  "name": "@haira/arp-vue",
+  "version": "0.1.0",
+  "description": "Vue composables and components for the Agent Rendering Protocol",
+  "type": "module",
+  "main": "./dist/arp-vue.js",
+  "module": "./dist/arp-vue.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/arp-vue.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui.js"
+    }
+  },
+  "sideEffects": false,
+  "files": ["dist"],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@haira/arp": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "^3.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.0.0",
+    "vue": "^3.5.0",
+    "typescript": "~5.7.0",
+    "vue-tsc": "^2.0.0",
+    "vitest": "^2.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haira-lang/arp"
+  },
+  "keywords": ["arp", "agent", "rendering", "protocol", "vue", "ai", "chat"]
+}

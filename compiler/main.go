@@ -440,11 +440,25 @@ func cmdLogs(args []string) error {
 }
 
 func cmdWebUI(args []string) error {
-	backend := "localhost:8080"
 	port := "3000"
 
-	backend, args = parseFlag(args, "--connect", backend)
-	backend, args = parseFlag(args, "-c", backend)
+	// Collect all --connect / -c flags into a slice
+	var backends []string
+	for {
+		var val string
+		val, args = parseFlag(args, "--connect", "")
+		if val == "" {
+			val, args = parseFlag(args, "-c", "")
+		}
+		if val == "" {
+			break
+		}
+		backends = append(backends, val)
+	}
+	if len(backends) == 0 {
+		backends = []string{"localhost:8080"}
+	}
+
 	port, args = parseFlag(args, "--port", port)
 	port, _ = parseFlag(args, "-p", port)
 
@@ -453,7 +467,7 @@ func cmdWebUI(args []string) error {
 		return fmt.Errorf("invalid port: %s", port)
 	}
 
-	return webui.Run(backend, p)
+	return webui.Run(backends, p)
 }
 
 func cmdUndeploy(args []string) error {

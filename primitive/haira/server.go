@@ -289,7 +289,7 @@ func sanitizeParams(params map[string]any) map[string]any {
 // registerProtocolRoutes sets up ARP protocol and data API routes.
 func (s *Server) registerProtocolRoutes() {
 	// ARP WebSocket endpoint
-	s.mux.HandleFunc("/_arp/v1", s.handleArpWebSocket)
+	s.mux.HandleFunc("/_arp/v1", s.arpWebSocketHandler())
 
 	// ARP capability discovery (JSON, no WebSocket required)
 	s.mux.HandleFunc("/_api/arp", func(rw http.ResponseWriter, r *http.Request) {

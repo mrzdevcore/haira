@@ -2,8 +2,8 @@
 // All components self-register via @customElement decorators.
 // Import order matters: leaf components first, then containers.
 
-// ARP protocol client (loaded before components that may use it)
-export { ArpClient, arpMessageToToolRenderEvent } from "./core/arp-client";
+// ARP protocol client (re-exported from @haira/arp)
+export { ArpClient, arpMessageToToolRenderEvent } from "@haira/arp";
 
 // Generative UI components (leaf)
 import "./components/haira-message";

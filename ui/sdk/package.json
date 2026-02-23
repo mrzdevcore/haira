@@ -5,8 +5,7 @@
   "description": "Haira UI — ARP renderer for Haira agent applications",
   "main": "dist/haira-ui.js",
   "exports": {
-    ".": "./dist/haira-ui.js",
-    "./arp-client": "./src/core/arp-client.ts"
+    ".": "./dist/haira-ui.js"
   },
   "files": [
     "dist/",

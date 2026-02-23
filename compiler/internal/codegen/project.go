@@ -126,7 +126,9 @@ func writeProject(dir, mainGo string, usedStdlibPkgs []string) error {
 		return fmt.Errorf("create dir: %w", err)
 	}
 	for name, data := range runtime.GoFilesForPackage("haira") {
-		if err := os.WriteFile(filepath.Join(hairaDir, name), data, 0o644); err != nil {
+		// Rewrite import paths from dev module to generated module (e.g., haira-go-runtime/arp → haira-generated/arp)
+		content := strings.ReplaceAll(string(data), "haira-go-runtime/", "haira-generated/")
+		if err := os.WriteFile(filepath.Join(hairaDir, name), []byte(content), 0o644); err != nil {
 			return fmt.Errorf("write runtime %s: %w", name, err)
 		}
 	}
@@ -139,6 +141,17 @@ func writeProject(dir, mainGo string, usedStdlibPkgs []string) error {
 		}
 		if err := os.WriteFile(fullPath, data, 0o644); err != nil {
 			return fmt.Errorf("write ui %s: %w", relPath, err)
+		}
+	}
+
+	// Write arp/ package (always included — haira/arp.go depends on it)
+	arpDir := filepath.Join(dir, "arp")
+	if err := os.MkdirAll(arpDir, 0o755); err != nil {
+		return fmt.Errorf("create arp dir: %w", err)
+	}
+	for name, data := range runtime.GoFilesForPackage("arp") {
+		if err := os.WriteFile(filepath.Join(arpDir, name), data, 0o644); err != nil {
+			return fmt.Errorf("write arp/%s: %w", name, err)
 		}
 	}
 

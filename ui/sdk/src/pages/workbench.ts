@@ -70,6 +70,8 @@ export class PageWorkbench extends LitElement {
         logo: wf.logo || this.meta.logo,
         theme: wf.theme || this.meta.theme,
         avatar: wf.avatar || this.meta.avatar,
+        arpUrl: wf.arpUrl,
+        backend: wf.backend,
       };
     }
 

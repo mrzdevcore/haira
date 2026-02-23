@@ -1,0 +1,16 @@
+{
+  "name": "@haira/arp-monorepo",
+  "private": true,
+  "packageManager": "bun@1.3.3",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  }
+}

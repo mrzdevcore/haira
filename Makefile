@@ -1,4 +1,4 @@
-.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev bundle-runtime spec help
+.PHONY: build test clean install install-local install-system uninstall run fmt check-examples build-examples run-examples tree-sitter-generate tree-sitter-wasm zed-sync-wasm vscode-build vscode-package ui ui-dev bundle-runtime spec help arp arp-clean publish
 
 COMPILER_DIR = compiler
 BINARY = $(COMPILER_DIR)/haira
@@ -41,6 +41,7 @@ bundle-runtime: ui
 	@if [ -f $(UI_APP_DIR)/observe.html ]; then cp $(UI_APP_DIR)/observe.html .bundle-tmp/haira/ui/observe.html; fi
 	@cp $(UI_APP_DIR)/loader.html .bundle-tmp/cli/loader.html
 	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/cli/haira-ui.js
+	@mkdir -p .bundle-tmp/arp && cp arp/go/arp/*.go .bundle-tmp/arp/
 	@for pkg in $(STDLIB_PKGS); do \
 		if [ -d $(STDLIB_DIR)/$$pkg ]; then \
 			mkdir -p .bundle-tmp/$$pkg && \
@@ -183,6 +184,71 @@ dev: fmt vet test
 # CI pipeline: vet, test, build all examples
 ci: vet test build-examples
 
+# ---------------------------------------------------------------------------
+# Publish: production-quality build pipeline
+# ---------------------------------------------------------------------------
+# Usage:
+#   make publish VERSION=v0.5.0          — tagged release build
+#   make publish                         — uses git tag or "dev"
+#
+# Pipeline: vet → test → bundle-runtime → build (stripped, static) → verify → summary
+
+PUBLISH_LDFLAGS = -ldflags "-s -w -X main.version=$(PUBLISH_VERSION)"
+
+publish:
+	@# --- Resolve version ---
+	$(eval PUBLISH_VERSION := $(or $(VERSION),$(shell git describe --tags --exact-match 2>/dev/null),dev))
+	@if [ "$(PUBLISH_VERSION)" = "dev" ]; then \
+		echo "⚠  No VERSION set and no git tag on HEAD — building as 'dev'"; \
+		echo "   Hint: make publish VERSION=v0.5.0"; \
+		echo ""; \
+	fi
+	@echo "=== Haira publish pipeline ($(PUBLISH_VERSION)) ==="
+	@echo ""
+	@# --- Step 1: vet ---
+	@echo "[1/5] Vet..."
+	@cd $(COMPILER_DIR) && go vet ./...
+	@echo "      OK"
+	@echo ""
+	@# --- Step 2: test ---
+	@echo "[2/5] Test..."
+	@cd $(COMPILER_DIR) && go test ./...
+	@echo "      OK"
+	@echo ""
+	@# --- Step 3: bundle runtime ---
+	@echo "[3/5] Bundle runtime..."
+	@$(MAKE) --no-print-directory bundle-runtime
+	@echo ""
+	@# --- Step 4: build (production) ---
+	@echo "[4/5] Build (CGO_ENABLED=0, stripped)..."
+	@cd $(COMPILER_DIR) && CGO_ENABLED=0 go build $(PUBLISH_LDFLAGS) -o haira .
+	@echo "      OK"
+	@echo ""
+	@# --- Step 5: verify ---
+	@echo "[5/5] Verify..."
+	@./$(BINARY) version 2>/dev/null || ./$(BINARY) --version 2>/dev/null || echo "      (version flag not available, checking binary exists)"
+	@test -f $(BINARY) || { echo "ERROR: binary not found at $(BINARY)"; exit 1; }
+	@echo "      OK"
+	@echo ""
+	@# --- Summary ---
+	@echo "=== Publish complete ==="
+	@echo "  Version:  $(PUBLISH_VERSION)"
+	@echo "  Binary:   $(BINARY)"
+	@echo "  Size:     $$(du -h $(BINARY) | cut -f1)"
+	@echo "  Bundle:   $(BUNDLE) ($$(du -h $(BUNDLE) | cut -f1))"
+	@echo "  Platform: $$(go env GOOS)/$$(go env GOARCH)"
+
+# Build ARP monorepo (TypeScript packages + Go server lib)
+arp:
+	cd arp && bun install && bun run build
+	cd arp/go/arp && go vet ./...
+	@echo "ARP packages built successfully"
+
+# Clean ARP build artifacts
+arp-clean:
+	rm -rf arp/packages/*/dist arp/node_modules arp/.turbo arp/packages/*/.turbo
+	@echo "ARP build artifacts cleaned"
+
 # Help
 help:
 	@echo "Haira Makefile targets:"
@@ -211,5 +277,9 @@ help:
 	@echo "  bundle-runtime   Bundle primitive + stdlib + loader into tar.gz for embedding"
 	@echo "  ui               Build UI SDK bundle (for npm publishing)"
 	@echo "  spec             Build the language specification PDF"
+	@echo "  arp              Build ARP monorepo (@haira/arp, arp-react, arp-vue, arp-go)"
+	@echo "  arp-clean        Clean ARP build artifacts"
+	@echo "  publish          Production build: vet, test, bundle, build (stripped), verify"
+	@echo "                   Use VERSION=v0.5.0 to set version (default: git tag or dev)"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

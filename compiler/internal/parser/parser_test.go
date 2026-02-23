@@ -83,9 +83,9 @@ func TestAllExamplesParse(t *testing.T) {
 
 func TestHelloItemCount(t *testing.T) {
 	sf := parseFile(t, "01-hello.haira")
-	// import "io" + fn main() = 2 items
-	if len(sf.Items) != 2 {
-		t.Errorf("01-hello: expected 2 items, got %d", len(sf.Items))
+	// import "io" + d = 10 + fn main() = 3 items
+	if len(sf.Items) != 3 {
+		t.Errorf("01-hello: expected 3 items, got %d", len(sf.Items))
 	}
 }
 
@@ -122,8 +122,11 @@ func TestHelloItemTypes(t *testing.T) {
 	if _, ok := sf.Items[0].Node.(ast.ImportDecl); !ok {
 		t.Error("item 0 should be ImportDecl")
 	}
-	if fn, ok := sf.Items[1].Node.(ast.FunctionDef); !ok {
-		t.Error("item 1 should be FunctionDef")
+	if _, ok := sf.Items[1].Node.(ast.ItemStatement); !ok {
+		t.Error("item 1 should be ItemStatement (top-level assignment)")
+	}
+	if fn, ok := sf.Items[2].Node.(ast.FunctionDef); !ok {
+		t.Error("item 2 should be FunctionDef")
 	} else if fn.Name.Node != "main" {
 		t.Errorf("expected function name 'main', got %q", fn.Name.Node)
 	}

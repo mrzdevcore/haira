@@ -12,7 +12,10 @@
     "useDefineForClassFields": false,
     "declaration": false,
     "experimentalDecorators": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "paths": {
+      "@haira/arp": ["../../arp/packages/arp/src/index.ts"]
+    }
   },
   "include": ["src"]
 }

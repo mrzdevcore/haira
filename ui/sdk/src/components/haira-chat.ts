@@ -5,7 +5,7 @@ import { baseStyles, scrollbarStyles } from "../core/styles";
 import { iconStrings, logoSvgStr } from "../core/icons";
 import { formatBytes } from "../core/utils";
 import { streamSSE } from "../services/sse-client";
-import { ArpClient } from "../core/arp-client";
+import { ArpClient } from "@haira/arp";
 import type {
   WorkflowMeta,
   ToolRenderEvent,
@@ -779,14 +779,20 @@ export class HairaChat extends LitElement {
   /** Attempt to connect via ARP WebSocket. Falls back to SSE silently. */
   private _connectArp() {
     try {
-      this._arpClient = new ArpClient(this._sessionId, {
-        onDelta: (text) => this._handleDelta(text),
-        onToolStart: (tool) => this._handleToolStart(tool),
-        onToolEnd: (tool, ok) => this._handleToolEnd(tool, ok),
-        onRender: (event) => this._handleToolRender(event),
-        onError: (error) => this._handleError(error),
-        onDone: () => this._handleDone(),
-      });
+      const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+      const wsPath = this.meta.arpUrl ?? "/_arp/v1";
+      const wsUrl = `${wsProto}//${location.host}${wsPath}`;
+      this._arpClient = new ArpClient(
+        { url: wsUrl, sessionId: this._sessionId },
+        {
+          onDelta: (text) => this._handleDelta(text),
+          onToolStart: (tool) => this._handleToolStart(tool),
+          onToolEnd: (tool, ok) => this._handleToolEnd(tool, ok),
+          onRender: (event) => this._handleToolRender(event),
+          onError: (error) => this._handleError(error),
+          onDone: () => this._handleDone(),
+        },
+      );
       this._arpClient.connect();
     } catch {
       this._arpClient = null;
@@ -1158,8 +1164,7 @@ export class HairaChat extends LitElement {
         onError: (error) => this._handleError(error),
         onDone: () => this._handleDone(),
       },
-      formData,
-      this._streamAbort?.signal
+      { formData, signal: this._streamAbort?.signal },
     );
   }
 

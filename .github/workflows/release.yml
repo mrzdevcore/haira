@@ -77,7 +77,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY="haira.exe"
           fi
-          cd compiler && go build -ldflags "-X main.version=${VERSION}" -o "${BINARY}" .
+          cd compiler && go build -ldflags "-s -w -X main.version=${VERSION}" -o "${BINARY}" .
 
       - name: Package
         run: |

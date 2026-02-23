@@ -1,8 +1,9 @@
 /**
- * ARP WebSocket Client — Agentic Rendering Protocol (Minimal Mode)
+ * ARP WebSocket Client — Agent Rendering Protocol (Minimal Mode)
  *
- * Manages a WebSocket connection to the Haira ARP endpoint (/_arp/v1).
- * Handles capability negotiation, message dispatch, and auto-reconnect.
+ * Pure protocol client with zero DOM dependencies. Manages a WebSocket
+ * connection to an ARP endpoint, handles capability negotiation,
+ * message dispatch, and auto-reconnect.
  */
 
 import type {
@@ -15,6 +16,17 @@ import type {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export interface ArpClientOptions {
+  /** WebSocket URL (e.g., "ws://localhost:8080/_arp/v1"). Required. */
+  url: string;
+  /** Session ID for the connection. */
+  sessionId: string;
+  /** Max reconnect attempts (default: 5). */
+  maxReconnectAttempts?: number;
+  /** Custom WebSocket constructor (for Node.js or testing). */
+  WebSocket?: new (url: string) => WebSocket;
+}
 
 export interface ArpClientCallbacks {
   onConnect?: (caps: ArpCapabilities) => void;
@@ -38,42 +50,36 @@ export class ArpClient {
   private sessionId: string;
   private url: string;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts: number;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private WSConstructor: new (url: string) => WebSocket;
 
-  constructor(
-    sessionId: string,
-    callbacks: ArpClientCallbacks,
-    url?: string,
-  ) {
-    this.sessionId = sessionId;
+  constructor(options: ArpClientOptions, callbacks: ArpClientCallbacks) {
+    this.url = options.url;
+    this.sessionId = options.sessionId;
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
     this.callbacks = callbacks;
-
-    // Derive WebSocket URL from current page location
-    if (url) {
-      this.url = url;
-    } else {
-      const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      this.url = `${proto}//${location.host}/_arp/v1`;
-    }
+    this.WSConstructor = options.WebSocket ?? globalThis.WebSocket;
   }
 
   /** Connect to the ARP WebSocket endpoint. */
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
-    this.ws = new WebSocket(this.url);
+    this.ws = new this.WSConstructor(this.url);
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = (event: MessageEvent) => {
       try {
-        const msg = JSON.parse(event.data);
+        const msg = JSON.parse(
+          typeof event.data === "string" ? event.data : "",
+        );
         this.handleMessage(msg);
-      } catch (err) {
-        console.warn("[ARP] Failed to parse message:", err);
+      } catch {
+        // Ignore malformed messages
       }
     };
 
@@ -94,7 +100,7 @@ export class ArpClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.maxReconnectAttempts = 0; // Prevent reconnect
+    this.maxReconnectAttempts = 0;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -149,6 +155,11 @@ export class ArpClient {
     return this.caps;
   }
 
+  /** Update the session ID without reconnecting. */
+  setSessionId(id: string): void {
+    this.sessionId = id;
+  }
+
   // ---------------------------------------------------------------------------
   // Internal
   // ---------------------------------------------------------------------------
@@ -186,9 +197,8 @@ export class ArpClient {
 
       case "render": {
         const arpMsg = msg as ArpMessage;
-        // Support components at top level or nested in payload
-        const components = arpMsg.components ??
-          (arpMsg.payload as any)?.components;
+        const components =
+          arpMsg.components ?? (arpMsg.payload as any)?.components;
         if (components?.length) {
           const comp = components[0];
           const event: ToolRenderEvent = {
@@ -197,8 +207,6 @@ export class ArpClient {
             props: comp.props,
           };
           this.callbacks.onRender?.(event);
-        } else {
-          console.warn("[ARP] Render message with no components:", msg);
         }
         break;
       }
@@ -221,8 +229,10 @@ export class ArpClient {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
     this.reconnectAttempts++;
 
-    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
+    const delay = Math.min(
+      1000 * Math.pow(2, this.reconnectAttempts - 1),
+      16000,
+    );
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
@@ -231,13 +241,12 @@ export class ArpClient {
 }
 
 // ---------------------------------------------------------------------------
-// Adapter: ArpMessage → ToolRenderEvent
+// Utilities
 // ---------------------------------------------------------------------------
 
 /**
- * Converts an ARP render message to the existing ToolRenderEvent interface
- * used by the UI renderer. This allows the existing rendering pipeline
- * (haira-ui-renderer.ts) to work unchanged with ARP messages.
+ * Converts an ARP render message to a ToolRenderEvent.
+ * Returns null if the message is not a render event.
  */
 export function arpMessageToToolRenderEvent(
   msg: ArpMessage,

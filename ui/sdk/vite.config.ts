@@ -1,6 +1,12 @@
 import { defineConfig } from "vite";
+import path from "path";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@haira/arp": path.resolve(__dirname, "../../arp/packages/arp/src/index.ts"),
+    },
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

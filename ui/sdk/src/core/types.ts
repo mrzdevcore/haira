@@ -1,6 +1,48 @@
-// Strict prop interfaces for all UI components.
+// Haira Console types.
+// ARP protocol types and component props are re-exported from @haira/arp.
+// Haira-specific types (workflow, run, observe) are defined here.
 
-// --- Workflow metadata (from Go server) ---
+// --- Re-exports from @haira/arp ---
+
+export type {
+  ArpMessage,
+  ArpComponent,
+  ArpPatchOp,
+  ArpHello,
+  ArpCapabilities,
+  ToolRenderEvent,
+  StatusCardProps,
+  TableProps,
+  TabData,
+  CodeBlockProps,
+  CodeTabData,
+  DiffProps,
+  KeyValueProps,
+  ProgressProps,
+  ConfirmProps,
+  ChoicesProps,
+  FormViewProps,
+  ChartDataset,
+  ChartProps,
+  ProductCardItem,
+  ProductCardsProps,
+  StepLogEntry,
+  StepEvent,
+} from "@haira/arp";
+
+// Chat session types: @haira/arp uses different names, alias them here
+// for backward compatibility with Haira console code.
+import type {
+  ChatSession as _ChatSession,
+  ChatSessionDetail as _ChatSessionDetail,
+  ChatMessage as _ChatMessage,
+} from "@haira/arp";
+
+export type ChatSessionSummary = _ChatSession;
+export type ChatSessionDetail = _ChatSessionDetail;
+export type ChatMessageEntry = _ChatMessage;
+
+// --- Haira-specific types (not part of ARP protocol) ---
 
 export interface WorkflowParam {
   Name: string;
@@ -25,6 +67,8 @@ export interface WorkflowMeta {
   logo?: string;
   theme?: string;
   avatar?: string;
+  arpUrl?: string;
+  backend?: string;
   workflows?: WorkflowListItem[];
   deployments?: DeploymentItem[];
 }
@@ -56,23 +100,8 @@ export interface WorkflowListItem {
   logo?: string;
   theme?: string;
   avatar?: string;
-}
-
-// --- Step / Pipeline events ---
-
-export interface StepLogEntry {
-  level: "info" | "warn" | "error";
-  message: string;
-}
-
-export interface StepEvent {
-  name: string;
-  status: "start" | "end" | "failed" | "retry" | "log";
-  duration_ms?: number;
-  error?: string;
-  attempt?: number;
-  delay_ms?: number;
-  log?: StepLogEntry;
+  arpUrl?: string;
+  backend?: string;
 }
 
 export type StepStatus =
@@ -108,194 +137,6 @@ export interface RunDetail {
   finished_at?: string;
 }
 
-// --- Chat sessions ---
-
-export interface ChatSessionSummary {
-  id: string;
-  workflow_name: string;
-  workflow_path: string;
-  title: string;
-  owner?: string;
-  created_at: string;
-  updated_at: string;
-  message_count: number;
-}
-
-export interface ChatSessionDetail extends ChatSessionSummary {
-  messages: ChatMessageEntry[];
-}
-
-export interface ChatMessageEntry {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-  ui_events?: ToolRenderEvent[];
-}
-
-// --- Generative UI ---
-
-export interface ToolRenderEvent {
-  tool: string;
-  component: string;
-  props: Record<string, unknown>;
-}
-
-// --- Component prop interfaces ---
-
-export interface StatusCardProps {
-  status: "success" | "error" | "warning" | "info";
-  title: string;
-  message?: string;
-  sections?: Array<{ label: string; content: string; style?: string }>;
-  _restored?: boolean;
-}
-
-export interface TableProps {
-  title?: string;
-  headers: string[];
-  rows: string[][];
-  tabs?: TabData[];
-  highlight?: number[];
-}
-
-export interface TabData {
-  name: string;
-  headers: string[];
-  rows: string[][];
-  highlight?: number[];
-}
-
-export interface CodeBlockProps {
-  title?: string;
-  language?: string;
-  code?: string;
-  tabs?: CodeTabData[];
-}
-
-export interface CodeTabData {
-  name: string;
-  language?: string;
-  code: string;
-}
-
-export interface DiffProps {
-  title?: string;
-  before_label?: string;
-  after_label?: string;
-  before: string;
-  after: string;
-  language?: string;
-}
-
-export interface KeyValueProps {
-  title?: string;
-  items: Array<{ key: string; value: string; style?: string }>;
-}
-
-export interface ProgressProps {
-  title?: string;
-  steps: Array<{ name: string; status: string; detail?: string }>;
-}
-
-export interface ConfirmProps {
-  title: string;
-  message?: string;
-  confirm_label?: string;
-  deny_label?: string;
-  _restored?: boolean;
-}
-
-export interface ChoicesProps {
-  title: string;
-  options: string[];
-  style?: "buttons" | "list";
-  _restored?: boolean;
-}
-
-export interface FormViewProps {
-  title?: string;
-  fields: Array<{
-    name: string;
-    label?: string;
-    field_type?: string;
-    value?: string;
-    required?: boolean;
-    options?: string[];
-  }>;
-  submit_label?: string;
-  submit_action?: string;
-}
-
-export interface ChartDataset {
-  label: string;
-  data: number[];
-  color?: string;
-}
-
-export interface ChartProps {
-  type: "line" | "bar" | "pie" | "scatter" | "area";
-  title?: string;
-  labels: string[];
-  datasets: ChartDataset[];
-  height?: number;
-}
-
-export interface ProductCardItem {
-  name: string;
-  price: string;
-  image?: string;
-  brand?: string;
-  description?: string;
-  badge?: string;
-  url?: string;
-}
-
-export interface ProductCardsProps {
-  title?: string;
-  cards: ProductCardItem[];
-}
-
-// --- ARP Protocol Types (Minimal Mode) ---
-
-export interface ArpMessage {
-  v: number;
-  type: string;
-  session_id?: string;
-  payload?: Record<string, unknown>;
-  components?: ArpComponent[];
-  ops?: ArpPatchOp[];
-  final?: boolean;
-  tool_name?: string;
-}
-
-export interface ArpComponent {
-  id: string;
-  type: string;
-  version?: number;
-  props: Record<string, unknown>;
-  fallback?: ArpComponent;
-}
-
-export interface ArpPatchOp {
-  op: "update" | "insert" | "remove" | "replace" | "reorder";
-  target?: string;
-  path?: string;
-  value?: unknown;
-  after?: string;
-  component?: ArpComponent;
-}
-
-export interface ArpHello {
-  v: number;
-  type: "hello";
-  capabilities: ArpCapabilities;
-}
-
-export interface ArpCapabilities {
-  components: string[];
-  features: string[];
-}
-
 // --- Observe types ---
 
 export interface ObserveUsage {
@@ -313,14 +154,12 @@ export interface ObserveEvent {
   timestamp: string;
   agent: string;
   session_id?: string;
-  // generation fields
   model?: string;
   input_tokens?: number;
   output_tokens?: number;
   latency_ms?: number;
   cost_usd?: number;
   tool_call_count?: number;
-  // tool fields
   tool_name?: string;
   success?: boolean;
   duration_ms?: number;

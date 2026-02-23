@@ -382,8 +382,7 @@ export class HairaForm extends LitElement {
               this._abortController = null;
             },
           },
-          hasFileData ? formData : undefined,
-          controller.signal
+          { formData: hasFileData ? formData : undefined, signal: controller.signal },
         );
       } catch (err) {
         if (!controller.signal.aborted) {

@@ -30,6 +30,8 @@ jobs:
 
       - name: Build docs
         run: cd website && bun run build
+        env:
+          UMAMI_WEBSITE_ID: ${{ secrets.UMAMI_WEBSITE_ID }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

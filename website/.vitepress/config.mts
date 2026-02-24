@@ -108,7 +108,9 @@ export default defineConfig({
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
     ['link', { href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap', rel: 'stylesheet' }],
     // Umami Analytics (website ID injected from UMAMI_WEBSITE_ID env var at build time)
-    ...(process.env.UMAMI_WEBSITE_ID ? [['script', { defer: '', src: 'https://analytics.vzerolab.com/script.js', 'data-website-id': process.env.UMAMI_WEBSITE_ID }] as const] : []),
+    ...(process.env.UMAMI_WEBSITE_ID
+      ? [['script', { defer: '', src: 'https://analytics.vzerolab.com/script.js', 'data-website-id': process.env.UMAMI_WEBSITE_ID }] as ['script', Record<string, string>]]
+      : []),
     ['script', { type: 'application/ld+json' }, JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'SoftwareSourceCode',

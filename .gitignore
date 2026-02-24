@@ -19,6 +19,9 @@ Thumbs.db
 # Compiled Haira output
 .output/
 
+# VitePress build output
+docs/
+
 # UI build output
 ui/sdk/dist/
 

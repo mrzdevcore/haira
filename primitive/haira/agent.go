@@ -45,31 +45,81 @@ type Agent struct {
 const handoffToolPrefix = "transfer_to_"
 const maxHandoffDepth = 5
 
-// CreateOpenAIClient creates an openai.Client from a Provider config.
-// Supports Azure OpenAI, OpenAI-compatible endpoints, and standard OpenAI.
-func CreateOpenAIClient(provider *Provider) *openai.Client {
-	// Resolve Host → Endpoint for local backends (e.g. Ollama, llama.cpp)
-	endpoint := provider.Endpoint
-	if endpoint == "" && provider.Host != "" {
-		endpoint = "http://" + provider.Host + "/v1"
-	}
+// knownBackends maps backend identifiers to their OpenAI-compatible base URLs.
+var knownBackends = map[string]string{
+	"openai":     "https://api.openai.com/v1",
+	"groq":       "https://api.groq.com/openai/v1",
+	"together":   "https://api.together.xyz/v1",
+	"mistral":    "https://api.mistral.ai/v1",
+	"deepseek":   "https://api.deepseek.com",
+	"fireworks":  "https://api.fireworks.ai/inference/v1",
+	"openrouter": "https://openrouter.ai/api/v1",
+	"xai":        "https://api.x.ai/v1",
+	"cerebras":   "https://api.cerebras.ai/v1",
+}
 
-	if endpoint != "" && provider.ApiVersion != "" {
-		// Azure OpenAI
+// resolveEndpoint determines the API base URL from provider configuration.
+// Priority: explicit endpoint > backend resolution > host resolution > empty (standard OpenAI).
+func resolveEndpoint(p *Provider) string {
+	// 1. Explicit endpoint always wins
+	if p.Endpoint != "" {
+		return p.Endpoint
+	}
+	// 2. Backend-specific resolution
+	switch p.Backend {
+	case "cloudflare":
+		if p.AccountID != "" {
+			return fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/ai/v1", p.AccountID)
+		}
+	case "ollama":
+		host := p.Host
+		if host == "" {
+			host = "localhost:11434"
+		}
+		return "http://" + host + "/v1"
+	case "azure", "":
+		// Azure uses its own config path; empty backend falls through to legacy logic
+	default:
+		if url, ok := knownBackends[p.Backend]; ok {
+			return url
+		}
+	}
+	// 3. Legacy host resolution (backward compatibility)
+	if p.Host != "" {
+		return "http://" + p.Host + "/v1"
+	}
+	return ""
+}
+
+// CreateOpenAIClient creates an openai.Client from a Provider config.
+// Supports Azure OpenAI, Cloudflare Workers AI, and any OpenAI-compatible backend.
+func CreateOpenAIClient(provider *Provider) *openai.Client {
+	endpoint := resolveEndpoint(provider)
+
+	// Azure OpenAI: needs endpoint + api_version (via backend field or legacy detection)
+	isAzure := provider.Backend == "azure" || (endpoint != "" && provider.ApiVersion != "")
+	if isAzure && endpoint != "" && provider.ApiVersion != "" {
 		fmt.Fprintf(os.Stderr, "[haira] Using Azure OpenAI: endpoint=%s model=%s api_version=%s\n",
 			endpoint, provider.Model, provider.ApiVersion)
 		azCfg := openai.DefaultAzureConfig(provider.ApiKey, endpoint)
 		azCfg.APIVersion = provider.ApiVersion
 		return openai.NewClientWithConfig(azCfg)
-	} else if endpoint != "" {
-		// OpenAI-compatible endpoint (Ollama, Groq, Mistral, llama.cpp, etc.)
-		fmt.Fprintf(os.Stderr, "[haira] Using OpenAI-compatible: endpoint=%s model=%s\n",
-			endpoint, provider.Model)
+	}
+
+	// OpenAI-compatible endpoint (resolved from backend or explicitly set)
+	if endpoint != "" {
+		label := provider.Backend
+		if label == "" {
+			label = "OpenAI-compatible"
+		}
+		fmt.Fprintf(os.Stderr, "[haira] Using %s: endpoint=%s model=%s\n",
+			label, endpoint, provider.Model)
 		cfg := openai.DefaultConfig(provider.ApiKey)
 		cfg.BaseURL = endpoint
 		return openai.NewClientWithConfig(cfg)
 	}
-	// Standard OpenAI
+
+	// Standard OpenAI (no endpoint, no backend)
 	return openai.NewClient(provider.ApiKey)
 }
 

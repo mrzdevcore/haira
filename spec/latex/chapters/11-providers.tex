@@ -26,15 +26,57 @@ provider openai {
 }
 \end{lstlisting}
 
-\subsection{Local Providers}
+\subsection{Backend Resolution}
+
+The \code{backend} field selects a known provider and automatically resolves the API endpoint. This eliminates the need to manually construct endpoint URLs:
 
 \begin{lstlisting}
+// Backend auto-resolves the endpoint
+provider fast {
+    backend: "groq"
+    api_key: env("GROQ_API_KEY")
+    model: "llama-3.1-70b"
+}
+
+// Cloudflare Workers AI (needs account_id)
+provider cf {
+    backend: "cloudflare"
+    api_key: env("CF_API_TOKEN")
+    account_id: env("CF_ACCOUNT_ID")
+    model: "@cf/meta/llama-3.1-70b-instruct"
+}
+
+// Local Ollama (defaults to localhost:11434)
 provider local {
     backend: "ollama"
-    host: "localhost:11434"
     model: "llama3:8b"
 }
 \end{lstlisting}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Backend} & \textbf{Auto-Resolved Endpoint} \\
+\midrule
+\code{"openai"} & \code{https://api.openai.com/v1} \\
+\code{"azure"} & User-provided \code{endpoint} \\
+\code{"cloudflare"} & \code{https://api.cloudflare.com/.../\{account\_id\}/ai/v1} \\
+\code{"ollama"} & \code{http://\{host\}/v1} (default \code{localhost:11434}) \\
+\code{"groq"} & \code{https://api.groq.com/openai/v1} \\
+\code{"together"} & \code{https://api.together.xyz/v1} \\
+\code{"mistral"} & \code{https://api.mistral.ai/v1} \\
+\code{"deepseek"} & \code{https://api.deepseek.com} \\
+\code{"fireworks"} & \code{https://api.fireworks.ai/inference/v1} \\
+\code{"openrouter"} & \code{https://openrouter.ai/api/v1} \\
+\code{"xai"} & \code{https://api.x.ai/v1} \\
+\code{"cerebras"} & \code{https://api.cerebras.ai/v1} \\
+\bottomrule
+\end{tabular}
+\caption{Known backends and auto-resolved endpoints}
+\end{table}
+
+The \code{endpoint} field always overrides auto-resolution when explicitly set.
 
 \section{Provider Fields}
 
@@ -46,10 +88,15 @@ provider local {
 \midrule
 \code{model} & \type{string} & Yes & Default model identifier \\
 \code{api\_key} & \type{string} & No & API authentication key \\
-\code{backend} & \type{string} & No & Backend type (\code{"ollama"}, \code{"llama.cpp"}) \\
-\code{host} & \type{string} & No & Backend host address \\
+\code{backend} & \type{string} & No & Backend identifier (auto-resolves endpoint) \\
+\code{endpoint} & \type{string} & No & Explicit API endpoint (overrides backend) \\
+\code{host} & \type{string} & No & Backend host address (local providers) \\
+\code{account\_id} & \type{string} & No & Account identifier (Cloudflare, etc.) \\
+\code{api\_version} & \type{string} & No & API version (Azure OpenAI) \\
 \code{temperature} & \type{float} & No & Default temperature (0.0--2.0) \\
 \code{max\_tokens} & \type{int} & No & Default max tokens per response \\
+\code{input\_token\_cost} & \type{float} & No & USD per 1M input tokens \\
+\code{output\_token\_cost} & \type{float} & No & USD per 1M output tokens \\
 \bottomrule
 \end{tabular}
 \caption{Provider fields}

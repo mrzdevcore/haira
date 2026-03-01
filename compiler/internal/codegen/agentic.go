@@ -32,6 +32,8 @@ func EmitProvider(em *GoEmitter, provider ast.ProviderDecl) {
 			em.Line(fmt.Sprintf("Backend: %s,", ExprToGo(field.Value)))
 		case "host":
 			em.Line(fmt.Sprintf("Host: %s,", ExprToGo(field.Value)))
+		case "account_id":
+			em.Line(fmt.Sprintf("AccountID: %s,", ExprToGo(field.Value)))
 		case "temperature":
 			em.Line(fmt.Sprintf("Temperature: %s,", ExprToGo(field.Value)))
 		case "max_tokens":

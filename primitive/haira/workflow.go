@@ -12,8 +12,8 @@ import (
 
 // WorkflowParam describes a workflow parameter for UI generation.
 type WorkflowParam struct {
-	Name string
-	Type string // "string", "int", "float", "bool", "file"
+	Name string `json:"name"`
+	Type string `json:"type"` // "string", "int", "float", "bool", "file"
 }
 
 // WorkflowDef defines a workflow that can be exposed as an HTTP endpoint or MCP tool.

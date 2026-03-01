@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { baseStyles, scrollbarStyles } from "../core/styles";
+import { baseStyles, scrollbarStyles, themeVars } from "../core/styles";
 import { iconStrings, logoSvgStr } from "../core/icons";
 import { applyTheme } from "../services/theme-manager";
 import type { WorkflowMeta } from "../core/types";
@@ -15,6 +15,7 @@ export class HairaApp extends LitElement {
     scrollbarStyles,
     css`
       :host {
+        ${themeVars}
         display: block;
         height: 100vh;
         overflow: hidden;
@@ -212,9 +213,12 @@ export class HairaApp extends LitElement {
         document.title = name ? `${name} — Haira` : "Haira Console";
       }
 
+      // localStorage overrides take priority over server metadata
+      const savedTheme = localStorage.getItem("haira-ui-theme");
+      const savedAccent = localStorage.getItem("haira-ui-accent");
       applyTheme(this, {
-        theme: this.meta.theme,
-        accent: this.meta.accent,
+        theme: savedTheme || this.meta.theme,
+        accent: savedAccent || this.meta.accent,
       });
     }
 

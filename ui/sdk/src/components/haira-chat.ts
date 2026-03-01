@@ -322,7 +322,7 @@ export class HairaChat extends LitElement {
         display: none;
         position: absolute;
         inset: 0;
-        background: rgba(9, 9, 11, 0.85);
+        background: color-mix(in srgb, var(--haira-bg) 90%, transparent);
         z-index: 200;
         align-items: center;
         justify-content: center;

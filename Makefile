@@ -30,8 +30,9 @@ STDLIB_PKGS = postgres excel vector slack github gitlab sqlite langfuse algolia 
 
 # Bundle the runtime into a tar.gz for embedding in the compiler
 # Core haira/ package is always included; stdlib packages are separate
-# The UI SDK JS is included under cli/ (used by `haira webui`, NOT by compiled programs).
-# Compiled .haira programs only get the micro-loader HTML template.
+# UI assets are included in BOTH haira/ui/ (embedded in compiled programs) and cli/ (haira webui).
+# Compiled programs serve the full UI by default. Disable with HAIRA_NO_UI=1.
+# Standalone `haira webui` connects externally to any running Haira backend.
 bundle-runtime: ui
 	@echo "Bundling runtime..."
 	@rm -rf .bundle-tmp
@@ -39,6 +40,8 @@ bundle-runtime: ui
 	@mkdir -p .bundle-tmp/cli
 	@cp $(PRIMITIVE_DIR)/haira/*.go .bundle-tmp/haira/
 	@if [ -f $(UI_APP_DIR)/observe.html ]; then cp $(UI_APP_DIR)/observe.html .bundle-tmp/haira/ui/observe.html; fi
+	@cp $(UI_APP_DIR)/loader.html .bundle-tmp/haira/ui/loader.html
+	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/haira/ui/haira-ui.js
 	@cp $(UI_APP_DIR)/loader.html .bundle-tmp/cli/loader.html
 	@cp $(UI_SDK_DIST)/haira-ui.js .bundle-tmp/cli/haira-ui.js
 	@mkdir -p .bundle-tmp/arp && cp arp/go/arp/*.go .bundle-tmp/arp/

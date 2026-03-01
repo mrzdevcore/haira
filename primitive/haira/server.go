@@ -31,6 +31,9 @@ func NewServer(workflows []*WorkflowDef) *Server {
 	// Register ARP protocol + API routes
 	s.registerProtocolRoutes()
 
+	// Register embedded web UI (disable with HAIRA_NO_UI=1)
+	s.registerUIRoutes()
+
 	// Cleanup stale session upload directories in the background
 	StartSessionCleanup(1*time.Hour, 24*time.Hour)
 

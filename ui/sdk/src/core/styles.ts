@@ -28,7 +28,7 @@ export const themeVars = css`
     monospace;
 `;
 
-// Light theme overrides
+// Light theme overrides — must cover ALL color variables from themeVars
 export const lightThemeVarsStr = `
   --haira-bg: #ffffff;
   --haira-bg-card: #f7f7f8;
@@ -38,9 +38,26 @@ export const lightThemeVarsStr = `
   --haira-border: rgba(0, 0, 0, 0.1);
   --haira-border-light: rgba(0, 0, 0, 0.06);
   --haira-border-focus: rgba(0, 0, 0, 0.25);
+  --haira-glow: #b8860b;
   --haira-text: #1a1a1a;
   --haira-text-dim: #4a4a4a;
-  --haira-muted: #8a8a8a;
+  --haira-muted: #6b6b6b;
+`;
+
+// Dark theme values as a string — used to restore dark theme from light
+export const darkThemeVarsStr = `
+  --haira-bg: #09090b;
+  --haira-bg-card: #0f0f12;
+  --haira-bg-card-hover: #18181b;
+  --haira-bg-elevated: #1c1c20;
+  --haira-bg-input: #0c0c0f;
+  --haira-border: rgba(63, 63, 70, 0.5);
+  --haira-border-light: rgba(232, 163, 23, 0.12);
+  --haira-border-focus: rgba(232, 163, 23, 0.4);
+  --haira-glow: #fde68a;
+  --haira-text: #fafaf9;
+  --haira-text-dim: #a1a1aa;
+  --haira-muted: #71717a;
 `;
 
 // Keyframes
@@ -119,10 +136,11 @@ export const keyframes = css`
   }
 `;
 
-/** Base reset + theme applied to :host */
+/** Base reset — inherits theme variables from haira-app root.
+ *  Theme vars are only declared on <haira-app> :host so that
+ *  light/dark switching propagates through all shadow DOMs. */
 export const baseStyles = css`
   :host {
-    ${themeVars}
     font-family: var(--haira-font);
     color: var(--haira-text);
     -webkit-font-smoothing: antialiased;

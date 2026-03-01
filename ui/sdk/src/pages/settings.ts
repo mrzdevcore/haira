@@ -3,7 +3,11 @@ import { customElement, property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { baseStyles } from "../core/styles";
 import { iconStrings } from "../core/icons";
+import { applyTheme } from "../services/theme-manager";
 import type { WorkflowMeta } from "../core/types";
+
+const STORAGE_KEY_THEME = "haira-ui-theme";
+const STORAGE_KEY_ACCENT = "haira-ui-accent";
 
 @customElement("haira-page-settings")
 export class PageSettings extends LitElement {
@@ -44,7 +48,7 @@ export class PageSettings extends LitElement {
       }
       .kv-row {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         gap: 1rem;
         padding: 0.5rem 0;
         border-bottom: 1px solid var(--haira-border);
@@ -66,6 +70,109 @@ export class PageSettings extends LitElement {
         font-family: var(--haira-mono);
         font-size: 0.82rem;
         word-break: break-all;
+        flex: 1;
+      }
+
+      /* Theme toggle */
+      .theme-toggle {
+        display: flex;
+        gap: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--haira-border);
+      }
+      .theme-btn {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        color: var(--haira-muted);
+        transition: all 0.15s;
+        font-family: inherit;
+      }
+      .theme-btn:hover {
+        color: var(--haira-text);
+        background: var(--haira-bg-card-hover);
+      }
+      .theme-btn.active {
+        background: var(--haira-accent);
+        color: #000;
+      }
+
+      /* Accent color picker */
+      .accent-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .color-input {
+        width: 32px;
+        height: 32px;
+        border: 2px solid var(--haira-border);
+        border-radius: 6px;
+        cursor: pointer;
+        padding: 0;
+        background: none;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      .color-input::-webkit-color-swatch-wrapper {
+        padding: 2px;
+      }
+      .color-input::-webkit-color-swatch {
+        border: none;
+        border-radius: 3px;
+      }
+      .color-input::-moz-color-swatch {
+        border: none;
+        border-radius: 3px;
+      }
+      .accent-presets {
+        display: flex;
+        gap: 0.35rem;
+        margin-left: 0.5rem;
+      }
+      .preset-dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: border-color 0.15s, transform 0.1s;
+      }
+      .preset-dot:hover {
+        transform: scale(1.15);
+      }
+      .preset-dot.active {
+        border-color: var(--haira-text);
+      }
+      .accent-hex {
+        font-family: var(--haira-mono);
+        font-size: 0.8rem;
+        color: var(--haira-text-dim);
+        margin-left: 0.4rem;
+      }
+
+      /* Reset button */
+      .reset-btn {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid var(--haira-border);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--haira-muted);
+        transition: all 0.15s;
+        font-family: inherit;
+        margin-left: auto;
+      }
+      .reset-btn:hover {
+        color: var(--haira-text);
+        background: var(--haira-bg-card-hover);
+        border-color: var(--haira-border-focus);
       }
 
       .endpoints-list {
@@ -104,6 +211,75 @@ export class PageSettings extends LitElement {
 
   @property({ type: Object }) meta: WorkflowMeta | null = null;
 
+  @state() private _theme: string = "dark";
+  @state() private _accent: string = "#e8a317";
+
+  private _accentPresets = [
+    "#e8a317", // Haira Gold
+    "#F6821F", // Cloudflare Orange
+    "#3b82f6", // Blue
+    "#22c55e", // Green
+    "#ef4444", // Red
+    "#a855f7", // Purple
+    "#ec4899", // Pink
+    "#06b6d4", // Cyan
+  ];
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Load from localStorage, fall back to meta, fall back to defaults
+    this._theme =
+      localStorage.getItem(STORAGE_KEY_THEME) ||
+      this.meta?.theme ||
+      "dark";
+    this._accent =
+      localStorage.getItem(STORAGE_KEY_ACCENT) ||
+      this.meta?.accent ||
+      "#e8a317";
+  }
+
+  updated(changed: Map<string, unknown>) {
+    if (changed.has("meta") && this.meta) {
+      // Only apply meta defaults if no localStorage override exists
+      if (!localStorage.getItem(STORAGE_KEY_THEME)) {
+        this._theme = this.meta.theme || "dark";
+      }
+      if (!localStorage.getItem(STORAGE_KEY_ACCENT)) {
+        this._accent = this.meta.accent || "#e8a317";
+      }
+    }
+  }
+
+  private _setTheme(theme: string) {
+    this._theme = theme;
+    localStorage.setItem(STORAGE_KEY_THEME, theme);
+    this._applyToApp();
+  }
+
+  private _setAccent(accent: string) {
+    this._accent = accent;
+    localStorage.setItem(STORAGE_KEY_ACCENT, accent);
+    this._applyToApp();
+  }
+
+  private _resetPreferences() {
+    localStorage.removeItem(STORAGE_KEY_THEME);
+    localStorage.removeItem(STORAGE_KEY_ACCENT);
+    this._theme = this.meta?.theme || "dark";
+    this._accent = this.meta?.accent || "#e8a317";
+    this._applyToApp();
+  }
+
+  private _applyToApp() {
+    const app = document.querySelector("haira-app");
+    if (app) {
+      applyTheme(app as HTMLElement, {
+        theme: this._theme,
+        accent: this._accent,
+      });
+    }
+  }
+
   private _methodColor(m: string): string {
     switch (m) {
       case "GET":
@@ -124,30 +300,69 @@ export class PageSettings extends LitElement {
 
     return html`
       <div class="container">
-        <p class="page-desc">Server configuration and API endpoints.</p>
+        <p class="page-desc">Appearance preferences and API endpoints.</p>
 
-        <!-- Server Info -->
+        <!-- Appearance -->
         <div class="section">
           <h2 class="section-title">
-            ${unsafeHTML(iconStrings.settings)} Server
+            ${unsafeHTML(iconStrings.settings)} Appearance
           </h2>
           <div class="card">
             <div class="kv-row">
               <span class="kv-key">Theme</span>
-              <span class="kv-value">${this.meta?.theme || "dark"}</span>
+              <div class="kv-value">
+                <div class="theme-toggle">
+                  <button
+                    class="theme-btn ${this._theme === "dark" ? "active" : ""}"
+                    @click=${() => this._setTheme("dark")}
+                  >
+                    Dark
+                  </button>
+                  <button
+                    class="theme-btn ${this._theme === "light" ? "active" : ""}"
+                    @click=${() => this._setTheme("light")}
+                  >
+                    Light
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="kv-row">
               <span class="kv-key">Accent</span>
-              <span class="kv-value"
-                >${this.meta?.accent || "#e8a317"}
-                <span
-                  style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${this.meta?.accent || "#e8a317"};vertical-align:middle;margin-left:0.4rem"
-                ></span>
-              </span>
+              <div class="kv-value">
+                <div class="accent-row">
+                  <input
+                    type="color"
+                    class="color-input"
+                    .value=${this._accent}
+                    @input=${(e: Event) =>
+                      this._setAccent(
+                        (e.target as HTMLInputElement).value
+                      )}
+                  />
+                  <span class="accent-hex">${this._accent}</span>
+                  <div class="accent-presets">
+                    ${this._accentPresets.map(
+                      (c) => html`
+                        <span
+                          class="preset-dot ${this._accent === c
+                            ? "active"
+                            : ""}"
+                          style="background:${c}"
+                          @click=${() => this._setAccent(c)}
+                        ></span>
+                      `
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="kv-row">
               <span class="kv-key">Workflows</span>
               <span class="kv-value">${workflows.length}</span>
+              <button class="reset-btn" @click=${() => this._resetPreferences()}>
+                Reset to defaults
+              </button>
             </div>
           </div>
         </div>

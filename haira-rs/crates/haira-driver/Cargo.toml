@@ -1,0 +1,16 @@
+[package]
+name = "haira-driver"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-token = { workspace = true }
+haira-ast = { workspace = true }
+haira-errors = { workspace = true }
+haira-lexer = { workspace = true }
+haira-parser = { workspace = true }
+haira-resolver = { workspace = true }
+haira-checker = { workspace = true }
+haira-ir = { workspace = true }
+haira-codegen-cranelift = { workspace = true }
+haira-codegen-llvm = { workspace = true }

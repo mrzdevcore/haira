@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/haira-token",
+    "crates/haira-ast",
+    "crates/haira-errors",
+    "crates/haira-lexer",
+    "crates/haira-parser",
+    "crates/haira-resolver",
+    "crates/haira-checker",
+    "crates/haira-ir",
+    "crates/haira-codegen-cranelift",
+    "crates/haira-codegen-llvm",
+    "crates/haira-runtime",
+    "crates/haira-stdlib",
+    "crates/haira-driver",
+    "crates/haira-lsp",
+    "crates/haira-formatter",
+    "crates/haira-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/haira-lang/haira"
+
+[workspace.dependencies]
+# Internal crates
+haira-token = { path = "crates/haira-token" }
+haira-ast = { path = "crates/haira-ast" }
+haira-errors = { path = "crates/haira-errors" }
+haira-lexer = { path = "crates/haira-lexer" }
+haira-parser = { path = "crates/haira-parser" }
+haira-resolver = { path = "crates/haira-resolver" }
+haira-checker = { path = "crates/haira-checker" }
+haira-ir = { path = "crates/haira-ir" }
+haira-codegen-cranelift = { path = "crates/haira-codegen-cranelift" }
+haira-codegen-llvm = { path = "crates/haira-codegen-llvm" }
+haira-runtime = { path = "crates/haira-runtime" }
+haira-stdlib = { path = "crates/haira-stdlib" }
+haira-driver = { path = "crates/haira-driver" }
+haira-lsp = { path = "crates/haira-lsp" }
+haira-formatter = { path = "crates/haira-formatter" }
+
+# External dependencies
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }

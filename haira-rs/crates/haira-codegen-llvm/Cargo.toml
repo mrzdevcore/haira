@@ -1,0 +1,8 @@
+[package]
+name = "haira-codegen-llvm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-ir = { workspace = true }
+haira-errors = { workspace = true }

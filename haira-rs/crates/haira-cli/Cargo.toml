@@ -1,0 +1,12 @@
+[package]
+name = "haira-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "haira-rs"
+path = "src/main.rs"
+
+[dependencies]
+haira-driver = { workspace = true }
+haira-errors = { workspace = true }

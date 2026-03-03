@@ -1,0 +1,151 @@
+   0.012781541s  INFO prepare_target{force=false package_id=haira-cli v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli) target="haira-rs"}: cargo::core::compiler::fingerprint: fingerprint error for haira-cli v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli)/Check { test: false }/TargetInner { name: "haira-rs", doc: true, ..: with_path("/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli/src/main.rs", Edition2024) }
+   0.012797166s  INFO prepare_target{force=false package_id=haira-cli v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli) target="haira-rs"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/mrzdevcore/Projects/opensource/haira/haira-rs/target/debug/.fingerprint/haira-cli-507b36b206292815/bin-haira-rs`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.015390875s  INFO prepare_target{force=false package_id=haira-driver v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver) target="haira_driver"}: cargo::core::compiler::fingerprint: fingerprint error for haira-driver v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("haira_driver", ["lib"], "/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver/src/lib.rs", Edition2024) }
+   0.015400708s  INFO prepare_target{force=false package_id=haira-driver v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver) target="haira_driver"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/mrzdevcore/Projects/opensource/haira/haira-rs/target/debug/.fingerprint/haira-driver-ea7d2434b2a72638/lib-haira_driver`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.015819166s  INFO prepare_target{force=false package_id=haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm) target="haira_codegen_llvm"}: cargo::core::compiler::fingerprint: fingerprint error for haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("haira_codegen_llvm", ["lib"], "/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm/src/lib.rs", Edition2024) }
+   0.015824750s  INFO prepare_target{force=false package_id=haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm) target="haira_codegen_llvm"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/mrzdevcore/Projects/opensource/haira/haira-rs/target/debug/.fingerprint/haira-codegen-llvm-307f85ad866bd036/lib-haira_codegen_llvm`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: cargo::core::compiler::compile
+   7: cargo::core::compiler::compile
+   8: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   9: cargo::ops::cargo_compile::compile_ws
+  10: cargo::ops::cargo_compile::compile_with_exec
+  11: cargo::ops::cargo_compile::compile
+  12: cargo::commands::check::exec
+  13: <cargo::cli::Exec>::exec
+  14: cargo::main
+  15: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  16: std::rt::lang_start::<()>::{closure#0}
+  17: std::rt::lang_start_internal
+  18: _main
+   0.016327708s  INFO prepare_target{force=false package_id=haira-cli v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli) target="haira-rs"}: cargo::core::compiler::fingerprint: fingerprint error for haira-cli v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli)/Check { test: true }/TargetInner { name: "haira-rs", doc: true, ..: with_path("/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli/src/main.rs", Edition2024) }
+   0.016333541s  INFO prepare_target{force=false package_id=haira-cli v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-cli) target="haira-rs"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/mrzdevcore/Projects/opensource/haira/haira-rs/target/debug/.fingerprint/haira-cli-770e57801ba7a495/test-bin-haira-rs`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.016635541s  INFO prepare_target{force=false package_id=haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm) target="haira_codegen_llvm"}: cargo::core::compiler::fingerprint: fingerprint error for haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("haira_codegen_llvm", ["lib"], "/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm/src/lib.rs", Edition2024) }
+   0.016640791s  INFO prepare_target{force=false package_id=haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm) target="haira_codegen_llvm"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/mrzdevcore/Projects/opensource/haira/haira-rs/target/debug/.fingerprint/haira-codegen-llvm-4af1c4ce6c84a357/test-lib-haira_codegen_llvm`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   0.016881083s  INFO prepare_target{force=false package_id=haira-driver v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver) target="haira_driver"}: cargo::core::compiler::fingerprint: fingerprint error for haira-driver v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("haira_driver", ["lib"], "/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver/src/lib.rs", Edition2024) }
+   0.016885791s  INFO prepare_target{force=false package_id=haira-driver v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-driver) target="haira_driver"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/mrzdevcore/Projects/opensource/haira/haira-rs/target/debug/.fingerprint/haira-driver-676395a7ad7d9d0c/test-lib-haira_driver`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: cargo_util::paths::read_bytes
+   2: cargo_util::paths::read
+   3: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   4: cargo::core::compiler::fingerprint::prepare_target
+   5: cargo::core::compiler::compile
+   6: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   7: cargo::ops::cargo_compile::compile_ws
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+    Checking haira-codegen-llvm v0.1.0 (/Users/mrzdevcore/Projects/opensource/haira/haira-rs/crates/haira-codegen-llvm)
+error: could not compile `haira-codegen-llvm` (lib) due to 2 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `haira-codegen-llvm` (lib test) due to 2 previous errors; 2 warnings emitted

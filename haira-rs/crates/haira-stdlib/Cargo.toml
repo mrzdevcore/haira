@@ -1,0 +1,7 @@
+[package]
+name = "haira-stdlib"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-runtime = { workspace = true }

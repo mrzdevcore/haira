@@ -1,0 +1,7 @@
+[package]
+name = "haira-errors"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Diagnostic system, Span, and Spanned types for the Haira compiler"

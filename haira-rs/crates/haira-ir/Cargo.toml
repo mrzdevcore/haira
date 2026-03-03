@@ -1,0 +1,8 @@
+[package]
+name = "haira-ir"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-ast = { workspace = true }
+haira-errors = { workspace = true }

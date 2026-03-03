@@ -1,9 +1,43 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { baseStyles, keyframes, animateInStyles } from "../core/styles";
+import { baseStyles, animateInStyles, hljsStyles } from "../core/styles";
 import { iconStrings } from "../core/icons";
 import type { CodeBlockProps, CodeTabData } from "../core/types";
+
+// highlight.js — core + cherry-picked languages only
+import hljs from "highlight.js/lib/core";
+import sql from "highlight.js/lib/languages/sql";
+import javascript from "highlight.js/lib/languages/javascript";
+import typescript from "highlight.js/lib/languages/typescript";
+import python from "highlight.js/lib/languages/python";
+import go from "highlight.js/lib/languages/go";
+import json from "highlight.js/lib/languages/json";
+import yaml from "highlight.js/lib/languages/yaml";
+import bash from "highlight.js/lib/languages/bash";
+import xml from "highlight.js/lib/languages/xml";
+import markdown from "highlight.js/lib/languages/markdown";
+import rust from "highlight.js/lib/languages/rust";
+
+hljs.registerLanguage("sql", sql);
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("js", javascript);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("ts", typescript);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("py", python);
+hljs.registerLanguage("go", go);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("yaml", yaml);
+hljs.registerLanguage("yml", yaml);
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("sh", bash);
+hljs.registerLanguage("shell", bash);
+hljs.registerLanguage("xml", xml);
+hljs.registerLanguage("html", xml);
+hljs.registerLanguage("markdown", markdown);
+hljs.registerLanguage("md", markdown);
+hljs.registerLanguage("rust", rust);
 
 @customElement("haira-ui-code-block")
 export class HairaCodeBlock extends LitElement {
@@ -119,15 +153,23 @@ export class HairaCodeBlock extends LitElement {
       pre {
         margin: 0;
         padding: 0.75rem 0.95rem;
-        font-family: var(--haira-mono);
+        font-family: Consolas, Menlo, Monaco, "Courier New", monospace;
         font-size: 0.82rem;
         line-height: 1.55;
-        color: var(--haira-text);
         background: var(--haira-bg-input);
         white-space: pre;
         overflow-x: auto;
       }
+      pre code {
+        font-family: inherit;
+        font-size: inherit;
+        background: transparent;
+        padding: 0;
+        color: var(--hljs-base);
+      }
+
     `,
+    hljsStyles,
   ];
 
   @property({ type: String }) title: string = "";
@@ -162,8 +204,19 @@ export class HairaCodeBlock extends LitElement {
     return this.language;
   }
 
-  private _escapeHtml(str: string): string {
-    return str
+  private _highlight(code: string, lang: string): string {
+    const language = lang.toLowerCase().trim();
+    try {
+      if (language && hljs.getLanguage(language)) {
+        return hljs.highlight(code, { language }).value;
+      }
+      // auto-detect as fallback (capped relevance to avoid false positives)
+      const result = hljs.highlightAuto(code);
+      if (result.relevance > 5) return result.value;
+    } catch {
+      // fall through to plain escape
+    }
+    return code
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
@@ -189,6 +242,7 @@ export class HairaCodeBlock extends LitElement {
   render() {
     const lang = this._currentLanguage();
     const code = this._currentCode();
+    const highlighted = this._highlight(code, lang);
 
     return html`
       <div class="code-card">
@@ -227,7 +281,7 @@ export class HairaCodeBlock extends LitElement {
           : nothing}
 
         <div class="code-content">
-          <pre>${this._escapeHtml(code)}</pre>
+          <pre><code class="language-${lang}">${unsafeHTML(highlighted)}</code></pre>
         </div>
       </div>
     `;

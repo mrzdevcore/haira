@@ -1,76 +1,75 @@
-package postgres
+package d1
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	haira "haira-go-runtime/haira"
 
-	_ "github.com/lib/pq"
+	"github.com/syumai/workers/cloudflare/d1"
 )
 
 func init() {
-	haira.RegisterStoreBackend("postgres", func(url string) haira.Store {
-		return NewPostgresStore(url)
+	haira.RegisterStoreBackend("d1", func(binding string) haira.Store {
+		return NewD1Store(binding)
 	})
 }
 
-// PostgresStore implements Store using a PostgreSQL database.
-type PostgresStore struct {
-	connStr string
+// D1Store implements Store using Cloudflare D1 (SQLite-compatible).
+type D1Store struct {
+	binding string
 	db      *sql.DB
 }
 
-// NewPostgresStore creates a new Postgres-backed store.
-func NewPostgresStore(connStr string) *PostgresStore {
-	return &PostgresStore{connStr: connStr}
+// NewD1Store creates a new D1-backed store.
+// binding is the D1 binding name from wrangler.toml (e.g. "DB").
+func NewD1Store(binding string) *D1Store {
+	return &D1Store{binding: binding}
 }
 
-func (s *PostgresStore) Init() error {
-	db, err := sql.Open("postgres", s.connStr)
+func (s *D1Store) Init() error {
+	connector, err := d1.OpenConnector(s.binding)
 	if err != nil {
-		return fmt.Errorf("postgres open: %w", err)
+		return fmt.Errorf("d1 open: %w", err)
 	}
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return fmt.Errorf("postgres ping: %w", err)
-	}
-	s.db = db
+	s.db = sql.OpenDB(connector)
 
-	for _, ddl := range postgresSchema {
+	// Create tables (same schema as SQLite — D1 is SQLite-compatible)
+	for _, ddl := range d1Schema {
 		if _, err := s.db.Exec(ddl); err != nil {
-			return fmt.Errorf("postgres schema: %w", err)
+			return fmt.Errorf("d1 schema: %w", err)
 		}
 	}
 	return nil
 }
 
-func (s *PostgresStore) Close() error {
+func (s *D1Store) Close() error {
 	if s.db != nil {
 		return s.db.Close()
 	}
 	return nil
 }
 
-var postgresSchema = []string{
+var d1Schema = []string{
 	`CREATE TABLE IF NOT EXISTS chat_sessions (
 		id TEXT PRIMARY KEY,
 		workflow_name TEXT NOT NULL,
 		workflow_path TEXT NOT NULL,
 		title TEXT DEFAULT '',
 		owner TEXT DEFAULT '',
-		created_at TIMESTAMPTZ DEFAULT NOW(),
-		updated_at TIMESTAMPTZ DEFAULT NOW(),
+		created_at DATETIME DEFAULT (datetime('now')),
+		updated_at DATETIME DEFAULT (datetime('now')),
 		message_count INTEGER DEFAULT 0
 	)`,
 	`CREATE TABLE IF NOT EXISTS chat_messages (
-		id SERIAL PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
 		role TEXT NOT NULL,
 		content TEXT DEFAULT '',
-		ui_events JSONB,
-		created_at TIMESTAMPTZ DEFAULT NOW()
+		ui_events TEXT,
+		created_at DATETIME DEFAULT (datetime('now'))
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id)`,
 	`CREATE TABLE IF NOT EXISTS runs (
@@ -78,12 +77,12 @@ var postgresSchema = []string{
 		workflow_name TEXT NOT NULL,
 		workflow_path TEXT NOT NULL,
 		status TEXT NOT NULL DEFAULT 'running',
-		params JSONB,
-		steps JSONB,
-		result JSONB,
+		params TEXT,
+		steps TEXT,
+		result TEXT,
 		error TEXT DEFAULT '',
-		started_at TIMESTAMPTZ DEFAULT NOW(),
-		finished_at TIMESTAMPTZ
+		started_at DATETIME DEFAULT (datetime('now')),
+		finished_at DATETIME
 	)`,
 	`CREATE TABLE IF NOT EXISTS observe_generations (
 		id TEXT PRIMARY KEY,
@@ -93,42 +92,41 @@ var postgresSchema = []string{
 		input_tokens INTEGER DEFAULT 0,
 		output_tokens INTEGER DEFAULT 0,
 		total_tokens INTEGER DEFAULT 0,
-		cost_usd DOUBLE PRECISION DEFAULT 0,
-		latency_ms BIGINT DEFAULT 0,
-		temperature DOUBLE PRECISION DEFAULT 0,
+		cost_usd REAL DEFAULT 0,
+		latency_ms INTEGER DEFAULT 0,
+		temperature REAL DEFAULT 0,
 		tool_calls INTEGER DEFAULT 0,
 		finish_reason TEXT DEFAULT '',
-		timestamp TIMESTAMPTZ DEFAULT NOW(),
+		timestamp DATETIME DEFAULT (datetime('now')),
 		session_id TEXT DEFAULT ''
 	)`,
 	`CREATE TABLE IF NOT EXISTS observe_tool_execs (
 		id TEXT PRIMARY KEY,
 		agent_name TEXT NOT NULL DEFAULT '',
 		tool_name TEXT NOT NULL DEFAULT '',
-		latency_ms BIGINT DEFAULT 0,
-		success BOOLEAN DEFAULT TRUE,
-		timestamp TIMESTAMPTZ DEFAULT NOW(),
+		latency_ms INTEGER DEFAULT 0,
+		success INTEGER DEFAULT 1,
+		timestamp DATETIME DEFAULT (datetime('now')),
 		session_id TEXT DEFAULT ''
 	)`,
 }
 
 // --- Chat Sessions ---
 
-func (s *PostgresStore) EnsureSession(id, wfName, wfPath, owner string) error {
+func (s *D1Store) EnsureSession(id, wfName, wfPath, owner string) error {
 	_, err := s.db.Exec(
-		`INSERT INTO chat_sessions (id, workflow_name, workflow_path, owner)
-		 VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+		`INSERT OR IGNORE INTO chat_sessions (id, workflow_name, workflow_path, owner) VALUES (?, ?, ?, ?)`,
 		id, wfName, wfPath, owner,
 	)
 	return err
 }
 
-func (s *PostgresStore) AddMessage(sessionID, role, content string, uiEvents []json.RawMessage) error {
+func (s *D1Store) AddMessage(sessionID, role, content string, uiEvents []json.RawMessage) error {
 	var eventsJSON *string
 	if len(uiEvents) > 0 {
 		b, _ := json.Marshal(uiEvents)
-		s := string(b)
-		eventsJSON = &s
+		str := string(b)
+		eventsJSON = &str
 	}
 
 	tx, err := s.db.Begin()
@@ -138,22 +136,24 @@ func (s *PostgresStore) AddMessage(sessionID, role, content string, uiEvents []j
 	defer tx.Rollback()
 
 	_, err = tx.Exec(
-		`INSERT INTO chat_messages (session_id, role, content, ui_events) VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO chat_messages (session_id, role, content, ui_events) VALUES (?, ?, ?, ?)`,
 		sessionID, role, content, eventsJSON,
 	)
 	if err != nil {
 		return err
 	}
 
+	// Update session metadata
+	now := time.Now().UTC().Format(time.RFC3339)
 	_, err = tx.Exec(`
 		UPDATE chat_sessions SET
-			message_count = (SELECT COUNT(*) FROM chat_messages WHERE session_id = $1),
-			updated_at = NOW(),
-			title = CASE WHEN title = '' AND $2 = 'user' AND $3 != ''
-				THEN LEFT($3, 80)
+			message_count = (SELECT COUNT(*) FROM chat_messages WHERE session_id = ?),
+			updated_at = ?,
+			title = CASE WHEN title = '' AND ? = 'user' AND ? != ''
+				THEN SUBSTR(?, 1, 80)
 				ELSE title END
-		WHERE id = $1`,
-		sessionID, role, content,
+		WHERE id = ?`,
+		sessionID, now, role, content, content, sessionID,
 	)
 	if err != nil {
 		return err
@@ -162,16 +162,17 @@ func (s *PostgresStore) AddMessage(sessionID, role, content string, uiEvents []j
 	return tx.Commit()
 }
 
-func (s *PostgresStore) GetSession(id string) (*haira.ChatSessionDetail, error) {
+func (s *D1Store) GetSession(id string) (*haira.ChatSessionDetail, error) {
 	row := s.db.QueryRow(
-		`SELECT id, workflow_name, workflow_path, title, COALESCE(owner, ''), created_at, updated_at, message_count
-		 FROM chat_sessions WHERE id = $1`, id,
+		`SELECT id, workflow_name, workflow_path, title, owner, created_at, updated_at, message_count
+		 FROM chat_sessions WHERE id = ?`, id,
 	)
 
 	var sess haira.ChatSessionDetail
+	var createdAt, updatedAt string
 	err := row.Scan(
 		&sess.ID, &sess.WorkflowName, &sess.WorkflowPath,
-		&sess.Title, &sess.Owner, &sess.CreatedAt, &sess.UpdatedAt, &sess.MessageCount,
+		&sess.Title, &sess.Owner, &createdAt, &updatedAt, &sess.MessageCount,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -179,9 +180,12 @@ func (s *PostgresStore) GetSession(id string) (*haira.ChatSessionDetail, error) 
 	if err != nil {
 		return nil, err
 	}
+	sess.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	sess.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 
+	// Load messages
 	rows, err := s.db.Query(
-		`SELECT role, content, ui_events, created_at FROM chat_messages WHERE session_id = $1 ORDER BY id ASC`, id,
+		`SELECT role, content, ui_events, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC`, id,
 	)
 	if err != nil {
 		return nil, err
@@ -191,12 +195,14 @@ func (s *PostgresStore) GetSession(id string) (*haira.ChatSessionDetail, error) 
 	sess.Messages = []haira.ChatMessage{}
 	for rows.Next() {
 		var msg haira.ChatMessage
-		var eventsRaw *[]byte
-		if err := rows.Scan(&msg.Role, &msg.Content, &eventsRaw, &msg.Timestamp); err != nil {
+		var eventsStr *string
+		var ts string
+		if err := rows.Scan(&msg.Role, &msg.Content, &eventsStr, &ts); err != nil {
 			return nil, err
 		}
-		if eventsRaw != nil {
-			msg.UIEvents = json.RawMessage(*eventsRaw)
+		msg.Timestamp, _ = time.Parse(time.RFC3339, ts)
+		if eventsStr != nil {
+			msg.UIEvents = json.RawMessage(*eventsStr)
 		}
 		sess.Messages = append(sess.Messages, msg)
 	}
@@ -204,20 +210,17 @@ func (s *PostgresStore) GetSession(id string) (*haira.ChatSessionDetail, error) 
 	return &sess, nil
 }
 
-func (s *PostgresStore) ListSessions(wfPath, owner string) ([]haira.ChatSession, error) {
-	query := `SELECT id, workflow_name, workflow_path, title, COALESCE(owner, ''), created_at, updated_at, message_count
-			  FROM chat_sessions WHERE TRUE`
+func (s *D1Store) ListSessions(wfPath, owner string) ([]haira.ChatSession, error) {
+	query := `SELECT id, workflow_name, workflow_path, title, owner, created_at, updated_at, message_count
+			  FROM chat_sessions WHERE 1=1`
 	var args []any
-	n := 0
 
 	if wfPath != "" {
-		n++
-		query += fmt.Sprintf(` AND workflow_path = $%d`, n)
+		query += ` AND workflow_path = ?`
 		args = append(args, wfPath)
 	}
 	if owner != "" {
-		n++
-		query += fmt.Sprintf(` AND owner = $%d`, n)
+		query += ` AND owner = ?`
 		args = append(args, owner)
 	}
 	query += ` ORDER BY updated_at DESC`
@@ -231,12 +234,15 @@ func (s *PostgresStore) ListSessions(wfPath, owner string) ([]haira.ChatSession,
 	var sessions []haira.ChatSession
 	for rows.Next() {
 		var sess haira.ChatSession
+		var createdAt, updatedAt string
 		if err := rows.Scan(
 			&sess.ID, &sess.WorkflowName, &sess.WorkflowPath,
-			&sess.Title, &sess.Owner, &sess.CreatedAt, &sess.UpdatedAt, &sess.MessageCount,
+			&sess.Title, &sess.Owner, &createdAt, &updatedAt, &sess.MessageCount,
 		); err != nil {
 			return nil, err
 		}
+		sess.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		sess.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 		sessions = append(sessions, sess)
 	}
 
@@ -246,54 +252,62 @@ func (s *PostgresStore) ListSessions(wfPath, owner string) ([]haira.ChatSession,
 	return sessions, nil
 }
 
-func (s *PostgresStore) DeleteSession(id string) error {
-	_, err := s.db.Exec(`DELETE FROM chat_sessions WHERE id = $1`, id)
+func (s *D1Store) DeleteSession(id string) error {
+	_, err := s.db.Exec(`DELETE FROM chat_sessions WHERE id = ?`, id)
 	return err
 }
 
 // --- Runs ---
 
-func (s *PostgresStore) CreateRun(run *haira.Run) error {
+func (s *D1Store) CreateRun(run *haira.Run) error {
 	paramsJSON, _ := json.Marshal(run.Params)
 	stepsJSON, _ := json.Marshal(run.Steps)
 
 	_, err := s.db.Exec(
 		`INSERT INTO runs (id, workflow_name, workflow_path, status, params, steps, started_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.WorkflowName, run.WorkflowPath, run.Status,
-		string(paramsJSON), string(stepsJSON), run.StartedAt,
+		string(paramsJSON), string(stepsJSON), run.StartedAt.UTC().Format(time.RFC3339),
 	)
 	return err
 }
 
-func (s *PostgresStore) UpdateRun(run *haira.Run) error {
+func (s *D1Store) UpdateRun(run *haira.Run) error {
 	stepsJSON, _ := json.Marshal(run.Steps)
 	var resultJSON *string
 	if run.Result != nil {
 		b, _ := json.Marshal(run.Result)
-		s := string(b)
-		resultJSON = &s
+		str := string(b)
+		resultJSON = &str
+	}
+	var finishedAt *string
+	if run.FinishedAt != nil {
+		str := run.FinishedAt.UTC().Format(time.RFC3339)
+		finishedAt = &str
 	}
 
 	_, err := s.db.Exec(
-		`UPDATE runs SET status = $1, steps = $2, result = $3, error = $4, finished_at = $5 WHERE id = $6`,
-		run.Status, string(stepsJSON), resultJSON, run.Error, run.FinishedAt, run.ID,
+		`UPDATE runs SET status = ?, steps = ?, result = ?, error = ?, finished_at = ? WHERE id = ?`,
+		run.Status, string(stepsJSON), resultJSON, run.Error, finishedAt, run.ID,
 	)
 	return err
 }
 
-func (s *PostgresStore) GetRun(id string) (*haira.Run, error) {
+func (s *D1Store) GetRun(id string) (*haira.Run, error) {
 	row := s.db.QueryRow(
 		`SELECT id, workflow_name, workflow_path, status, params, steps, result, error, started_at, finished_at
-		 FROM runs WHERE id = $1`, id,
+		 FROM runs WHERE id = ?`, id,
 	)
 
 	var run haira.Run
-	var paramsRaw, stepsRaw, resultRaw *[]byte
+	var paramsStr, stepsStr *string
+	var resultStr *string
+	var startedAt string
+	var finishedAt *string
 
 	err := row.Scan(
 		&run.ID, &run.WorkflowName, &run.WorkflowPath, &run.Status,
-		&paramsRaw, &stepsRaw, &resultRaw, &run.Error, &run.StartedAt, &run.FinishedAt,
+		&paramsStr, &stepsStr, &resultStr, &run.Error, &startedAt, &finishedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -302,14 +316,19 @@ func (s *PostgresStore) GetRun(id string) (*haira.Run, error) {
 		return nil, err
 	}
 
-	if paramsRaw != nil {
-		json.Unmarshal(*paramsRaw, &run.Params)
+	run.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
+	if finishedAt != nil {
+		t, _ := time.Parse(time.RFC3339, *finishedAt)
+		run.FinishedAt = &t
 	}
-	if stepsRaw != nil {
-		json.Unmarshal(*stepsRaw, &run.Steps)
+	if paramsStr != nil {
+		json.Unmarshal([]byte(*paramsStr), &run.Params)
 	}
-	if resultRaw != nil {
-		json.Unmarshal(*resultRaw, &run.Result)
+	if stepsStr != nil {
+		json.Unmarshal([]byte(*stepsStr), &run.Steps)
+	}
+	if resultStr != nil {
+		json.Unmarshal([]byte(*resultStr), &run.Result)
 	}
 	if run.Steps == nil {
 		run.Steps = []haira.StepEvent{}
@@ -318,14 +337,14 @@ func (s *PostgresStore) GetRun(id string) (*haira.Run, error) {
 	return &run, nil
 }
 
-func (s *PostgresStore) ListRuns(wfPath string) ([]haira.RunSummary, error) {
+func (s *D1Store) ListRuns(wfPath string) ([]haira.RunSummary, error) {
 	query := `SELECT id, workflow_name, workflow_path, status, started_at, finished_at,
-			  COALESCE(jsonb_array_length(steps), 0) as step_count
-			  FROM runs WHERE TRUE`
+			  (SELECT COUNT(*) FROM json_each(steps)) as step_count
+			  FROM runs WHERE 1=1`
 	var args []any
 
 	if wfPath != "" {
-		query += ` AND workflow_path = $1`
+		query += ` AND workflow_path = ?`
 		args = append(args, wfPath)
 	}
 	query += ` ORDER BY started_at DESC`
@@ -339,11 +358,18 @@ func (s *PostgresStore) ListRuns(wfPath string) ([]haira.RunSummary, error) {
 	var runs []haira.RunSummary
 	for rows.Next() {
 		var r haira.RunSummary
+		var startedAt string
+		var finishedAt *string
 		if err := rows.Scan(
 			&r.ID, &r.WorkflowName, &r.WorkflowPath, &r.Status,
-			&r.StartedAt, &r.FinishedAt, &r.StepCount,
+			&startedAt, &finishedAt, &r.StepCount,
 		); err != nil {
 			return nil, err
+		}
+		r.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
+		if finishedAt != nil {
+			t, _ := time.Parse(time.RFC3339, *finishedAt)
+			r.FinishedAt = &t
 		}
 		runs = append(runs, r)
 	}
@@ -356,34 +382,34 @@ func (s *PostgresStore) ListRuns(wfPath string) ([]haira.RunSummary, error) {
 
 // --- Observability ---
 
-func (s *PostgresStore) SaveGeneration(gen haira.LLMGeneration) error {
+func (s *D1Store) SaveGeneration(gen haira.LLMGeneration) error {
 	_, err := s.db.Exec(
-		`INSERT INTO observe_generations
+		`INSERT OR REPLACE INTO observe_generations
 		 (id, agent_name, model, provider, input_tokens, output_tokens, total_tokens,
 		  cost_usd, latency_ms, temperature, tool_calls, finish_reason, timestamp, session_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-		 ON CONFLICT (id) DO NOTHING`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		gen.ID, gen.AgentName, gen.Model, gen.Provider,
 		gen.InputTokens, gen.OutputTokens, gen.TotalTokens,
 		gen.CostUSD, gen.LatencyMs, gen.Temperature,
-		gen.ToolCalls, gen.FinishReason, gen.Timestamp, gen.SessionID,
+		gen.ToolCalls, gen.FinishReason,
+		gen.Timestamp.UTC().Format(time.RFC3339), gen.SessionID,
 	)
 	return err
 }
 
-func (s *PostgresStore) SaveToolExec(exec haira.ToolExec) error {
+func (s *D1Store) SaveToolExec(exec haira.ToolExec) error {
 	_, err := s.db.Exec(
-		`INSERT INTO observe_tool_execs
+		`INSERT OR REPLACE INTO observe_tool_execs
 		 (id, agent_name, tool_name, latency_ms, success, timestamp, session_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)
-		 ON CONFLICT (id) DO NOTHING`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		exec.ID, exec.AgentName, exec.ToolName,
-		exec.LatencyMs, exec.Success, exec.Timestamp, exec.SessionID,
+		exec.LatencyMs, exec.Success,
+		exec.Timestamp.UTC().Format(time.RFC3339), exec.SessionID,
 	)
 	return err
 }
 
-func (s *PostgresStore) LoadGenerations() ([]haira.LLMGeneration, error) {
+func (s *D1Store) LoadGenerations() ([]haira.LLMGeneration, error) {
 	rows, err := s.db.Query(
 		`SELECT id, agent_name, model, provider, input_tokens, output_tokens, total_tokens,
 		        cost_usd, latency_ms, temperature, tool_calls, finish_reason, timestamp, session_id
@@ -397,14 +423,16 @@ func (s *PostgresStore) LoadGenerations() ([]haira.LLMGeneration, error) {
 	var gens []haira.LLMGeneration
 	for rows.Next() {
 		var g haira.LLMGeneration
+		var ts string
 		if err := rows.Scan(
 			&g.ID, &g.AgentName, &g.Model, &g.Provider,
 			&g.InputTokens, &g.OutputTokens, &g.TotalTokens,
 			&g.CostUSD, &g.LatencyMs, &g.Temperature,
-			&g.ToolCalls, &g.FinishReason, &g.Timestamp, &g.SessionID,
+			&g.ToolCalls, &g.FinishReason, &ts, &g.SessionID,
 		); err != nil {
 			return nil, err
 		}
+		g.Timestamp, _ = time.Parse(time.RFC3339, ts)
 		gens = append(gens, g)
 	}
 	if gens == nil {
@@ -413,7 +441,7 @@ func (s *PostgresStore) LoadGenerations() ([]haira.LLMGeneration, error) {
 	return gens, nil
 }
 
-func (s *PostgresStore) LoadToolExecs() ([]haira.ToolExec, error) {
+func (s *D1Store) LoadToolExecs() ([]haira.ToolExec, error) {
 	rows, err := s.db.Query(
 		`SELECT id, agent_name, tool_name, latency_ms, success, timestamp, session_id
 		 FROM observe_tool_execs ORDER BY timestamp ASC`,
@@ -426,12 +454,14 @@ func (s *PostgresStore) LoadToolExecs() ([]haira.ToolExec, error) {
 	var execs []haira.ToolExec
 	for rows.Next() {
 		var e haira.ToolExec
+		var ts string
 		if err := rows.Scan(
 			&e.ID, &e.AgentName, &e.ToolName,
-			&e.LatencyMs, &e.Success, &e.Timestamp, &e.SessionID,
+			&e.LatencyMs, &e.Success, &ts, &e.SessionID,
 		); err != nil {
 			return nil, err
 		}
+		e.Timestamp, _ = time.Parse(time.RFC3339, ts)
 		execs = append(execs, e)
 	}
 	if execs == nil {

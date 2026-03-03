@@ -312,7 +312,6 @@ func (s *Server) registerProtocolRoutes() {
 	s.mux.HandleFunc("/_api/chats/", s.handleChatRoute)
 }
 
-
 // --- Run History API ---
 
 func (s *Server) handleListRuns(rw http.ResponseWriter, r *http.Request) {
@@ -499,15 +498,16 @@ func (s *Server) handleListWorkflows(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type wfInfo struct {
-		Name        string         `json:"name"`
-		Path        string         `json:"path"`
-		Method      string         `json:"method"`
-		IsStream    bool           `json:"is_stream"`
-		ChatParam   string         `json:"chat_param,omitempty"`
-		Title       string         `json:"title,omitempty"`
-		Description string         `json:"description,omitempty"`
+		Name        string          `json:"name"`
+		Path        string          `json:"path"`
+		Method      string          `json:"method"`
+		IsStream    bool            `json:"is_stream"`
+		Steps       []string        `json:"steps,omitempty"`
+		ChatParam   string          `json:"chat_param,omitempty"`
+		Title       string          `json:"title,omitempty"`
+		Description string          `json:"description,omitempty"`
 		Params      []WorkflowParam `json:"params,omitempty"`
-		Suggestions []string       `json:"suggestions,omitempty"`
+		Suggestions []string        `json:"suggestions,omitempty"`
 	}
 	var list []wfInfo
 	for _, wf := range s.workflows {
@@ -516,6 +516,7 @@ func (s *Server) handleListWorkflows(rw http.ResponseWriter, r *http.Request) {
 			Path:        wf.Path,
 			Method:      wf.Method,
 			IsStream:    wf.IsStream || wf.StreamHandler != nil,
+			Steps:       wf.Steps,
 			Title:       wf.UITitle,
 			Description: wf.UIDescription,
 			Params:      wf.Params,
@@ -530,6 +531,12 @@ func (s *Server) handleListWorkflows(rw http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(rw).Encode(list)
 }
 
+// Handler returns the CORS-wrapped HTTP handler for this server.
+// Used by the Workers target: workers.Serve(server.Handler())
+func (s *Server) Handler() http.Handler {
+	return corsMiddleware(s.mux)
+}
+
 // Listen starts the HTTP server on the given port.
 // If HAIRA_PORT is set, it overrides the port argument.
 func (s *Server) Listen(port int) error {
@@ -540,9 +547,7 @@ func (s *Server) Listen(port int) error {
 	}
 	addr := fmt.Sprintf(":%d", port)
 
-	// Wrap with CORS middleware for cross-origin UI renderers
-	handler := corsMiddleware(s.mux)
-	return http.ListenAndServe(addr, handler)
+	return http.ListenAndServe(addr, s.Handler())
 }
 
 // corsMiddleware adds CORS headers so external UI renderers (CDN, dev server)

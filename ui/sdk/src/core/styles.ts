@@ -26,6 +26,18 @@ export const themeVars = css`
   --haira-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --haira-mono: "SF Mono", "Fira Code", "JetBrains Mono", "Cascadia Code",
     monospace;
+  --hljs-base: #d4d4d4;
+  --hljs-keyword: #569cd6;
+  --hljs-builtin: #dcdcaa;
+  --hljs-type: #4ec9b0;
+  --hljs-string: #ce9178;
+  --hljs-comment: #6a9955;
+  --hljs-number: #b5cea8;
+  --hljs-regexp: #d16969;
+  --hljs-symbol: #d7ba7d;
+  --hljs-variable: #9cdcfe;
+  --hljs-meta: #d7ba7d;
+  --hljs-tag: #569cd6;
 `;
 
 // Light theme overrides — must cover ALL color variables from themeVars
@@ -42,6 +54,18 @@ export const lightThemeVarsStr = `
   --haira-text: #1a1a1a;
   --haira-text-dim: #4a4a4a;
   --haira-muted: #6b6b6b;
+  --hljs-base: #000000;
+  --hljs-keyword: #0000ff;
+  --hljs-builtin: #795e26;
+  --hljs-type: #267f99;
+  --hljs-string: #a31515;
+  --hljs-comment: #008000;
+  --hljs-number: #098658;
+  --hljs-regexp: #811f3f;
+  --hljs-symbol: #e50000;
+  --hljs-variable: #001080;
+  --hljs-meta: #af00db;
+  --hljs-tag: #800000;
 `;
 
 // Dark theme values as a string — used to restore dark theme from light
@@ -58,6 +82,18 @@ export const darkThemeVarsStr = `
   --haira-text: #fafaf9;
   --haira-text-dim: #a1a1aa;
   --haira-muted: #71717a;
+  --hljs-base: #d4d4d4;
+  --hljs-keyword: #569cd6;
+  --hljs-builtin: #dcdcaa;
+  --hljs-type: #4ec9b0;
+  --hljs-string: #ce9178;
+  --hljs-comment: #6a9955;
+  --hljs-number: #b5cea8;
+  --hljs-regexp: #d16969;
+  --hljs-symbol: #d7ba7d;
+  --hljs-variable: #9cdcfe;
+  --hljs-meta: #d7ba7d;
+  --hljs-tag: #569cd6;
 `;
 
 // Keyframes
@@ -188,6 +224,80 @@ export const animateInStyles = css`
   :host {
     display: block;
     animation: fadeSlideUp 0.25s ease-out;
+  }
+`;
+
+/** Shared highlight.js token styles — uses --hljs-* CSS custom properties from theme. */
+export const hljsStyles = css`
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-deletion {
+    color: var(--hljs-keyword);
+  }
+  .hljs-built_in,
+  .hljs-title.function_,
+  .hljs-title.function_.invoke__ {
+    color: var(--hljs-builtin);
+  }
+  .hljs-title,
+  .hljs-title.class_,
+  .hljs-title.class_.inherited__ {
+    color: var(--hljs-type);
+  }
+  .hljs-string,
+  .hljs-template-tag,
+  .hljs-template-variable {
+    color: var(--hljs-string);
+  }
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--hljs-comment);
+    font-style: italic;
+  }
+  .hljs-number,
+  .hljs-literal {
+    color: var(--hljs-number);
+  }
+  .hljs-regexp {
+    color: var(--hljs-regexp);
+  }
+  .hljs-symbol,
+  .hljs-bullet {
+    color: var(--hljs-symbol);
+  }
+  .hljs-attribute,
+  .hljs-attr,
+  .hljs-variable,
+  .hljs-params {
+    color: var(--hljs-variable);
+  }
+  .hljs-operator,
+  .hljs-punctuation {
+    color: var(--hljs-base);
+  }
+  .hljs-meta,
+  .hljs-meta .hljs-keyword {
+    color: var(--hljs-meta);
+  }
+  .hljs-section {
+    color: var(--hljs-keyword);
+    font-weight: bold;
+  }
+  .hljs-tag,
+  .hljs-name {
+    color: var(--hljs-tag);
+  }
+  .hljs-type {
+    color: var(--hljs-type);
+  }
+  .hljs-addition {
+    color: var(--hljs-comment);
+  }
+  .hljs-emphasis {
+    font-style: italic;
+  }
+  .hljs-strong {
+    font-weight: bold;
   }
 `;
 

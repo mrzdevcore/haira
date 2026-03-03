@@ -16,9 +16,30 @@ import (
 
 // CompileToBinary generates Go source and runs go build.
 // The embedded runtime is always used — no external runtime path needed.
-func CompileToBinary(file *ast.SourceFile, output, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
+// target is "native" (default) or "workers" (Cloudflare Workers WASM).
+func CompileToBinary(file *ast.SourceFile, output, hairaFile, hairaSource, target string, typeInfo ...*checker.TypeInfo) error {
+	activeTarget = target
+	defer func() { activeTarget = "native" }()
+
 	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-build-%d", os.Getpid()))
 	usedPkgs := collectUsedStdlibPackages(file)
+
+	// Workers target: replace sqlite with d1 (no filesystem in WASM, use Cloudflare D1)
+	if target == "workers" {
+		filtered := make([]string, 0, len(usedPkgs))
+		hasSqlite := false
+		for _, pkg := range usedPkgs {
+			if pkg == "sqlite" {
+				hasSqlite = true
+			} else {
+				filtered = append(filtered, pkg)
+			}
+		}
+		if hasSqlite {
+			filtered = append(filtered, "d1")
+		}
+		usedPkgs = filtered
+	}
 
 	if HasTests(file) && !hasMainFunction(file) {
 		mainGo := GenerateMainGoForTest(file, hairaFile, hairaSource, typeInfo...)
@@ -33,12 +54,23 @@ func CompileToBinary(file *ast.SourceFile, output, hairaFile, hairaSource string
 		}
 	}
 
+	// Workers target: add syumai/workers dependency
+	if target == "workers" {
+		if err := addWorkersGoModRequire(tmpDir); err != nil {
+			return fmt.Errorf("add workers dependency: %w", err)
+		}
+	}
+
 	if err := runGoModTidy(tmpDir); err != nil {
 		return fmt.Errorf("go mod tidy failed: %w", err)
 	}
 
+	// Fork: workers target builds WASM + scaffolds deploy directory
+	if target == "workers" {
+		return buildWorkersProject(tmpDir, output, hairaFile)
+	}
+
 	if err := runGoBuild(tmpDir, output); err != nil {
-		fmt.Fprintf(os.Stderr, "Debug: generated Go project at %s\n", tmpDir)
 		return fmt.Errorf("%s", cleanGoErrors(err.Error()))
 	}
 
@@ -133,11 +165,16 @@ func writeProject(dir, mainGo string, usedStdlibPkgs []string) error {
 		}
 	}
 
-	// Write UI files (observe.html etc. — loader/JS are CLI-only, not in compiled programs)
+	// Write UI files (observe.html, loader.html, haira-ui.js)
+	// Workers target: write minimal placeholders (real UI served via Cloudflare Static Assets)
 	for relPath, data := range runtime.UIFiles() {
 		fullPath := filepath.Join(hairaDir, relPath)
 		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 			return fmt.Errorf("create ui dir: %w", err)
+		}
+		if activeTarget == "workers" {
+			// Minimal placeholder so //go:embed compiles, but content stays tiny
+			data = []byte("<!-- served via static assets -->")
 		}
 		if err := os.WriteFile(fullPath, data, 0o644); err != nil {
 			return fmt.Errorf("write ui %s: %w", relPath, err)
@@ -414,4 +451,140 @@ func runGoBuild(dir, output string) error {
 		return fmt.Errorf("go build failed: %s", string(out))
 	}
 	return nil
+}
+
+// --- Workers target (Cloudflare Workers WASM) ---
+
+const workersVersion = "v0.26.3"
+
+// addWorkersGoModRequire appends the syumai/workers dependency to go.mod.
+func addWorkersGoModRequire(dir string) error {
+	modPath := filepath.Join(dir, "go.mod")
+	content, err := os.ReadFile(modPath)
+	if err != nil {
+		return err
+	}
+	addition := fmt.Sprintf("\nrequire github.com/syumai/workers %s\n", workersVersion)
+	return os.WriteFile(modPath, append(content, []byte(addition)...), 0o644)
+}
+
+// buildWorkersProject compiles to WASM and generates a deploy-ready Cloudflare Workers directory.
+func buildWorkersProject(tmpDir, output, hairaFile string) error {
+	// Step 1: Generate workers JS assets (worker.mjs, wasm_exec.js)
+	buildDir := filepath.Join(tmpDir, "build")
+	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+		return err
+	}
+	assetsCmd := exec.Command("go", "run", "github.com/syumai/workers/cmd/workers-assets-gen@"+workersVersion,
+		"-mode=go", "-o", buildDir)
+	assetsCmd.Dir = tmpDir
+	var assetsStderr bytes.Buffer
+	assetsCmd.Stderr = &assetsStderr
+	if err := assetsCmd.Run(); err != nil {
+		return fmt.Errorf("workers-assets-gen failed: %s\n%s", err, assetsStderr.String())
+	}
+
+	// Step 2: Build WASM binary
+	wasmOutput := filepath.Join(buildDir, "app.wasm")
+	cmd := exec.Command("go", "build", "-ldflags", "-s -w", "-o", wasmOutput, ".")
+	cmd.Dir = tmpDir
+	cmd.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("WASM build failed: %s", cleanGoErrors(string(out)))
+	}
+
+	// Step 3: Create output directory
+	outputAbs := output
+	if !filepath.IsAbs(output) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		outputAbs = filepath.Join(cwd, output)
+	}
+	outBuildDir := filepath.Join(outputAbs, "build")
+	if err := os.MkdirAll(outBuildDir, 0o755); err != nil {
+		return err
+	}
+
+	// Step 4: Copy build artifacts
+	entries, err := os.ReadDir(buildDir)
+	if err != nil {
+		return fmt.Errorf("read build dir: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(buildDir, entry.Name()))
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(outBuildDir, entry.Name()), data, 0o644); err != nil {
+			return err
+		}
+	}
+
+	// Step 5: Copy real UI files to public/ for Cloudflare Static Assets
+	publicDir := filepath.Join(outputAbs, "public")
+	if err := os.MkdirAll(publicDir, 0o755); err != nil {
+		return err
+	}
+	for relPath, data := range runtime.UIFiles() {
+		name := filepath.Base(relPath)
+		if strings.HasPrefix(name, "._") {
+			continue // skip macOS resource fork files
+		}
+		// Map: ui/loader.html → public/index.html, ui/haira-ui.js → public/haira-ui.js, etc.
+		if name == "loader.html" {
+			name = "index.html" // serve as SPA entry point
+		}
+		if err := os.WriteFile(filepath.Join(publicDir, name), data, 0o644); err != nil {
+			return fmt.Errorf("write public/%s: %w", name, err)
+		}
+	}
+
+	// Step 6: Generate wrangler.toml (with D1 database binding + static assets)
+	projectName := deriveProjectName(hairaFile)
+	dbName := projectName + "-db"
+	wranglerContent := fmt.Sprintf(`name = %q
+main = "./build/worker.mjs"
+compatibility_date = "2024-09-23"
+
+[assets]
+directory = "./public"
+
+[vars]
+HAIRA_UI_URL = "/haira-ui.js"
+
+[build]
+command = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = %q
+database_id = "<run: npx wrangler d1 create %s>"
+`, projectName, dbName, dbName)
+	if err := os.WriteFile(filepath.Join(outputAbs, "wrangler.toml"), []byte(wranglerContent), 0o644); err != nil {
+		return err
+	}
+
+	// Step 7: Generate package.json
+	packageJSON := fmt.Sprintf("{\n  \"name\": %q,\n  \"version\": \"0.0.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"deploy\": \"wrangler deploy\",\n    \"dev\": \"wrangler dev\"\n  },\n  \"devDependencies\": {\n    \"wrangler\": \"^3.109.2\"\n  }\n}\n", projectName)
+	if err := os.WriteFile(filepath.Join(outputAbs, "package.json"), []byte(packageJSON), 0o644); err != nil {
+		return err
+	}
+
+	os.RemoveAll(tmpDir)
+	return nil
+}
+
+// deriveProjectName extracts a Cloudflare Workers project name from the Haira source path.
+func deriveProjectName(hairaFile string) string {
+	base := filepath.Base(hairaFile)
+	ext := filepath.Ext(base)
+	if ext != "" {
+		base = base[:len(base)-len(ext)]
+	}
+	return strings.ReplaceAll(base, "_", "-")
 }

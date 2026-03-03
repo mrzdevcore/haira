@@ -226,6 +226,7 @@ export class HairaStep extends LitElement {
     if (status === "running") {
       this._startTime = Date.now();
       this._startTimer();
+      this._expanded = true; // auto-expand the active step
     } else {
       this._stopTimer();
     }
@@ -243,6 +244,7 @@ export class HairaStep extends LitElement {
   /** Add a log entry */
   public addLog(entry: StepLogEntry): void {
     this._logs = [...this._logs, entry];
+    this._expanded = true; // auto-expand to make logs visible
   }
 
   /** Clear all logs */

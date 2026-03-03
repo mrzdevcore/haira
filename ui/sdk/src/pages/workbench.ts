@@ -14,6 +14,13 @@ export class PageWorkbench extends LitElement {
         flex: 1;
         overflow: hidden;
       }
+      .form-scroll {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
     `,
   ];
 
@@ -62,6 +69,7 @@ export class PageWorkbench extends LitElement {
         title: wf.title || wf.name,
         description: wf.description || this.meta.description,
         hasFile: wf.hasFile ?? false,
+        steps: wf.steps || [],
         params: wf.params || [],
         chatParam: wf.chatParam,
         fileParam: wf.fileParam,

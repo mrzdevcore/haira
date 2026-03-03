@@ -68,9 +68,18 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 		imports = append(imports, fmt.Sprintf(`"haira-generated/%s"`, mod))
 	}
 
-	// Auto-include sqlite blank import when workflows or server detected (default store backend)
+	// Auto-include store backend: D1 for Workers, SQLite for native
 	if needsSqliteImport(file) {
-		imports = append(imports, `_ "haira-generated/sqlite"`)
+		if activeTarget == "workers" {
+			imports = append(imports, `_ "haira-generated/d1"`)
+		} else {
+			imports = append(imports, `_ "haira-generated/sqlite"`)
+		}
+	}
+
+	// Workers target: import syumai/workers for Cloudflare Workers WASM bridge
+	if activeTarget == "workers" {
+		imports = append(imports, `"github.com/syumai/workers"`)
 	}
 
 	if len(imports) > 0 {
@@ -95,7 +104,10 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 	if needsSync {
 		em.Line("var _ sync.WaitGroup")
 	}
-	if needsFmt || needsSync {
+	if activeTarget == "workers" {
+		em.Line("var _ = workers.Serve")
+	}
+	if needsFmt || needsSync || activeTarget == "workers" {
 		em.Blank()
 	}
 

@@ -2,6 +2,8 @@ package haira
 
 import (
 	_ "embed"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -22,10 +24,14 @@ func (s *Server) registerUIRoutes() {
 		return
 	}
 
+	// Compute a short content hash for cache-busting the JS bundle URL.
+	sum := sha256.Sum256(uiJS)
+	jsVersion := hex.EncodeToString(sum[:4]) // 8 hex chars, e.g. "a1b2c3d4"
+
 	// Serve the JS bundle
 	s.mux.HandleFunc("/_ui/assets/haira-ui.js", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-		rw.Header().Set("Cache-Control", "public, max-age=86400")
+		rw.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		rw.Write(uiJS)
 	})
 
@@ -33,7 +39,8 @@ func (s *Server) registerUIRoutes() {
 	// HAIRA_UI_URL overrides to an external source (CDN, dev server).
 	s.mux.HandleFunc("/_ui/config", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
-		src := "/_ui/assets/haira-ui.js"
+		rw.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		src := "/_ui/assets/haira-ui.js?v=" + jsVersion
 		if extURL := os.Getenv("HAIRA_UI_URL"); extURL != "" {
 			src = extURL
 		}
@@ -131,6 +138,9 @@ func (s *Server) buildWorkflowMeta(wf *WorkflowDef) string {
 	if isStream {
 		meta["chatParam"] = findChatParam(wf.Params)
 	}
+	if len(wf.Steps) > 0 {
+		meta["steps"] = wf.Steps
+	}
 	for _, p := range wf.Params {
 		if p.Type == "file" {
 			meta["hasFile"] = true
@@ -175,6 +185,9 @@ func (s *Server) workflowListItem(wf *WorkflowDef) map[string]any {
 	}
 	if len(wf.Params) > 0 {
 		item["params"] = wf.Params
+	}
+	if len(wf.Steps) > 0 {
+		item["steps"] = wf.Steps
 	}
 	if len(wf.Suggestions) > 0 {
 		item["suggestions"] = wf.Suggestions

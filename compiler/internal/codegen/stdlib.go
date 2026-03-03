@@ -440,7 +440,7 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("excel.ExcelReadConfig(%s)", args), true
 		}
 	case "log":
-		// log.info/warn/error inside steps → haira.StepLog with injected context
+		// log.info/warn/error/render inside steps → haira.StepLog/StepRender with injected context
 		if activeWorkflowName != "" && activeStepName != "" {
 			switch method {
 			case "info":
@@ -449,6 +449,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 				return fmt.Sprintf("haira.StepLog(%q, %q, \"warn\", %s)", activeWorkflowName, activeStepName, args), true
 			case "error":
 				return fmt.Sprintf("haira.StepLog(%q, %q, \"error\", %s)", activeWorkflowName, activeStepName, args), true
+			case "render":
+				return fmt.Sprintf("haira.StepRender(%q, %q, %s)", activeWorkflowName, activeStepName, args), true
 			}
 		} else {
 			// Outside steps: print with level prefix to stdout/stderr
@@ -591,6 +593,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.UiNewTable(%s)", args), true
 		case "product_cards":
 			return fmt.Sprintf("haira.UiNewProductCards(%s)", args), true
+		case "markdown":
+			return fmt.Sprintf("haira.UiNewMarkdown(%s)", args), true
 		}
 	}
 	return "", false

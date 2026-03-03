@@ -275,13 +275,24 @@ export class HairaChat extends LitElement {
         display: flex;
       }
       .messages-inner {
-        max-width: 768px;
         width: 100%;
-        margin: 0 auto;
-        padding: 1.5rem 1.25rem;
+        padding: 1.5rem 0 0;
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
+      }
+      /* Message bubbles and typing stay narrow and centered */
+      .messages-inner > haira-message,
+      .messages-inner > .typing {
+        max-width: 768px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+        box-sizing: border-box;
+      }
+      /* Rendered UI components (tables, code blocks) span full width */
+      .messages-inner > haira-ui-renderer {
+        padding: 0 1.25rem 0.75rem;
       }
 
       /* ---- Typing indicator ---- */
@@ -665,7 +676,14 @@ export class HairaChat extends LitElement {
           box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
         }
         .messages-inner {
-          padding: 1rem 0.75rem;
+          padding: 1rem 0 0;
+        }
+        .messages-inner > haira-message,
+        .messages-inner > .typing {
+          padding: 0 0.75rem;
+        }
+        .messages-inner > haira-ui-renderer {
+          padding: 0 0.75rem 0.5rem;
         }
         .input-area {
           padding: 0.5rem 0.5rem 0.75rem;

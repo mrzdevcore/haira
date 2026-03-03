@@ -83,6 +83,31 @@ var sqliteSchema = []string{
 		started_at DATETIME DEFAULT (datetime('now')),
 		finished_at DATETIME
 	)`,
+	`CREATE TABLE IF NOT EXISTS observe_generations (
+		id TEXT PRIMARY KEY,
+		agent_name TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
+		provider TEXT NOT NULL DEFAULT '',
+		input_tokens INTEGER DEFAULT 0,
+		output_tokens INTEGER DEFAULT 0,
+		total_tokens INTEGER DEFAULT 0,
+		cost_usd REAL DEFAULT 0,
+		latency_ms INTEGER DEFAULT 0,
+		temperature REAL DEFAULT 0,
+		tool_calls INTEGER DEFAULT 0,
+		finish_reason TEXT DEFAULT '',
+		timestamp DATETIME DEFAULT (datetime('now')),
+		session_id TEXT DEFAULT ''
+	)`,
+	`CREATE TABLE IF NOT EXISTS observe_tool_execs (
+		id TEXT PRIMARY KEY,
+		agent_name TEXT NOT NULL DEFAULT '',
+		tool_name TEXT NOT NULL DEFAULT '',
+		latency_ms INTEGER DEFAULT 0,
+		success INTEGER DEFAULT 1,
+		timestamp DATETIME DEFAULT (datetime('now')),
+		session_id TEXT DEFAULT ''
+	)`,
 }
 
 // --- Chat Sessions ---
@@ -99,8 +124,8 @@ func (s *SQLiteStore) AddMessage(sessionID, role, content string, uiEvents []jso
 	var eventsJSON *string
 	if len(uiEvents) > 0 {
 		b, _ := json.Marshal(uiEvents)
-		s := string(b)
-		eventsJSON = &s
+		str := string(b)
+		eventsJSON = &str
 	}
 
 	tx, err := s.db.Begin()
@@ -251,13 +276,13 @@ func (s *SQLiteStore) UpdateRun(run *haira.Run) error {
 	var resultJSON *string
 	if run.Result != nil {
 		b, _ := json.Marshal(run.Result)
-		s := string(b)
-		resultJSON = &s
+		str := string(b)
+		resultJSON = &str
 	}
 	var finishedAt *string
 	if run.FinishedAt != nil {
-		s := run.FinishedAt.UTC().Format(time.RFC3339)
-		finishedAt = &s
+		str := run.FinishedAt.UTC().Format(time.RFC3339)
+		finishedAt = &str
 	}
 
 	_, err := s.db.Exec(
@@ -352,4 +377,94 @@ func (s *SQLiteStore) ListRuns(wfPath string) ([]haira.RunSummary, error) {
 		runs = []haira.RunSummary{}
 	}
 	return runs, nil
+}
+
+// --- Observability ---
+
+func (s *SQLiteStore) SaveGeneration(gen haira.LLMGeneration) error {
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO observe_generations
+		 (id, agent_name, model, provider, input_tokens, output_tokens, total_tokens,
+		  cost_usd, latency_ms, temperature, tool_calls, finish_reason, timestamp, session_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		gen.ID, gen.AgentName, gen.Model, gen.Provider,
+		gen.InputTokens, gen.OutputTokens, gen.TotalTokens,
+		gen.CostUSD, gen.LatencyMs, gen.Temperature,
+		gen.ToolCalls, gen.FinishReason,
+		gen.Timestamp.UTC().Format(time.RFC3339), gen.SessionID,
+	)
+	return err
+}
+
+func (s *SQLiteStore) SaveToolExec(exec haira.ToolExec) error {
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO observe_tool_execs
+		 (id, agent_name, tool_name, latency_ms, success, timestamp, session_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		exec.ID, exec.AgentName, exec.ToolName,
+		exec.LatencyMs, exec.Success,
+		exec.Timestamp.UTC().Format(time.RFC3339), exec.SessionID,
+	)
+	return err
+}
+
+func (s *SQLiteStore) LoadGenerations() ([]haira.LLMGeneration, error) {
+	rows, err := s.db.Query(
+		`SELECT id, agent_name, model, provider, input_tokens, output_tokens, total_tokens,
+		        cost_usd, latency_ms, temperature, tool_calls, finish_reason, timestamp, session_id
+		 FROM observe_generations ORDER BY timestamp ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var gens []haira.LLMGeneration
+	for rows.Next() {
+		var g haira.LLMGeneration
+		var ts string
+		if err := rows.Scan(
+			&g.ID, &g.AgentName, &g.Model, &g.Provider,
+			&g.InputTokens, &g.OutputTokens, &g.TotalTokens,
+			&g.CostUSD, &g.LatencyMs, &g.Temperature,
+			&g.ToolCalls, &g.FinishReason, &ts, &g.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		g.Timestamp, _ = time.Parse(time.RFC3339, ts)
+		gens = append(gens, g)
+	}
+	if gens == nil {
+		gens = []haira.LLMGeneration{}
+	}
+	return gens, nil
+}
+
+func (s *SQLiteStore) LoadToolExecs() ([]haira.ToolExec, error) {
+	rows, err := s.db.Query(
+		`SELECT id, agent_name, tool_name, latency_ms, success, timestamp, session_id
+		 FROM observe_tool_execs ORDER BY timestamp ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var execs []haira.ToolExec
+	for rows.Next() {
+		var e haira.ToolExec
+		var ts string
+		if err := rows.Scan(
+			&e.ID, &e.AgentName, &e.ToolName,
+			&e.LatencyMs, &e.Success, &ts, &e.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		e.Timestamp, _ = time.Parse(time.RFC3339, ts)
+		execs = append(execs, e)
+	}
+	if execs == nil {
+		execs = []haira.ToolExec{}
+	}
+	return execs, nil
 }

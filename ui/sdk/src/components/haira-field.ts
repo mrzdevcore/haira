@@ -184,19 +184,18 @@ export class HairaField extends LitElement {
   @state() private _fileValue: File | null = null;
   @state() private _dragover: boolean = false;
 
-  /** Return current field value */
-  public getValue(): FieldValue {
+  /** Return the raw field value (string | number | boolean | File | null). */
+  public getValue(): string | number | boolean | File | null {
     switch (this.type) {
       case "bool":
-        return { name: this.name, value: this._boolValue, type: this.type };
+        return this._boolValue;
       case "int":
-        return { name: this.name, value: this._numValue, type: this.type };
       case "float":
-        return { name: this.name, value: this._numValue, type: this.type };
+        return this._numValue;
       case "file":
-        return { name: this.name, value: this._fileValue, type: this.type };
+        return this._fileValue;
       default:
-        return { name: this.name, value: this._textValue, type: this.type };
+        return this._textValue;
     }
   }
 

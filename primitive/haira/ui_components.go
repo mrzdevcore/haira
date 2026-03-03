@@ -184,6 +184,15 @@ type UiProductCardItem struct {
 	URL         string `json:"url,omitempty"`
 }
 
+// --- Markdown ---
+
+type UiMarkdown struct {
+	Content string `json:"content"`
+	Title   string `json:"title,omitempty"`
+}
+
+func (UiMarkdown) UiComponentName() string { return "markdown" }
+
 // --- Group (composition) ---
 
 type UiGroup struct {
@@ -261,6 +270,15 @@ func uiNodeSummary(node UiNode, raw any) string {
 		return fmt.Sprintf("Rendered %s chart %q with %d datasets", v.Type, v.Title, len(v.Datasets))
 	case UiProductCards:
 		return fmt.Sprintf("Rendered %d product cards: %q", len(v.Cards), v.Title)
+	case UiMarkdown:
+		n := len(v.Content)
+		if n > 80 {
+			n = 80
+		}
+		if v.Title != "" {
+			return fmt.Sprintf("Rendered markdown %q (%d chars)", v.Title, len(v.Content))
+		}
+		return fmt.Sprintf("Rendered markdown (%d chars)", len(v.Content))
 	default:
 		return fmt.Sprintf("Rendered %s component", node.UiComponentName())
 	}
@@ -332,6 +350,16 @@ func UiNewTable(title string, headers any, rows any) UiTable {
 // Usage in Haira: ui.product_cards("Title", cards)
 func UiNewProductCards(title string, cards any) UiProductCards {
 	return UiProductCards{Title: title, Cards: toAnySlice(cards)}
+}
+
+// UiNewMarkdown builds a UiMarkdown component for rendering rich text.
+// Usage in Haira: ui.markdown(content) or ui.markdown(content, "Title")
+func UiNewMarkdown(content string, title ...string) UiMarkdown {
+	t := ""
+	if len(title) > 0 {
+		t = title[0]
+	}
+	return UiMarkdown{Content: content, Title: t}
 }
 
 // toAnySlice coerces a value to []any. Accepts []any directly or any as a pass-through.

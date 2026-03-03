@@ -9,6 +9,12 @@ export class HairaConfirm extends LitElement {
     baseStyles,
     animateInStyles,
     css`
+      :host {
+        width: fit-content;
+        max-width: 100%;
+        margin-left: calc(28px + 0.65rem);
+      }
+
       .confirm-card {
         background: var(--haira-bg-card);
         border: 1px solid var(--haira-border);

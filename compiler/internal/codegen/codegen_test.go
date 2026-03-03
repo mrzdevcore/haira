@@ -608,6 +608,59 @@ fn main() {
 }
 
 // ---------------------------------------------------------------------------
+// Golden test: Workers target — server.listen() becomes workers.Serve()
+// ---------------------------------------------------------------------------
+
+func TestWorkersTarget(t *testing.T) {
+	// Set workers target for this test.
+	oldTarget := activeTarget
+	activeTarget = "workers"
+	defer func() { activeTarget = oldTarget }()
+
+	src := `import "http"
+import "io"
+
+provider openai {
+    api_key: env("OPENAI_API_KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    provider: openai
+    system: "You are helpful."
+}
+workflow Chat(message: string) -> stream {
+    """Chat with the bot."""
+    return Bot.stream(message)
+}
+fn main() {
+    server = http.Server([Chat])
+    server.listen(8080)
+}`
+
+	got := parseAndGenerate(t, src)
+
+	// Must use workers.Serve(server.Handler()), not server.Listen(8080)
+	if !strings.Contains(got, "workers.Serve(server.Handler())") {
+		t.Errorf("expected workers.Serve(server.Handler()) in output:\n%s", got)
+	}
+	if strings.Contains(got, "server.Listen(8080)") {
+		t.Errorf("should NOT contain server.Listen(8080) in workers target:\n%s", got)
+	}
+	// Must import workers package
+	if !strings.Contains(got, `"github.com/syumai/workers"`) {
+		t.Errorf("expected workers import in output:\n%s", got)
+	}
+	// Must NOT import sqlite for workers target
+	if strings.Contains(got, "haira-generated/sqlite") {
+		t.Errorf("should NOT import sqlite in workers target:\n%s", got)
+	}
+	// Must import D1 for workers target (replaces SQLite)
+	if !strings.Contains(got, `_ "haira-generated/d1"`) {
+		t.Errorf("expected D1 import in workers output:\n%s", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Golden test: workflow without description (no Description field emitted)
 // ---------------------------------------------------------------------------
 

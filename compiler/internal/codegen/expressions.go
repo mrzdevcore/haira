@@ -74,6 +74,11 @@ func ExprToGo(expr ast.Expr) string {
 				}
 			}
 		}
+		// Workers target: server.listen(port) → workers.Serve(server.Handler())
+		if activeTarget == "workers" && e.Method.Node == "listen" {
+			receiver := ExprToGo(e.Receiver)
+			return fmt.Sprintf("workers.Serve(%s.Handler())", receiver)
+		}
 		receiver := ExprToGo(e.Receiver)
 		method := SnakeToPascal(e.Method.Node)
 		return fmt.Sprintf("%s.%s(%s)", receiver, method, argsWithNamedToGo(e.Args))

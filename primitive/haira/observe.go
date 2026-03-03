@@ -92,6 +92,9 @@ func RecordGeneration(gen LLMGeneration) {
 	globalObserver.mu.Lock()
 	globalObserver.generations = append(globalObserver.generations, gen)
 	globalObserver.mu.Unlock()
+	if globalStore != nil {
+		globalStore.SaveGeneration(gen)
+	}
 	for _, exp := range exporters {
 		exp.OnGeneration(gen)
 	}
@@ -102,6 +105,45 @@ func RecordToolExec(exec ToolExec) {
 	exec.ID = globalObserver.nextID("tool")
 	globalObserver.mu.Lock()
 	globalObserver.toolExecs = append(globalObserver.toolExecs, exec)
+	globalObserver.mu.Unlock()
+	if globalStore != nil {
+		globalStore.SaveToolExec(exec)
+	}
+}
+
+// ObserveLoadFromStore loads persisted observability data from the store on startup.
+func ObserveLoadFromStore() {
+	if globalStore == nil {
+		return
+	}
+	gens, err := globalStore.LoadGenerations()
+	if err != nil {
+		return
+	}
+	tools, errT := globalStore.LoadToolExecs()
+	if errT != nil {
+		return
+	}
+	globalObserver.mu.Lock()
+	globalObserver.generations = gens
+	globalObserver.toolExecs = tools
+	// Advance ID counter past loaded IDs to avoid collisions
+	var maxID uint64
+	for _, g := range gens {
+		var n uint64
+		fmt.Sscanf(g.ID, "gen_%d", &n)
+		if n > maxID {
+			maxID = n
+		}
+	}
+	for _, t := range tools {
+		var n uint64
+		fmt.Sscanf(t.ID, "tool_%d", &n)
+		if n > maxID {
+			maxID = n
+		}
+	}
+	atomic.StoreUint64(&globalObserver.idCounter, maxID)
 	globalObserver.mu.Unlock()
 }
 

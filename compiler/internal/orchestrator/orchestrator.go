@@ -281,7 +281,7 @@ func (o *Orchestrator) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(os.Stderr, "[orchestrator] compiling %s...\n", req.Name)
-	if err := driver.Compile(req.SourcePath, binaryPath); err != nil {
+	if err := driver.Compile(req.SourcePath, binaryPath, "native"); err != nil {
 		jsonError(w, fmt.Sprintf("compilation failed: %v", err), http.StatusUnprocessableEntity)
 		return
 	}

@@ -92,6 +92,7 @@ export interface WorkflowListItem {
   title: string;
   description?: string;
   hasFile?: boolean;
+  steps?: string[];
   params?: WorkflowParam[];
   chatParam?: string;
   fileParam?: string;

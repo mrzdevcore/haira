@@ -7,7 +7,7 @@ import (
 )
 
 // Store is the unified storage interface for the Haira runtime.
-// Implementations: SQLiteStore (default, embedded) and PostgresStore (production).
+// Implementations: SQLiteStore (default), D1Store (Cloudflare Workers), and PostgresStore (production).
 type Store interface {
 	// Lifecycle
 	Init() error
@@ -25,6 +25,12 @@ type Store interface {
 	UpdateRun(run *Run) error
 	GetRun(id string) (*Run, error)
 	ListRuns(wfPath string) ([]RunSummary, error)
+
+	// Observability
+	SaveGeneration(gen LLMGeneration) error
+	SaveToolExec(exec ToolExec) error
+	LoadGenerations() ([]LLMGeneration, error)
+	LoadToolExecs() ([]ToolExec, error)
 }
 
 // --- Data types (shared by all backends) ---
@@ -71,13 +77,16 @@ func RegisterStoreBackend(name string, factory func(string) Store) {
 var globalStore Store
 
 // InitStore initializes the global store based on environment.
-// If HAIRA_DATABASE_URL is set, uses Postgres. Otherwise uses SQLite.
+// Priority: Postgres (explicit HAIRA_DATABASE_URL) > D1 (workers target) > SQLite (native default).
 func InitStore() error {
 	dbURL := os.Getenv("HAIRA_DATABASE_URL")
 	if dbURL != "" {
 		if factory, ok := storeBackends["postgres"]; ok {
 			globalStore = factory(dbURL)
 		}
+	} else if factory, ok := storeBackends["d1"]; ok {
+		// D1 backend registered → workers target, use Cloudflare D1
+		globalStore = factory("DB") // "DB" = binding name in wrangler.toml
 	} else {
 		if factory, ok := storeBackends["sqlite"]; ok {
 			globalStore = factory(".haira.db")
@@ -86,7 +95,11 @@ func InitStore() error {
 	if globalStore == nil {
 		return nil
 	}
-	return globalStore.Init()
+	if err := globalStore.Init(); err != nil {
+		return err
+	}
+	ObserveLoadFromStore()
+	return nil
 }
 
 // CloseStore closes the global store.

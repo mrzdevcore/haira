@@ -1,6 +1,7 @@
 package haira
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
@@ -12,8 +13,8 @@ import (
 
 // WorkflowParam describes a workflow parameter for UI generation.
 type WorkflowParam struct {
-	Name string `json:"name"`
-	Type string `json:"type"` // "string", "int", "float", "bool", "file"
+	Name string // "Name" in JSON — matches TypeScript WorkflowParam.Name
+	Type string // "Type" in JSON — "string", "int", "float", "bool", "file"
 }
 
 // WorkflowDef defines a workflow that can be exposed as an HTTP endpoint or MCP tool.
@@ -43,15 +44,22 @@ type StepLogEntry struct {
 	Message string `json:"message"`
 }
 
+// StepRenderPayload holds a serialized UI component to render inline.
+type StepRenderPayload struct {
+	Component string         `json:"component"`
+	Props     map[string]any `json:"props"`
+}
+
 // StepEvent represents a step status change for SSE notification.
 type StepEvent struct {
-	Name       string        `json:"name"`
-	Status     string        `json:"status"` // "start", "end", "failed", "retry", "log"
-	DurationMs int64         `json:"duration_ms,omitempty"`
-	Error      string        `json:"error,omitempty"`
-	Attempt    int           `json:"attempt,omitempty"`
-	DelayMs    int           `json:"delay_ms,omitempty"`
-	Log        *StepLogEntry `json:"log,omitempty"`
+	Name       string             `json:"name"`
+	Status     string             `json:"status"` // "start", "end", "failed", "retry", "log", "render"
+	DurationMs int64              `json:"duration_ms,omitempty"`
+	Error      string             `json:"error,omitempty"`
+	Attempt    int                `json:"attempt,omitempty"`
+	DelayMs    int                `json:"delay_ms,omitempty"`
+	Log        *StepLogEntry      `json:"log,omitempty"`
+	Render     *StepRenderPayload `json:"render,omitempty"`
 }
 
 // stepNotifiers maps goroutine IDs to step event channels.
@@ -117,6 +125,26 @@ func StepRetry(workflow, step string, attempt, delayMs int) {
 func StepLog(workflow, step, level, message string) {
 	fmt.Printf("[%s] step:log   %q  level=%s  %s\n", workflow, step, level, message)
 	notifyStep(StepEvent{Name: step, Status: "log", Log: &StepLogEntry{Level: level, Message: message}})
+}
+
+// StepRender emits a UI component render event for the current workflow step.
+// node must implement UiNode (status-card, table, code-block, etc.).
+// The component is displayed inline below the pipeline in the UI.
+func StepRender(workflow, step string, node UiNode) {
+	b, err := json.Marshal(node)
+	if err != nil {
+		return
+	}
+	var props map[string]any
+	if err := json.Unmarshal(b, &props); err != nil {
+		return
+	}
+	fmt.Printf("[%s] step:render %q  component=%s\n", workflow, step, node.UiComponentName())
+	notifyStep(StepEvent{
+		Name:   step,
+		Status: "render",
+		Render: &StepRenderPayload{Component: node.UiComponentName(), Props: props},
+	})
 }
 
 // LogPrint prints a leveled log message to stdout/stderr (used outside steps).

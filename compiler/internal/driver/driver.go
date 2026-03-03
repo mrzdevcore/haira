@@ -18,8 +18,9 @@ import (
 )
 
 // Compile reads a Haira source file and compiles it to a binary.
-func Compile(file, output string) error {
-	fmt.Fprintf(os.Stderr, "Compiling: %s\n", file)
+// target is "native" (default) or "workers" (Cloudflare Workers WASM).
+func Compile(file, output, target string) error {
+	fmt.Fprintf(os.Stderr, "Compiling: %s (target: %s)\n", file, target)
 
 	sf, src, err := resolveAndParse(file)
 	if err != nil {
@@ -41,14 +42,31 @@ func Compile(file, output string) error {
 		}
 		outputDir := ".output"
 		os.MkdirAll(outputDir, 0o755)
-		output = filepath.Join(outputDir, stem)
+		if target == "workers" {
+			output = filepath.Join(outputDir, stem+"-workers")
+		} else {
+			output = filepath.Join(outputDir, stem)
+		}
 	}
 
-	if err := codegen.CompileToBinary(sf, output, file, src, typeInfo); err != nil {
+	if err := codegen.CompileToBinary(sf, output, file, src, target, typeInfo); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "Built: %s\n", output)
+	if target == "workers" {
+		stem := filepath.Base(file)
+		if ext := filepath.Ext(stem); ext != "" {
+			stem = stem[:len(stem)-len(ext)]
+		}
+		dbName := strings.ReplaceAll(stem, "_", "-") + "-db"
+		fmt.Fprintf(os.Stderr, "Built Workers project: %s\n", output)
+		fmt.Fprintf(os.Stderr, "  Setup D1: npx wrangler d1 create %s\n", dbName)
+		fmt.Fprintf(os.Stderr, "            Then update database_id in %s/wrangler.toml\n", output)
+		fmt.Fprintf(os.Stderr, "  Deploy:   cd %s && npm install && npx wrangler deploy\n", output)
+		fmt.Fprintf(os.Stderr, "  Dev:      cd %s && npm install && npx wrangler dev\n", output)
+	} else {
+		fmt.Fprintf(os.Stderr, "Built: %s\n", output)
+	}
 	return nil
 }
 

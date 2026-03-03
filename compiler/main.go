@@ -110,16 +110,25 @@ func resolveEntryFile(args []string) (string, []string) {
 func cmdBuild(args []string) error {
 	file, rest := resolveEntryFile(args)
 	if file == "" {
-		return fmt.Errorf("usage: haira build [file] [-o output]\n  No file specified and no package.haira found")
+		return fmt.Errorf("usage: haira build [file] [-o output] [--target native|workers]\n  No file specified and no package.haira found")
 	}
 	output := ""
+	target := "native"
 	for i := 0; i < len(rest); i++ {
 		if (rest[i] == "-o" || rest[i] == "--output") && i+1 < len(rest) {
 			output = rest[i+1]
 			i++
+		} else if rest[i] == "--target" && i+1 < len(rest) {
+			target = rest[i+1]
+			i++
+		} else if strings.HasPrefix(rest[i], "--target=") {
+			target = strings.TrimPrefix(rest[i], "--target=")
 		}
 	}
-	return driver.Compile(file, output)
+	if target != "native" && target != "workers" {
+		return fmt.Errorf("unknown target %q (valid: native, workers)", target)
+	}
+	return driver.Compile(file, output, target)
 }
 
 func cmdRun(args []string) error {
@@ -510,7 +519,7 @@ func printUsage() {
 Usage: haira <command> [arguments]
 
 Commands:
-  build [file] [-o output]   Compile to a native binary
+  build [file] [-o output] [--target native|workers]   Compile to binary
   run [file]                  Compile and execute
   parse [file]                Show the AST
   check [file] [files...]     Parse and report errors

@@ -19,9 +19,17 @@
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
-  "keywords": ["haira", "arp", "agentic", "ui", "agent", "renderer"],
+  "keywords": [
+    "haira",
+    "arp",
+    "agentic",
+    "ui",
+    "agent",
+    "renderer"
+  ],
   "license": "MIT",
   "dependencies": {
+    "highlight.js": "^11.11.1",
     "lit": "^3.2.0"
   },
   "devDependencies": {

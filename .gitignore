@@ -34,6 +34,15 @@ compiler/internal/runtime/bundle.tar.gz
 
 # POC projects
 poc/maltimize
+poc/cloudflare-agent/haira
+
+# Runtime databases
+.haira.db
+.haira.db-shm
+.haira.db-wal
+
+# Screenshots
+Screenshot*.png
 
 # Environment
 .env

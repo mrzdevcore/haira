@@ -251,12 +251,18 @@ export interface StepLogEntry {
   message: string;
 }
 
+export interface StepRenderPayload {
+  component: string;
+  props: Record<string, unknown>;
+}
+
 export interface StepEvent {
   name: string;
-  status: "start" | "end" | "failed" | "retry" | "log";
+  status: "start" | "end" | "failed" | "retry" | "log" | "render";
   duration_ms?: number;
   error?: string;
   attempt?: number;
   delay_ms?: number;
   log?: StepLogEntry;
+  render?: StepRenderPayload;
 }

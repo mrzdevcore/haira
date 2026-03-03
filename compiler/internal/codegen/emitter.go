@@ -17,6 +17,7 @@ type GoEmitter struct {
 	typeInfo     *checker.TypeInfo
 	sourceFile   string // Haira source filename (e.g., "examples/08-structs.haira")
 	sourceText   string // Haira source text (for offset→line conversion)
+	inTryBlock   bool   // true when emitting inside a try body (? uses panic instead of return)
 }
 
 // LookupExprType returns the inferred checker type for an expression span, or nil.

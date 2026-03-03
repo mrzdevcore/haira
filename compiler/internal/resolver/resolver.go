@@ -40,7 +40,7 @@ var stdlibModules = map[string]bool{
 	"array": true, "map": true, "log": true,
 	"ui": true, "vector": true, "observe": true, "fs": true,
 	"gitlab": true, "github": true, "langfuse": true,
-	"algolia": true, "meilisearch": true,
+	"algolia": true, "meilisearch": true, "store": true,
 }
 
 // Resolve parses the main file and all its transitive project-local imports.

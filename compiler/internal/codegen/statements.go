@@ -47,21 +47,32 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 }
 
 func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
-	// Special case: error propagation → emit inline error check (return-based)
+	// Special case: error propagation → emit inline error check.
+	// Inside try blocks: panic (caught by defer/recover).
+	// Outside try blocks: return the error to the caller.
 	if len(assign.Targets) == 1 {
 		if prop, ok := assign.Value.Node.(ast.PropagateExpr); ok {
 			target := assignPathToGo(assign.Targets[0].Path)
+			isNew := false
 			if ident, ok := assign.Targets[0].Path.(ast.IdentPath); ok {
-				em.DeclareVar(ident.Name.Node)
+				isNew = em.DeclareVar(ident.Name.Node)
 			}
 			inner := ExprToGo(prop.Inner)
 			propagateCounter++
 			id := propagateCounter
 			em.Line(fmt.Sprintf("_r%d, _e%d := %s", id, id, inner))
 			em.OpenBlock(fmt.Sprintf("if _e%d != nil", id))
-			em.Line(fmt.Sprintf("return nil, _e%d", id))
+			if em.inTryBlock {
+				em.Line(fmt.Sprintf("panic(_e%d)", id))
+			} else {
+				em.Line(fmt.Sprintf("return nil, _e%d", id))
+			}
 			em.CloseBlock()
-			em.Line(fmt.Sprintf("%s := _r%d", target, id))
+			op := "="
+			if isNew {
+				op = ":="
+			}
+			em.Line(fmt.Sprintf("%s %s _r%d", target, op, id))
 			return
 		}
 	}
@@ -70,10 +81,13 @@ func emitAssignment(em *GoEmitter, assign ast.AssignStmt) {
 	if len(assign.Targets) == 1 {
 		if matchExpr, ok := assign.Value.Node.(ast.MatchExpr); ok {
 			target := assignPathToGo(assign.Targets[0].Path)
+			isNew := true
 			if ident, ok := assign.Targets[0].Path.(ast.IdentPath); ok {
-				em.DeclareVar(ident.Name.Node)
+				isNew = em.DeclareVar(ident.Name.Node)
 			}
-			em.Line(fmt.Sprintf("var %s any", target))
+			if isNew {
+				em.Line(fmt.Sprintf("var %s any", target))
+			}
 			emitMatchAssignment(em, target, matchExpr)
 			return
 		}
@@ -477,12 +491,10 @@ func patternToCondition(subject string, pattern ast.Pattern) string {
 func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {
 	errName := tryStmt.ErrorName.Node
 
-	// Hoist variables assigned in the try body so they survive the IIFE scope.
-	for _, name := range collectAssignTargets(tryStmt.Body) {
-		if em.DeclareVar(name) {
-			em.Line(fmt.Sprintf("var %s any", name))
-		}
-	}
+	// Variables declared BEFORE the try block are captured by reference (closure)
+	// and survive the IIFE scope. Variables first assigned inside the try body
+	// are closure-local with correct Go types — declare them before try if you
+	// need them after the block.
 
 	em.OpenBlock("func()")
 	em.OpenBlock("defer func()")
@@ -493,7 +505,10 @@ func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {
 	em.CloseBlock()
 	em.Dedent()
 	em.Line("}()")
+	prev := em.inTryBlock
+	em.inTryBlock = true
 	EmitBlockBody(em, tryStmt.Body)
+	em.inTryBlock = prev
 	em.Dedent()
 	em.Line("}()")
 }

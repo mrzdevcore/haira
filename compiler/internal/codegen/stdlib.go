@@ -536,6 +536,11 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "use":
 			return fmt.Sprintf("haira.ObserveExport(%s)", args), true
 		}
+	case "store":
+		switch method {
+		case "database":
+			return fmt.Sprintf("haira.SetStoreURL(%s)", args), true
+		}
 	case "langfuse":
 		switch method {
 		case "exporter":

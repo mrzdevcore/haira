@@ -75,11 +75,21 @@ func RegisterStoreBackend(name string, factory func(string) Store) {
 // --- Global store ---
 
 var globalStore Store
+var storeURL string // set programmatically via store.database() in Haira code
+
+// SetStoreURL sets the database URL for the runtime store.
+// Must be called before InitStore (i.e., before http.Server()).
+func SetStoreURL(url string) {
+	storeURL = url
+}
 
 // InitStore initializes the global store based on environment.
-// Priority: Postgres (explicit HAIRA_DATABASE_URL) > D1 (workers target) > SQLite (native default).
+// Priority: programmatic URL (store.database()) > HAIRA_DATABASE_URL > D1 (workers) > SQLite (native default).
 func InitStore() error {
-	dbURL := os.Getenv("HAIRA_DATABASE_URL")
+	dbURL := storeURL
+	if dbURL == "" {
+		dbURL = os.Getenv("HAIRA_DATABASE_URL")
+	}
 	if dbURL != "" {
 		if factory, ok := storeBackends["postgres"]; ok {
 			globalStore = factory(dbURL)

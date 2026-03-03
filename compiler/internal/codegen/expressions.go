@@ -34,7 +34,12 @@ func ExprToGo(expr ast.Expr) string {
 		}
 		callee := ExprToGo(e.Callee)
 		if ident, ok := e.Callee.Node.(ast.IdentExpr); ok {
-			callee = SnakeToPascal(ident.Name)
+			switch ident.Name {
+			case "panic", "recover":
+				callee = ident.Name // Go built-ins stay lowercase
+			default:
+				callee = SnakeToPascal(ident.Name)
+			}
 		}
 		args := make([]string, len(e.Args))
 		for i, a := range e.Args {

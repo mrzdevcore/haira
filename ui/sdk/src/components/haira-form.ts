@@ -520,9 +520,23 @@ export class HairaForm extends LitElement {
 
       const detail: RunDetail = await resp.json();
 
-      // Replay existing steps
+      // Replay existing steps — separate render events from pipeline steps
       if (detail.steps && detail.steps.length > 0) {
-        this._steps = [...detail.steps];
+        const regularSteps: StepEvent[] = [];
+        const renderEvents: ToolRenderEvent[] = [];
+        for (const step of detail.steps) {
+          if (step.status === "render" && step.render) {
+            renderEvents.push({
+              tool: step.name,
+              component: step.render.component,
+              props: { ...step.render.props, _restored: true },
+            });
+          } else {
+            regularSteps.push(step);
+          }
+        }
+        this._steps = regularSteps;
+        this._renders = renderEvents;
       }
 
       // If run already finished, show result or error
@@ -530,6 +544,7 @@ export class HairaForm extends LitElement {
         this._result = detail.result;
         this._isRunning = false;
         this._isResuming = false;
+        this._replayRestoredPipeline(true);
         return;
       }
 
@@ -537,11 +552,13 @@ export class HairaForm extends LitElement {
         this._error = detail.error || "Run failed";
         this._isRunning = false;
         this._isResuming = false;
+        this._replayRestoredPipeline(true);
         return;
       }
 
       // Still running — reconnect via SSE
       this._isResuming = false;
+      this._replayRestoredPipeline(false);
       await connectSSE(`/_api/runs/${encodeURIComponent(runId)}/stream`, {
         onStep: (event) => this._handleStep(event),
         onResult: (data) => {
@@ -716,6 +733,33 @@ export class HairaForm extends LitElement {
     });
   }
 
+  // --- Pipeline restoration ---
+
+  /**
+   * Replay saved steps into the pipeline component after restoring a run.
+   * Initializes the pipeline with step names and drives each step to its
+   * persisted status so the visual matches the original execution.
+   */
+  private async _replayRestoredPipeline(isFinished: boolean) {
+    if (!this.meta?.steps?.length || this._steps.length === 0) return;
+
+    await this.updateComplete;
+    if (this._pipeline) {
+      this._pipeline.setSteps(this.meta.steps);
+      this._pipelineInitialized = true;
+
+      // Wait for pipeline to render its step elements
+      await this._pipeline.updateComplete;
+
+      for (const step of this._steps) {
+        this._pipeline.updateStep(step);
+      }
+      if (isFinished) {
+        this._pipeline.finalize();
+      }
+    }
+  }
+
   // --- Reset ---
 
   private _handleReset() {
@@ -806,11 +850,14 @@ export class HairaForm extends LitElement {
 
       if (detail.status === "completed") {
         this._result = detail.result;
+        this._replayRestoredPipeline(true);
       } else if (detail.status === "failed") {
         this._error = detail.error || "Run failed";
+        this._replayRestoredPipeline(true);
       } else {
         // Still running — reconnect via SSE
         this._isRunning = true;
+        this._replayRestoredPipeline(false);
         await connectSSE(`/_api/runs/${encodeURIComponent(runId)}/stream`, {
           onStep: (event) => this._handleStep(event),
           onResult: (data) => { this._result = data; },

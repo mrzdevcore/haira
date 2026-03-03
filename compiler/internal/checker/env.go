@@ -284,4 +284,5 @@ func (e *Env) registerStdlib() {
 	e.funcs["len"] = &FuncType{Params: []Type{any}, Return: integer}
 	e.funcs["keys"] = &FuncType{Params: []Type{any}, Return: strList}
 	e.funcs["join"] = &FuncType{Params: []Type{any, str}, Return: str}
+	e.funcs["panic"] = &FuncType{Params: []Type{any}, Return: any}
 }

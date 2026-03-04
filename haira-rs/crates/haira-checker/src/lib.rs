@@ -1604,6 +1604,8 @@ impl Checker {
             }
 
             ExprKind::Select(_) => Type::Any,
+
+            ExprKind::Agent(_) => Type::Any,
         };
 
         self.info.expr_types.insert(expr.span, ty.clone());

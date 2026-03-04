@@ -8,6 +8,7 @@ use std::fmt;
 
 use haira_errors::{Diagnostic, Span};
 use haira_ir::*;
+use haira_runtime::{Agent, AgentStep, MemoryConfig, Provider, ToolDef, ToolRegistry, build_tool_schema};
 
 // ===========================================================================
 // Public API
@@ -89,6 +90,8 @@ enum IValue {
     },
     #[allow(dead_code)]
     Error(String),
+    /// Reference to a named agent (for dynamic dispatch on agent values).
+    AgentRef(String),
 }
 
 impl IValue {
@@ -103,6 +106,7 @@ impl IValue {
             IValue::Map(m) => !m.is_empty(),
             IValue::Struct { .. } => true,
             IValue::Error(_) => false,
+            IValue::AgentRef(_) => true,
         }
     }
 }
@@ -152,6 +156,7 @@ impl fmt::Display for IValue {
                 write!(f, "}}")
             }
             IValue::Error(msg) => write!(f, "error: {msg}"),
+            IValue::AgentRef(name) => write!(f, "<agent:{name}>"),
         }
     }
 }
@@ -167,6 +172,7 @@ impl PartialEq for IValue {
             (IValue::Float(a), IValue::Int(b)) => *a == (*b as f64),
             (IValue::Str(a), IValue::Str(b)) => a == b,
             (IValue::List(a), IValue::List(b)) => a == b,
+            (IValue::AgentRef(a), IValue::AgentRef(b)) => a == b,
             _ => false,
         }
     }
@@ -190,6 +196,12 @@ struct Interpreter {
     frames: Vec<Frame>,
     /// Captured stdout output (for testing).
     stdout: Vec<String>,
+    /// Initialized LLM providers (by name).
+    providers: HashMap<String, Provider>,
+    /// Initialized agents (by name).
+    agents: HashMap<String, Agent>,
+    /// Counter for dynamically-created agents.
+    dynamic_agent_counter: usize,
 }
 
 struct Frame {
@@ -203,6 +215,9 @@ impl Interpreter {
         Self {
             frames: Vec::new(),
             stdout: Vec::new(),
+            providers: HashMap::new(),
+            agents: HashMap::new(),
+            dynamic_agent_counter: 0,
         }
     }
 
@@ -230,6 +245,9 @@ impl Interpreter {
         &mut self,
         module: &HirModule,
     ) -> Result<i32, Vec<Diagnostic>> {
+        // Initialize providers and agents from declarations before running entry.
+        self.init_declarations(module);
+
         let entry_idx = match module.entry {
             Some(idx) => idx,
             None => return Ok(0), // no entry point, nothing to execute
@@ -242,6 +260,211 @@ impl Interpreter {
                 Span::default(),
             )]),
         }
+    }
+
+    /// Initialize providers and agents from HirDecl declarations.
+    fn init_declarations(&mut self, module: &HirModule) {
+        // Pass 1: Providers.
+        for decl in &module.declarations {
+            if let HirDecl::Provider { name, fields } = decl {
+                let resolved_fields: Vec<(String, String)> = fields
+                    .iter()
+                    .map(|(k, v)| {
+                        let val = match v {
+                            HirConst::Str(s) => s.clone(),
+                            HirConst::EnvRef(key) => std::env::var(key).unwrap_or_default(),
+                            HirConst::Int(n) => n.to_string(),
+                            HirConst::Float(f) => f.to_string(),
+                            _ => String::new(),
+                        };
+                        (k.clone(), val)
+                    })
+                    .collect();
+                let provider = Provider::from_fields(name, &resolved_fields);
+                self.providers.insert(name.clone(), provider);
+            }
+        }
+
+        // Pass 2: Agents.
+        for decl in &module.declarations {
+            if let HirDecl::Agent { name, fields } = decl {
+                if let Some(agent) = self.build_agent(name, fields, module) {
+                    self.agents.insert(name.clone(), agent);
+                }
+            }
+        }
+    }
+
+    /// Build an Agent from declaration fields.
+    fn build_agent(
+        &self,
+        name: &str,
+        fields: &[(String, HirConst)],
+        module: &HirModule,
+    ) -> Option<Agent> {
+        let mut provider_name = String::new();
+        let mut system_prompt = String::new();
+        let mut tool_names: Vec<String> = Vec::new();
+        let mut temperature = None;
+        let mut max_tokens = None;
+        let mut memory_config = MemoryConfig::None;
+
+        for (key, val) in fields {
+            match key.as_str() {
+                "provider" => {
+                    if let HirConst::Str(s) = val {
+                        provider_name = s.clone();
+                    }
+                }
+                "system" => {
+                    if let HirConst::Str(s) = val {
+                        system_prompt = s.clone();
+                    }
+                }
+                "tools" => {
+                    if let HirConst::List(items) = val {
+                        for item in items {
+                            if let HirConst::Str(s) = item {
+                                tool_names.push(s.clone());
+                            }
+                        }
+                    }
+                }
+                "temperature" => match val {
+                    HirConst::Float(f) => temperature = Some(*f),
+                    HirConst::Int(n) => temperature = Some(*n as f64),
+                    _ => {}
+                },
+                "max_tokens" => {
+                    if let HirConst::Int(n) = val {
+                        max_tokens = Some(*n as u32);
+                    }
+                }
+                "memory" => {
+                    if let HirConst::Map(entries) = val {
+                        let mem_type = entries.iter()
+                            .find(|(k, _)| k == "type")
+                            .and_then(|(_, v)| if let HirConst::Str(s) = v { Some(s.as_str()) } else { None })
+                            .unwrap_or("none");
+                        if mem_type == "conversation" {
+                            let max_turns = entries.iter()
+                                .find(|(k, _)| k == "max_turns")
+                                .and_then(|(_, v)| if let HirConst::Int(n) = v { Some(*n as usize) } else { None })
+                                .unwrap_or(10);
+                            memory_config = MemoryConfig::Conversation { max_turns };
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let provider = self.providers.get(&provider_name)?.clone();
+
+        // Build tool registry from tool function declarations.
+        let mut tool_registry = ToolRegistry::new();
+        for tool_name in &tool_names {
+            if let Some(func) = module.functions.iter().find(|f| f.is_tool && f.name == *tool_name) {
+                let params: Vec<(String, String)> = func.params.iter().map(|p| {
+                    let ty_str = match &p.ty {
+                        HirType::Int => "int",
+                        HirType::Float => "float",
+                        HirType::Bool => "bool",
+                        _ => "string",
+                    };
+                    (p.name.clone(), ty_str.to_string())
+                }).collect();
+                let schema = build_tool_schema(&params);
+                let description = format!("Tool: {}", tool_name);
+                tool_registry.register(ToolDef {
+                    name: tool_name.clone(),
+                    description,
+                    parameters_schema: schema,
+                });
+            }
+        }
+
+        Some(Agent::new(
+            name.to_string(),
+            provider,
+            system_prompt,
+            tool_registry,
+            memory_config,
+            temperature,
+            max_tokens,
+        ))
+    }
+
+    /// Build an Agent from runtime IValue fields (for dynamic agent creation).
+    fn build_agent_from_ivalues(
+        &self,
+        fields: &[(String, IValue)],
+        module: &HirModule,
+    ) -> Option<Agent> {
+        let mut provider_name = String::new();
+        let mut system_prompt = String::new();
+        let mut tool_names: Vec<String> = Vec::new();
+        let mut temperature = None;
+        let mut max_tokens = None;
+
+        for (key, val) in fields {
+            match key.as_str() {
+                "provider" => provider_name = val.to_string(),
+                "system" => {
+                    if let IValue::Str(s) = val { system_prompt = s.clone(); }
+                    else { system_prompt = val.to_string(); }
+                }
+                "tools" => {
+                    if let IValue::List(items) = val {
+                        for item in items {
+                            tool_names.push(item.to_string());
+                        }
+                    }
+                }
+                "temperature" => match val {
+                    IValue::Float(f) => temperature = Some(*f),
+                    IValue::Int(n) => temperature = Some(*n as f64),
+                    _ => {}
+                },
+                "max_tokens" => {
+                    if let IValue::Int(n) = val { max_tokens = Some(*n as u32); }
+                }
+                _ => {}
+            }
+        }
+
+        let provider = self.providers.get(&provider_name)?.clone();
+
+        let mut tool_registry = ToolRegistry::new();
+        for tool_name in &tool_names {
+            if let Some(func) = module.functions.iter().find(|f| f.is_tool && f.name == *tool_name) {
+                let params: Vec<(String, String)> = func.params.iter().map(|p| {
+                    let ty_str = match &p.ty {
+                        HirType::Int => "int",
+                        HirType::Float => "float",
+                        HirType::Bool => "bool",
+                        _ => "string",
+                    };
+                    (p.name.clone(), ty_str.to_string())
+                }).collect();
+                let schema = build_tool_schema(&params);
+                tool_registry.register(ToolDef {
+                    name: tool_name.clone(),
+                    description: format!("Tool: {}", tool_name),
+                    parameters_schema: schema,
+                });
+            }
+        }
+
+        Some(Agent::new(
+            format!("__dynamic_{}", self.dynamic_agent_counter),
+            provider,
+            system_prompt,
+            tool_registry,
+            MemoryConfig::None,
+            temperature,
+            max_tokens,
+        ))
     }
 
     fn execute_function(
@@ -395,7 +618,20 @@ impl Interpreter {
                 let recv = self.get_var(*receiver);
                 let arg_vals: Vec<IValue> =
                     args.iter().map(|a| self.get_var(*a)).collect();
-                let result = self.call_method(&recv, method, arg_vals)?;
+                // Dynamic agent dispatch: if receiver is an AgentRef, route to agent runtime.
+                let result = if let IValue::AgentRef(agent_name) = &recv {
+                    match method.as_str() {
+                        "ask" | "run" => {
+                            let prompt = arg_vals.first().map(|v| v.to_string()).unwrap_or_default();
+                            let session = arg_vals.get(1).map(|v| v.to_string())
+                                .unwrap_or_else(|| "default".to_string());
+                            self.run_agent_ask(module, agent_name, &prompt, &session)?
+                        }
+                        _ => IValue::None,
+                    }
+                } else {
+                    self.call_method(&recv, method, arg_vals)?
+                };
                 if let Some(d) = dst {
                     self.set_var(*d, result);
                 }
@@ -476,22 +712,70 @@ impl Interpreter {
                     _ => self.set_var(*dst, val),
                 }
             }
-            HirInst::Spawn { dst, .. } => {
-                // Simplified: spawn is a no-op in the interpreter
-                self.set_var(*dst, IValue::List(vec![]));
+            HirInst::Spawn { dst, tasks } => {
+                // Per-task parallelism: each task block runs in its own thread.
+                let task_blocks: Vec<BlockId> = tasks.clone();
+                let func_idx = module.functions.iter().position(|f| {
+                    f.blocks.iter().any(|b| task_blocks.contains(&b.id))
+                }).unwrap_or(0);
+                let func = &module.functions[func_idx];
+
+                // For now, execute tasks sequentially (thread::scope requires
+                // Send which our interpreter doesn't satisfy yet).
+                let mut results = Vec::new();
+                for &block_id in &task_blocks {
+                    match self.execute_spawn_block(module, func, block_id) {
+                        Ok(val) => results.push(val),
+                        Err(e) => results.push(IValue::Error(e)),
+                    }
+                }
+                self.set_var(*dst, IValue::List(results));
             }
             HirInst::ChanRecv { dst, .. } => {
                 self.set_var(*dst, IValue::None);
             }
             HirInst::ChanSend { .. } => {}
             HirInst::ToolRegister { .. } => {
-                // Tool registration is handled at a higher level
+                // Tool registration is handled at init_declarations
             }
-            HirInst::AgentAsk { dst, .. }
-            | HirInst::AgentRun { dst, .. }
-            | HirInst::AgentStream { dst, .. } => {
-                // Agent ops require the full runtime; stub in interpreter
-                self.set_var(*dst, IValue::Str("<agent result>".to_string()));
+            HirInst::AgentAsk { dst, agent, prompt, session, .. } => {
+                let prompt_str = self.get_var(*prompt).to_string();
+                let session_id = session
+                    .map(|s| self.get_var(s).to_string())
+                    .unwrap_or_else(|| "default".to_string());
+                let result = self.run_agent_ask(module, agent, &prompt_str, &session_id)?;
+                self.set_var(*dst, result);
+            }
+            HirInst::AgentRun { dst, agent, prompt, session } => {
+                let prompt_str = self.get_var(*prompt).to_string();
+                let session_id = session
+                    .map(|s| self.get_var(s).to_string())
+                    .unwrap_or_else(|| "default".to_string());
+                let result = self.run_agent_ask(module, agent, &prompt_str, &session_id)?;
+                self.set_var(*dst, result);
+            }
+            HirInst::AgentStream { dst, agent, prompt, session } => {
+                // Stream not yet implemented — fall back to ask.
+                let prompt_str = self.get_var(*prompt).to_string();
+                let session_id = session
+                    .map(|s| self.get_var(s).to_string())
+                    .unwrap_or_else(|| "default".to_string());
+                let result = self.run_agent_ask(module, agent, &prompt_str, &session_id)?;
+                self.set_var(*dst, result);
+            }
+            HirInst::ConstructAgent { dst, fields } => {
+                let field_vals: Vec<(String, IValue)> = fields
+                    .iter()
+                    .map(|(name, var)| (name.clone(), self.get_var(*var)))
+                    .collect();
+                if let Some(agent) = self.build_agent_from_ivalues(&field_vals, module) {
+                    let agent_name = agent.name.clone();
+                    self.agents.insert(agent_name.clone(), agent);
+                    self.dynamic_agent_counter += 1;
+                    self.set_var(*dst, IValue::AgentRef(agent_name));
+                } else {
+                    self.set_var(*dst, IValue::Error("failed to create agent: provider not found".to_string()));
+                }
             }
             HirInst::Nop => {}
         }
@@ -583,6 +867,7 @@ impl Interpreter {
                     IValue::Map(_) => "map",
                     IValue::Struct { .. } => "struct",
                     IValue::Error(_) => "error",
+                    IValue::AgentRef(_) => "agent",
                 };
                 Ok(IValue::Str(name.to_string()))
             }
@@ -837,6 +1122,110 @@ impl Interpreter {
             _ => Ok(IValue::None),
         }
     }
+
+    /// Run agent.ask() with the tool-calling state machine loop.
+    fn run_agent_ask(
+        &mut self,
+        module: &HirModule,
+        agent_name: &str,
+        prompt: &str,
+        session_id: &str,
+    ) -> Result<IValue, String> {
+        let agent = self.agents.get_mut(agent_name)
+            .ok_or_else(|| format!("unknown agent: {agent_name}"))?;
+
+        let mut step = agent.start(prompt, session_id);
+
+        loop {
+            match step {
+                AgentStep::Done(reply) => {
+                    return Ok(IValue::Str(reply));
+                }
+                AgentStep::Error(e) => {
+                    return Ok(IValue::Error(e));
+                }
+                AgentStep::NeedTool { tool_name, args_json, tool_call_id } => {
+                    let tool_result = self.execute_tool(module, &tool_name, &args_json)?;
+                    let agent = self.agents.get_mut(agent_name).unwrap();
+                    step = agent.continue_with_tool_result(&tool_call_id, &tool_result);
+                }
+            }
+        }
+    }
+
+    /// Execute a tool function body by finding the HIR function and calling it.
+    fn execute_tool(
+        &mut self,
+        module: &HirModule,
+        tool_name: &str,
+        args_json: &str,
+    ) -> Result<String, String> {
+        // Find the tool function.
+        let (func_idx, func) = module.functions.iter().enumerate()
+            .find(|(_, f)| f.is_tool && f.name == tool_name)
+            .ok_or_else(|| format!("tool function not found: {tool_name}"))?;
+
+        // Parse JSON args and map to positional IValue args.
+        let args_map: serde_json::Value = serde_json::from_str(args_json)
+            .map_err(|e| format!("failed to parse tool args: {e}"))?;
+
+        let mut arg_vals = Vec::new();
+        for param in &func.params {
+            let val = if let Some(v) = args_map.get(&param.name) {
+                match v {
+                    serde_json::Value::String(s) => IValue::Str(s.clone()),
+                    serde_json::Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            IValue::Int(i)
+                        } else if let Some(f) = n.as_f64() {
+                            IValue::Float(f)
+                        } else {
+                            IValue::Str(n.to_string())
+                        }
+                    }
+                    serde_json::Value::Bool(b) => IValue::Bool(*b),
+                    _ => IValue::Str(v.to_string()),
+                }
+            } else {
+                IValue::None
+            };
+            arg_vals.push(val);
+        }
+
+        let result = self.execute_function(module, func_idx, arg_vals)?;
+
+        // Serialize result to JSON string for the LLM.
+        Ok(ivalue_to_json(&result))
+    }
+
+    /// Execute a single spawn task block within the current function context.
+    fn execute_spawn_block(
+        &mut self,
+        module: &HirModule,
+        func: &HirFunction,
+        block_id: BlockId,
+    ) -> Result<IValue, String> {
+        // Push a new frame for the spawn task (shares parent's variables).
+        let parent_locals = self.current_frame().locals.clone();
+        self.frames.push(Frame {
+            locals: parent_locals,
+            func_name: format!("__spawn_task_{}", block_id),
+        });
+
+        let mut current_block = block_id;
+        let result = loop {
+            if current_block >= func.blocks.len() {
+                break IValue::None;
+            }
+            match self.execute_block(module, func, current_block)? {
+                BlockResult::Continue(next) => current_block = next,
+                BlockResult::Return(val) => break val,
+            }
+        };
+
+        self.frames.pop();
+        Ok(result)
+    }
 }
 
 // ===========================================================================
@@ -859,6 +1248,9 @@ fn eval_const(c: &HirConst) -> IValue {
                 .map(|(k, v)| (k.clone(), eval_const(v)))
                 .collect(),
         ),
+        HirConst::EnvRef(key) => {
+            IValue::Str(std::env::var(key).unwrap_or_default())
+        }
     }
 }
 
@@ -1105,6 +1497,7 @@ fn ivalue_to_json(val: &IValue) -> String {
             format!("{{{}}}", inner.join(","))
         }
         IValue::Error(msg) => format!("\"error: {}\"", msg),
+        IValue::AgentRef(name) => format!("\"<agent:{name}>\""),
     }
 }
 

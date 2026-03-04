@@ -1676,6 +1676,45 @@ impl Parser {
                 ))
             }
 
+            // Agent expression: `agent { provider: openai, system: "..." }`
+            TokenKind::Agent => {
+                self.advance();
+                // If followed by `{`, parse as agent expression (dynamic creation).
+                // Otherwise, treat as identifier.
+                if self.check(TokenKind::LBrace) {
+                    self.advance(); // consume `{`
+                    self.skip_newlines();
+                    let mut fields = Vec::new();
+                    while !self.check(TokenKind::RBrace) && !self.at_end() {
+                        let key = match self.parse_identifier() {
+                            Some(k) => k,
+                            std::option::Option::None => break,
+                        };
+                        self.consume(TokenKind::Colon, ":");
+                        let val = match self.parse_expr() {
+                            Some(v) => v,
+                            std::option::Option::None => break,
+                        };
+                        fields.push(AgentField { key, value: val });
+                        if self.check(TokenKind::Comma) {
+                            self.advance();
+                        }
+                        self.skip_newlines();
+                    }
+                    self.consume(TokenKind::RBrace, "}");
+                    Some(Spanned::new(
+                        ExprKind::Agent(AgentExpr { fields }),
+                        self.span(start),
+                    ))
+                } else {
+                    // Bare `agent` used as identifier.
+                    Some(Spanned::new(
+                        ExprKind::Ident("agent".into()),
+                        self.span(start),
+                    ))
+                }
+            }
+
             // Select expression
             TokenKind::Select => {
                 self.advance();

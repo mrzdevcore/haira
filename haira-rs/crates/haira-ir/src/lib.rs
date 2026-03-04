@@ -11,7 +11,7 @@
 //! (instructions) organized into [`HirBlock`]s. Each block ends with a [`Terminator`] that
 //! describes how control leaves the block.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use haira_ast::{self as ast, Span, SourceFile};
 use haira_errors::Diagnostic;
@@ -186,8 +186,8 @@ pub enum HirInst {
     },
     /// Load a constant value into a variable.
     Const { dst: VarId, value: HirConst },
-    /// Spawn a block as a concurrent task.
-    Spawn { dst: VarId, block: BlockId },
+    /// Spawn blocks as concurrent tasks (one task per block).
+    Spawn { dst: VarId, tasks: Vec<BlockId> },
     /// Channel receive.
     ChanRecv { dst: VarId, channel: VarId },
     /// Channel send.
@@ -201,24 +201,32 @@ pub enum HirInst {
         func: FuncRef,
         description: String,
     },
-    /// Ask an agent: `var = agent.ask(prompt)`.
+    /// Ask an agent: `var = agent.ask(prompt, session: id)`.
     AgentAsk {
         dst: VarId,
         agent: String,
         prompt: VarId,
+        session: Option<VarId>,
         output_ty: Option<HirType>,
     },
-    /// Run an agent: `var = agent.run(prompt)`.
+    /// Run an agent: `var = agent.run(prompt, session: id)`.
     AgentRun {
         dst: VarId,
         agent: String,
         prompt: VarId,
+        session: Option<VarId>,
     },
-    /// Stream from an agent: `var = agent.stream(prompt)`.
+    /// Stream from an agent: `var = agent.stream(prompt, session: id)`.
     AgentStream {
         dst: VarId,
         agent: String,
         prompt: VarId,
+        session: Option<VarId>,
+    },
+    /// Construct an agent dynamically at runtime.
+    ConstructAgent {
+        dst: VarId,
+        fields: Vec<(String, VarId)>,
     },
     /// Error propagation: unwrap or panic.
     Propagate { dst: VarId, inner: VarId },
@@ -291,6 +299,9 @@ pub enum HirConst {
     Str(String),
     List(Vec<HirConst>),
     Map(Vec<(String, HirConst)>),
+    /// Reference to an environment variable: `env("KEY")`.
+    /// Resolved at runtime via `std::env::var`.
+    EnvRef(String),
 }
 
 // ===========================================================================
@@ -395,6 +406,8 @@ struct LowerCtx {
     in_function: bool,
     /// Stack of deferred expressions for the current function (LIFO order).
     deferred: Vec<ast::Expr>,
+    /// Known agent names (for emitting AgentAsk/Run/Stream instead of builtin calls).
+    agent_names: HashSet<String>,
 }
 
 impl LowerCtx {
@@ -413,6 +426,7 @@ impl LowerCtx {
             func_names: HashMap::new(),
             in_function: false,
             deferred: Vec::new(),
+            agent_names: HashSet::new(),
         }
     }
 
@@ -562,6 +576,45 @@ impl LowerCtx {
         match &expr.node {
             ast::ExprKind::Literal(lit) => Some(self.lower_literal(lit)),
             ast::ExprKind::None => Some(HirConst::None),
+            // `env("KEY")` → EnvRef("KEY") — resolved at runtime.
+            // `conversation(max_turns: 10)` → Map with function name + args.
+            ast::ExprKind::Call(call) => {
+                if let ast::ExprKind::Ident(name) = &call.callee.node {
+                    if name == "env" {
+                        if let Some(arg) = call.args.first() {
+                            if let ast::ExprKind::Literal(ast::Literal::String(s)) = &arg.value.node {
+                                return Some(HirConst::EnvRef(s.clone()));
+                            }
+                        }
+                    }
+                    // Memory configs like conversation(max_turns: 10).
+                    if name == "conversation" || name == "summary" {
+                        let mut entries = vec![("type".to_string(), HirConst::Str(name.clone()))];
+                        for arg in &call.args {
+                            if let Some(ref arg_name) = arg.name {
+                                if let Some(val) = self.try_const_expr(&arg.value) {
+                                    entries.push((arg_name.node.clone(), val));
+                                }
+                            }
+                        }
+                        return Some(HirConst::Map(entries));
+                    }
+                }
+                None
+            }
+            // List literals in agent fields: `tools: [get_weather, search]`.
+            ast::ExprKind::List(list) => {
+                let items: Vec<HirConst> = list
+                    .elems
+                    .iter()
+                    .filter_map(|e| self.try_const_expr(e))
+                    .collect();
+                Some(HirConst::List(items))
+            }
+            // Identifier references in agent fields: `provider: openai`.
+            ast::ExprKind::Ident(name) => Some(HirConst::Str(name.clone())),
+            // Method calls like `conversation(max_turns: 10)` in memory config.
+            ast::ExprKind::MethodCall(_) | ast::ExprKind::Field(_) => None,
             _ => None,
         }
     }
@@ -644,7 +697,10 @@ impl LowerCtx {
                     // Imports/exports are resolved earlier; nothing to emit.
                 }
                 ast::ItemKind::ProviderDecl(pd) => self.lower_provider_decl(pd),
-                ast::ItemKind::AgentDecl(ad) => self.lower_agent_decl(ad),
+                ast::ItemKind::AgentDecl(ad) => {
+                    self.agent_names.insert(ad.name.node.clone());
+                    self.lower_agent_decl(ad);
+                }
                 ast::ItemKind::ToolDecl(td) => self.lower_tool_decl(td, item.span),
                 ast::ItemKind::WorkflowDecl(wd) => self.lower_workflow_decl(wd, item.span),
                 ast::ItemKind::FunctionDef(fd) => {
@@ -1458,11 +1514,60 @@ impl LowerCtx {
             }
             ast::ExprKind::Call(call) => self.lower_call_expr(call),
             ast::ExprKind::MethodCall(mc) => {
-                let args: Vec<VarId> = mc.args.iter().map(|a| self.lower_expr(&a.value)).collect();
                 let dst = self.fresh_var();
-                // If the receiver is a simple ident, treat as qualified call (e.g. io.println).
-                if let ast::ExprKind::Ident(module_name) = &mc.receiver.node {
-                    let qualified = format!("{}.{}", module_name, mc.method.node);
+                // Check if receiver is a known agent name → emit AgentAsk/Run/Stream.
+                if let ast::ExprKind::Ident(receiver_name) = &mc.receiver.node {
+                    if self.agent_names.contains(receiver_name) {
+                        // Extract positional args and named `session:` arg.
+                        let mut prompt_var = None;
+                        let mut session_var = None;
+                        for arg in &mc.args {
+                            if let Some(ref name) = arg.name {
+                                if name.node == "session" {
+                                    session_var = Some(self.lower_expr(&arg.value));
+                                }
+                            } else if prompt_var.is_none() {
+                                prompt_var = Some(self.lower_expr(&arg.value));
+                            }
+                        }
+                        let prompt = prompt_var.unwrap_or_else(|| {
+                            let v = self.fresh_var();
+                            self.emit(HirInst::Const { dst: v, value: HirConst::Str(String::new()) });
+                            v
+                        });
+                        match mc.method.node.as_str() {
+                            "ask" => self.emit(HirInst::AgentAsk {
+                                dst,
+                                agent: receiver_name.clone(),
+                                prompt,
+                                session: session_var,
+                                output_ty: None,
+                            }),
+                            "run" => self.emit(HirInst::AgentRun {
+                                dst,
+                                agent: receiver_name.clone(),
+                                prompt,
+                                session: session_var,
+                            }),
+                            "stream" => self.emit(HirInst::AgentStream {
+                                dst,
+                                agent: receiver_name.clone(),
+                                prompt,
+                                session: session_var,
+                            }),
+                            _ => {
+                                // Unknown agent method — fall through to qualified call.
+                                let args: Vec<VarId> = mc.args.iter().map(|a| self.lower_expr(&a.value)).collect();
+                                let qualified = format!("{}.{}", receiver_name, mc.method.node);
+                                let func_ref = self.resolve_func_ref(&qualified);
+                                self.emit(HirInst::Call { dst: Some(dst), func: func_ref, args });
+                            }
+                        }
+                        return dst;
+                    }
+                    // Not an agent — treat as qualified call (e.g. io.println).
+                    let args: Vec<VarId> = mc.args.iter().map(|a| self.lower_expr(&a.value)).collect();
+                    let qualified = format!("{}.{}", receiver_name, mc.method.node);
                     let func_ref = self.resolve_func_ref(&qualified);
                     self.emit(HirInst::Call {
                         dst: Some(dst),
@@ -1470,6 +1575,7 @@ impl LowerCtx {
                         args,
                     });
                 } else {
+                    let args: Vec<VarId> = mc.args.iter().map(|a| self.lower_expr(&a.value)).collect();
                     let receiver = self.lower_expr(&mc.receiver);
                     self.emit(HirInst::MethodCall {
                         dst: Some(dst),
@@ -1703,7 +1809,7 @@ impl LowerCtx {
                 dst
             }
             ast::ExprKind::Async(async_expr) => {
-                // Async blocks become spawned tasks.
+                // Async blocks become a single spawned task.
                 let body_block = self.new_block();
                 let saved = self.current_block;
 
@@ -1715,23 +1821,40 @@ impl LowerCtx {
                 let dst = self.fresh_var();
                 self.emit(HirInst::Spawn {
                     dst,
-                    block: body_block,
+                    tasks: vec![body_block],
                 });
                 dst
             }
             ast::ExprKind::Spawn(spawn) => {
-                let body_block = self.new_block();
+                // Per-statement parallelism: each top-level statement in the
+                // spawn body gets its own block (= its own parallel task).
                 let saved = self.current_block;
+                let mut task_blocks = Vec::new();
 
-                self.switch_to_block(body_block);
-                self.lower_block_stmts(&spawn.body);
-                self.ensure_terminated(Terminator::Return(None));
+                for stmt in &spawn.body.statements {
+                    let task_block = self.new_block();
+                    self.switch_to_block(task_block);
+
+                    // For expression statements, the result is the expression value.
+                    match &stmt.node {
+                        ast::StmtKind::Expr(expr_stmt) => {
+                            let val = self.lower_expr(&expr_stmt.value);
+                            self.set_terminator(Terminator::Return(Some(val)));
+                        }
+                        _ => {
+                            self.lower_stmt(stmt);
+                            self.ensure_terminated(Terminator::Return(None));
+                        }
+                    }
+
+                    task_blocks.push(task_block);
+                }
 
                 self.switch_to_block(saved);
                 let dst = self.fresh_var();
                 self.emit(HirInst::Spawn {
                     dst,
-                    block: body_block,
+                    tasks: task_blocks,
                 });
                 dst
             }
@@ -1742,6 +1865,20 @@ impl LowerCtx {
                 dst
             }
             ast::ExprKind::Paren(paren) => self.lower_expr(&paren.inner),
+            ast::ExprKind::Agent(agent_expr) => {
+                // Dynamic agent construction: lower fields as runtime values.
+                let fields: Vec<(String, VarId)> = agent_expr
+                    .fields
+                    .iter()
+                    .map(|f| {
+                        let val = self.lower_expr(&f.value);
+                        (f.key.node.clone(), val)
+                    })
+                    .collect();
+                let dst = self.fresh_var();
+                self.emit(HirInst::ConstructAgent { dst, fields });
+                dst
+            }
         }
     }
 

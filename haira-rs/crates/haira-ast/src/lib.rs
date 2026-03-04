@@ -520,6 +520,8 @@ pub enum ExprKind {
     Select(SelectExpr),
     /// Parenthesized expression.
     Paren(ParenExpr),
+    /// Dynamic agent construction: `agent { provider: ..., system: "..." }`.
+    Agent(AgentExpr),
 }
 
 // ---------------------------------------------------------------------------
@@ -793,6 +795,12 @@ pub struct AsyncExpr {
 #[derive(Debug, Clone)]
 pub struct SpawnExpr {
     pub body: Block,
+}
+
+/// Dynamic agent construction: `agent { fields }`.
+#[derive(Debug, Clone)]
+pub struct AgentExpr {
+    pub fields: Vec<AgentField>,
 }
 
 /// Select expression with arms and optional default.

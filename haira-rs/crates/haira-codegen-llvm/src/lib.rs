@@ -393,7 +393,7 @@ impl LlvmGen {
                     HirConst::Str(_) => LType::Str,
                     HirConst::Bool(_) => LType::I1,
                     HirConst::List(_) => LType::List,
-                    HirConst::None | HirConst::Map(_) => LType::Str,
+                    HirConst::None | HirConst::Map(_) | HirConst::EnvRef(_) => LType::Str,
                 };
                 self.var_types.insert(*dst, ty);
             }
@@ -475,7 +475,8 @@ impl LlvmGen {
             }
             HirInst::AgentAsk { dst, .. }
             | HirInst::AgentRun { dst, .. }
-            | HirInst::AgentStream { dst, .. } => {
+            | HirInst::AgentStream { dst, .. }
+            | HirInst::ConstructAgent { dst, .. } => {
                 self.var_types.insert(*dst, LType::Str);
             }
             HirInst::Propagate { dst, inner } => {
@@ -578,6 +579,10 @@ impl LlvmGen {
             HirInst::ChanSend { .. } => {
                 writeln!(self.functions, "  ; TODO: ChanSend").unwrap();
             }
+            HirInst::ConstructAgent { dst, .. } => {
+                writeln!(self.functions, "  ; TODO: ConstructAgent").unwrap();
+                self.store(*dst, "null");
+            }
         }
         Ok(())
     }
@@ -598,6 +603,11 @@ impl LlvmGen {
             }
             HirConst::None => self.store(dst, "null"),
             HirConst::List(_) | HirConst::Map(_) => self.store(dst, "null"),
+            HirConst::EnvRef(_) => {
+                // EnvRef is resolved at runtime in the interpreter.
+                // For LLVM native codegen, emit as null placeholder.
+                self.store(dst, "null");
+            }
         }
     }
 

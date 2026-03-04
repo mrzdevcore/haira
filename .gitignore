@@ -58,3 +58,4 @@ arp/node_modules
 arp/packages/*/dist
 arp/.turbo
 arp/packages/*/.turbo
+haira-rs/target

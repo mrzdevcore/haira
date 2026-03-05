@@ -301,6 +301,82 @@ export const hljsStyles = css`
   }
 `;
 
+/** Popover/overlay styles — shared by table and markdown expand views */
+export const popoverStyles = css`
+  .popover-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease-out;
+    backdrop-filter: blur(2px);
+  }
+  .popover-card {
+    background: var(--haira-bg);
+    border: 1px solid var(--haira-border);
+    border-radius: var(--haira-radius);
+    width: 95vw;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+  }
+  .popover-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--haira-border);
+    flex-shrink: 0;
+  }
+  .popover-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--haira-text);
+  }
+  .popover-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--haira-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.12s;
+  }
+  .popover-close:hover {
+    background: var(--haira-bg-card);
+    color: var(--haira-text);
+  }
+  .popover-body {
+    flex: 1;
+    overflow: auto;
+    padding: 0;
+  }
+  .expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--haira-muted);
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 4px;
+    transition: all 0.12s;
+  }
+  .expand-btn:hover {
+    background: var(--haira-bg-card-hover);
+    color: var(--haira-text);
+  }
+`;
+
 // Color helpers
 
 export function methodColor(method: string): string {

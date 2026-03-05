@@ -654,9 +654,10 @@ func emitWorkflowBodyWithHooks(em *GoEmitter, block ast.Block, hooks []ast.Lifec
 		em.CloseBlock()
 	}
 
-	// Fallback return — needed when onerror wraps body in IIFE
+	// Fallback return — needed when onerror wraps body in IIFE.
+	// Propagate the error so the run is marked as failed.
 	if onerrorHook != nil {
-		em.Line("return nil, nil")
+		em.Line("return nil, _wfErr")
 	}
 }
 

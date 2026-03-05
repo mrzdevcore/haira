@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { baseStyles, hljsStyles } from "../core/styles";
+import { baseStyles, hljsStyles, popoverStyles, scrollbarStyles } from "../core/styles";
 import { iconStrings } from "../core/icons";
 import hljs from "highlight.js/lib/core";
 import sql from "highlight.js/lib/languages/sql";
@@ -46,6 +46,8 @@ export class HairaMarkdown extends LitElement {
   static styles = [
     baseStyles,
     hljsStyles,
+    popoverStyles,
+    scrollbarStyles,
     css`
       :host {
         display: block;
@@ -198,10 +200,36 @@ export class HairaMarkdown extends LitElement {
 
   @property({ type: String }) content: string = "";
   @property({ type: String }) title: string = "";
+  @state() private _expanded: boolean = false;
 
   public setProps(props: MarkdownProps): void {
     this.content = props.content || "";
     this.title = props.title || "";
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener("keydown", this._onEscKey);
+  }
+
+  private _onExpand() {
+    this._expanded = true;
+    document.addEventListener("keydown", this._onEscKey);
+  }
+
+  private _onCollapse() {
+    this._expanded = false;
+    document.removeEventListener("keydown", this._onEscKey);
+  }
+
+  private _onEscKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") this._onCollapse();
+  };
+
+  private _onBackdropClick(e: MouseEvent) {
+    if ((e.target as HTMLElement).classList.contains("popover-backdrop")) {
+      this._onCollapse();
+    }
   }
 
   private _escapeHtml(str: string): string {
@@ -322,9 +350,37 @@ export class HairaMarkdown extends LitElement {
     const rendered = this._renderMarkdown(this.content);
     return html`
       <div class="wrapper">
-        ${this.title ? html`<div class="header">${this.title}</div>` : nothing}
+        ${this.title
+          ? html`<div class="header" style="justify-content:space-between">
+              <span>${this.title}</span>
+              <button class="expand-btn" title="Expand" @click=${this._onExpand}>
+                ${unsafeHTML(iconStrings.expand)}
+              </button>
+            </div>`
+          : html`<div class="header" style="justify-content:flex-end;padding:0.3rem 0.6rem;background:transparent;border:none">
+              <button class="expand-btn" title="Expand" @click=${this._onExpand}>
+                ${unsafeHTML(iconStrings.expand)}
+              </button>
+            </div>`}
         <div class="content md">${unsafeHTML(rendered)}</div>
       </div>
+      ${this._expanded
+        ? html`
+          <div class="popover-backdrop" @click=${this._onBackdropClick}>
+            <div class="popover-card">
+              <div class="popover-header">
+                <span class="popover-title">${this.title || "Markdown"}</span>
+                <button class="popover-close" @click=${this._onCollapse}>
+                  ${unsafeHTML(iconStrings.x)}
+                </button>
+              </div>
+              <div class="popover-body" style="padding:1rem 1.25rem">
+                <div class="md">${unsafeHTML(rendered)}</div>
+              </div>
+            </div>
+          </div>
+        `
+        : nothing}
     `;
   }
 }

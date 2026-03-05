@@ -258,6 +258,7 @@ export class HairaPageHome extends LitElement {
         height: 7px;
         border-radius: 50%;
         flex-shrink: 0;
+        background: var(--haira-muted);
       }
       .status-dot.running {
         background: var(--haira-accent);
@@ -623,6 +624,7 @@ export class HairaPageHome extends LitElement {
                         @click=${() =>
                           this._navigateWorkflow(chat.workflow_path, { session: chat.id })}
                       >
+                        <span class="status-dot completed"></span>
                         <div class="list-item-body">
                           <div class="list-item-title">${chat.title || "Untitled"}</div>
                           <div class="list-item-sub">

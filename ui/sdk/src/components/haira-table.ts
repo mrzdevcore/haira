@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { baseStyles, keyframes, animateInStyles } from "../core/styles";
+import { baseStyles, keyframes, animateInStyles, popoverStyles, scrollbarStyles } from "../core/styles";
 import { iconStrings } from "../core/icons";
 import type { TableProps, TabData } from "../core/types";
 
@@ -13,6 +13,8 @@ const ROW_HEIGHT = 32;
 const OVERSCAN = 15;
 /** Viewport height for the scroll area */
 const VIEWPORT_HEIGHT = 420;
+/** Minimum rows shown in table (pad with empty rows if fewer) */
+const MIN_DISPLAY_ROWS = 8;
 
 type SortDir = "asc" | "desc" | null;
 
@@ -21,6 +23,8 @@ export class HairaTable extends LitElement {
   static styles = [
     baseStyles,
     animateInStyles,
+    popoverStyles,
+    scrollbarStyles,
     css`
       .table-card {
         background: var(--haira-bg-card);
@@ -83,6 +87,9 @@ export class HairaTable extends LitElement {
         border-bottom: 1px solid var(--haira-border);
         background: var(--haira-bg);
         overflow-x: auto;
+        position: relative;
+        z-index: 3;
+        flex-shrink: 0;
       }
       .tab-bar::-webkit-scrollbar {
         height: 0;
@@ -134,6 +141,24 @@ export class HairaTable extends LitElement {
         position: sticky;
         top: 0;
         z-index: 1;
+      }
+      /* Popover table: single scroll wrapper for synced horizontal scroll */
+      .popover-table-wrap {
+        flex: 1;
+        overflow: auto;
+        min-height: 0;
+      }
+      .popover-table-wrap table {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      .popover-table-wrap thead {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      .popover-table-wrap th {
+        background: var(--haira-bg);
       }
       th {
         padding: 0.5rem 0.7rem;
@@ -189,6 +214,14 @@ export class HairaTable extends LitElement {
       }
       tr.highlighted td {
         background: rgba(232, 163, 23, 0.06);
+      }
+      tr.pad-row td {
+        border-bottom: 1px solid var(--haira-border);
+        color: transparent;
+        user-select: none;
+      }
+      tr.pad-row:last-child td {
+        border-bottom: none;
       }
 
       /* ── Virtual scroll layout ── */
@@ -311,6 +344,7 @@ export class HairaTable extends LitElement {
   @state() private _search: string = "";
   @state() private _hideEmpty: boolean = true;
   @state() private _scrollTop: number = 0;
+  @state() private _expanded: boolean = false;
 
   // Sort state
   @state() private _sortCol: number = -1;
@@ -368,6 +402,7 @@ export class HairaTable extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this._viewportEl?.removeEventListener("scroll", this._onVScroll);
+    document.removeEventListener("keydown", this._onEscKey);
     if (this._rafId) cancelAnimationFrame(this._rafId);
   }
 
@@ -628,6 +663,28 @@ export class HairaTable extends LitElement {
     this._resetScroll();
   }
 
+  // ── Expand / popover ──
+
+  private _onExpand() {
+    this._expanded = true;
+    document.addEventListener("keydown", this._onEscKey);
+  }
+
+  private _onCollapse() {
+    this._expanded = false;
+    document.removeEventListener("keydown", this._onEscKey);
+  }
+
+  private _onEscKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") this._onCollapse();
+  };
+
+  private _onBackdropClick(e: MouseEvent) {
+    if ((e.target as HTMLElement).classList.contains("popover-backdrop")) {
+      this._onCollapse();
+    }
+  }
+
   // ── Render helpers ──
 
   private _renderTh(headerText: string, colIdx: number) {
@@ -707,6 +764,11 @@ export class HairaTable extends LitElement {
                     </div>
                   `
                 : nothing}
+              <button
+                class="expand-btn"
+                title="Expand"
+                @click=${this._onExpand}
+              >${unsafeHTML(iconStrings.expand)}</button>
             </div>
           </div>
         `
@@ -730,6 +792,15 @@ export class HairaTable extends LitElement {
           </div>
         `
       : nothing;
+  }
+
+  /** Render empty padding rows to fill the table to MIN_DISPLAY_ROWS */
+  private _renderPaddingRows(dataRowCount: number, colCount: number) {
+    const padCount = MIN_DISPLAY_ROWS - dataRowCount;
+    if (padCount <= 0) return nothing;
+    return Array.from({ length: padCount }, () => html`
+      <tr class="pad-row">${Array.from({ length: colCount }, () => html`<td>&nbsp;</td>`)}</tr>
+    `);
   }
 
   /** Standard table for small datasets */
@@ -756,6 +827,7 @@ export class HairaTable extends LitElement {
                       </tr>
                     `
                   )}
+                  ${this._renderPaddingRows(rows.length, hdrs.length)}
                 </tbody>
               </table>
             `
@@ -826,6 +898,46 @@ export class HairaTable extends LitElement {
     `;
   }
 
+  private _renderExpandedOverlay(hdrs: string[], rows: string[][], hl: Set<number>) {
+    const title = this.title || "Table";
+    return html`
+      <div class="popover-backdrop" @click=${this._onBackdropClick}>
+        <div class="popover-card">
+          <div class="popover-header">
+            <span class="popover-title">${title}
+              <span class="row-count" style="margin-left:0.5rem;font-size:0.72rem;font-weight:400;color:var(--haira-muted)">${rows.length.toLocaleString()} rows</span>
+            </span>
+            <button class="popover-close" @click=${this._onCollapse}>
+              ${unsafeHTML(iconStrings.x)}
+            </button>
+          </div>
+          ${this._renderTabs()}
+          ${rows.length > 0
+            ? html`
+              <div class="popover-table-wrap">
+                <table>
+                  <thead>
+                    <tr>${hdrs.map((h, i) => this._renderTh(h, i))}</tr>
+                  </thead>
+                  <tbody>
+                    ${rows.map(
+                      (row, ri) => html`
+                        <tr class="${hl.has(ri) ? "highlighted" : ""}">
+                          ${row.map((cell) => html`<td>${cell}</td>`)}
+                        </tr>
+                      `
+                    )}
+                    ${this._renderPaddingRows(rows.length, hdrs.length)}
+                  </tbody>
+                </table>
+              </div>
+            `
+            : html`<div class="no-results" style="padding:1.5rem;text-align:center;font-size:0.82rem;color:var(--haira-muted)">No data.</div>`}
+        </div>
+      </div>
+    `;
+  }
+
   render() {
     const hdrs = this._currentHeaders();
     const rows = this._processedRows();
@@ -839,6 +951,7 @@ export class HairaTable extends LitElement {
           ? this._renderVirtualTable(hdrs, rows, hl)
           : this._renderStandardTable(hdrs, rows, hl)}
       </div>
+      ${this._expanded ? this._renderExpandedOverlay(hdrs, rows, hl) : nothing}
     `;
   }
 }

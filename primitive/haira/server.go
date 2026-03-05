@@ -238,6 +238,11 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 		defer ClearStepNotifier()
 		defer ClearActiveRunID()
 		defer close(stepCh)
+		defer func() {
+			if r := recover(); r != nil {
+				resultCh <- handlerResult{err: fmt.Errorf("panic: %v", r)}
+			}
+		}()
 
 		result, err := wf.Handler(params)
 		resultCh <- handlerResult{data: result, err: err}

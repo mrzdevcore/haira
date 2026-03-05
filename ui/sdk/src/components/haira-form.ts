@@ -132,10 +132,11 @@ export class HairaForm extends LitElement {
         height: 7px;
         border-radius: 50%;
         flex-shrink: 0;
+        background: var(--haira-muted);
       }
       .run-status.completed { background: var(--haira-success); }
       .run-status.failed { background: var(--haira-error); }
-      .run-status.running { background: var(--haira-info); }
+      .run-status.running { background: var(--haira-accent); animation: pulse 1.5s ease-in-out infinite; }
       .sidebar-empty {
         padding: 1rem;
         text-align: center;
@@ -433,7 +434,10 @@ export class HairaForm extends LitElement {
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
+        max-width: 760px;
+        margin: 0 auto;
         padding: 0 1.5rem 0.75rem;
+        box-sizing: border-box;
         animation: fadeSlideUp 0.25s ease-out;
       }
       .result-section {

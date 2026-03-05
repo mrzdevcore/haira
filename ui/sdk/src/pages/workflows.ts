@@ -140,6 +140,7 @@ export class PageWorkflows extends LitElement {
         height: 7px;
         border-radius: 50%;
         margin-right: 0.4rem;
+        background: var(--haira-muted);
       }
       .status-dot.completed {
         background: var(--haira-success);

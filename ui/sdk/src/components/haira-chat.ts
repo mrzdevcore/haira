@@ -290,9 +290,13 @@ export class HairaChat extends LitElement {
         padding: 0 1.25rem;
         box-sizing: border-box;
       }
-      /* Rendered UI components (tables, code blocks) span full width */
+      /* Rendered UI components (tables, code blocks) match message width */
       .messages-inner > haira-ui-renderer {
+        max-width: 768px;
+        width: 100%;
+        margin: 0 auto;
         padding: 0 1.25rem 0.75rem;
+        box-sizing: border-box;
       }
 
       /* ---- Typing indicator ---- */
@@ -684,6 +688,7 @@ export class HairaChat extends LitElement {
         }
         .messages-inner > haira-ui-renderer {
           padding: 0 0.75rem 0.5rem;
+          max-width: 100%;
         }
         .input-area {
           padding: 0.5rem 0.5rem 0.75rem;

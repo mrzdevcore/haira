@@ -108,8 +108,31 @@ func InitStore() error {
 	if err := globalStore.Init(); err != nil {
 		return err
 	}
+	// Mark any stale "running" runs as "failed" — these are leftovers from
+	// a previous server process that was killed or crashed.
+	cleanupStaleRuns()
 	ObserveLoadFromStore()
 	return nil
+}
+
+func cleanupStaleRuns() {
+	runs, err := globalStore.ListRuns("")
+	if err != nil {
+		return
+	}
+	for _, r := range runs {
+		if r.Status == RunStatusRunning {
+			full, err := globalStore.GetRun(r.ID)
+			if err != nil || full == nil {
+				continue
+			}
+			full.Status = RunStatusFailed
+			full.Error = "interrupted: server restarted"
+			now := time.Now()
+			full.FinishedAt = &now
+			globalStore.UpdateRun(full)
+		}
+	}
 }
 
 // CloseStore closes the global store.

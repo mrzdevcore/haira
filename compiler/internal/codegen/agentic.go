@@ -198,6 +198,10 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 			}
 		case "system":
 			em.Line(fmt.Sprintf("System: %s,", ExprToGo(field.Value)))
+		case "scope":
+			em.Line(fmt.Sprintf("Scope: %s,", ExprToGo(field.Value)))
+		case "scope_deny":
+			em.Line(fmt.Sprintf("ScopeDeny: %s,", ExprToGo(field.Value)))
 		case "tools":
 			em.Line("Tools: toolReg,")
 		case "ui":

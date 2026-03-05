@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { baseStyles, animateInStyles, hljsStyles } from "../core/styles";
+import { baseStyles, animateInStyles, hljsStyles, popoverStyles, scrollbarStyles } from "../core/styles";
 import { iconStrings } from "../core/icons";
 import type { CodeBlockProps, CodeTabData } from "../core/types";
 
@@ -170,6 +170,8 @@ export class HairaCodeBlock extends LitElement {
 
     `,
     hljsStyles,
+    popoverStyles,
+    scrollbarStyles,
   ];
 
   @property({ type: String }) title: string = "";
@@ -179,6 +181,7 @@ export class HairaCodeBlock extends LitElement {
 
   @state() private _activeTab: number = 0;
   @state() private _copied: boolean = false;
+  @state() private _expanded: boolean = false;
 
   /** Set all props at once */
   public setProps(props: CodeBlockProps): void {
@@ -239,6 +242,31 @@ export class HairaCodeBlock extends LitElement {
     }
   }
 
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener("keydown", this._onEscKey);
+  }
+
+  private _onExpand() {
+    this._expanded = true;
+    document.addEventListener("keydown", this._onEscKey);
+  }
+
+  private _onCollapse() {
+    this._expanded = false;
+    document.removeEventListener("keydown", this._onEscKey);
+  }
+
+  private _onEscKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") this._onCollapse();
+  };
+
+  private _onBackdropClick(e: MouseEvent) {
+    if ((e.target as HTMLElement).classList.contains("popover-backdrop")) {
+      this._onCollapse();
+    }
+  }
+
   render() {
     const lang = this._currentLanguage();
     const code = this._currentCode();
@@ -253,14 +281,19 @@ export class HairaCodeBlock extends LitElement {
               : nothing}
             ${lang ? html`<span class="code-lang">${lang}</span>` : nothing}
           </div>
-          <button
-            class="copy-btn ${this._copied ? "copied" : ""}"
-            @click=${this._copy}
-          >
-            ${this._copied
-              ? html`${unsafeHTML(iconStrings.copyDone)} Copied`
-              : html`${unsafeHTML(iconStrings.copy)} Copy`}
-          </button>
+          <div style="display:flex;align-items:center;gap:0.3rem">
+            <button
+              class="copy-btn ${this._copied ? "copied" : ""}"
+              @click=${this._copy}
+            >
+              ${this._copied
+                ? html`${unsafeHTML(iconStrings.copyDone)} Copied`
+                : html`${unsafeHTML(iconStrings.copy)} Copy`}
+            </button>
+            <button class="expand-btn" title="Expand" @click=${this._onExpand}>
+              ${unsafeHTML(iconStrings.expand)}
+            </button>
+          </div>
         </div>
 
         ${this.tabs && this.tabs.length > 0
@@ -284,6 +317,39 @@ export class HairaCodeBlock extends LitElement {
           <pre><code class="language-${lang}">${unsafeHTML(highlighted)}</code></pre>
         </div>
       </div>
+      ${this._expanded
+        ? html`
+          <div class="popover-backdrop" @click=${this._onBackdropClick}>
+            <div class="popover-card">
+              <div class="popover-header">
+                <span class="popover-title">${this.title || "Code"}${lang ? html` <span style="font-size:0.72rem;font-weight:400;color:var(--haira-muted);margin-left:0.5rem">${lang}</span>` : nothing}</span>
+                <button class="popover-close" @click=${this._onCollapse}>
+                  ${unsafeHTML(iconStrings.x)}
+                </button>
+              </div>
+              ${this.tabs && this.tabs.length > 0
+                ? html`
+                  <div class="tab-bar" style="flex-shrink:0;position:relative;z-index:3">
+                    ${this.tabs.map(
+                      (tab, i) => html`
+                        <button
+                          class="tab ${this._activeTab === i ? "active" : ""}"
+                          @click=${() => this._onTabClick(i)}
+                        >
+                          ${tab.name}
+                        </button>
+                      `
+                    )}
+                  </div>
+                `
+                : nothing}
+              <div class="popover-body">
+                <pre style="max-height:none"><code class="language-${lang}">${unsafeHTML(highlighted)}</code></pre>
+              </div>
+            </div>
+          </div>
+        `
+        : nothing}
     `;
   }
 }

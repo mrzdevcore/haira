@@ -3,7 +3,7 @@
 
 export type Route =
   | { page: "home" }
-  | { page: "workbench"; path: string }
+  | { page: "workbench"; path: string; query?: Record<string, string> }
   | { page: "workflows" }
   | { page: "agents" }
   | { page: "observe" }
@@ -32,9 +32,15 @@ export function navigate(route: Route) {
     case "home":
       path = "/";
       break;
-    case "workbench":
+    case "workbench": {
       path = `/workbench${route.path}`;
+      if (route.query) {
+        const params = new URLSearchParams(route.query);
+        const qs = params.toString();
+        if (qs) path += `?${qs}`;
+      }
       break;
+    }
     default:
       path = `/${route.page}`;
       break;

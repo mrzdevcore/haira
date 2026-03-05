@@ -234,7 +234,9 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 
 	go func() {
 		SetStepNotifier(stepCh)
+		SetActiveRunID(runID)
 		defer ClearStepNotifier()
+		defer ClearActiveRunID()
 		defer close(stepCh)
 
 		result, err := wf.Handler(params)

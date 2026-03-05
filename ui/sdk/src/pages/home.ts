@@ -378,8 +378,8 @@ export class HairaPageHome extends LitElement {
     return this.meta?.workflows?.length ?? 0;
   }
 
-  private _navigateWorkflow(path: string) {
-    navigate({ page: "workbench", path });
+  private _navigateWorkflow(path: string, query?: Record<string, string>) {
+    navigate({ page: "workbench", path, query });
   }
 
   private _renderOrchestratorHome() {
@@ -621,7 +621,7 @@ export class HairaPageHome extends LitElement {
                           animationDelay: `${300 + i * 40}ms`,
                         })}
                         @click=${() =>
-                          this._navigateWorkflow(chat.workflow_path)}
+                          this._navigateWorkflow(chat.workflow_path, { session: chat.id })}
                       >
                         <div class="list-item-body">
                           <div class="list-item-title">${chat.title || "Untitled"}</div>
@@ -658,7 +658,7 @@ export class HairaPageHome extends LitElement {
                           animationDelay: `${300 + i * 40}ms`,
                         })}
                         @click=${() =>
-                          this._navigateWorkflow(run.workflow_path)}
+                          this._navigateWorkflow(run.workflow_path, { run: run.id })}
                       >
                         <span class="status-dot ${run.status}"></span>
                         <div class="list-item-body">

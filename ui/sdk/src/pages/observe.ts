@@ -7,6 +7,7 @@ import {
   formatNumber,
   formatCost,
   formatMs,
+  shortId,
 } from "../core/utils";
 import type { ObserveUsage, ObserveEvent } from "../core/types";
 
@@ -225,9 +226,11 @@ export class PageObserve extends LitElement {
   @state() private _usage: ObserveUsage | null = null;
   @state() private _events: ObserveEvent[] = [];
   @state() private _agentNames: string[] = [];
+  @state() private _runIds: string[] = [];
   @state() private _agentUsages: Map<string, ObserveUsage> = new Map();
   @state() private _filterAgent = "";
   @state() private _filterSession = "";
+  @state() private _filterRun = "";
 
   private _refreshTimer: ReturnType<typeof setInterval> | null = null;
   private _debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -247,16 +250,18 @@ export class PageObserve extends LitElement {
     const params = new URLSearchParams();
     if (this._filterAgent) params.set("agent", this._filterAgent);
     if (this._filterSession) params.set("session", this._filterSession);
+    if (this._filterRun) params.set("run", this._filterRun);
     return params.toString() ? `?${params}` : "";
   }
 
   private async _refresh() {
     const q = this._buildQuery();
 
-    const [usageRes, eventsRes, agentsRes] = await Promise.all([
+    const [usageRes, eventsRes, agentsRes, runsRes] = await Promise.all([
       fetch(`/_observe/api/usage${q}`).catch(() => null),
       fetch(`/_observe/api/events${q}`).catch(() => null),
       fetch("/_observe/api/agents").catch(() => null),
+      fetch("/_api/runs").catch(() => null),
     ]);
 
     if (usageRes?.ok) {
@@ -285,10 +290,19 @@ export class PageObserve extends LitElement {
       );
       this._agentUsages = usages;
     }
+    if (runsRes?.ok) {
+      const runs: { id: string }[] = (await runsRes.json()) || [];
+      this._runIds = runs.map((r) => r.id);
+    }
   }
 
   private _onFilterAgent(e: Event) {
     this._filterAgent = (e.target as HTMLSelectElement).value;
+    this._refresh();
+  }
+
+  private _onFilterRun(e: Event) {
+    this._filterRun = (e.target as HTMLSelectElement).value;
     this._refresh();
   }
 
@@ -371,6 +385,18 @@ export class PageObserve extends LitElement {
                   ?selected=${this._filterAgent === name}
                 >
                   ${name}
+                </option>`
+            )}
+          </select>
+          <select class="filter-select" @change=${this._onFilterRun}>
+            <option value="">All runs</option>
+            ${this._runIds.map(
+              (id) =>
+                html`<option
+                  value=${id}
+                  ?selected=${this._filterRun === id}
+                >
+                  ${shortId(id)}
                 </option>`
             )}
           </select>

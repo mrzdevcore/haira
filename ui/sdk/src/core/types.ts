@@ -155,6 +155,7 @@ export interface ObserveEvent {
   timestamp: string;
   agent: string;
   session_id?: string;
+  run_id?: string;
   model?: string;
   input_tokens?: number;
   output_tokens?: number;

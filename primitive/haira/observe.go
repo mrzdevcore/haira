@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,7 @@ type LLMGeneration struct {
 	FinishReason    string    `json:"finish_reason"`
 	Timestamp       time.Time `json:"timestamp"`
 	SessionID       string    `json:"session_id"`
+	RunID           string    `json:"run_id,omitempty"`
 	InputTokenCost  float64   `json:"-"` // USD per 1M input tokens (from provider, not serialized)
 	OutputTokenCost float64   `json:"-"` // USD per 1M output tokens (from provider, not serialized)
 }
@@ -49,6 +51,7 @@ type ToolExec struct {
 	Success   bool      `json:"success"`
 	Timestamp time.Time `json:"timestamp"`
 	SessionID string    `json:"session_id"`
+	RunID     string    `json:"run_id,omitempty"`
 }
 
 // ── Exporter interface (for external services like Langfuse, Datadog, etc.) ──
@@ -65,6 +68,29 @@ func ObserveExport(exp Exporter) {
 	if exp != nil {
 		exporters = append(exporters, exp)
 	}
+}
+
+// ── Goroutine-local run ID tracking ──
+// Allows workflow runs to tag all LLM/tool events with the current run ID.
+
+var activeRunIDs sync.Map // goroutine ID → run ID string
+
+// SetActiveRunID associates a run ID with the current goroutine.
+func SetActiveRunID(runID string) {
+	activeRunIDs.Store(goid(), runID)
+}
+
+// ClearActiveRunID removes the run ID association for the current goroutine.
+func ClearActiveRunID() {
+	activeRunIDs.Delete(goid())
+}
+
+// currentRunID returns the run ID for the current goroutine, if any.
+func currentRunID() string {
+	if v, ok := activeRunIDs.Load(goid()); ok {
+		return v.(string)
+	}
+	return ""
 }
 
 // ── Global observer (goroutine-safe) ──
@@ -89,6 +115,9 @@ func (o *observer) nextID(prefix string) string {
 func RecordGeneration(gen LLMGeneration) {
 	gen.ID = globalObserver.nextID("gen")
 	gen.CostUSD = computeCost(gen.InputTokens, gen.OutputTokens, gen.InputTokenCost, gen.OutputTokenCost)
+	if gen.RunID == "" {
+		gen.RunID = currentRunID()
+	}
 	globalObserver.mu.Lock()
 	globalObserver.generations = append(globalObserver.generations, gen)
 	globalObserver.mu.Unlock()
@@ -103,6 +132,9 @@ func RecordGeneration(gen LLMGeneration) {
 // RecordToolExec records a tool execution event.
 func RecordToolExec(exec ToolExec) {
 	exec.ID = globalObserver.nextID("tool")
+	if exec.RunID == "" {
+		exec.RunID = currentRunID()
+	}
 	globalObserver.mu.Lock()
 	globalObserver.toolExecs = append(globalObserver.toolExecs, exec)
 	globalObserver.mu.Unlock()
@@ -258,7 +290,16 @@ func ObserveAgentCost(name string) float64 {
 	return total
 }
 
-// ObserveEvents returns all recorded events as a list of maps.
+// sortEventsByTimestamp sorts events chronologically (most recent first).
+func sortEventsByTimestamp(events []map[string]any) {
+	sort.Slice(events, func(i, j int) bool {
+		ti, _ := time.Parse(time.RFC3339Nano, fmt.Sprint(events[i]["timestamp"]))
+		tj, _ := time.Parse(time.RFC3339Nano, fmt.Sprint(events[j]["timestamp"]))
+		return ti.After(tj)
+	})
+}
+
+// ObserveEvents returns all recorded events sorted chronologically (most recent first).
 func ObserveEvents() []map[string]any {
 	globalObserver.mu.RLock()
 	defer globalObserver.mu.RUnlock()
@@ -277,10 +318,11 @@ func ObserveEvents() []map[string]any {
 		m["type"] = "tool_exec"
 		events = append(events, m)
 	}
+	sortEventsByTimestamp(events)
 	return events
 }
 
-// ObserveAgentEvents returns events for a specific agent.
+// ObserveAgentEvents returns events for a specific agent, sorted chronologically.
 func ObserveAgentEvents(name string) []map[string]any {
 	globalObserver.mu.RLock()
 	defer globalObserver.mu.RUnlock()
@@ -303,7 +345,37 @@ func ObserveAgentEvents(name string) []map[string]any {
 			events = append(events, m)
 		}
 	}
+	sortEventsByTimestamp(events)
 	return events
+}
+
+// ObserveRunIDs returns all unique run IDs from recorded events, most recent first.
+func ObserveRunIDs() []string {
+	globalObserver.mu.RLock()
+	defer globalObserver.mu.RUnlock()
+	seen := make(map[string]time.Time)
+	for _, g := range globalObserver.generations {
+		if g.RunID != "" {
+			if t, ok := seen[g.RunID]; !ok || g.Timestamp.After(t) {
+				seen[g.RunID] = g.Timestamp
+			}
+		}
+	}
+	for _, t := range globalObserver.toolExecs {
+		if t.RunID != "" {
+			if ts, ok := seen[t.RunID]; !ok || t.Timestamp.After(ts) {
+				seen[t.RunID] = t.Timestamp
+			}
+		}
+	}
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		return seen[ids[i]].After(seen[ids[j]])
+	})
+	return ids
 }
 
 // ObserveReset clears all recorded events.
@@ -333,6 +405,7 @@ func ObserveStartServer(s *Server) {
 	s.mux.HandleFunc("/_observe/api/usage", handleObserveUsageAPI)
 	s.mux.HandleFunc("/_observe/api/events", handleObserveEventsAPI)
 	s.mux.HandleFunc("/_observe/api/agents", handleObserveAgentsAPI)
+	s.mux.HandleFunc("/_observe/api/run_ids", handleObserveRunIDsAPI)
 	s.mux.HandleFunc("/_observe", handleObserveDashboard)
 	s.mux.HandleFunc("/_observe/", handleObserveDashboard)
 	fmt.Println("[haira] Observe dashboard: /_observe")
@@ -344,6 +417,7 @@ func ObserveStartPort(port int) {
 	mux.HandleFunc("/_observe/api/usage", handleObserveUsageAPI)
 	mux.HandleFunc("/_observe/api/events", handleObserveEventsAPI)
 	mux.HandleFunc("/_observe/api/agents", handleObserveAgentsAPI)
+	mux.HandleFunc("/_observe/api/run_ids", handleObserveRunIDsAPI)
 	mux.HandleFunc("/_observe", handleObserveDashboard)
 	mux.HandleFunc("/_observe/", handleObserveDashboard)
 	fmt.Printf("[haira] Observe dashboard: http://localhost:%d/_observe\n", port)
@@ -374,6 +448,7 @@ func handleObserveEventsAPI(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	agent := r.URL.Query().Get("agent")
 	session := r.URL.Query().Get("session")
+	runID := r.URL.Query().Get("run")
 	var events []map[string]any
 	if agent != "" {
 		events = ObserveAgentEvents(agent)
@@ -384,6 +459,15 @@ func handleObserveEventsAPI(rw http.ResponseWriter, r *http.Request) {
 		var filtered []map[string]any
 		for _, e := range events {
 			if e["session_id"] == session {
+				filtered = append(filtered, e)
+			}
+		}
+		events = filtered
+	}
+	if runID != "" {
+		var filtered []map[string]any
+		for _, e := range events {
+			if e["run_id"] == runID {
 				filtered = append(filtered, e)
 			}
 		}
@@ -411,6 +495,15 @@ func handleObserveAgentsAPI(rw http.ResponseWriter, r *http.Request) {
 		agents = append(agents, name)
 	}
 	json.NewEncoder(rw).Encode(agents)
+}
+
+func handleObserveRunIDsAPI(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	ids := ObserveRunIDs()
+	if ids == nil {
+		ids = []string{}
+	}
+	json.NewEncoder(rw).Encode(ids)
 }
 
 func handleObserveDashboard(rw http.ResponseWriter, r *http.Request) {

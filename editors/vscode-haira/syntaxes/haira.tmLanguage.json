@@ -187,6 +187,21 @@
             "1": { "name": "keyword.other.agentic.haira" },
             "2": { "name": "entity.name.function.haira" }
           }
+        },
+        {
+          "comment": "Agent/provider field keys",
+          "match": "^\\s*(provider|system|tools|model|temperature|memory|handoffs|scope|scope_deny|output|trigger)\\s*:",
+          "captures": {
+            "1": { "name": "support.type.property-name.haira" }
+          }
+        },
+        {
+          "comment": "Test declaration",
+          "match": "\\b(test)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": { "name": "keyword.declaration.haira" },
+            "2": { "name": "string.quoted.double.haira" }
+          }
         }
       ]
     },
@@ -200,7 +215,7 @@
         {
           "comment": "Declaration keywords",
           "name": "keyword.declaration.haira",
-          "match": "\\b(fn|struct|type|enum|let|const|pub|import|export|from)\\b"
+          "match": "\\b(fn|struct|type|enum|let|const|pub|import|export|from|test)\\b"
         },
         {
           "comment": "Agentic keywords",
@@ -223,9 +238,14 @@
           "match": "\\b(none|some|ok|err)\\b"
         },
         {
+          "comment": "Self keyword",
+          "name": "variable.language.self.haira",
+          "match": "\\bself\\b"
+        },
+        {
           "comment": "Reserved keywords (future use)",
           "name": "keyword.reserved.haira",
-          "match": "\\b(trait|impl|async|default|test|assert)\\b"
+          "match": "\\b(trait|impl|async|default|assert)\\b"
         }
       ]
     },

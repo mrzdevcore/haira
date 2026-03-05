@@ -69,13 +69,19 @@ type ServerInfo struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync   int                `json:"textDocumentSync"` // 1 = Full
-	HoverProvider      bool               `json:"hoverProvider,omitempty"`
-	CompletionProvider *CompletionOptions `json:"completionProvider,omitempty"`
-	DefinitionProvider bool               `json:"definitionProvider,omitempty"`
+	TextDocumentSync      int                    `json:"textDocumentSync"` // 1 = Full
+	HoverProvider         bool                   `json:"hoverProvider,omitempty"`
+	CompletionProvider    *CompletionOptions     `json:"completionProvider,omitempty"`
+	DefinitionProvider    bool                   `json:"definitionProvider,omitempty"`
+	DocumentSymbolProvider bool                  `json:"documentSymbolProvider,omitempty"`
+	SignatureHelpProvider *SignatureHelpOptions   `json:"signatureHelpProvider,omitempty"`
 }
 
 type CompletionOptions struct {
+	TriggerCharacters []string `json:"triggerCharacters,omitempty"`
+}
+
+type SignatureHelpOptions struct {
 	TriggerCharacters []string `json:"triggerCharacters,omitempty"`
 }
 
@@ -189,4 +195,53 @@ type CompletionItem struct {
 type CompletionList struct {
 	IsIncomplete bool             `json:"isIncomplete"`
 	Items        []CompletionItem `json:"items"`
+}
+
+// DocumentSymbol represents a symbol in a document (for outline/breadcrumb).
+type DocumentSymbol struct {
+	Name           string           `json:"name"`
+	Detail         string           `json:"detail,omitempty"`
+	Kind           int              `json:"kind"`
+	Range          Range            `json:"range"`
+	SelectionRange Range            `json:"selectionRange"`
+	Children       []DocumentSymbol `json:"children,omitempty"`
+}
+
+// LSP SymbolKind constants.
+const (
+	SymbolKindFunction    = 12
+	SymbolKindStruct      = 23
+	SymbolKindEnum        = 10
+	SymbolKindEnumMember  = 22
+	SymbolKindField       = 8
+	SymbolKindMethod      = 6
+	SymbolKindVariable    = 13
+	SymbolKindConstant    = 14
+	SymbolKindClass       = 5
+	SymbolKindModule      = 2
+	SymbolKindProperty    = 7
+	SymbolKindEvent       = 24
+)
+
+// DocumentSymbolParams is for textDocument/documentSymbol.
+type DocumentSymbolParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
+
+// SignatureHelp is the result for textDocument/signatureHelp.
+type SignatureHelp struct {
+	Signatures      []SignatureInformation `json:"signatures"`
+	ActiveSignature int                    `json:"activeSignature"`
+	ActiveParameter int                    `json:"activeParameter"`
+}
+
+// SignatureInformation represents a callable signature.
+type SignatureInformation struct {
+	Label      string                 `json:"label"`
+	Parameters []ParameterInformation `json:"parameters,omitempty"`
+}
+
+// ParameterInformation represents a parameter of a callable.
+type ParameterInformation struct {
+	Label string `json:"label"`
 }

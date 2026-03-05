@@ -157,6 +157,18 @@ func (s *Server) handleMessage(msg json.RawMessage) {
 			s.sendResult(req.ID, result)
 		}
 
+	case "textDocument/documentSymbol":
+		result := s.handler.DocumentSymbol(req.Params)
+		if !isNotification {
+			s.sendResult(req.ID, result)
+		}
+
+	case "textDocument/signatureHelp":
+		result := s.handler.SignatureHelp(req.Params)
+		if !isNotification {
+			s.sendResult(req.ID, result)
+		}
+
 	default:
 		if !isNotification {
 			// Return null for unimplemented methods instead of an error,

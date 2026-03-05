@@ -46,6 +46,12 @@
         "scopeName": "source.haira",
         "path": "./syntaxes/haira.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "haira",
+        "path": "./snippets/haira.json"
+      }
     ]
   },
   "scripts": {

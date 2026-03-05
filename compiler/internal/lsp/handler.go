@@ -48,11 +48,15 @@ func (h *Handler) Initialize(params json.RawMessage) *InitializeResult {
 			CompletionProvider: &CompletionOptions{
 				TriggerCharacters: []string{".", "\""},
 			},
-			DefinitionProvider: true,
+			DefinitionProvider:     true,
+			DocumentSymbolProvider: true,
+			SignatureHelpProvider: &SignatureHelpOptions{
+				TriggerCharacters: []string{"(", ","},
+			},
 		},
 		ServerInfo: &ServerInfo{
 			Name:    "haira-lsp",
-			Version: "0.1.0",
+			Version: "0.2.0",
 		},
 	}
 }
@@ -231,7 +235,7 @@ func (h *Handler) Completion(params json.RawMessage) *CompletionList {
 	}
 
 	// Stdlib modules
-	for _, mod := range []string{"io", "http", "json", "time", "env", "postgres", "slack", "excel"} {
+	for _, mod := range []string{"io", "http", "json", "time", "env", "postgres", "slack", "excel", "strings", "math", "conv", "fs", "regex", "vector", "github", "gitlab", "sqlite"} {
 		if strings.HasPrefix(mod, prefix) {
 			items = append(items, CompletionItem{
 				Label: mod,
@@ -240,24 +244,37 @@ func (h *Handler) Completion(params json.RawMessage) *CompletionList {
 		}
 	}
 
-	// Stdlib functions
-	stdlibFuncs := map[string]string{
-		"io.println": "Print a value with newline",
-		"io.print":   "Print a value",
-		"http.get":   "HTTP GET request",
-		"http.post":  "HTTP POST request",
-		"len":        "Get length of a collection",
-		"keys":       "Get keys of a map",
-		"join":       "Join list elements with separator",
-		"env":        "Read environment variable",
-	}
-	for name, detail := range stdlibFuncs {
+	// Stdlib functions — expanded
+	for name, detail := range stdlibFuncsMap {
 		if strings.HasPrefix(name, prefix) {
 			items = append(items, CompletionItem{
 				Label:  name,
 				Kind:   3, // Function
 				Detail: detail,
 			})
+		}
+	}
+
+	// Context-aware: agent field suggestions inside agent block
+	line := getLineAt(text, offset)
+	trimmedLine := strings.TrimSpace(line)
+	if isInsideAgentBlock(text, offset) && (trimmedLine == "" || !strings.Contains(trimmedLine, ":")) {
+		for _, field := range agentFieldCompletions {
+			if strings.HasPrefix(field.Label, prefix) {
+				items = append(items, field)
+			}
+		}
+	}
+
+	// Context-aware: agent method suggestions after "."
+	if offset > 0 && offset <= len(text) && text[offset-1] == '.' {
+		dotPrefix := getWordAt(text, offset-2)
+		if file != nil && isAgentName(file, dotPrefix) {
+			items = append(items,
+				CompletionItem{Label: "ask", Kind: 2, Detail: "Send a message and get a response"},
+				CompletionItem{Label: "run", Kind: 2, Detail: "Run agent and return AgentResult"},
+				CompletionItem{Label: "stream", Kind: 2, Detail: "Stream agent response via SSE"},
+			)
 		}
 	}
 
@@ -400,6 +417,243 @@ func (h *Handler) Definition(params json.RawMessage) []Location {
 	}
 
 	return []Location{}
+}
+
+// DocumentSymbol handles textDocument/documentSymbol.
+func (h *Handler) DocumentSymbol(params json.RawMessage) []DocumentSymbol {
+	var p DocumentSymbolParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return []DocumentSymbol{}
+	}
+
+	h.mu.RLock()
+	text, ok := h.documents[p.TextDocument.URI]
+	file := h.asts[p.TextDocument.URI]
+	h.mu.RUnlock()
+
+	if !ok || file == nil {
+		return []DocumentSymbol{}
+	}
+
+	symbols := []DocumentSymbol{}
+
+	for _, item := range file.Items {
+		switch it := item.Node.(type) {
+		case ast.FunctionDef:
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         "fn " + funcSignature(it),
+				Kind:           SymbolKindFunction,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+			})
+		case ast.MethodDef:
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.TypeName.Node + "." + it.Name.Node,
+				Detail:         "method",
+				Kind:           SymbolKindMethod,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+			})
+		case ast.TypeDef:
+			children := make([]DocumentSymbol, len(it.Fields))
+			for i, f := range it.Fields {
+				ty := "any"
+				if f.Ty != nil {
+					ty = astTypeString(f.Ty.Node)
+				}
+				children[i] = DocumentSymbol{
+					Name:           f.Name.Node,
+					Detail:         ty,
+					Kind:           SymbolKindField,
+					Range:          spanToRange(text, f.Span),
+					SelectionRange: spanToRange(text, f.Name.Span),
+				}
+			}
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         fmt.Sprintf("struct (%d fields)", len(it.Fields)),
+				Kind:           SymbolKindStruct,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+				Children:       children,
+			})
+		case ast.EnumDef:
+			children := make([]DocumentSymbol, len(it.Variants))
+			for i, v := range it.Variants {
+				children[i] = DocumentSymbol{
+					Name:           v.Name.Node,
+					Kind:           SymbolKindEnumMember,
+					Range:          spanToRange(text, v.Span),
+					SelectionRange: spanToRange(text, v.Name.Span),
+				}
+			}
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         fmt.Sprintf("enum (%d variants)", len(it.Variants)),
+				Kind:           SymbolKindEnum,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+				Children:       children,
+			})
+		case ast.ToolDecl:
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         "tool " + toolSignature(it),
+				Kind:           SymbolKindFunction,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+			})
+		case ast.AgentDecl:
+			children := make([]DocumentSymbol, 0, len(it.Fields))
+			for _, f := range it.Fields {
+				children = append(children, DocumentSymbol{
+					Name:           f.Key.Node,
+					Kind:           SymbolKindProperty,
+					Range:          spanToRange(text, f.Key.Span),
+					SelectionRange: spanToRange(text, f.Key.Span),
+				})
+			}
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         "agent",
+				Kind:           SymbolKindClass,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+				Children:       children,
+			})
+		case ast.WorkflowDecl:
+			detail := "workflow " + workflowSignature(it)
+			if it.Trigger != nil {
+				detail = "@" + it.Trigger.Name.Node + " " + detail
+			}
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         detail,
+				Kind:           SymbolKindFunction,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+			})
+		case ast.ProviderDecl:
+			providerType := ""
+			for _, f := range it.Fields {
+				if f.Key.Node == "type" {
+					providerType = exprStringValue(f.Value)
+					break
+				}
+			}
+			detail := "provider"
+			if providerType != "" {
+				detail += " (" + providerType + ")"
+			}
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         detail,
+				Kind:           SymbolKindModule,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+			})
+		case ast.TestDecl:
+			symbols = append(symbols, DocumentSymbol{
+				Name:           it.Name.Node,
+				Detail:         "test",
+				Kind:           SymbolKindEvent,
+				Range:          spanToRange(text, item.Span),
+				SelectionRange: spanToRange(text, it.Name.Span),
+			})
+		}
+	}
+
+	return symbols
+}
+
+// SignatureHelp handles textDocument/signatureHelp.
+func (h *Handler) SignatureHelp(params json.RawMessage) *SignatureHelp {
+	var p TextDocumentPositionParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil
+	}
+
+	h.mu.RLock()
+	text, ok := h.documents[p.TextDocument.URI]
+	file := h.asts[p.TextDocument.URI]
+	h.mu.RUnlock()
+
+	if !ok || file == nil {
+		return nil
+	}
+
+	offset := positionToOffset(text, p.Position)
+
+	// Walk backwards from cursor to find the opening '(' and count commas
+	depth := 0
+	commas := 0
+	parenStart := -1
+	for i := offset - 1; i >= 0; i-- {
+		switch text[i] {
+		case ')':
+			depth++
+		case '(':
+			if depth > 0 {
+				depth--
+			} else {
+				parenStart = i
+			}
+		case ',':
+			if depth == 0 {
+				commas++
+			}
+		}
+		if parenStart >= 0 {
+			break
+		}
+	}
+
+	if parenStart < 0 {
+		return nil
+	}
+
+	// Get the function name before the '('
+	funcName := getWordAt(text, parenStart-1)
+	if funcName == "" {
+		return nil
+	}
+
+	// Look up the function/tool/workflow in the AST
+	for _, item := range file.Items {
+		switch it := item.Node.(type) {
+		case ast.FunctionDef:
+			if it.Name.Node == funcName {
+				return buildSignatureHelp(funcSignature(it), it.Params, commas)
+			}
+		case ast.ToolDecl:
+			if it.Name.Node == funcName {
+				return buildSignatureHelp(toolSignature(it), it.Params, commas)
+			}
+		case ast.WorkflowDecl:
+			if it.Name.Node == funcName {
+				return buildSignatureHelp(workflowSignature(it), it.Params, commas)
+			}
+		case ast.MethodDef:
+			if it.Name.Node == funcName {
+				sig := methodSignature(it)
+				return buildSignatureHelp(sig, it.Params, commas)
+			}
+		}
+	}
+
+	// Check stdlib signatures
+	if sig, ok := stdlibSignatures[funcName]; ok {
+		return &SignatureHelp{
+			Signatures: []SignatureInformation{
+				{Label: sig},
+			},
+			ActiveSignature: 0,
+			ActiveParameter: commas,
+		}
+	}
+
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -567,15 +821,143 @@ func itemHoverInfo(item ast.Item) string {
 		}
 		return fmt.Sprintf("```haira\nenum %s {\n%s\n}\n```", it.Name.Node, strings.Join(variants, "\n"))
 	case ast.ToolDecl:
-		return fmt.Sprintf("```haira\ntool %s\n```\n%s", toolSignature(it), it.Description)
+		desc := ""
+		if it.Description != "" {
+			desc = "\n\n" + it.Description
+		}
+		return fmt.Sprintf("```haira\ntool %s\n```%s", toolSignature(it), desc)
 	case ast.AgentDecl:
-		return fmt.Sprintf("```haira\nagent %s\n```", it.Name.Node)
+		return agentHoverInfo(it)
 	case ast.WorkflowDecl:
-		return fmt.Sprintf("```haira\nworkflow %s\n```", workflowSignature(it))
+		return workflowHoverInfo(it)
 	case ast.ProviderDecl:
-		return fmt.Sprintf("```haira\nprovider %s\n```", it.Name.Node)
+		return providerHoverInfo(it)
 	case ast.TestDecl:
 		return fmt.Sprintf("```haira\ntest %q\n```", it.Name.Node)
+	}
+	return ""
+}
+
+func agentHoverInfo(agent ast.AgentDecl) string {
+	lines := []string{fmt.Sprintf("```haira\nagent %s\n```", agent.Name.Node)}
+
+	for _, f := range agent.Fields {
+		switch f.Key.Node {
+		case "provider":
+			if v := exprStringValue(f.Value); v != "" {
+				lines = append(lines, "**Provider:** "+v)
+			} else {
+				lines = append(lines, "**Provider:** "+exprIdentValue(f.Value))
+			}
+		case "system":
+			if v := exprStringValue(f.Value); v != "" {
+				// Truncate long system prompts
+				if len(v) > 120 {
+					v = v[:120] + "…"
+				}
+				lines = append(lines, "**System:** "+v)
+			}
+		case "tools":
+			lines = append(lines, "**Tools:** "+exprListString(f.Value))
+		case "scope":
+			if v := exprStringValue(f.Value); v != "" {
+				lines = append(lines, "**Scope:** "+v)
+			}
+		case "memory":
+			lines = append(lines, "**Memory:** "+exprRawString(f.Value))
+		case "temperature":
+			lines = append(lines, "**Temperature:** "+exprRawString(f.Value))
+		case "model":
+			if v := exprStringValue(f.Value); v != "" {
+				lines = append(lines, "**Model:** "+v)
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n\n")
+}
+
+func workflowHoverInfo(wf ast.WorkflowDecl) string {
+	header := "workflow " + workflowSignature(wf)
+	if wf.Trigger != nil {
+		header = "@" + wf.Trigger.Name.Node + " " + header
+	}
+	lines := []string{fmt.Sprintf("```haira\n%s\n```", header)}
+
+	if wf.Description != "" {
+		lines = append(lines, wf.Description)
+	}
+
+	// List decorators
+	for _, d := range wf.Decorators {
+		lines = append(lines, "**@"+d.Name.Node+"**")
+	}
+
+	return strings.Join(lines, "\n\n")
+}
+
+func providerHoverInfo(prov ast.ProviderDecl) string {
+	provType := ""
+	model := ""
+	for _, f := range prov.Fields {
+		switch f.Key.Node {
+		case "type":
+			provType = exprStringValue(f.Value)
+		case "model":
+			model = exprStringValue(f.Value)
+		}
+	}
+	lines := []string{fmt.Sprintf("```haira\nprovider %s\n```", prov.Name.Node)}
+	if provType != "" {
+		lines = append(lines, "**Type:** "+provType)
+	}
+	if model != "" {
+		lines = append(lines, "**Model:** "+model)
+	}
+	return strings.Join(lines, "\n\n")
+}
+
+// exprIdentValue extracts an identifier name from an expression.
+func exprIdentValue(expr ast.Expr) string {
+	if ident, ok := expr.Node.(ast.IdentExpr); ok {
+		return ident.Name
+	}
+	return ""
+}
+
+// exprListString returns a comma-separated string of identifiers in a list expression.
+func exprListString(expr ast.Expr) string {
+	if list, ok := expr.Node.(ast.ListExpr); ok {
+		names := make([]string, 0, len(list.Elems))
+		for _, elem := range list.Elems {
+			if ident, ok := elem.Node.(ast.IdentExpr); ok {
+				names = append(names, ident.Name)
+			}
+		}
+		return "[" + strings.Join(names, ", ") + "]"
+	}
+	return exprRawString(expr)
+}
+
+// exprRawString returns a basic string representation of an expression.
+func exprRawString(expr ast.Expr) string {
+	switch e := expr.Node.(type) {
+	case ast.LiteralExpr:
+		switch lit := e.Lit.(type) {
+		case ast.StringLit:
+			return lit.Value
+		case ast.IntLit:
+			return fmt.Sprintf("%d", lit.Value)
+		case ast.FloatLit:
+			return fmt.Sprintf("%g", lit.Value)
+		case ast.BoolLit:
+			if lit.Value {
+				return "true"
+			}
+			return "false"
+		}
+	case ast.IdentExpr:
+		return e.Name
 	}
 	return ""
 }
@@ -646,6 +1028,197 @@ func astTypeString(ty ast.Type) string {
 		return "fn(" + strings.Join(params, ", ") + ") -> " + astTypeString(t.Ret.Node)
 	}
 	return "any"
+}
+
+// spanToRange converts a Haira span to an LSP Range.
+func spanToRange(text string, span ast.Span) Range {
+	return Range{
+		Start: offsetToPosition(text, span.Start),
+		End:   offsetToPosition(text, span.End),
+	}
+}
+
+func buildSignatureHelp(sig string, params []ast.Param, activeParam int) *SignatureHelp {
+	paramInfos := make([]ParameterInformation, len(params))
+	for i, p := range params {
+		ty := "any"
+		if p.Ty != nil {
+			ty = astTypeString(p.Ty.Node)
+		}
+		paramInfos[i] = ParameterInformation{
+			Label: p.Name.Node + ": " + ty,
+		}
+	}
+	return &SignatureHelp{
+		Signatures: []SignatureInformation{
+			{
+				Label:      sig,
+				Parameters: paramInfos,
+			},
+		},
+		ActiveSignature: 0,
+		ActiveParameter: activeParam,
+	}
+}
+
+func methodSignature(m ast.MethodDef) string {
+	params := make([]string, len(m.Params))
+	for i, p := range m.Params {
+		ty := "any"
+		if p.Ty != nil {
+			ty = astTypeString(p.Ty.Node)
+		}
+		params[i] = p.Name.Node + ": " + ty
+	}
+	sig := m.TypeName.Node + "." + m.Name.Node + "(" + strings.Join(params, ", ") + ")"
+	if m.ReturnTy != nil {
+		sig += " -> " + astTypeString(m.ReturnTy.Node)
+	}
+	return sig
+}
+
+// exprStringValue extracts a string value from a string literal expression.
+func exprStringValue(expr ast.Expr) string {
+	if litExpr, ok := expr.Node.(ast.LiteralExpr); ok {
+		if str, ok := litExpr.Lit.(ast.StringLit); ok {
+			return str.Value
+		}
+	}
+	return ""
+}
+
+// stdlibFuncsMap holds all documented stdlib functions for completion.
+var stdlibFuncsMap = map[string]string{
+	// io
+	"io.println": "Print a value with newline",
+	"io.print":   "Print a value",
+	"io.readln":  "Read a line from stdin",
+	"io.sprintf": "Format a string",
+	// http
+	"http.get":    "HTTP GET request",
+	"http.post":   "HTTP POST request",
+	"http.put":    "HTTP PUT request",
+	"http.delete": "HTTP DELETE request",
+	// json
+	"json.parse":     "Parse JSON string to value",
+	"json.stringify": "Convert value to JSON string",
+	// time
+	"time.now":    "Current timestamp",
+	"time.sleep":  "Sleep for duration",
+	"time.parse":  "Parse time string",
+	"time.format": "Format time to string",
+	// strings
+	"strings.upper":   "Convert to uppercase",
+	"strings.lower":   "Convert to lowercase",
+	"strings.trim":    "Trim whitespace",
+	"strings.replace": "Replace substring",
+	// math
+	"math.abs":   "Absolute value",
+	"math.min":   "Minimum of values",
+	"math.max":   "Maximum of values",
+	"math.floor": "Floor (round down)",
+	"math.ceil":  "Ceiling (round up)",
+	// conv
+	"conv.to_int":    "Convert to integer",
+	"conv.to_float":  "Convert to float",
+	"conv.to_string": "Convert to string",
+	// builtins
+	"len":      "Get length of a collection",
+	"keys":     "Get keys of a map",
+	"values":   "Get values of a map",
+	"join":     "Join list elements with separator",
+	"split":    "Split string by separator",
+	"contains": "Check if string contains substring",
+	"append":   "Append items to list",
+	"push":     "Push item to list",
+	"pop":      "Pop item from list",
+	"env":      "Read environment variable",
+}
+
+// agentFieldCompletions suggests fields inside agent {} blocks.
+var agentFieldCompletions = []CompletionItem{
+	{Label: "provider", Kind: 7, Detail: "LLM provider reference"},
+	{Label: "system", Kind: 7, Detail: "System prompt"},
+	{Label: "tools", Kind: 7, Detail: "List of tools available to the agent"},
+	{Label: "model", Kind: 7, Detail: "Model name override"},
+	{Label: "temperature", Kind: 7, Detail: "Temperature (0.0 - 1.0)"},
+	{Label: "memory", Kind: 7, Detail: "Memory mode: conversation, summary, none"},
+	{Label: "handoffs", Kind: 7, Detail: "List of agents for handoff"},
+	{Label: "scope", Kind: 7, Detail: "Topic restriction for guardrails"},
+	{Label: "scope_deny", Kind: 7, Detail: "Message returned for off-topic requests"},
+	{Label: "output", Kind: 7, Detail: "Structured output type"},
+}
+
+// isAgentName checks if a name is a declared agent in the file.
+func isAgentName(file *ast.SourceFile, name string) bool {
+	for _, item := range file.Items {
+		if agent, ok := item.Node.(ast.AgentDecl); ok {
+			if agent.Name.Node == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isInsideAgentBlock checks if cursor is inside an agent { } block.
+func isInsideAgentBlock(text string, offset int) bool {
+	// Simple heuristic: walk backwards to find "agent <Name> {" before a matching "}"
+	depth := 0
+	for i := offset - 1; i >= 0; i-- {
+		switch text[i] {
+		case '}':
+			depth++
+		case '{':
+			if depth > 0 {
+				depth--
+			} else {
+				// Found our opening brace — check if preceded by "agent <Name>"
+				before := strings.TrimSpace(text[:i])
+				// Look for "agent <word>" pattern
+				parts := strings.Fields(before)
+				if len(parts) >= 2 && parts[len(parts)-2] == "agent" {
+					return true
+				}
+				return false
+			}
+		}
+	}
+	return false
+}
+
+// getLineAt returns the line of text at the given offset.
+func getLineAt(text string, offset int) string {
+	if offset > len(text) {
+		offset = len(text)
+	}
+	start := offset
+	for start > 0 && text[start-1] != '\n' {
+		start--
+	}
+	end := offset
+	for end < len(text) && text[end] != '\n' {
+		end++
+	}
+	return text[start:end]
+}
+
+// stdlibSignatures holds signatures for common stdlib functions.
+var stdlibSignatures = map[string]string{
+	"println": "io.println(value: any)",
+	"print":   "io.print(value: any)",
+	"readln":  "io.readln(prompt: string) -> string",
+	"sprintf": "io.sprintf(format: string, args: ...any) -> string",
+	"len":     "len(collection: any) -> int",
+	"keys":    "keys(map: {string: any}) -> [string]",
+	"values":  "values(map: {string: any}) -> [any]",
+	"join":    "join(list: [string], sep: string) -> string",
+	"split":   "split(s: string, sep: string) -> [string]",
+	"contains": "contains(s: string, substr: string) -> bool",
+	"append":  "append(list: [any], items: ...any) -> [any]",
+	"push":    "push(list: [any], item: any)",
+	"pop":     "pop(list: [any]) -> any",
+	"env":     "env(key: string) -> string",
 }
 
 // URIToPath converts a file:// URI to a file path.

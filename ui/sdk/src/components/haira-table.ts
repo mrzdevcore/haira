@@ -309,7 +309,7 @@ export class HairaTable extends LitElement {
 
   @state() private _activeTab: number = 0;
   @state() private _search: string = "";
-  @state() private _hideEmpty: boolean = false;
+  @state() private _hideEmpty: boolean = true;
   @state() private _scrollTop: number = 0;
 
   // Sort state
@@ -341,6 +341,14 @@ export class HairaTable extends LitElement {
     this._sortCol = -1;
     this._sortDir = null;
     this._columnOrders = new Map();
+    this._hideEmpty = true;
+    // Default to first non-empty tab
+    if (this.tabs?.length) {
+      const firstNonEmpty = this.tabs.findIndex(
+        (t) => !/\(0\)\s*$/.test(t.name) && (t.rows?.length ?? 0) > 0
+      );
+      if (firstNonEmpty >= 0) this._activeTab = firstNonEmpty;
+    }
     this.requestUpdate();
   }
 

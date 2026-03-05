@@ -85,6 +85,9 @@ func (s *SqlResult) ToUiCodeBlock() haira.UiCodeBlock {
 
 // Schema retrieves the schema for the specified tables, including FK dependencies.
 func (db *DB) Schema(tables []any) (*PgSchema, error) {
+	if db == nil || db.conn == nil {
+		return nil, fmt.Errorf("database not connected")
+	}
 	schema := &PgSchema{
 		Tables: make(map[string]*PgTableSchema),
 		FKDeps: make(map[string][]string),
@@ -407,6 +410,9 @@ func (db *DB) Transaction(fn func(*DB) error) error {
 }
 
 func (db *DB) tableSchema(tableName string) (*PgTableSchema, error) {
+	if db == nil || db.conn == nil {
+		return nil, fmt.Errorf("database not connected")
+	}
 	rows, err := db.conn.Query(`
 		SELECT
 			c.column_name,

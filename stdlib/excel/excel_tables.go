@@ -251,10 +251,10 @@ func (t *ExcelTables) Summary() string {
 }
 
 // ToUiTable converts all sheets into a UiTable with tabs for direct UI rendering.
-// Each tab shows up to maxRows rows (default 20). The data goes straight to the
+// Each tab shows up to maxRows rows (0 = all rows). The data goes straight to the
 // frontend via tool_render SSE — the LLM only receives a compact summary.
 func (t *ExcelTables) ToUiTable(maxRows ...int) haira.UiTable {
-	limit := 20
+	limit := 0
 	if len(maxRows) > 0 && maxRows[0] > 0 {
 		limit = maxRows[0]
 	}
@@ -268,7 +268,7 @@ func (t *ExcelTables) ToUiTable(maxRows ...int) haira.UiTable {
 		}
 
 		rowCount := len(sheet.Rows)
-		if rowCount > limit {
+		if limit > 0 && rowCount > limit {
 			rowCount = limit
 		}
 		rows := make([]any, rowCount)

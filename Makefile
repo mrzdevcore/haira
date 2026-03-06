@@ -181,6 +181,20 @@ vscode-package: vscode-build
 spec:
 	$(MAKE) -C spec/latex
 
+# Run tests with coverage reporting
+cover:
+	cd $(COMPILER_DIR) && go test -coverprofile=coverage.out ./...
+	cd $(COMPILER_DIR) && go tool cover -func=coverage.out
+	@echo "HTML report: cd $(COMPILER_DIR) && go tool cover -html=coverage.out"
+
+# Run tests with race detector
+race:
+	cd $(COMPILER_DIR) && go test -race ./...
+
+# Run benchmarks
+bench:
+	cd $(COMPILER_DIR) && go test -bench=. -benchmem ./...
+
 # Quick development cycle: format, vet, test
 dev: fmt vet test
 
@@ -284,5 +298,8 @@ help:
 	@echo "  arp-clean        Clean ARP build artifacts"
 	@echo "  publish          Production build: vet, test, bundle, build (stripped), verify"
 	@echo "                   Use VERSION=v0.5.0 to set version (default: git tag or dev)"
+	@echo "  cover            Run tests with coverage reporting"
+	@echo "  race             Run tests with race detector"
+	@echo "  bench            Run benchmarks"
 	@echo "  dev              Format, vet, test"
 	@echo "  ci               Vet, test, build examples"

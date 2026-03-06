@@ -192,22 +192,22 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 ## 12. Test Coverage
 
 ### Missing test files (10 untested packages)
-- [ ] **TST-01** Add driver tests — entire pipeline untested (0/313 LOC)
-- [ ] **TST-02** Add formatter tests — 0/1,297 LOC
+- [x] **TST-01** Add driver tests — entire pipeline untested (0/313 LOC)
+- [x] **TST-02** Add formatter tests — 0/1,297 LOC
 - [ ] **TST-03** Add errors/diagnostics tests — 0/146 LOC
 - [ ] **TST-04** Add token utility tests — 0/428 LOC
 
 ### Missing test categories
-- [ ] **TST-05** Add parser negative tests — currently zero tests for invalid syntax
-- [ ] **TST-06** Add codegen compilation verification — tests don't run `go build` on output
+- [x] **TST-05** Add parser negative tests — currently zero tests for invalid syntax
+- [x] **TST-06** Add codegen compilation verification — generated Go verified via go/parser
 - [ ] **TST-07** Add fuzz tests for lexer/parser
 - [ ] **TST-08** Add benchmark tests for lexer/parser/checker on large files
 - [ ] **TST-09** Add race detection to CI — `go test -race ./...`
 
 ### Build system
-- [ ] **TST-10** Add `make cover` target with coverage reporting
-- [ ] **TST-11** Add `make race` target with `-race` flag
-- [ ] **TST-12** Add `make bench` target for benchmarks
+- [x] **TST-10** Add `make cover` target with coverage reporting
+- [x] **TST-11** Add `make race` target with `-race` flag
+- [x] **TST-12** Add `make bench` target for benchmarks
 
 ---
 

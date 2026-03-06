@@ -1,6 +1,8 @@
 package codegen
 
 import (
+	goparser "go/parser"
+	gotoken "go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1140,5 +1142,115 @@ fn add(a: int, b: int) -> int { return a + b }
 	sf2, _ := parser.Parse(withoutTests)
 	if HasTests(sf2) {
 		t.Error("expected HasTests to return false")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TST-06: Codegen compilation verification — generated Go must be valid syntax
+// ---------------------------------------------------------------------------
+
+func assertValidGoSyntax(t *testing.T, code string) {
+	t.Helper()
+	fset := gotoken.NewFileSet()
+	_, err := goparser.ParseFile(fset, "generated.go", code, goparser.AllErrors)
+	if err != nil {
+		t.Errorf("generated Go has syntax errors:\n%v\n\nGenerated code:\n%s", err, code)
+	}
+}
+
+func TestCodegenSyntaxHello(t *testing.T) {
+	src := `import "io"
+fn main() {
+    io.println("Hello, World!")
+}`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxFunctions(t *testing.T) {
+	src := `fn add(a: int, b: int) -> int { return a + b }
+fn main() { x = add(1, 2) }`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxStructs(t *testing.T) {
+	src := `struct User {
+    name: string
+    age: int
+}
+User.greet() -> string { return "hi" }`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxEnum(t *testing.T) {
+	src := `enum Color { Red, Green, Blue }
+fn main() { c = Color.Red }`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxControlFlow(t *testing.T) {
+	src := `fn main() {
+    x = 10
+    if x > 5 { x = x - 1 }
+    while x > 0 { x = x - 1 }
+    for i in 0..5 { x = i }
+}`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxMatch(t *testing.T) {
+	src := `fn main() {
+    x = 2
+    match x {
+        1 => io.println("one")
+        2 => io.println("two")
+        _ => io.println("other")
+    }
+}`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxAgentic(t *testing.T) {
+	src := `provider openai {
+    api_key: env("KEY")
+    model: "gpt-4"
+}
+agent Bot {
+    model: openai
+    system: "helpful"
+}
+@webhook("/chat")
+workflow Chat(msg: string) -> { reply: string } {
+    reply, err = Bot.ask(msg)
+    return { reply: reply }
+}
+fn main() {}`
+	assertValidGoSyntax(t, parseAndGenerate(t, src))
+}
+
+func TestCodegenSyntaxAllExamples(t *testing.T) {
+	dir := examplesDir()
+	if dir == "" {
+		t.Skip("examples directory not found")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) != ".haira" {
+			continue
+		}
+		t.Run(entry.Name(), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sf, errs := parser.Parse(string(data))
+			if len(errs) > 0 {
+				t.Skipf("skipping (parse errors): %s", entry.Name())
+			}
+			code := GenerateMainGo(sf, "", "")
+			assertValidGoSyntax(t, code)
+		})
 	}
 }

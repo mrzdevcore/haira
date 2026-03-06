@@ -289,8 +289,13 @@ module.exports = grammar({
         $.method_call,
         $.member_access,
         $.index_expression,
+        $.try_expression,
         $.primary_expression,
       ),
+
+    // Postfix ? operator for error propagation (panics on error, caught by try/catch)
+    try_expression: ($) =>
+      prec.left(8, seq(field("operand", $._expression), "?")),
 
     primary_expression: ($) =>
       choice(

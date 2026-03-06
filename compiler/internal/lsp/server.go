@@ -169,6 +169,12 @@ func (s *Server) handleMessage(msg json.RawMessage) {
 			s.sendResult(req.ID, result)
 		}
 
+	case "textDocument/formatting":
+		result := s.handler.Formatting(req.Params)
+		if !isNotification {
+			s.sendResult(req.ID, result)
+		}
+
 	default:
 		if !isNotification {
 			// Return null for unimplemented methods instead of an error,
@@ -220,8 +226,13 @@ func (s *Server) writeMessage(msg interface{}) {
 	defer s.mu.Unlock()
 
 	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
-	s.writer.Write([]byte(header))
-	s.writer.Write(body)
+	if _, err := s.writer.Write([]byte(header)); err != nil {
+		s.logf("write header error: %s", err)
+		return
+	}
+	if _, err := s.writer.Write(body); err != nil {
+		s.logf("write body error: %s", err)
+	}
 }
 
 func (s *Server) logf(format string, args ...interface{}) {

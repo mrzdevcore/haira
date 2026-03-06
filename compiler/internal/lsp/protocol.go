@@ -69,12 +69,13 @@ type ServerInfo struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync      int                    `json:"textDocumentSync"` // 1 = Full
-	HoverProvider         bool                   `json:"hoverProvider,omitempty"`
-	CompletionProvider    *CompletionOptions     `json:"completionProvider,omitempty"`
-	DefinitionProvider    bool                   `json:"definitionProvider,omitempty"`
+	TextDocumentSync       int                   `json:"textDocumentSync"` // 1 = Full
+	HoverProvider          bool                  `json:"hoverProvider,omitempty"`
+	CompletionProvider     *CompletionOptions    `json:"completionProvider,omitempty"`
+	DefinitionProvider     bool                  `json:"definitionProvider,omitempty"`
 	DocumentSymbolProvider bool                  `json:"documentSymbolProvider,omitempty"`
-	SignatureHelpProvider *SignatureHelpOptions   `json:"signatureHelpProvider,omitempty"`
+	SignatureHelpProvider  *SignatureHelpOptions  `json:"signatureHelpProvider,omitempty"`
+	DocumentFormattingProvider bool              `json:"documentFormattingProvider,omitempty"`
 }
 
 type CompletionOptions struct {
@@ -244,4 +245,22 @@ type SignatureInformation struct {
 // ParameterInformation represents a parameter of a callable.
 type ParameterInformation struct {
 	Label string `json:"label"`
+}
+
+// DocumentFormattingParams is for textDocument/formatting.
+type DocumentFormattingParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Options      FormattingOptions      `json:"options"`
+}
+
+// FormattingOptions describes formatting options.
+type FormattingOptions struct {
+	TabSize      int  `json:"tabSize"`
+	InsertSpaces bool `json:"insertSpaces"`
+}
+
+// TextEdit represents a change to a text document.
+type TextEdit struct {
+	Range   Range  `json:"range"`
+	NewText string `json:"newText"`
 }

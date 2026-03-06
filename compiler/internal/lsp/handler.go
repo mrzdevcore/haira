@@ -6,10 +6,13 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/haira-lang/haira/internal/ast"
 	"github.com/haira-lang/haira/internal/checker"
 	hairaerr "github.com/haira-lang/haira/internal/errors"
+	"github.com/haira-lang/haira/internal/formatter"
+	"github.com/haira-lang/haira/internal/lexer"
 	"github.com/haira-lang/haira/internal/parser"
 	"github.com/haira-lang/haira/internal/token"
 )
@@ -53,6 +56,7 @@ func (h *Handler) Initialize(params json.RawMessage) *InitializeResult {
 			SignatureHelpProvider: &SignatureHelpOptions{
 				TriggerCharacters: []string{"(", ","},
 			},
+			DocumentFormattingProvider: true,
 		},
 		ServerInfo: &ServerInfo{
 			Name:    "haira-lsp",
@@ -741,17 +745,42 @@ func offsetToPosition(text string, offset int) Position {
 }
 
 // positionToOffset converts a Position to a byte offset.
+// LSP positions use UTF-16 code units for the character offset.
+// For ASCII-only text, UTF-16 offset == byte offset.
+// For multi-byte characters, we count UTF-16 code units properly.
 func positionToOffset(text string, pos Position) int {
 	line := 0
-	for i := 0; i < len(text); i++ {
+	i := 0
+	// Find the start of the target line
+	for i < len(text) {
 		if line == pos.Line {
-			return i + pos.Character
+			break
 		}
 		if text[i] == '\n' {
 			line++
 		}
+		i++
 	}
-	return len(text)
+	if line != pos.Line {
+		return len(text)
+	}
+	// Now advance by pos.Character UTF-16 code units
+	utf16Col := 0
+	for i < len(text) && text[i] != '\n' && utf16Col < pos.Character {
+		r := rune(text[i])
+		size := 1
+		if r >= 0x80 {
+			r, size = decodeRune(text[i:])
+		}
+		// Characters in the BMP are 1 UTF-16 unit; supplementary are 2
+		if r >= 0x10000 {
+			utf16Col += 2
+		} else {
+			utf16Col++
+		}
+		i += size
+	}
+	return i
 }
 
 // getWordPrefix returns the identifier prefix before the cursor position.
@@ -1232,4 +1261,64 @@ func URIToPath(uri string) string {
 		}
 	}
 	return uri
+}
+
+// decodeRune decodes a single UTF-8 rune from a string slice.
+func decodeRune(s string) (rune, int) {
+	return utf8.DecodeRuneInString(s)
+}
+
+// escapeMarkdown escapes characters that have special meaning in markdown.
+func escapeMarkdown(s string) string {
+	replacer := strings.NewReplacer(
+		`|`, `\|`,
+		`<`, `&lt;`,
+		`>`, `&gt;`,
+	)
+	return replacer.Replace(s)
+}
+
+// Formatting handles textDocument/formatting.
+func (h *Handler) Formatting(params json.RawMessage) []TextEdit {
+	var p DocumentFormattingParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil
+	}
+
+	h.mu.RLock()
+	text, ok := h.documents[p.TextDocument.URI]
+	h.mu.RUnlock()
+
+	if !ok {
+		return nil
+	}
+
+	// Lex and parse
+	tokens := lexer.New(text).AllTokens()
+	file, errs := parser.Parse(text)
+	if len(errs) > 0 || file == nil {
+		return nil // Don't format files with parse errors
+	}
+
+	formatted := formatter.Format(text, tokens, file)
+	if formatted == text {
+		return nil // No changes needed
+	}
+
+	// Return a single edit replacing the entire document
+	lines := strings.Count(text, "\n")
+	lastLineLen := len(text) - strings.LastIndex(text, "\n") - 1
+	if lastLineLen < 0 {
+		lastLineLen = len(text)
+	}
+
+	return []TextEdit{
+		{
+			Range: Range{
+				Start: Position{Line: 0, Character: 0},
+				End:   Position{Line: lines, Character: lastLineLen},
+			},
+			NewText: formatted,
+		},
+	}
 }

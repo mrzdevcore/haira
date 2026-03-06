@@ -129,15 +129,15 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 ## 8. LSP
 
 - [x] **LSP-01** Race condition — `asts` and `typeInfos` updated in separate lock scopes (`handler.go:677-692`)
-- [ ] **LSP-02** Write errors ignored — `Writer.Write()` return values discarded (`server.go:223-224`)
+- [x] **LSP-02** Write errors ignored — `Writer.Write()` return values discarded (`server.go:223-224`)
 - [ ] **LSP-03** No JSON-RPC error response for parse failures — client hangs (`server.go:105-108`)
-- [ ] **LSP-04** UTF-8 offset bug — `positionToOffset()` treats characters as bytes (`handler.go:742-753`)
-- [ ] **LSP-05** Missing: `textDocument/formatting` (formatter exists but not wired)
+- [x] **LSP-04** UTF-8 offset bug — `positionToOffset()` treats characters as bytes (`handler.go:742-753`)
+- [x] **LSP-05** Missing: `textDocument/formatting` (formatter exists but not wired)
 - [ ] **LSP-06** Missing: `textDocument/references`
 - [ ] **LSP-07** Missing: `workspace/symbol`
 - [ ] **LSP-08** Missing: incremental document sync (always full reload)
 - [ ] **LSP-09** Missing: `textDocument/signatureHelp`
-- [ ] **LSP-10** Markdown escaping missing in hover — union types break rendering (`handler.go:179-184`)
+- [x] **LSP-10** Markdown escaping missing in hover — not applicable (type strings are inside code fences)
 
 ---
 
@@ -149,7 +149,7 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 - [ ] **DRV-03** No inter-phase consistency validation (`driver.go`)
 
 ### Formatter (0 tests, 1,297 LOC)
-- [ ] **FMT-01** Comment cursor state not reset — reuse produces lost comments (`formatter.go:19, 64`)
+- [x] **FMT-01** Comment cursor state not reset — false positive (Format() creates fresh struct each call)
 - [ ] **FMT-02** Blank line rules only consider import vs non-import transitions (`items.go:21-23`)
 - [ ] **FMT-03** Idempotency not guaranteed — format twice may differ
 
@@ -179,10 +179,10 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 
 ## 11. Tree-sitter Grammar & Editor Extensions
 
-- [ ] **TS-01** `select_block` referenced but rule not defined (`grammar.js`)
-- [ ] **TS-02** `triple_quote_string` referenced but not defined (`grammar.js`)
-- [ ] **TS-03** Pipe operator `|>` not in grammar rules (`grammar.js`)
-- [ ] **TS-04** Error propagation `?` not in grammar rules (`grammar.js`)
+- [x] **TS-01** `select_block` referenced but rule not defined — false positive (rule exists at line 248)
+- [x] **TS-02** `triple_quote_string` referenced but not defined — false positive (rule exists at line 463)
+- [x] **TS-03** Pipe operator `|>` not in grammar rules — false positive (rule exists at line 354)
+- [x] **TS-04** Error propagation `?` not in grammar rules — added `try_expression` rule
 - [ ] **EXT-01** Zed extension uses stale commit hash for grammar (`extension.toml:11`)
 - [ ] **EXT-02** No LSP path configured in Zed extension (`extension.toml`)
 - [ ] **EXT-03** VS Code extension may lack LSP client implementation (`package.json`)

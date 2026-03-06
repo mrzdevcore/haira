@@ -1,0 +1,12 @@
+[package]
+name = "haira-lsp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-ast = { workspace = true }
+haira-errors = { workspace = true }
+haira-parser = { workspace = true }
+haira-checker = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

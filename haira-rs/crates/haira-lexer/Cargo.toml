@@ -1,0 +1,10 @@
+[package]
+name = "haira-lexer"
+version.workspace = true
+edition = "2021"
+description = "Hand-written scanner for Haira source code"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+haira-token = { workspace = true }

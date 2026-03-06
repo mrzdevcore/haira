@@ -1,0 +1,10 @@
+[package]
+name = "haira-resolver"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-ast = { workspace = true }
+haira-errors = { workspace = true }
+haira-parser = { workspace = true }
+haira-lexer = { workspace = true }

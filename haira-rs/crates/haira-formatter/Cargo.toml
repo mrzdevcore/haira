@@ -1,0 +1,8 @@
+[package]
+name = "haira-formatter"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-token = { workspace = true }
+haira-parser = { workspace = true }

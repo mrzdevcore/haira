@@ -1,0 +1,7 @@
+[package]
+name = "haira-token"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Token kinds and Token type for the Haira lexer"

@@ -1,0 +1,10 @@
+[package]
+name = "haira-codegen-cranelift"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+haira-ir = { workspace = true }
+haira-errors = { workspace = true }
+haira-runtime = { workspace = true }
+serde_json = { workspace = true }

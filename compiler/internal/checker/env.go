@@ -8,18 +8,20 @@ type VarInfo struct {
 
 // Env is a scoped symbol table for type checking.
 type Env struct {
-	parent *Env
-	vars   map[string]VarInfo
-	types  map[string]Type
-	funcs  map[string]*FuncType
+	parent  *Env
+	vars    map[string]VarInfo
+	types   map[string]Type
+	funcs   map[string]*FuncType
+	methods map[string]*FuncType // "TypeName.methodName" -> FuncType
 }
 
 // NewEnv creates a root environment with stdlib pre-registered.
 func NewEnv() *Env {
 	env := &Env{
-		vars:  make(map[string]VarInfo),
-		types: make(map[string]Type),
-		funcs: make(map[string]*FuncType),
+		vars:    make(map[string]VarInfo),
+		types:   make(map[string]Type),
+		funcs:   make(map[string]*FuncType),
+		methods: make(map[string]*FuncType),
 	}
 	env.registerStdlib()
 	return env
@@ -28,10 +30,11 @@ func NewEnv() *Env {
 // Child creates a new scope with this env as parent.
 func (e *Env) Child() *Env {
 	return &Env{
-		parent: e,
-		vars:   make(map[string]VarInfo),
-		types:  make(map[string]Type),
-		funcs:  make(map[string]*FuncType),
+		parent:  e,
+		vars:    make(map[string]VarInfo),
+		types:   make(map[string]Type),
+		funcs:   make(map[string]*FuncType),
+		methods: make(map[string]*FuncType),
 	}
 }
 
@@ -79,6 +82,23 @@ func (e *Env) LookupType(name string) (Type, bool) {
 	}
 	if e.parent != nil {
 		return e.parent.LookupType(name)
+	}
+	return nil, false
+}
+
+// DefineMethod registers a method signature as "TypeName.methodName".
+func (e *Env) DefineMethod(typeName, methodName string, fn *FuncType) {
+	e.methods[typeName+"."+methodName] = fn
+}
+
+// LookupMethod looks up a method by type name and method name.
+func (e *Env) LookupMethod(typeName, methodName string) (*FuncType, bool) {
+	key := typeName + "." + methodName
+	if fn, ok := e.methods[key]; ok {
+		return fn, true
+	}
+	if e.parent != nil {
+		return e.parent.LookupMethod(typeName, methodName)
 	}
 	return nil, false
 }

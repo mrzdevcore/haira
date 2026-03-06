@@ -660,17 +660,19 @@ func (t *ExcelTables) ValidateWithDb(schema *postgres.PgSchema, db *postgres.DB)
 	var realErrors []string
 
 	for _, fix := range result.FKFixes {
-		// Build IN clause: WHERE parent_col IN ('val1', 'val2', ...)
-		quoted := make([]string, len(fix.MissingValues))
+		// Build parameterized IN clause: WHERE parent_col IN ($1, $2, ...)
+		placeholders := make([]string, len(fix.MissingValues))
+		args := make([]any, len(fix.MissingValues))
 		for i, v := range fix.MissingValues {
-			quoted[i] = "'" + postgres.PostgresEscape(v) + "'"
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = v
 		}
 		query := fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s IN (%s)",
 			postgres.QuoteIdentifier(fix.ParentColumn),
 			postgres.QuoteIdentifier(fix.ParentTable),
 			postgres.QuoteIdentifier(fix.ParentColumn),
-			strings.Join(quoted, ", "))
-		rows, err := db.Query(query)
+			strings.Join(placeholders, ", "))
+		rows, err := db.Query(query, args...)
 
 		existsInDB := make(map[string]bool)
 		if err == nil {

@@ -674,23 +674,25 @@ func (h *Handler) analyzeAndPublish(uri, text string) {
 		}, text))
 	}
 
+	// Type check (only if parse succeeded)
+	var typeInfo *checker.TypeInfo
+	if file != nil && len(parseErrs) == 0 {
+		var typeDiags []hairaerr.Diagnostic
+		typeInfo, typeDiags = checker.Check(file)
+		for _, d := range typeDiags {
+			lspDiags = append(lspDiags, diagFromHaira(d, text))
+		}
+	}
+
+	// Update AST and type info atomically under a single lock
 	h.mu.Lock()
 	if file != nil {
 		h.asts[uri] = file
 	}
-	h.mu.Unlock()
-
-	// Type check (only if parse succeeded)
-	if file != nil && len(parseErrs) == 0 {
-		typeInfo, typeDiags := checker.Check(file)
-		for _, d := range typeDiags {
-			lspDiags = append(lspDiags, diagFromHaira(d, text))
-		}
-
-		h.mu.Lock()
+	if typeInfo != nil {
 		h.typeInfos[uri] = typeInfo
-		h.mu.Unlock()
 	}
+	h.mu.Unlock()
 
 	// Publish diagnostics
 	h.server.SendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams{

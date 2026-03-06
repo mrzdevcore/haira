@@ -303,13 +303,19 @@ func (s *PostgresStore) GetRun(id string) (*haira.Run, error) {
 	}
 
 	if paramsRaw != nil {
-		json.Unmarshal(*paramsRaw, &run.Params)
+		if err := json.Unmarshal(*paramsRaw, &run.Params); err != nil {
+			return nil, fmt.Errorf("unmarshal run params: %w", err)
+		}
 	}
 	if stepsRaw != nil {
-		json.Unmarshal(*stepsRaw, &run.Steps)
+		if err := json.Unmarshal(*stepsRaw, &run.Steps); err != nil {
+			return nil, fmt.Errorf("unmarshal run steps: %w", err)
+		}
 	}
 	if resultRaw != nil {
-		json.Unmarshal(*resultRaw, &run.Result)
+		if err := json.Unmarshal(*resultRaw, &run.Result); err != nil {
+			return nil, fmt.Errorf("unmarshal run result: %w", err)
+		}
 	}
 	if run.Steps == nil {
 		run.Steps = []haira.StepEvent{}

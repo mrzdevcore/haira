@@ -45,6 +45,7 @@ type checker struct {
 	inMethod  bool            // true when checking a method body (self is protected)
 	inTest    bool            // true when checking a test body (assert is allowed)
 	inTry     bool            // true when inside a try block (? is safe)
+	inLoop    bool            // true when inside a for/while loop (break/continue is valid)
 	returnTy  Type            // expected return type for current function/workflow/tool (nil = not set)
 	agents    map[string]bool // registered agent names
 	providers map[string]bool // registered provider names
@@ -119,12 +120,18 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 			}
 			c.env.DefineType(it.Name.Node, StructType{Name: it.Name.Node, Fields: fields})
 
+		case ast.TypeAlias:
+			resolved := c.resolveASTType(it.Ty.Node)
+			c.env.DefineType(it.Name.Node, resolved)
+
 		case ast.EnumDef:
 			var variants []string
+			variantFields := make(map[string]int)
 			for _, v := range it.Variants {
 				variants = append(variants, v.Name.Node)
+				variantFields[v.Name.Node] = len(v.Fields)
 			}
-			c.env.DefineType(it.Name.Node, EnumType{Name: it.Name.Node, Variants: variants})
+			c.env.DefineType(it.Name.Node, EnumType{Name: it.Name.Node, Variants: variants, VariantFields: variantFields})
 
 		case ast.FunctionDef:
 			params := make([]Type, len(it.Params))
@@ -185,6 +192,17 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 		case ast.AgentDecl:
 			c.agents[it.Name.Node] = true
 			c.checkAgentFields(it)
+
+		case ast.MethodDef:
+			params := make([]Type, len(it.Params))
+			for i, p := range it.Params {
+				params[i] = c.resolveTypeExpr(p.Ty)
+			}
+			ret := Type(VoidType{})
+			if it.ReturnTy != nil {
+				ret = c.resolveASTType(it.ReturnTy.Node)
+			}
+			c.env.DefineMethod(it.TypeName.Node, it.Name.Node, &FuncType{Params: params, Return: ret})
 		}
 	}
 }
@@ -339,7 +357,24 @@ func (c *checker) checkBodies(file *ast.SourceFile) {
 	}
 }
 
+// checkParamDefaults validates that default values match their parameter types.
+func (c *checker) checkParamDefaults(params []ast.Param) {
+	for _, p := range params {
+		if p.Default != nil && p.Ty != nil {
+			paramType := c.resolveASTType(p.Ty.Node)
+			defaultType := c.inferExpr(*p.Default)
+			if !isAny(paramType) && !isAny(defaultType) && !TypeEquals(paramType, defaultType) {
+				c.addError(
+					fmt.Sprintf("default value type %s doesn't match parameter %q type %s", defaultType.String(), p.Name.Node, paramType.String()),
+					p.Default.Span,
+				)
+			}
+		}
+	}
+}
+
 func (c *checker) checkFunction(fn ast.FunctionDef) {
+	c.checkParamDefaults(fn.Params)
 	env := c.env.Child()
 	for _, p := range fn.Params {
 		ty := c.resolveTypeExpr(p.Ty)
@@ -411,6 +446,7 @@ func stmtHasReturnValues(s ast.StmtKind) (ast.Span, bool) {
 }
 
 func (c *checker) checkMethod(md ast.MethodDef) {
+	c.checkParamDefaults(md.Params)
 	env := c.env.Child()
 	// Register self
 	if ty, ok := c.env.LookupType(md.TypeName.Node); ok {
@@ -437,6 +473,7 @@ func (c *checker) checkMethod(md ast.MethodDef) {
 }
 
 func (c *checker) checkToolBody(tool ast.ToolDecl) {
+	c.checkParamDefaults(tool.Params)
 	env := c.env.Child()
 	for _, p := range tool.Params {
 		ty := c.resolveTypeExpr(p.Ty)
@@ -469,7 +506,22 @@ func (c *checker) checkTestBody(td ast.TestDecl) {
 	c.inTest = savedInTest
 }
 
+var unimplementedTriggers = map[string]bool{
+	"cron": true, "event": true, "manual": true, "websocket": true,
+}
+
 func (c *checker) checkWorkflow(wf ast.WorkflowDecl) {
+	// Warn about unimplemented triggers
+	if wf.Trigger != nil {
+		if unimplementedTriggers[wf.Trigger.Name.Node] {
+			c.addWarning(
+				fmt.Sprintf("trigger @%s is not yet implemented; workflow will be registered as HTTP POST", wf.Trigger.Name.Node),
+				wf.Trigger.Name.Span,
+				"use @webhook, @get, @post, @put, or @delete for working HTTP triggers",
+			)
+		}
+	}
+	c.checkParamDefaults(wf.Params)
 	env := c.env.Child()
 	for _, p := range wf.Params {
 		ty := c.resolveTypeExpr(p.Ty)
@@ -598,13 +650,19 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 			env.DefineVar(p.Second.Node, AnyType{})
 		}
 		saved := c.env
+		savedLoop := c.inLoop
 		c.env = env
+		c.inLoop = true
 		c.checkBlock(s.Body)
 		c.env = saved
+		c.inLoop = savedLoop
 
 	case ast.WhileStmt:
 		c.inferExpr(s.Condition)
+		savedLoop := c.inLoop
+		c.inLoop = true
 		c.checkBlock(s.Body)
+		c.inLoop = savedLoop
 
 	case ast.ReturnStmt:
 		if len(s.Values) > 0 {
@@ -615,20 +673,18 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 			// Check against declared return type
 			if c.returnTy != nil && !isAny(c.returnTy) && !isAny(retType) {
 				if !TypeEquals(c.returnTy, retType) {
-					c.addWarning(
+					c.addError(
 						"return type mismatch: expected "+c.returnTy.String()+", got "+retType.String(),
 						s.Values[0].Span,
-						"",
 					)
 				}
 			}
 		} else {
 			// Empty return in a function with declared return type
 			if c.returnTy != nil && !isAny(c.returnTy) && !TypeEquals(c.returnTy, VoidType{}) {
-				c.addWarning(
+				c.addError(
 					"empty return in function expecting "+c.returnTy.String(),
 					stmt.Span,
-					"",
 				)
 			}
 		}
@@ -651,6 +707,12 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 	case ast.MatchStmt:
 		subjectType := c.inferExpr(s.Match.Subject)
 		for _, arm := range s.Match.Arms {
+			// Create a child scope for this arm to bind pattern variables
+			armEnv := c.env.Child()
+			c.bindPatternVars(arm.Pattern.Node, subjectType, armEnv)
+			c.checkPattern(arm.Pattern.Node, subjectType, arm.Pattern.Span)
+			saved := c.env
+			c.env = armEnv
 			if arm.Guard != nil {
 				c.inferExpr(*arm.Guard)
 			}
@@ -660,6 +722,7 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 			case ast.MatchArmBlock:
 				c.checkBlock(body.Value)
 			}
+			c.env = saved
 		}
 		// Exhaustiveness check for simple enums
 		if enumTy, ok := subjectType.(EnumType); ok {
@@ -697,6 +760,16 @@ func (c *checker) checkStmt(stmt ast.Statement) {
 		if s.Message != nil {
 			c.inferExpr(*s.Message)
 		}
+
+	case ast.BreakStmt:
+		if !c.inLoop {
+			c.addError("break can only be used inside a loop", stmt.Span)
+		}
+
+	case ast.ContinueStmt:
+		if !c.inLoop {
+			c.addError("continue can only be used inside a loop", stmt.Span)
+		}
 	}
 }
 
@@ -722,7 +795,7 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 			ty = AnyType{} // agent or provider reference
 		} else if isStdlibModule(e.Name) {
 			ty = AnyType{} // stdlib module qualifier (e.g. io.println)
-		} else if e.Name == "nil" || e.Name == "true" || e.Name == "false" {
+		} else if e.Name == "true" || e.Name == "false" {
 			ty = AnyType{} // language builtins
 		} else {
 			c.addWarning("undefined variable '"+e.Name+"'", expr.Span, "")
@@ -746,6 +819,11 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 			}
 		case ast.OpNot:
 			ty = BoolType{}
+		case ast.OpBitNot:
+			if !isAny(operand) && !TypeEquals(operand, IntType{}) {
+				c.addError("bitwise NOT requires int operand, got "+operand.String(), expr.Span)
+			}
+			ty = IntType{}
 		default:
 			ty = operand
 		}
@@ -754,11 +832,20 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 		ty = c.inferCall(e, expr.Span)
 
 	case ast.MethodCallExpr:
-		c.inferExpr(e.Receiver)
+		recvType := c.inferExpr(e.Receiver)
 		for _, arg := range e.Args {
 			c.inferExpr(arg.Value)
 		}
-		ty = AnyType{}
+		// Look up method return type from registry
+		if st, ok := recvType.(StructType); ok {
+			if fn, ok := c.env.LookupMethod(st.Name, e.Method.Node); ok {
+				ty = fn.Return
+			} else {
+				ty = AnyType{}
+			}
+		} else {
+			ty = AnyType{}
+		}
 
 	case ast.FieldExpr:
 		objType := c.inferExpr(e.Object)
@@ -828,11 +915,47 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 	case ast.InstanceExpr:
 		if t, ok := c.env.LookupType(e.TypeName.Node); ok {
 			ty = t
+			// Validate fields for struct types
+			if st, ok := t.(StructType); ok {
+				provided := make(map[string]bool)
+				for _, f := range e.Fields {
+					valType := c.inferExpr(f.Value)
+					if f.Name != nil {
+						fname := f.Name.Node
+						provided[fname] = true
+						if expectedType, ok := st.Fields[fname]; ok {
+							if !isAny(expectedType) && !isAny(valType) && !TypeEquals(expectedType, valType) {
+								c.addError(
+									fmt.Sprintf("field %q: expected %s, got %s", fname, expectedType.String(), valType.String()),
+									f.Value.Span,
+								)
+							}
+						} else {
+							c.addError(
+								fmt.Sprintf("unknown field %q on struct %s", fname, st.Name),
+								f.Name.Span,
+							)
+						}
+					} else {
+						c.inferExpr(f.Value)
+					}
+				}
+				// Check for missing required fields
+				for fname := range st.Fields {
+					if !provided[fname] {
+						c.addWarning(
+							fmt.Sprintf("missing field %q in %s instance", fname, st.Name),
+							e.TypeName.Span,
+							"",
+						)
+					}
+				}
+			}
 		} else {
 			ty = AnyType{}
-		}
-		for _, f := range e.Fields {
-			c.inferExpr(f.Value)
+			for _, f := range e.Fields {
+				c.inferExpr(f.Value)
+			}
 		}
 
 	case ast.PipeExpr:
@@ -857,14 +980,23 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 		ty = AnyType{}
 
 	case ast.MatchExpr:
-		c.inferExpr(e.Subject)
+		subjectType := c.inferExpr(e.Subject)
 		for _, arm := range e.Arms {
+			armEnv := c.env.Child()
+			c.bindPatternVars(arm.Pattern.Node, subjectType, armEnv)
+			c.checkPattern(arm.Pattern.Node, subjectType, arm.Pattern.Span)
+			saved := c.env
+			c.env = armEnv
+			if arm.Guard != nil {
+				c.inferExpr(*arm.Guard)
+			}
 			switch body := arm.Body.(type) {
 			case ast.MatchArmExpr:
 				c.inferExpr(body.Value)
 			case ast.MatchArmBlock:
 				c.checkBlock(body.Value)
 			}
+			c.env = saved
 		}
 		ty = AnyType{}
 
@@ -941,6 +1073,18 @@ func (c *checker) inferBinaryOp(op ast.BinaryOp, left, right Type, span ast.Span
 			return FloatType{}
 		}
 		return AnyType{}
+
+	case ast.OpBitAnd, ast.OpBitOr, ast.OpBitXor, ast.OpShl, ast.OpShr:
+		if isAny(left) || isAny(right) {
+			return IntType{}
+		}
+		if !TypeEquals(left, IntType{}) {
+			c.addError("bitwise operator requires int operand, got "+left.String(), span)
+		}
+		if !TypeEquals(right, IntType{}) {
+			c.addError("bitwise operator requires int operand, got "+right.String(), span)
+		}
+		return IntType{}
 
 	case ast.OpEq, ast.OpNe, ast.OpLt, ast.OpGt, ast.OpLe, ast.OpGe:
 		return BoolType{}
@@ -1047,6 +1191,30 @@ func (c *checker) resolveASTType(ty ast.Type) Type {
 			params[i] = c.resolveASTType(p.Node)
 		}
 		return FuncType{Params: params, Return: c.resolveASTType(t.Ret.Node)}
+	case ast.OptionType:
+		return OptionTypeC{Inner: c.resolveASTType(t.Inner.Node)}
+	case ast.TupleType:
+		elems := make([]Type, len(t.Elems))
+		for i, e := range t.Elems {
+			elems[i] = c.resolveASTType(e.Node)
+		}
+		return TupleTypeC{Elems: elems}
+	case ast.UnionType:
+		variants := make([]Type, len(t.Variants))
+		for i, v := range t.Variants {
+			variants[i] = c.resolveASTType(v.Node)
+		}
+		return UnionTypeC{Variants: variants}
+	case ast.GenericType:
+		// For known generic types like stream<T>, resolve the inner type
+		if t.Name == "stream" && len(t.Args) > 0 {
+			return AnyType{} // stream<T> is a runtime construct
+		}
+		// Look up user-defined generic types
+		if userTy, ok := c.env.LookupType(t.Name); ok {
+			return userTy
+		}
+		return AnyType{}
 	}
 	return AnyType{}
 }
@@ -1078,4 +1246,72 @@ var stdlibModules = map[string]bool{
 
 func isStdlibModule(name string) bool {
 	return stdlibModules[name]
+}
+
+// bindPatternVars binds variables introduced by match patterns into the given env.
+func (c *checker) bindPatternVars(p ast.Pattern, subjectType Type, env *Env) {
+	switch pat := p.(type) {
+	case ast.IdentPattern:
+		// Bare identifiers that aren't enum variants bind to the subject type
+		if _, ok := c.env.LookupType(pat.Name); !ok {
+			env.DefineVar(pat.Name, subjectType)
+		}
+	case ast.ConstructorPattern:
+		// Bind fields from constructor patterns
+		if enumTy, ok := subjectType.(EnumType); ok {
+			for _, field := range pat.Fields {
+				// Each bound field gets AnyType for now (enum variants don't carry typed fields yet in checker)
+				_ = enumTy
+				env.DefineVar(field.Node, AnyType{})
+			}
+		}
+	case ast.OrPattern:
+		// Bind vars from first alternative (all alternatives must bind same names)
+		if len(pat.Patterns) > 0 {
+			c.bindPatternVars(pat.Patterns[0].Node, subjectType, env)
+		}
+	}
+}
+
+// checkPattern validates that a pattern is compatible with the subject type.
+func (c *checker) checkPattern(p ast.Pattern, subjectType Type, span ast.Span) {
+	switch pat := p.(type) {
+	case ast.LiteralPattern:
+		patType := c.inferLiteral(pat.Lit)
+		if !isAny(subjectType) && !isAny(patType) && !TypeEquals(subjectType, patType) {
+			c.addWarning(
+				fmt.Sprintf("pattern type %s doesn't match subject type %s", patType.String(), subjectType.String()),
+				span,
+				"",
+			)
+		}
+	case ast.RangePattern:
+		if !isAny(subjectType) && !TypeEquals(subjectType, IntType{}) {
+			c.addWarning(
+				fmt.Sprintf("range pattern used on non-int type %s", subjectType.String()),
+				span,
+				"",
+			)
+		}
+	case ast.ConstructorPattern:
+		if enumTy, ok := subjectType.(EnumType); ok {
+			// Extract variant name (may be prefixed as "Enum.Variant")
+			variantName := pat.Name
+			if parts := strings.SplitN(pat.Name, ".", 2); len(parts) == 2 {
+				variantName = parts[1]
+			}
+			if expectedFields, ok := enumTy.VariantFields[variantName]; ok {
+				if len(pat.Fields) != expectedFields {
+					c.addError(
+						fmt.Sprintf("variant %s.%s expects %d field(s), got %d", enumTy.Name, variantName, expectedFields, len(pat.Fields)),
+						span,
+					)
+				}
+			}
+		}
+	case ast.OrPattern:
+		for _, sub := range pat.Patterns {
+			c.checkPattern(sub.Node, subjectType, sub.Span)
+		}
+	}
 }

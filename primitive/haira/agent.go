@@ -159,8 +159,11 @@ func NewAgent(config AgentConfig) *Agent {
 	}
 
 	if config.Memory.Kind == "summary" {
-		fmt.Fprintf(os.Stderr, "[haira] Warning: agent %q uses summary memory which is not yet implemented — falling back to conversation memory\n", config.Name)
+		fmt.Fprintf(os.Stderr, "[haira] Warning: agent %q uses summary memory which is not yet implemented — falling back to conversation memory (max_turns=%d)\n", config.Name, maxTurns)
 		config.Memory.Kind = "conversation"
+		if maxTurns <= 0 {
+			maxTurns = 50
+		}
 	}
 
 	store := NewSessionStore(maxTurns)
@@ -709,7 +712,10 @@ func (a *Agent) buildTools() []openai.Tool {
 	if a.config.Tools != nil {
 		for _, td := range a.config.Tools.All() {
 			var params map[string]any
-			json.Unmarshal(td.Parameters, &params)
+			if err := json.Unmarshal(td.Parameters, &params); err != nil {
+				fmt.Fprintf(os.Stderr, "[haira] Warning: invalid tool parameters JSON for %q: %v\n", td.Name, err)
+				params = map[string]any{"type": "object", "properties": map[string]any{}}
+			}
 
 			tools = append(tools, openai.Tool{
 				Type: openai.ToolTypeFunction,

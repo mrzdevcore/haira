@@ -322,13 +322,19 @@ func (s *D1Store) GetRun(id string) (*haira.Run, error) {
 		run.FinishedAt = &t
 	}
 	if paramsStr != nil {
-		json.Unmarshal([]byte(*paramsStr), &run.Params)
+		if err := json.Unmarshal([]byte(*paramsStr), &run.Params); err != nil {
+			return nil, fmt.Errorf("unmarshal run params: %w", err)
+		}
 	}
 	if stepsStr != nil {
-		json.Unmarshal([]byte(*stepsStr), &run.Steps)
+		if err := json.Unmarshal([]byte(*stepsStr), &run.Steps); err != nil {
+			return nil, fmt.Errorf("unmarshal run steps: %w", err)
+		}
 	}
 	if resultStr != nil {
-		json.Unmarshal([]byte(*resultStr), &run.Result)
+		if err := json.Unmarshal([]byte(*resultStr), &run.Result); err != nil {
+			return nil, fmt.Errorf("unmarshal run result: %w", err)
+		}
 	}
 	if run.Steps == nil {
 		run.Steps = []haira.StepEvent{}

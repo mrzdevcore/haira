@@ -67,7 +67,7 @@ func (f *Formatter) formatExpr(expr ast.Expr) {
 		f.formatExpr(e.Inner)
 		f.write(")")
 	case ast.NoneExpr:
-		f.write("none")
+		f.write("nil")
 	case ast.AsyncExpr:
 		f.write("async ")
 		f.formatBlock(e.Body)

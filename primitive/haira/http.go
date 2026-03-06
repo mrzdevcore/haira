@@ -16,9 +16,12 @@ type Response struct {
 }
 
 // Json parses the response body as JSON and returns the result.
+// Panics on parse error (caught by Haira's try/catch via recover).
 func (r *Response) Json() map[string]any {
 	var result map[string]any
-	json.Unmarshal([]byte(r.Body), &result)
+	if err := json.Unmarshal([]byte(r.Body), &result); err != nil {
+		panic(fmt.Sprintf("json parse error: %v (body: %.200s)", err, r.Body))
+	}
 	if result == nil {
 		result = map[string]any{}
 	}
@@ -26,9 +29,12 @@ func (r *Response) Json() map[string]any {
 }
 
 // JsonArray parses the response body as a JSON array and returns the result.
+// Panics on parse error (caught by Haira's try/catch via recover).
 func (r *Response) JsonArray() []any {
 	var result []any
-	json.Unmarshal([]byte(r.Body), &result)
+	if err := json.Unmarshal([]byte(r.Body), &result); err != nil {
+		panic(fmt.Sprintf("json array parse error: %v (body: %.200s)", err, r.Body))
+	}
 	return result
 }
 

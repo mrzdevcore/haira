@@ -612,12 +612,8 @@ func isErrNilCheck(expr ast.Expr) bool {
 	if !ok || !strings.HasPrefix(ident.Name, "err") {
 		return false
 	}
-	// `none` keyword → NoneExpr
+	// nil/none keyword → NoneExpr
 	if _, isNone := bin.Right.Node.(ast.NoneExpr); isNone {
-		return true
-	}
-	// `nil` identifier (not a keyword in Haira, but commonly used)
-	if right, ok := bin.Right.Node.(ast.IdentExpr); ok && right.Name == "nil" {
 		return true
 	}
 	return false

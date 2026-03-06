@@ -1,7 +1,10 @@
 // Package checker implements type inference and type checking for Haira.
 package checker
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Type represents a Haira type in the checker.
 type Type interface {
@@ -46,13 +49,26 @@ type StructType struct {
 }
 
 type EnumType struct {
-	Name     string
-	Variants []string
+	Name          string
+	Variants      []string
+	VariantFields map[string]int // variant name -> number of fields
 }
 
 type FuncType struct {
 	Params []Type
 	Return Type
+}
+
+type OptionTypeC struct {
+	Inner Type
+}
+
+type TupleTypeC struct {
+	Elems []Type
+}
+
+type UnionTypeC struct {
+	Variants []Type
 }
 
 func (l ListType) typeString() string {
@@ -70,12 +86,32 @@ func (e EnumType) typeString() string {
 func (f FuncType) typeString() string {
 	return "fn"
 }
+func (o OptionTypeC) typeString() string {
+	return o.Inner.typeString() + "?"
+}
+func (t TupleTypeC) typeString() string {
+	parts := make([]string, len(t.Elems))
+	for i, e := range t.Elems {
+		parts[i] = e.typeString()
+	}
+	return "(" + strings.Join(parts, ", ") + ")"
+}
+func (u UnionTypeC) typeString() string {
+	parts := make([]string, len(u.Variants))
+	for i, v := range u.Variants {
+		parts[i] = v.typeString()
+	}
+	return strings.Join(parts, " | ")
+}
 
-func (l ListType) String() string   { return l.typeString() }
-func (m MapType) String() string    { return m.typeString() }
-func (s StructType) String() string { return s.typeString() }
-func (e EnumType) String() string   { return e.typeString() }
-func (f FuncType) String() string   { return f.typeString() }
+func (l ListType) String() string    { return l.typeString() }
+func (m MapType) String() string     { return m.typeString() }
+func (s StructType) String() string  { return s.typeString() }
+func (e EnumType) String() string    { return e.typeString() }
+func (f FuncType) String() string    { return f.typeString() }
+func (o OptionTypeC) String() string { return o.typeString() }
+func (t TupleTypeC) String() string  { return t.typeString() }
+func (u UnionTypeC) String() string  { return u.typeString() }
 
 // TypeEquals checks structural equality of two types.
 func TypeEquals(a, b Type) bool {
@@ -131,6 +167,31 @@ func TypeEquals(a, b Type) bool {
 			}
 		}
 		return TypeEquals(at.Return, bt.Return)
+	case OptionTypeC:
+		bt, ok := b.(OptionTypeC)
+		return ok && TypeEquals(at.Inner, bt.Inner)
+	case TupleTypeC:
+		bt, ok := b.(TupleTypeC)
+		if !ok || len(at.Elems) != len(bt.Elems) {
+			return false
+		}
+		for i := range at.Elems {
+			if !TypeEquals(at.Elems[i], bt.Elems[i]) {
+				return false
+			}
+		}
+		return true
+	case UnionTypeC:
+		bt, ok := b.(UnionTypeC)
+		if !ok || len(at.Variants) != len(bt.Variants) {
+			return false
+		}
+		for i := range at.Variants {
+			if !TypeEquals(at.Variants[i], bt.Variants[i]) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }

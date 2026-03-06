@@ -287,7 +287,8 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 			var extras []ast.Decorator
 			for i := range decorators {
 				switch decorators[i].Name.Node {
-				case "webhook", "get", "post", "put", "delete":
+				case "webhook", "get", "post", "put", "delete",
+					"cron", "event", "manual", "websocket":
 					trigger = &decorators[i]
 				default:
 					extras = append(extras, decorators[i])
@@ -392,7 +393,7 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 			p.peek().Kind == token.String || p.peek().Kind == token.InterpolatedString ||
 			p.peek().Kind == token.TripleQuoteString ||
 			p.peek().Kind == token.True || p.peek().Kind == token.False ||
-			p.peek().Kind == token.None || p.peek().Kind == token.Some ||
+			p.peek().Kind == token.None || p.peek().Kind == token.Nil || p.peek().Kind == token.Some ||
 			p.peek().Kind == token.Err || p.peek().Kind == token.Ok ||
 			p.peek().Kind == token.Select {
 			stmt, ok := p.parseStatement()
@@ -888,6 +889,12 @@ func (p *Parser) parseType() (ast.Spanned[ast.Type], bool) {
 		return ast.Spanned[ast.Type]{}, false
 	}
 
+	// Check for option type: T?
+	if p.check(token.Question) {
+		p.advance()
+		ty = ast.OptionType{Inner: ast.Spanned[ast.Type]{Node: ty, Span: p.span(start)}}
+	}
+
 	// Check for union: Type | Other
 	if p.check(token.Pipe) {
 		variants := []ast.Spanned[ast.Type]{{Node: ty, Span: p.span(start)}}
@@ -1146,6 +1153,39 @@ func (p *Parser) parseStatementRest(firstExpr ast.Expr) (ast.Statement, bool) {
 		}, true
 	}
 
+	// Type-annotated assignment: result: Type = value
+	// or multi-assignment with annotation: result: Type, err = value
+	if p.check(token.Colon) {
+		firstTarget, ok := p.exprToAnnotatedTarget(firstExpr)
+		if !ok {
+			return ast.Statement{}, false
+		}
+		targets := []ast.AssignTarget{firstTarget}
+
+		for p.check(token.Comma) {
+			p.advance()
+			expr, ok := p.parseExpr()
+			if !ok {
+				return ast.Statement{}, false
+			}
+			tgt, ok := p.exprToAnnotatedTarget(expr)
+			if !ok {
+				return ast.Statement{}, false
+			}
+			targets = append(targets, tgt)
+		}
+
+		p.consume(token.Eq, "=")
+		value, ok := p.parseExpr()
+		if !ok {
+			return ast.Statement{}, false
+		}
+		return ast.Statement{
+			Node: ast.AssignStmt{Targets: targets, Value: value},
+			Span: p.span(start),
+		}, true
+	}
+
 	// Multi-assignment: a, b = ...
 	if p.check(token.Comma) {
 		targets := []ast.AssignTarget{}
@@ -1189,6 +1229,27 @@ func (p *Parser) exprToAssignTarget(expr ast.Expr) (ast.AssignTarget, bool) {
 		return ast.AssignTarget{}, false
 	}
 	return ast.AssignTarget{Path: path}, true
+}
+
+// exprToAnnotatedTarget converts an expression to an assignment target and
+// checks for a trailing `: Type` annotation (e.g. `result: MyStruct`).
+func (p *Parser) exprToAnnotatedTarget(expr ast.Expr) (ast.AssignTarget, bool) {
+	path, ok := p.exprToAssignPath(expr)
+	if !ok {
+		return ast.AssignTarget{}, false
+	}
+	target := ast.AssignTarget{Path: path}
+
+	// Check for type annotation: `name: Type`
+	if p.check(token.Colon) {
+		p.advance()
+		ty, ok := p.parseType()
+		if !ok {
+			return ast.AssignTarget{}, false
+		}
+		target.Ty = &ty
+	}
+	return target, true
 }
 
 func (p *Parser) exprToAssignPath(expr ast.Expr) (ast.AssignPath, bool) {
@@ -1575,8 +1636,8 @@ func (p *Parser) parsePrefix() (ast.Expr, bool) {
 			Span: p.span(start),
 		}, true
 
-	// none
-	case token.None:
+	// none / nil
+	case token.None, token.Nil:
 		p.advance()
 		return ast.Expr{Node: ast.NoneExpr{}, Span: p.span(start)}, true
 

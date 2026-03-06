@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 
 	chromem "github.com/philippgille/chromem-go"
@@ -16,14 +17,17 @@ type LocalVectorCollection struct {
 	db   *chromem.DB
 }
 
-var localVectorDB *chromem.DB
-var localDocCounter atomic.Int64
+var (
+	localVectorDB   *chromem.DB
+	localVectorOnce sync.Once
+	localDocCounter atomic.Int64
+)
 
 // getLocalVectorDB returns the shared in-memory chromem-go database, creating it if needed.
 func getLocalVectorDB() *chromem.DB {
-	if localVectorDB == nil {
+	localVectorOnce.Do(func() {
 		localVectorDB = chromem.NewDB()
-	}
+	})
 	return localVectorDB
 }
 

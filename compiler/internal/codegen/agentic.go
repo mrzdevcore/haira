@@ -237,7 +237,7 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 		case "output":
 			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
 				schema := buildStructJSONSchema(ident.Name)
-				em.Line(fmt.Sprintf("OutputSchema: `%s`,", schema))
+				em.Line(fmt.Sprintf("OutputSchema: %s,", safeGoString(schema)))
 			}
 		default:
 			goKey := goFieldName(field.Key.Node)
@@ -340,12 +340,8 @@ func EmitTool(em *GoEmitter, tool ast.ToolDecl) {
 	schema := buildToolJSONSchema(tool.Params)
 	em.OpenBlock(fmt.Sprintf("var %s = &haira.ToolDef", defName))
 	em.Line(fmt.Sprintf("Name:        %q,", tool.Name.Node))
-	if strings.Contains(tool.Description, "\n") {
-		em.Line(fmt.Sprintf("Description: `%s`,", tool.Description))
-	} else {
-		em.Line(fmt.Sprintf("Description: %q,", tool.Description))
-	}
-	em.Line(fmt.Sprintf("Parameters:  json.RawMessage(`%s`),", schema))
+	em.Line(fmt.Sprintf("Description: %s,", safeGoString(tool.Description)))
+	em.Line(fmt.Sprintf("Parameters:  json.RawMessage(%s),", safeGoString(schema)))
 	em.Line(fmt.Sprintf("Handler:     %s,", handlerName))
 	em.CloseBlock()
 	em.Blank()
@@ -1275,4 +1271,13 @@ func goFuncName(prefix, name string) string {
 
 func goFieldName(name string) string {
 	return SnakeToPascal(name)
+}
+
+// safeGoString returns a Go string literal that is safe to embed in generated code.
+// Uses backtick strings when possible (no backticks in content), falls back to %q.
+func safeGoString(s string) string {
+	if !strings.Contains(s, "`") {
+		return "`" + s + "`"
+	}
+	return fmt.Sprintf("%q", s)
 }

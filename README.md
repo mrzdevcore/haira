@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/go-1.22+-00ADD8.svg" alt="Go 1.22+">
-  <img src="https://img.shields.io/badge/examples-29-2962FF.svg" alt="29 examples">
+  <img src="https://img.shields.io/badge/examples-33-2962FF.svg" alt="33 examples">
 </p>
 
 <p align="center">
@@ -167,7 +167,7 @@ fn main() {
 - **Pipe operator** — `data |> transform |> output`
 - **MCP support** — consume external tools (`provider { transport: "mcp" }`) and expose workflows as MCP tools (`mcp.Server()`)
 - **Observability** — built-in `observe` module with Langfuse integration
-- **10 stdlib packages** — postgres, sqlite, excel, vector, slack, github, gitlab, algolia, meilisearch, langfuse
+- **11 stdlib packages** — postgres, sqlite, d1, excel, vector, slack, github, gitlab, algolia, meilisearch, langfuse
 - **Go-style simplicity** — familiar syntax, explicit error handling
 
 ## The Four Primitives
@@ -454,7 +454,7 @@ Measured on Apple Silicon (M-series). Competitor numbers from published benchmar
 
 ### Compiler Performance
 
-| Phase | 29 examples | Per file |
+| Phase | 33 examples | Per file |
 |-------|-------------|----------|
 | Lex | 85ms | ~2.9ms |
 | Parse | 80ms | ~2.8ms |
@@ -544,7 +544,7 @@ make install-local    # installs to ~/.local/bin/haira
 ```
 haira/
 ├── compiler/                   # Compiler (Go)
-│   ├── main.go                 # CLI: build, run, parse, check, lex, emit, lsp
+│   ├── main.go                 # CLI: build, run, parse, check, lex, emit, test, fmt, lsp
 │   └── internal/
 │       ├── token/              # Token types
 │       ├── lexer/              # Hand-written scanner
@@ -580,6 +580,7 @@ haira/
 │   ├── slack/                  # Slack integration
 │   ├── github/                 # GitHub API client
 │   ├── gitlab/                 # GitLab API client
+│   ├── d1/                     # Cloudflare D1 store backend
 │   ├── algolia/                # Algolia search client
 │   ├── meilisearch/            # Meilisearch client
 │   └── langfuse/               # Langfuse observability exporter
@@ -592,7 +593,7 @@ haira/
 ├── spec/                       # Language specification
 │   ├── latex/                  # 18-chapter spec (LaTeX)
 │   └── arp/                    # ARP protocol spec + component catalog
-├── examples/                   # 29 example programs
+├── examples/                   # 33 example programs
 ├── poc/                        # Real-world proof of concepts
 │   ├── data-explorer/          # AI-powered data querying + visualization
 │   ├── devops-incident/        # DevOps incident management
@@ -603,7 +604,7 @@ haira/
 
 ## Examples
 
-All 29 examples compile and run:
+All 33 examples compile and run:
 
 ```bash
 make build-examples    # compile all
@@ -641,6 +642,10 @@ make run-examples      # run non-agentic examples
 | 27-structured-output | Typed agent output with structs |
 | 28-observe | Observability with Langfuse |
 | 29-testing | Testing workflows |
+| 30-type-aliases | Type alias definitions |
+| 31-spawn | Parallel spawn blocks |
+| 32-bitwise | Bitwise operators |
+| 33-lifecycle-hooks | Workflow lifecycle hooks |
 
 ## Learn More
 

@@ -13,13 +13,11 @@ The fastest way to install Haira on macOS or Linux:
 curl -sSL https://haira.dev/install.sh | bash
 ```
 
-This downloads the latest release, verifies the checksum, and installs:
-- The `haira` binary to `~/.local/bin`
-- The runtime to `~/.haira/runtime`
+This downloads the latest release, verifies the checksum, and installs the `haira` binary to `~/.local/bin`. The runtime is embedded in the compiler binary — no separate runtime installation needed.
 
 ## Prerequisites
 
-- **Go 1.21+** — Haira compiles to Go, so you need Go installed
+- **Go 1.22+** — Haira compiles to Go, so you need Go installed
 - **macOS or Linux** — Windows support is experimental
 
 ## Verify Installation

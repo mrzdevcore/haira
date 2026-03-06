@@ -149,6 +149,86 @@ workflow Analyze(text: string) -> { result: string } {
 }
 ```
 
+## Lifecycle Hooks
+
+Workflows support lifecycle hooks for error handling and completion logic:
+
+### `onerror` — Handle errors
+
+```haira
+@post("/api/process")
+workflow Process(text: string) -> { result: string } {
+    onerror err {
+        io.println("Workflow failed: ${err}")
+        return { result: "Error: could not process" }
+    }
+
+    result, err = Analyzer.ask(text)
+    if err != nil { return { result: "AI error" } }
+    return { result: result }
+}
+```
+
+### `onsuccess` — Run on completion
+
+```haira
+@post("/api/analyze")
+workflow Analyze(text: string) -> { summary: string } {
+    onsuccess {
+        io.println("Analysis completed successfully")
+    }
+
+    summary, err = Summarizer.ask(text)
+    if err != nil { return { summary: "Failed" } }
+    return { summary: summary }
+}
+```
+
+### `oncancel` — Run on cancellation
+
+```haira
+@post("/api/long-task")
+workflow LongTask(input: string) -> { result: string } {
+    oncancel {
+        io.println("Task was cancelled, cleaning up...")
+    }
+
+    // ... long-running work
+    return { result: "done" }
+}
+```
+
+## Additional HTTP Decorators
+
+### `@get` — GET endpoint
+
+```haira
+@get("/api/status")
+workflow Status() -> { status: string } {
+    return { status: "ok" }
+}
+```
+
+### `@put` — PUT endpoint
+
+```haira
+@put("/api/users")
+workflow UpdateUser(id: int, name: string) -> { success: bool } {
+    // update logic
+    return { success: true }
+}
+```
+
+### `@delete` — DELETE endpoint
+
+```haira
+@delete("/api/users")
+workflow DeleteUser(id: int) -> { deleted: bool } {
+    // delete logic
+    return { deleted: true }
+}
+```
+
 ## Orchestrating Multiple Agents
 
 ```haira

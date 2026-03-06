@@ -1,6 +1,6 @@
 ---
 title: "Examples"
-description: "29 example programs demonstrating Haira language features and agentic patterns."
+description: "33 example programs demonstrating Haira language features and agentic patterns."
 ---
 
 # Examples
@@ -226,7 +226,7 @@ fn main() {
 
 ## More Examples
 
-See the full [examples directory on GitHub](https://github.com/mrzdevcore/haira/tree/main/examples) with 29 examples covering:
+See the full [examples directory on GitHub](https://github.com/mrzdevcore/haira/tree/main/examples) with 33 examples covering:
 
 | # | Example | Description |
 |---|---------|-------------|
@@ -259,3 +259,7 @@ See the full [examples directory on GitHub](https://github.com/mrzdevcore/haira/
 | 27 | Structured Output | Typed agent responses |
 | 28 | Observe | LLM observability |
 | 29 | Testing | Test framework |
+| 30 | Type Aliases | Type alias definitions |
+| 31 | Spawn | Parallel spawn blocks |
+| 32 | Bitwise | Bitwise operators |
+| 33 | Lifecycle Hooks | Workflow lifecycle hooks |

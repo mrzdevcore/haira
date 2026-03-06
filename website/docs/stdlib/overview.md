@@ -36,7 +36,10 @@ These are separate packages, tree-shaken at compile time:
 | Slack | `import "slack"` | Slack integration |
 | GitHub | `import "github"` | GitHub API |
 | GitLab | `import "gitlab"` | GitLab API |
+| Algolia | `import "algolia"` | Algolia search client |
+| Meilisearch | `import "meilisearch"` | Meilisearch search client |
 | SQLite | (auto-included) | Session storage for workflows |
+| D1 | (auto-included for Workers) | Cloudflare D1 store backend |
 | Langfuse | `import "langfuse"` | LLM observability |
 
 ## Built-in Functions

@@ -70,3 +70,34 @@ workflow Analyze(topic: string) -> { summary: string } {
     return { summary: summary }
 }
 ```
+
+## Channels
+
+Channels allow goroutine-style communication between concurrent tasks:
+
+```haira
+ch = chan<int>(10)          // buffered channel with capacity 10
+ch <- 42                   // send a value
+value = <-ch               // receive a value
+
+// Iterate until channel is closed
+for msg in ch {
+    io.println("Got: ${msg}")
+}
+
+close(ch)
+```
+
+## Select
+
+The `select` statement waits on multiple channel operations:
+
+```haira
+select {
+    msg = <-ch1 => handle(msg)
+    msg = <-ch2 => handle2(msg)
+    default => io.println("no messages")
+}
+```
+
+`select` blocks until one of its cases can proceed. The `default` case runs immediately if no other case is ready.

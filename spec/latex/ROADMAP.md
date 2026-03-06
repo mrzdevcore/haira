@@ -4,151 +4,125 @@ This document maps specification chapters to implementation releases.
 
 ## Release Strategy
 
-Each release implements one or more chapters from the specification. The spec is the "north star" - all features are fully documented before implementation begins.
+Each release implements one or more chapters from the specification. The spec is the "north star" — all features are fully documented before implementation begins.
+
+## Compiler
+
+The Haira compiler is written in Go with zero external dependencies. The pipeline is:
+
+```
+.haira source → Lexer → Parser → Resolver → Checker → Go Codegen → go build → Native binary
+```
 
 ## Release Plan
 
 | Release | Chapters | Features | Status |
 |---------|----------|----------|--------|
-| **v0.1** | 1-2 | Lexer, basic parser, tokens | Planned |
-| **v0.2** | 3 | Type system, primitives, structs, enums | Planned |
-| **v0.3** | 4-5 | Expressions, statements, control flow | Planned |
-| **v0.4** | 6-7 | Functions, error handling | Planned |
-| **v0.5** | 8 | Concurrency (spawn, channels, select) | Planned |
-| **v0.6** | 9-10 | Modules, imports, standard library | Planned |
-| **v0.7** | 11 | Advanced features (generics, constraints) | Planned |
-| **v0.8** | 12-13 | AI integration, CIR | Planned |
-| **v1.0** | 14-15 | Complete grammar, optimizations | Planned |
+| **v0.1** | 1-2 | Lexer, parser, tokens, basic expressions | Done |
+| **v0.2** | 3 | Type system, primitives, structs, enums, type aliases | Done |
+| **v0.3** | 4-5 | Expressions, statements, control flow, pattern matching | Done |
+| **v0.4** | 6-7 | Functions, methods, error handling (try/catch, defer, ?) | Done |
+| **v0.5** | 8 | Concurrency (spawn blocks, channels, select) | Done |
+| **v0.6** | 9-10 | Modules (4 import forms), resolver, standard library | Done |
+| **v0.7** | 11-14 | Providers, tools, agents, workflows | Done |
+| **v0.8** | 15-16 | Chatbot patterns, generative UI, ARP protocol | Done |
+| **v0.9** | 17-18 | Grammar formalization, compiler architecture docs | In progress |
+| **v1.0** | All | Production hardening, optimizations, complete docs | Planned |
 
 ## Chapter Details
 
-### v0.1: Foundation
+### v0.1: Foundation (Done)
 **Chapters:** 1 (Overview), 2 (Lexical Structure)
 
-- Lexer implementation
-- Token types (keywords, literals, operators)
-- Basic parser skeleton
-- Hello World compilation
+- Hand-written lexer (`compiler/internal/lexer/`)
+- Token types — 61 keywords + 24 operators
+- Recursive descent parser with Pratt expression parsing
+- Basic CLI (build, run, parse, lex)
 
-**Deliverables:**
-- `haira-lexer` crate
-- `haira-parser` crate (skeleton)
-- Basic CLI
-
-### v0.2: Type System
+### v0.2: Type System (Done)
 **Chapter:** 3 (Types)
 
-- Primitive types (int, float, bool, string)
+- Primitive types (int, i8-i64, u8-u64, float, f32, f64, bool, string)
 - Composite types (arrays, maps, tuples)
-- Option types
+- Option types (`T?`)
 - Struct and enum definitions
+- Type aliases (`type Name = Type`)
 - Type inference for locals
 
-**Deliverables:**
-- `haira-types` crate
-- `haira-typeck` crate (basic)
-
-### v0.3: Expressions & Statements
+### v0.3: Expressions & Statements (Done)
 **Chapters:** 4 (Expressions), 5 (Statements)
 
-- All expression types
-- All statement types
+- All expression types including pipe (`|>`), range (`..`, `..=`), spawn
+- All statement types including step, assert
 - Control flow (if, for, while, match)
-- Pattern matching
-- Variable declarations and assignments
+- Pattern matching with or-patterns, range patterns, guards
+- Bitwise operators (`&`, `|`, `^`, `~`, `<<`, `>>`)
 
-**Deliverables:**
-- Complete parser
-- AST definitions
-- Basic interpreter (optional)
-
-### v0.4: Functions
+### v0.4: Functions (Done)
 **Chapters:** 6 (Functions), 7 (Error Handling)
 
-- Function declarations
-- Parameters and return types
+- Function declarations with default parameters
 - Multiple return values
-- Closures
-- Methods
-- Error type and handling patterns
+- Closures / lambdas
+- Methods (dot-attach with implicit `self`)
+- Error propagation (`?` operator, panic-based)
+- Try/catch, defer, errdefer
 
-**Deliverables:**
-- Function resolution
-- Type checking for functions
-- Error handling implementation
-
-### v0.5: Concurrency
+### v0.5: Concurrency (Done)
 **Chapter:** 8 (Concurrency)
 
-- spawn keyword
-- Channels (buffered/unbuffered)
-- select statement
-- Basic synchronization
+- `spawn { }` blocks for parallel execution
+- Channel types (`chan<T>`)
+- `select` statement
+- Async blocks (AST support)
 
-**Deliverables:**
-- Runtime with goroutine-like tasks
-- Channel implementation
-- Async scheduler
-
-### v0.6: Modules
+### v0.6: Modules (Done)
 **Chapters:** 9 (Modules), 10 (Standard Library)
 
-- Import resolution
-- Module system
-- Standard library modules:
-  - io, string, array, map
-  - math, conv, fs, os
-  - time, json, http
+- Import resolution (4 forms: basic, aliased, selective, glob)
+- Export declarations
+- `pub` visibility modifier
+- Core stdlib: io, string, array, map, math, conv, fs, os, time, json, http, regex, env
+- Extended stdlib: postgres, sqlite, d1, excel, vector, slack, github, gitlab, algolia, meilisearch, langfuse
 
-**Deliverables:**
-- `haira-resolver` crate
-- `haira-stdlib` crate
-- Package structure
+### v0.7: Agentic Primitives (Done)
+**Chapters:** 11 (Providers), 12 (Tools), 13 (Agents), 14 (Workflows)
 
-### v0.7: Advanced Features
-**Chapter:** 11 (Advanced Features)
+- Provider declarations (OpenAI, Azure, Ollama, MCP)
+- Tool declarations with mandatory `"""..."""` descriptions
+- Agent declarations with memory, handoffs, structured output
+- Workflow declarations with HTTP triggers (`@get`, `@post`, `@put`, `@delete`, `@webhook`)
+- Lifecycle hooks (`onerror`, `onsuccess`, `oncancel`)
+- Step blocks with `@retry`
+- MCP client and server support
 
-- Generics
-- Type constraints (traits)
-- Operator overloading
-- Attributes
-- Macros (basic)
+### v0.8: UI & Patterns (Done)
+**Chapters:** 15 (Chatbot Patterns), 16 (Generative UI)
 
-**Deliverables:**
-- Generic type system
-- Constraint resolution
-- Macro expansion
+- Streaming workflows (`-> stream`, SSE)
+- ARP (Agentic Rendering Protocol) — WebSocket + SSE
+- Generative UI components (tables, charts, forms, status cards, etc.)
+- Auto UI for workflows (`/_ui/`)
+- `@webui` decorator
+- Observability with Langfuse integration
 
-### v0.8: AI Integration
-**Chapters:** 12 (AI Integration), 13 (CIR Specification)
+### v0.9: Formalization (In Progress)
+**Chapters:** 17 (Grammar), 18 (Compiler Architecture)
 
-- AI block syntax
-- CIR parser and validator
-- Backend interfaces:
-  - llama.cpp
-  - Ollama
-  - Cloud APIs
-- Caching system
+- Complete EBNF grammar
+- 8-pass codegen emission order documentation
+- LSP implementation (hover, diagnostics, go-to-definition, formatting)
+- Tree-sitter grammar for editor support
+- Test framework (`test` blocks, `assert`)
 
-**Deliverables:**
-- `haira-ai` crate
-- `haira-cir` crate
-- AI backend implementations
+### v1.0: Production Ready (Planned)
 
-### v1.0: Production Ready
-**Chapters:** 14 (Grammar), 15 (Compiler Architecture)
-
-- Complete grammar verification
-- Optimization passes
-- Error message quality
-- Documentation
-- Performance tuning
-
-**Deliverables:**
-- Production-ready compiler
+- Comprehensive test suite
+- Error message quality improvements
+- Performance optimization
 - Complete documentation
-- Benchmark suite
-- VS Code extension
+- Cloudflare Workers target (`--target workers`)
+- Orchestration daemon (deploy, ps, logs, etc.)
 
 ## Build Commands
 
@@ -162,9 +136,6 @@ make quick
 
 # View the PDF
 make view
-
-# Watch for changes
-make watch
 ```
 
 ## Specification Location

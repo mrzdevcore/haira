@@ -16,6 +16,8 @@ Haira compiles to Go, which then compiles to a native binary.
     ↓
   Parser     →  AST (Abstract Syntax Tree)
     ↓
+  Resolver   →  Resolved imports + merged AST
+    ↓
   Checker    →  Type-checked AST + diagnostics
     ↓
   Codegen    →  Go source code
@@ -43,6 +45,15 @@ Key responsibilities:
 - Handles operator precedence via Pratt parsing
 - Produces `Spanned[T]` nodes with source locations
 
+### Resolver
+
+Import resolver and module merger. Located in `compiler/internal/resolver/`.
+
+Key responsibilities:
+- Resolves `import` declarations to source files
+- Handles all 4 import forms (basic, aliased, selective, glob)
+- Merges multi-file programs into a single AST
+
 ### Checker
 
 Type checker and semantic analyzer. Located in `compiler/internal/checker/`.
@@ -65,16 +76,51 @@ Key responsibilities:
 - Streaming workflows generate both SSE and JSON fallback handlers
 - Stdlib import rewriting (dev-time `haira-go-runtime/haira` → compile-time `haira-generated/haira`)
 
+### Formatter
+
+Code formatter. Located in `compiler/internal/formatter/`.
+
+Key responsibilities:
+- Normalizes whitespace, indentation, and line breaks
+- Preserves comments
+- Invoked via `haira fmt`
+
 ## CLI Commands
 
+### Core
+
 ```bash
-haira build file.haira     # Compile to binary
-haira run file.haira       # Compile and run
-haira parse file.haira     # Show AST
-haira check file.haira     # Type check only
-haira lex file.haira       # Show tokens
-haira emit file.haira      # Show generated Go
-haira lsp                  # Start language server
+haira build file.haira           # Compile to binary
+haira build file.haira -o out    # Compile with custom output path
+haira build file.haira --target workers  # Compile for Cloudflare Workers
+haira run file.haira             # Compile and run
+haira test file.haira            # Run test blocks
+haira fmt file.haira             # Format source file
+haira check file.haira           # Type check only
+haira parse file.haira           # Show AST
+haira lex file.haira             # Show tokens
+haira emit file.haira            # Show generated Go
+haira init                       # Create package.haira manifest
+```
+
+### IDE & UI
+
+```bash
+haira lsp                        # Start language server (stdio)
+haira webui --connect host:port  # Serve web UI for a running server
+haira console host:port          # Interactive terminal for running servers
+```
+
+### Orchestration
+
+```bash
+haira serve --port 8900          # Start orchestration daemon
+haira deploy file.haira          # Deploy to orchestrator
+haira ps                         # List deployments
+haira stop <name>                # Stop a deployment
+haira restart <name>             # Restart a deployment
+haira logs <name> --follow       # Stream deployment logs
+haira undeploy <name>            # Remove a deployment
 ```
 
 ## Tree-shaking

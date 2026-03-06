@@ -1,0 +1,28 @@
+// Example 30: Type aliases
+// Demonstrates the `type Name = Type` syntax for creating type aliases.
+
+import "io"
+
+type UserID = int
+type Email = string
+type Scores = [int]
+type Headers = [string:string]
+
+struct User {
+    id: UserID
+    email: Email
+    scores: Scores
+}
+
+fn print_user(user: User) {
+    io.println("User #${user.id}: ${user.email}")
+}
+
+fn main() {
+    user = User{
+        id: 42,
+        email: "alice@example.com",
+        scores: [95, 87, 92]
+    }
+    print_user(user)
+}

@@ -207,6 +207,14 @@ export class HairaMarkdown extends LitElement {
     this.title = props.title || "";
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    this.renderRoot.addEventListener("click", (e: Event) => {
+      const btn = (e.target as HTMLElement).closest(".copy-btn") as HTMLButtonElement | null;
+      if (btn) this._handleCopyClick(btn);
+    });
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener("keydown", this._onEscKey);
@@ -262,7 +270,7 @@ export class HairaMarkdown extends LitElement {
         const header =
           `<div class="code-header">` +
           `<span class="code-lang">${this._escapeHtml(lang) || "text"}</span>` +
-          `<button class="copy-btn" data-code="${btoa(encodeURIComponent(code))}" onclick="this.getRootNode().host._handleCopyClick(this)">` +
+          `<button class="copy-btn" data-code="${btoa(encodeURIComponent(code))}">` +
           `${iconStrings.copy} Copy</button></div>`;
         codeBlocks.push(
           `<div class="code-block">${header}<pre><code class="language-${this._escapeHtml(language)}">${highlighted}</code></pre></div>`

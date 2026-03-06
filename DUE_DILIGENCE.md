@@ -144,8 +144,8 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 ## 9. Driver / Formatter / Errors / CLI
 
 ### Driver
-- [ ] **DRV-01** `os.MkdirAll()` error ignored (`driver.go:44`)
-- [ ] **DRV-02** No build artifact cleanup on error — stale binaries remain (`driver.go:52`)
+- [x] **DRV-01** `os.MkdirAll()` error ignored (`driver.go:44`)
+- [x] **DRV-02** No build artifact cleanup on error — stale binaries remain (`driver.go:52`)
 - [ ] **DRV-03** No inter-phase consistency validation (`driver.go`)
 
 ### Formatter (0 tests, 1,297 LOC)
@@ -159,7 +159,7 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 - [ ] **ERR-03** No error codes or categories
 
 ### CLI
-- [ ] **CLI-01** 4 unhandled JSON decode errors in orchestrator commands (`main.go:319, 346, 389, 503`)
+- [x] **CLI-01** 4 unhandled JSON decode errors in orchestrator commands (`main.go:319, 346, 389, 503`)
 - [ ] **CLI-02** All errors exit with code 1 — no distinction between error types (`main.go:86-88`)
 - [ ] **CLI-03** Flag parser silently uses default on missing value (`main.go:249-258`)
 
@@ -167,7 +167,7 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 
 ## 10. UI SDK
 
-- [ ] **UI-01** XSS vector — inline `onclick="..."` string handler instead of Lit `@click` (`haira-message.ts:343`)
+- [x] **UI-01** XSS vector — replaced inline `onclick` with event delegation (`haira-message.ts`, `haira-markdown.ts`)
 - [ ] **UI-02** `innerHTML` with template strings for icons (`haira-message.ts:469-473`)
 - [ ] **UI-03** `{{META}}` placeholder requires backend escaping, no CSP (`loader.html:10`)
 - [ ] **UI-04** Missing ARIA labels on buttons, avatars, toggles (`haira-form.ts`, `haira-table.ts`, `haira-message.ts`)
@@ -213,13 +213,13 @@ These are the highest-leverage fixes. The checker is essentially a pass-through 
 
 ## 13. Examples Coverage Gaps
 
-- [ ] **EX-01** Add example for type aliases (`type Name = Type`)
-- [ ] **EX-02** Add example for spawn blocks (`spawn { }`)
+- [x] **EX-01** Add example for type aliases — `examples/30-type-aliases.haira`
+- [x] **EX-02** Add example for spawn blocks — `examples/31-spawn.haira`
 - [ ] **EX-03** Add example for select blocks
-- [ ] **EX-04** Add example for bitwise operators
+- [x] **EX-04** Add example for bitwise operators — `examples/32-bitwise.haira`
 - [ ] **EX-05** Add example for named sessions (`session: "id"`)
 - [ ] **EX-06** Add example for `@cron`/`@event`/`@manual` triggers
-- [ ] **EX-07** Add example for lifecycle hooks (`onerror`, `onsuccess`, `oncancel`)
+- [x] **EX-07** Add example for lifecycle hooks — `examples/33-lifecycle-hooks.haira`
 
 ---
 

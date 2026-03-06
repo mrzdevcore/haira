@@ -41,7 +41,9 @@ func Compile(file, output, target string) error {
 			stem = stem[:len(stem)-len(ext)]
 		}
 		outputDir := ".output"
-		os.MkdirAll(outputDir, 0o755)
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create output directory: %w", err)
+		}
 		if target == "workers" {
 			output = filepath.Join(outputDir, stem+"-workers")
 		} else {
@@ -50,6 +52,8 @@ func Compile(file, output, target string) error {
 	}
 
 	if err := codegen.CompileToBinary(sf, output, file, src, target, typeInfo); err != nil {
+		// Clean up partial build artifacts
+		os.Remove(output)
 		return err
 	}
 

@@ -340,7 +340,7 @@ export class HairaMessage extends LitElement {
         const header =
           `<div class="code-header">` +
           `<span class="code-lang">${this._escapeHtml(lang) || "text"}</span>` +
-          `<button class="copy-btn" data-code="${btoa(encodeURIComponent(code))}" onclick="this.getRootNode().host._handleCopyClick(this)">` +
+          `<button class="copy-btn" data-code="${btoa(encodeURIComponent(code))}">` +
           `${iconStrings.copy} Copy</button></div>`;
         codeBlocks.push(
           `<div class="code-block">${header}<pre><code class="language-${this._escapeHtml(language)}">${highlighted}</code></pre></div>`
@@ -484,6 +484,14 @@ export class HairaMessage extends LitElement {
     }
     const char = av ? av.charAt(0).toUpperCase() : "A";
     return html`<div class="avatar">${char}</div>`;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.renderRoot.addEventListener("click", (e: Event) => {
+      const btn = (e.target as HTMLElement).closest(".copy-btn") as HTMLButtonElement | null;
+      if (btn) this._handleCopyClick(btn);
+    });
   }
 
   render() {

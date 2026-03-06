@@ -316,7 +316,9 @@ func cmdDeploy(args []string) error {
 	defer resp.Body.Close()
 
 	var result map[string]any
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		if msg, ok := result["error"].(string); ok {
@@ -343,7 +345,9 @@ func cmdPs(args []string) error {
 	defer resp.Body.Close()
 
 	var deployments []map[string]any
-	json.NewDecoder(resp.Body).Decode(&deployments)
+	if err := json.NewDecoder(resp.Body).Decode(&deployments); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
 
 	if len(deployments) == 0 {
 		fmt.Println("No deployments.")
@@ -386,7 +390,9 @@ func cmdOrchestratorAction(args []string, action string) error {
 	defer resp.Body.Close()
 
 	var result map[string]any
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		if msg, ok := result["error"].(string); ok {
@@ -500,7 +506,9 @@ func cmdUndeploy(args []string) error {
 	defer resp.Body.Close()
 
 	var result map[string]any
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		if msg, ok := result["error"].(string); ok {

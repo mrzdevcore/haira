@@ -1,0 +1,21 @@
+// Example 31: Spawn blocks
+// Demonstrates parallel execution with `spawn { }` blocks.
+
+import "io"
+
+fn fetch_data(source: string) -> string {
+    return "data from ${source}"
+}
+
+fn main() {
+    // Spawn block runs all expressions in parallel and returns a list
+    results = spawn {
+        fetch_data("api")
+        fetch_data("database")
+        fetch_data("cache")
+    }
+
+    for i, result in results {
+        io.println("Result ${i}: ${result}")
+    }
+}

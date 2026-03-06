@@ -1,0 +1,26 @@
+// Example 32: Bitwise operators
+// Demonstrates bitwise AND, OR, XOR, NOT, shifts, and compound assignments.
+
+import "io"
+
+fn main() {
+    a = 0b1100
+    b = 0b1010
+
+    io.println("a AND b = ${a & b}")
+    io.println("a OR b  = ${a | b}")
+    io.println("a XOR b = ${a ^ b}")
+    io.println("NOT a   = ${~a}")
+
+    // Shifts
+    x = 1
+    io.println("1 << 4 = ${x << 4}")
+    io.println("16 >> 2 = ${16 >> 2}")
+
+    // Compound assignments
+    flags = 0b0001
+    flags |= 0b0100
+    io.println("flags after |= : ${flags}")
+    flags &= 0b0101
+    io.println("flags after &= : ${flags}")
+}

@@ -495,12 +495,16 @@ token = keyword
       | operator
       | delimiter ;
 
-keyword = "agent" | "and" | "as" | "break" | "catch" | "chan"
-        | "continue" | "defer" | "else" | "enum" | "false"
-        | "fn" | "for" | "from" | "if" | "import" | "in"
-        | "match" | "nil" | "not" | "or" | "provider" | "return"
-        | "select" | "spawn" | "struct" | "tool" | "true" | "try"
-        | "type" | "while" | "workflow" ;
+keyword = "agent" | "and" | "assert" | "async" | "break"
+        | "catch" | "const" | "continue" | "default" | "defer"
+        | "else" | "enum" | "err" | "errdefer" | "export"
+        | "false" | "fn" | "for" | "from" | "if" | "impl"
+        | "import" | "in" | "let" | "match" | "nil" | "none"
+        | "not" | "ok" | "oncancel" | "onerror" | "onsuccess"
+        | "or" | "orelse" | "provider" | "pub" | "return"
+        | "select" | "some" | "spawn" | "step" | "struct"
+        | "test" | "tool" | "trait" | "true" | "try" | "type"
+        | "while" | "workflow" ;
 
 identifier = letter { letter | digit | "_" } ;
 

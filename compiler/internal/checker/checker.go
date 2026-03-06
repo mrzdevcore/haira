@@ -352,10 +352,62 @@ func (c *checker) checkFunction(fn ast.FunctionDef) {
 		c.returnTy = c.resolveASTType(fn.ReturnTy.Node)
 	} else {
 		c.returnTy = nil
+		// Check for return statements with values but no declared return type
+		if span, ok := blockHasReturnValues(fn.Body); ok {
+			c.addError(
+				"function '"+fn.Name.Node+"' returns a value but has no return type; add -> Type after the parameter list",
+				span,
+			)
+		}
 	}
 	c.checkBlock(fn.Body)
 	c.env = saved
 	c.returnTy = savedReturn
+}
+
+// blockHasReturnValues checks if any return statement in the block returns values.
+// Returns the span of the first such return statement.
+func blockHasReturnValues(block ast.Block) (ast.Span, bool) {
+	for _, stmt := range block.Statements {
+		if span, ok := stmtHasReturnValues(stmt.Node); ok {
+			return span, true
+		}
+	}
+	return ast.Span{}, false
+}
+
+func stmtHasReturnValues(s ast.StmtKind) (ast.Span, bool) {
+	switch s := s.(type) {
+	case ast.ReturnStmt:
+		if len(s.Values) > 0 {
+			return s.Values[0].Span, true
+		}
+	case ast.IfStmt:
+		if span, ok := blockHasReturnValues(s.ThenBranch); ok {
+			return span, true
+		}
+		if eb, ok := s.ElseBranch.(*ast.ElseBlock); ok {
+			if span, ok := blockHasReturnValues(eb.Body); ok {
+				return span, true
+			}
+		} else if ei, ok := s.ElseBranch.(*ast.ElseIf); ok {
+			if span, ok := stmtHasReturnValues(ei.If.Node); ok {
+				return span, true
+			}
+		}
+	case ast.ForStmt:
+		if span, ok := blockHasReturnValues(s.Body); ok {
+			return span, true
+		}
+	case ast.TryStmt:
+		if span, ok := blockHasReturnValues(s.Body); ok {
+			return span, true
+		}
+		if span, ok := blockHasReturnValues(s.CatchBody); ok {
+			return span, true
+		}
+	}
+	return ast.Span{}, false
 }
 
 func (c *checker) checkMethod(md ast.MethodDef) {

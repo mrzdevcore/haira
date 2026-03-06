@@ -178,6 +178,10 @@ type GenericType struct {
 	Args []Spanned[Type]
 }
 
+type TupleType struct {
+	Elems []Spanned[Type]
+}
+
 func (NamedType) typeKind()    {}
 func (ListType) typeKind()     {}
 func (MapType) typeKind()      {}
@@ -185,6 +189,7 @@ func (OptionType) typeKind()   {}
 func (FunctionType) typeKind() {}
 func (UnionType) typeKind()    {}
 func (GenericType) typeKind()  {}
+func (TupleType) typeKind()    {}
 
 // --- Params ---
 

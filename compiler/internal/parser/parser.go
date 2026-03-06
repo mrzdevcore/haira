@@ -857,24 +857,30 @@ func (p *Parser) parseType() (ast.Spanned[ast.Type], bool) {
 
 	case token.LParen:
 		p.advance()
-		var paramTypes []ast.Spanned[ast.Type]
+		var innerTypes []ast.Spanned[ast.Type]
 		for !p.check(token.RParen) && !p.atEnd() {
 			pt, ok := p.parseType()
 			if !ok {
 				return ast.Spanned[ast.Type]{}, false
 			}
-			paramTypes = append(paramTypes, pt)
+			innerTypes = append(innerTypes, pt)
 			if !p.check(token.RParen) {
 				p.consume(token.Comma, ",")
 			}
 		}
 		p.consume(token.RParen, ")")
-		p.consume(token.Arrow, "->")
-		ret, ok := p.parseType()
-		if !ok {
-			return ast.Spanned[ast.Type]{}, false
+		if p.check(token.Arrow) {
+			// Function type: (T1, T2) -> R
+			p.advance()
+			ret, ok := p.parseType()
+			if !ok {
+				return ast.Spanned[ast.Type]{}, false
+			}
+			ty = ast.FunctionType{Params: innerTypes, Ret: ret}
+		} else {
+			// Tuple type: (T1, T2)
+			ty = ast.TupleType{Elems: innerTypes}
 		}
-		ty = ast.FunctionType{Params: paramTypes, Ret: ret}
 
 	default:
 		tok := p.peek()

@@ -150,6 +150,12 @@ func HairaTypeToGo(ty ast.Type) string {
 			params[i] = HairaTypeToGo(p.Node)
 		}
 		return fmt.Sprintf("func(%s) %s", strings.Join(params, ", "), HairaTypeToGo(t.Ret.Node))
+	case ast.TupleType:
+		parts := make([]string, len(t.Elems))
+		for i, e := range t.Elems {
+			parts[i] = HairaTypeToGo(e.Node)
+		}
+		return "(" + strings.Join(parts, ", ") + ")"
 	case ast.UnionType:
 		return "any"
 	case ast.GenericType:

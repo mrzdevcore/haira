@@ -521,14 +521,15 @@ fn main() {
 
     io.println("")
 
-    observe.use(langfuse.exporter("", "", ""))
+    observe.use(langfuse.exporter(env("LANGFUSE_PUBLIC_KEY"), env("LANGFUSE_SECRET_KEY"), env("LANGFUSE_HOST")))
+    port = env("PORT", int) orelse 9005
     server = http.Server([Chat, Health])
     observe.start(server)
 
-    io.println("  Chat UI:    http://localhost:9005/_ui/api/chat")
+    io.println("  Chat UI:    http://localhost:${port}/_ui/api/chat")
     io.println("  Health:     GET /api/health")
-    io.println("  Observe:    http://localhost:9005/_observe")
+    io.println("  Observe:    http://localhost:${port}/_observe")
     io.println("")
 
-    server.listen(9005)
+    server.listen(port)
 }

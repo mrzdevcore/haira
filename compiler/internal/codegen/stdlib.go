@@ -25,7 +25,7 @@ func ResolveStdlibCall(call ast.CallExpr) (string, bool) {
 		args := callArgsToGo(call.Args)
 		switch ident.Name {
 		case "create_agent":
-			return fmt.Sprintf("haira.CreateAgent(%s)", args), true
+			return resolveCreateAgent(call), true
 		case "spawn_agents":
 			return fmt.Sprintf("haira.SpawnAgents(%s)", args), true
 		case "env":
@@ -212,6 +212,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.StringWords(%s)", args), true
 		case "shell_escape":
 			return fmt.Sprintf("haira.StringShellEscape(%s)", args), true
+		case "detect_language":
+			return fmt.Sprintf("haira.DetectLanguage(%s)", args), true
 		}
 	case "regex":
 		switch method {
@@ -615,7 +617,7 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		// via import alias: `import rt from "agent"` → rt.create(...)
 		switch method {
 		case "create":
-			return fmt.Sprintf("haira.CreateAgent(%s)", args), true
+			return resolveCreateAgent(call), true
 		case "spawn":
 			return fmt.Sprintf("haira.SpawnAgents(%s)", args), true
 		}
@@ -824,6 +826,21 @@ func resolveProviderArg(expr ast.Expr) string {
 		return goVarName("provider", ident.Name)
 	}
 	return ExprToGo(expr)
+}
+
+// resolveCreateAgent generates haira.CreateAgent(config, provider, tools) with
+// proper provider variable resolution for the second argument.
+func resolveCreateAgent(call ast.CallExpr) string {
+	parts := make([]string, len(call.Args))
+	for i, a := range call.Args {
+		if i == 1 {
+			// Second arg is the provider — resolve to providerXxx variable
+			parts[i] = resolveProviderArg(a.Value)
+		} else {
+			parts[i] = ExprToGo(a.Value)
+		}
+	}
+	return fmt.Sprintf("haira.CreateAgent(%s)", strings.Join(parts, ", "))
 }
 
 // IsStdlibImport returns whether a Haira import path maps to a stdlib module.

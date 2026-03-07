@@ -1,2 +1,10 @@
+# Compiled binary
+hcode
+
+# SQLite runtime database
+.haira.db
+.haira.db-shm
+.haira.db-wal
+
 # Test output files (generated during runtime)
 README.md

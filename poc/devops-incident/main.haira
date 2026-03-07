@@ -29,6 +29,7 @@ import "conv"
 import "string"
 import "slack"
 import "github"
+import "healthcheck"
 import "observe"
 import "langfuse"
 
@@ -80,31 +81,13 @@ tool check_service_health(service_name: string, url: string) -> string {
     Check the health of a single service by making an HTTP GET request to its health endpoint.
     Returns the service status including response time and HTTP status code.
     """
-    start = time.now()
-    resp, err = http.get(url)
-    elapsed = time.since(start)
-
-    if err != nil {
-        return ui.group(
-            ui.status_card("error", "${service_name}: DOWN", conv.to_string(err)),
-            ui.key_value("Details", {
-                "Service": service_name,
-                "URL": url,
-                "Status": "UNREACHABLE",
-                "Error": conv.to_string(err),
-                "Checked At": time.timestamp()
-            })
-        )
-    }
-
-    status = "HEALTHY"
+    result = healthcheck.check(service_name, url)
+    status = conv.to_string(result["status"])
     card_type = "success"
-    if resp.status_code >= 500 {
-        status = "DOWN"
+    if status == "DOWN" or status == "UNREACHABLE" {
         card_type = "error"
     }
-    if resp.status_code >= 400 and resp.status_code < 500 {
-        status = "DEGRADED"
+    if status == "DEGRADED" {
         card_type = "warning"
     }
 
@@ -112,10 +95,11 @@ tool check_service_health(service_name: string, url: string) -> string {
         ui.status_card(card_type, "${service_name}: ${status}"),
         ui.key_value("Health Check", {
             "Service": service_name,
-            "HTTP Status": conv.to_string(resp.status_code),
-            "Response Time": elapsed,
+            "URL": url,
+            "HTTP Status": conv.to_string(result["status_code"]),
+            "Response Time": conv.to_string(result["response_time"]),
             "Status": status,
-            "Checked At": time.timestamp()
+            "Checked At": conv.to_string(result["checked_at"])
         })
     )
 }
@@ -126,18 +110,24 @@ tool check_all_services() -> string {
     Returns a consolidated status dashboard showing the health of every service.
     Use this when the user asks for overall system status or during incident triage.
     """
-    results = spawn {
-        check_service_health(conv.to_string(services[0]["name"]), conv.to_string(services[0]["url"]))
-        check_service_health(conv.to_string(services[1]["name"]), conv.to_string(services[1]["url"]))
-        check_service_health(conv.to_string(services[2]["name"]), conv.to_string(services[2]["url"]))
-        check_service_health(conv.to_string(services[3]["name"]), conv.to_string(services[3]["url"]))
-        check_service_health(conv.to_string(services[4]["name"]), conv.to_string(services[4]["url"]))
-        check_service_health(conv.to_string(services[5]["name"]), conv.to_string(services[5]["url"]))
-    }
+    results = healthcheck.check_all(services)
 
     summary = "System Health Dashboard\n\n"
     for result in results {
-        summary += conv.to_string(result) + "\n"
+        name = conv.to_string(result["name"])
+        status = conv.to_string(result["status"])
+        card_type = "success"
+        if status == "DOWN" or status == "UNREACHABLE" { card_type = "error" }
+        if status == "DEGRADED" { card_type = "warning" }
+        summary += ui.group(
+            ui.status_card(card_type, "${name}: ${status}"),
+            ui.key_value("Health Check", {
+                "Service": name,
+                "HTTP Status": conv.to_string(result["status_code"]),
+                "Response Time": conv.to_string(result["response_time"]),
+                "Checked At": conv.to_string(result["checked_at"])
+            })
+        ) + "\n"
     }
     return summary
 }
@@ -231,28 +221,7 @@ tool notify_team(channel: string, message: string, severity: string) -> string {
         return ui.status_card("warning", "Slack Not Configured", "Set SLACK_WEBHOOK environment variable to enable notifications.")
     }
 
-    icon = ":information_source:"
-    if severity == "critical" {
-        icon = ":rotating_light:"
-    }
-    if severity == "major" {
-        icon = ":warning:"
-    }
-    if severity == "minor" {
-        icon = ":large_yellow_circle:"
-    }
-    if severity == "resolved" {
-        icon = ":white_check_mark:"
-    }
-
-    blocks = [
-        slack.header(icon + " Incident Alert - " + string.to_upper(severity)),
-        slack.divider(),
-        slack.section(message),
-        slack.context("Sent by Haira Incident Agent - " + time.timestamp())
-    ]
-
-    send_err = slack.send_blocks(webhook, blocks)
+    send_err = slack.send_alert(webhook, message, severity)
     if send_err != nil {
         return ui.status_card("error", "Slack Error", conv.to_string(send_err))
     }
@@ -496,22 +465,23 @@ workflow Health() -> { status: string, services: int, uptime: string } {
 // ---------------------------------------------------------------------------
 
 fn main() {
-    observe.use(langfuse.exporter("", "", ""))
+    observe.use(langfuse.exporter(env("LANGFUSE_PUBLIC_KEY"), env("LANGFUSE_SECRET_KEY"), env("LANGFUSE_HOST")))
+    port = env("PORT", int) orelse 9004
     server = http.Server([Chat, Triage, Health])
     observe.start(server)
 
-    io.println("Incident Commander running on :9004")
+    io.println("Incident Commander running on :${port}")
     io.println("")
     io.println("  Agents:")
     io.println("    IncidentCommander -> DiagnosticsAgent, RunbookAgent, CommsAgent")
     io.println("    Classifier (structured output)")
     io.println("")
     io.println("  Endpoints:")
-    io.println("  Chat UI:    http://localhost:9004/_ui/api/chat")
-    io.println("  Triage:     http://localhost:9004/_ui/api/triage")
+    io.println("  Chat UI:    http://localhost:${port}/_ui/api/chat")
+    io.println("  Triage:     http://localhost:${port}/_ui/api/triage")
     io.println("  Health:     GET /api/health")
-    io.println("  Dashboard:  http://localhost:9004/_observe")
+    io.println("  Dashboard:  http://localhost:${port}/_observe")
     io.println("")
 
-    server.listen(9004)
+    server.listen(port)
 }

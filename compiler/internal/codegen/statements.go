@@ -217,6 +217,7 @@ func assignPathToGo(path ast.AssignPath) string {
 
 func emitIf(em *GoEmitter, ifStmt ast.IfStmt) {
 	cond := ExprToGo(ifStmt.Condition)
+	em.PushScope()
 	em.OpenBlock(fmt.Sprintf("if %s", cond))
 	EmitBlockBody(em, ifStmt.ThenBranch)
 	if ifStmt.ElseBranch != nil {
@@ -225,32 +226,50 @@ func emitIf(em *GoEmitter, ifStmt ast.IfStmt) {
 			em.Dedent()
 			em.Line("} else {")
 			em.Indent()
+			em.PushScope()
 			EmitBlockBody(em, eb.Body)
+			em.PopScope()
 			em.CloseBlock()
+			em.PopScope()
 			return
 		case *ast.ElseIf:
 			em.Dedent()
 			cond := ExprToGo(eb.If.Node.Condition)
 			em.Line(fmt.Sprintf("} else if %s {", cond))
 			em.Indent()
+			em.PushScope()
 			EmitBlockBody(em, eb.If.Node.ThenBranch)
+			em.PopScope()
 			if eb.If.Node.ElseBranch != nil {
 				switch inner := eb.If.Node.ElseBranch.(type) {
 				case *ast.ElseBlock:
 					em.Dedent()
 					em.Line("} else {")
 					em.Indent()
+					em.PushScope()
 					EmitBlockBody(em, inner.Body)
+					em.PopScope()
 				}
 			}
 			em.CloseBlock()
+			em.PopScope()
 			return
 		}
 	}
 	em.CloseBlock()
+	em.PopScope()
 }
 
 func emitFor(em *GoEmitter, forStmt ast.ForStmt) {
+	em.PushScope()
+	// Register iteration variables so body doesn't re-declare them
+	switch p := forStmt.Pattern.(type) {
+	case ast.SinglePattern:
+		em.DeclareVar(p.Name.Node)
+	case ast.PairPattern:
+		em.DeclareVar(p.First.Node)
+		em.DeclareVar(p.Second.Node)
+	}
 	// Range expression: for i in 0..10
 	if rangeExpr, ok := forStmt.Iterator.Node.(ast.RangeExpr); ok {
 		start := ExprToGo(rangeExpr.Start)
@@ -316,6 +335,7 @@ func emitFor(em *GoEmitter, forStmt ast.ForStmt) {
 	}
 	EmitBlockBody(em, forStmt.Body)
 	em.CloseBlock()
+	em.PopScope()
 }
 
 func forPatternVar(pattern ast.ForPattern) string {
@@ -329,10 +349,12 @@ func forPatternVar(pattern ast.ForPattern) string {
 }
 
 func emitWhile(em *GoEmitter, whileStmt ast.WhileStmt) {
+	em.PushScope()
 	cond := ExprToGo(whileStmt.Condition)
 	em.OpenBlock(fmt.Sprintf("for %s", cond))
 	EmitBlockBody(em, whileStmt.Body)
 	em.CloseBlock()
+	em.PopScope()
 }
 
 func emitReturn(em *GoEmitter, ret ast.ReturnStmt) {

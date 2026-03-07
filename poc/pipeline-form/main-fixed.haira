@@ -1,0 +1,221 @@
+// Pipeline Form POC - Fixed for current Haira syntax
+// Demonstrates form-based pipeline workflows with progress tracking
+
+import "io"
+import "http"
+import "time"
+import "string"
+import "conv"
+import "log"
+
+// Provider for AI assistance
+provider openai {
+    model: "gpt-4o-mini"
+    api_key: env("OPENAI_API_KEY")
+}
+
+// Agent for pipeline assistance
+agent PipelineAgent {
+    provider: openai
+    system: "You are a helpful pipeline assistant. Help users with configuration and troubleshooting."
+    temperature: 0.3
+}
+
+// Main pipeline workflow with form UI
+@webui(title: "Pipeline Form", description: "Configure and execute data processing pipelines")
+@post("/api/pipeline")
+workflow PipelineForm(
+    name: string,
+    description: string,
+    priority: string,
+    environment: string,
+    notify_on_completion: bool,
+    max_retries: int,
+    input_file: file
+) -> {
+    status: string,
+    steps_completed: int,
+    total_steps: int,
+    execution_time: string,
+    output_summary: string
+} {
+    onerror err {
+        log.error("Pipeline failed: " + err)
+        return {
+            status: "failed",
+            steps_completed: 0,
+            total_steps: 5,
+            execution_time: "0s",
+            output_summary: "Pipeline failed: " + err
+        }
+    }
+
+    onsuccess {
+        log.info("Pipeline completed successfully")
+    }
+
+    step "Validate Configuration" {
+        log.info("Validating pipeline configuration...")
+        time.sleep(1)
+        
+        if name == "" {
+            log.error("Pipeline name is required")
+            return {
+                status: "failed",
+                steps_completed: 0,
+                total_steps: 5,
+                execution_time: "0s",
+                output_summary: "Validation failed: Pipeline name is required"
+            }
+        }
+        
+        if priority != "low" {
+            if priority != "medium" {
+                if priority != "high" {
+                    log.warn("Invalid priority, defaulting to medium")
+                    priority = "medium"
+                }
+            }
+        }
+        
+        if environment != "dev" {
+            if environment != "staging" {
+                if environment != "prod" {
+                    log.warn("Invalid environment, defaulting to dev")
+                    environment = "dev"
+                }
+            }
+        }
+        
+        log.info("Configuration validated successfully")
+        log.info("Pipeline: " + name + " (" + priority + " priority, " + environment + " environment)")
+    }
+
+    step "Initialize Pipeline" {
+        log.info("Initializing pipeline resources...")
+        time.sleep(1.5)
+        
+        log.info("Setting up execution environment: " + environment)
+        log.info("Configuring retry policy: max " + conv.int_to_string(max_retries) + " retries")
+        
+        if notify_on_completion {
+            log.info("Notifications enabled for completion")
+        }
+        
+        log.info("Pipeline initialized successfully")
+    }
+
+    step "Process Data" {
+        log.info("Processing input data...")
+        time.sleep(2)
+        
+        if input_file != "" {
+            log.info("Processing uploaded file...")
+            content, read_err = io.read_file(input_file)
+            if read_err != nil {
+                log.warn("Could not read uploaded file, using default data")
+            } else {
+                log.info("File processed: " + conv.int_to_string(string.len(content)) + " characters")
+            }
+        } else {
+            log.info("No input file provided, using sample data")
+        }
+        
+        log.info("Data processing completed")
+    }
+
+    step "Generate Output" {
+        log.info("Generating output files...")
+        time.sleep(1.8)
+        
+        log.info("Creating output in " + environment + " format")
+        log.info("Applying " + priority + " priority optimizations")
+        
+        output_size = 1024 + string.len(name) * 10
+        log.info("Generated output: " + conv.int_to_string(output_size) + " bytes")
+    }
+
+    step "Cleanup" {
+        log.info("Cleaning up resources...")
+        time.sleep(0.8)
+        
+        log.info("Removing temporary files")
+        log.info("Finalizing output")
+        
+        if notify_on_completion {
+            log.info("Sending completion notification")
+        }
+        
+        log.info("Cleanup completed")
+    }
+
+    execution_time = "6.1s"
+    output_summary = "Pipeline '" + name + "' completed successfully. Processed data with " + priority + " priority in " + environment + " environment."
+
+    return {
+        status: "completed",
+        steps_completed: 5,
+        total_steps: 5,
+        execution_time: execution_time,
+        output_summary: output_summary
+    }
+}
+
+// Quick pipeline for simple tasks
+@webui(title: "Quick Pipeline", description: "Simple pipeline for quick tasks")
+@post("/api/quick")
+workflow QuickPipeline(
+    task_name: string,
+    data_source: string,
+    output_format: string
+) -> {
+    result: string,
+    processing_time: string
+} {
+    step "Execute Task" {
+        log.info("Executing task: " + task_name)
+        time.sleep(1.5)
+        
+        log.info("Data source: " + data_source)
+        log.info("Output format: " + output_format)
+        
+        log.info("Task completed successfully")
+    }
+
+    return {
+        result: "Task '" + task_name + "' completed with " + data_source + " data in " + output_format + " format",
+        processing_time: "1.5s"
+    }
+}
+
+// Chat assistant for help
+@webui(title: "Pipeline Assistant", description: "Get help with pipeline configuration")
+@post("/api/chat")
+workflow ChatAssistant(message: string, session_id: string) -> { reply: string } {
+    reply, err = PipelineAgent.ask(message, session: session_id)
+    if err != nil {
+        return { reply: "I'm sorry, I'm having trouble right now. Please try again later." }
+    }
+    return { reply: reply }
+}
+
+// Health check endpoint
+@get("/api/health")
+workflow HealthCheck() -> { status: string, timestamp: string } {
+    return {
+        status: "healthy",
+        timestamp: conv.int_to_string(time.now())
+    }
+}
+
+// Main function to start the server
+fn main() {
+    server = http.Server([PipelineForm, QuickPipeline, ChatAssistant, HealthCheck])
+    io.println("Pipeline Form POC running on :9005")
+    io.println("  Pipeline Form: http://localhost:9005/_ui/api/pipeline")
+    io.println("  Quick Pipeline: http://localhost:9005/_ui/api/quick")
+    io.println("  Chat Assistant: http://localhost:9005/_ui/api/chat")
+    io.println("  Health Check: http://localhost:9005/api/health")
+    io.println("  Dashboard: http://localhost:9005/_observe")
+    server.listen(9005)
+}

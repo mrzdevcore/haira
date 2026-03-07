@@ -451,20 +451,21 @@ workflow QuickPipeline(
 // ---------------------------------------------------------------------------
 
 fn main() {
-    observe.use(langfuse.exporter("", "", ""))
+    observe.use(langfuse.exporter(env("LANGFUSE_PUBLIC_KEY"), env("LANGFUSE_SECRET_KEY"), env("LANGFUSE_HOST")))
+    port = env("PORT", int) orelse 9007
     server = http.Server([PipelineForm, Chat, Health, QuickPipeline])
     observe.start(server)
-    
-    io.println("Pipeline Form POC running on :9005")
+
+    io.println("Pipeline Form POC running on :${port}")
     io.println("")
     io.println("  Workflows:")
-    io.println("    Pipeline Form:  http://localhost:9005/_ui/api/pipeline")
-    io.println("    Quick Pipeline: http://localhost:9005/_ui/api/quick")
-    io.println("    Chat Assistant: http://localhost:9005/_ui/api/chat")
+    io.println("    Pipeline Form:  http://localhost:${port}/_ui/api/pipeline")
+    io.println("    Quick Pipeline: http://localhost:${port}/_ui/api/quick")
+    io.println("    Chat Assistant: http://localhost:${port}/_ui/api/chat")
     io.println("")
     io.println("  Endpoints:")
     io.println("    Health:         GET /api/health")
-    io.println("    Dashboard:      http://localhost:9005/_observe")
+    io.println("    Dashboard:      http://localhost:${port}/_observe")
     io.println("")
     io.println("  Features:")
     io.println("    - Form-based pipeline configuration")
@@ -473,6 +474,6 @@ fn main() {
     io.println("    - Interactive chat assistant")
     io.println("    - Rich UI components")
     io.println("")
-    
-    server.listen(9005)
+
+    server.listen(port)
 }

@@ -161,8 +161,12 @@ func GenerateMainGo(file *ast.SourceFile, sourceFile, sourceText string, typeInf
 		}
 	}
 
-	// Pass 6: type defs and enums
+	// Pass 6: type aliases, type defs, and enums
 	for _, item := range file.Items {
+		if ta, ok := item.Node.(ast.TypeAlias); ok {
+			em.LineDirective(item.Span)
+			emitTypeAlias(em, ta)
+		}
 		if td, ok := item.Node.(ast.TypeDef); ok {
 			em.LineDirective(item.Span)
 			emitTypeDef(em, td)
@@ -230,6 +234,12 @@ func assignTargetName(path ast.AssignPath) string {
 		return fmt.Sprintf("%s[%s]", assignTargetName(p.Object), ExprToGo(p.Index))
 	}
 	return "?"
+}
+
+func emitTypeAlias(em *GoEmitter, ta ast.TypeAlias) {
+	goType := HairaTypeToGo(ta.Ty.Node)
+	em.Linef("type %s = %s", ta.Name.Node, goType)
+	em.Blank()
 }
 
 func emitTypeDef(em *GoEmitter, td ast.TypeDef) {
@@ -423,12 +433,9 @@ func needsFmtImport(file *ast.SourceFile) bool {
 	for _, item := range file.Items {
 		switch it := item.Node.(type) {
 		case ast.ToolDecl:
-			if it.Body == nil {
-				return true
-			}
-			if it.Body != nil && (blockHasInterpolatedString(*it.Body) || blockHasTry(*it.Body) || blockHasErrNilReturn(*it.Body)) {
-				return true
-			}
+			// All tools generate fmt.Errorf in JSON unmarshal error path
+			return true
+			_ = it
 		case ast.FunctionDef:
 			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
 				return true

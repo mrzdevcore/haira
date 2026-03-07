@@ -278,7 +278,7 @@ func (s *Server) handleStepSSE(rw http.ResponseWriter, r *http.Request, wf *Work
 		resultData, _ := json.Marshal(res.data)
 		fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
 	}
-	fmt.Fprintf(rw, "data: [DONE]\n\n")
+	fmt.Fprintf(rw, "event: done\ndata: [DONE]\n\n")
 	flusher.Flush()
 }
 
@@ -418,7 +418,7 @@ func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID 
 			resultData, _ := json.Marshal(run.Result)
 			fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
 		}
-		fmt.Fprintf(rw, "data: [DONE]\n\n")
+		fmt.Fprintf(rw, "event: done\ndata: [DONE]\n\n")
 		flusher.Flush()
 		return
 	}
@@ -445,7 +445,7 @@ func (s *Server) handleRunStream(rw http.ResponseWriter, r *http.Request, runID 
 						fmt.Fprintf(rw, "event: result\ndata: %s\n\n", resultData)
 					}
 				}
-				fmt.Fprintf(rw, "data: [DONE]\n\n")
+				fmt.Fprintf(rw, "event: done\ndata: [DONE]\n\n")
 				flusher.Flush()
 				return
 			}

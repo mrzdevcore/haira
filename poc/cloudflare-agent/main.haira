@@ -18,6 +18,7 @@ import "time"
 import "conv"
 import "string"
 import "json"
+import "websearch"
 import "observe"
 
 // ---------------------------------------------------------------------------
@@ -41,36 +42,7 @@ tool web_search(query: string) -> string {
     Use this when the user asks about recent events, facts, or needs up-to-date data.
     Returns a summary of search results.
     """
-    encoded = http.encode_uri(query)
-    resp, err = http.get("https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1")
-    if err != nil {
-        return "Search failed: ${err}"
-    }
-    data = resp.json()
-    abstract = conv.to_string(data["AbstractText"])
-    if abstract != "" {
-        source = conv.to_string(data["AbstractSource"])
-        url = conv.to_string(data["AbstractURL"])
-        return "From ${source}: ${abstract}\nSource: ${url}"
-    }
-    // Try related topics
-    topics = data["RelatedTopics"]
-    if topics == nil {
-        return "No results found for: ${query}"
-    }
-    results = ""
-    count = 0
-    for topic in topics {
-        text = conv.to_string(topic["Text"])
-        if text != "" and count < 3 {
-            results = results + "- " + text + "\n"
-            count = count + 1
-        }
-    }
-    if results == "" {
-        return "No results found for: ${query}"
-    }
-    return results
+    return websearch.search(query)
 }
 
 tool get_weather(city: string) -> string {
@@ -200,17 +172,18 @@ fn main() {
         io.println("")
     }
 
+    port = env("PORT", int) orelse 9006
     server = http.Server([Chat, Health])
     observe.start(server)
 
     io.println("  Chat:     POST /api/chat (SSE)")
     io.println("  Health:   GET  /api/health")
-    io.println("  UI:       http://localhost:9010/")
-    io.println("  Observe:  http://localhost:9010/_observe")
+    io.println("  UI:       http://localhost:${port}/")
+    io.println("  Observe:  http://localhost:${port}/_observe")
     io.println("")
     io.println("  Backend:  Cloudflare Workers AI (auto-resolved)")
     io.println("  Model:    @cf/meta/llama-3.1-70b-instruct")
     io.println("")
 
-    server.listen(9010)
+    server.listen(port)
 }

@@ -816,6 +816,8 @@ func (c *checker) inferExpr(expr ast.Expr) Type {
 			ty = AnyType{} // stdlib module qualifier (e.g. io.println)
 		} else if e.Name == "true" || e.Name == "false" {
 			ty = AnyType{} // language builtins
+		} else if e.Name == "int" || e.Name == "float" || e.Name == "string" || e.Name == "bool" {
+			ty = AnyType{} // type hints (e.g. env("PORT", int))
 		} else {
 			c.addWarning("undefined variable '"+e.Name+"'", expr.Span, "")
 			ty = AnyType{}
@@ -1261,7 +1263,7 @@ var stdlibModules = map[string]bool{
 	"mcp": true, "ui": true, "vector": true, "observe": true, "fs": true, "os": true,
 	"gitlab": true, "github": true, "langfuse": true,
 	"algolia": true, "meilisearch": true, "store": true,
-	"auth": true,
+	"auth": true, "websearch": true, "healthcheck": true,
 }
 
 func isStdlibModule(name string) bool {

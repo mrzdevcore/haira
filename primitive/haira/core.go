@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+// SpawnCapture safely captures the first return value from a function call
+// inside a spawn block. It accepts variadic args so it can receive multi-return
+// function results (Go unpacks multi-return into variadic args).
+// Single-return calls pass one arg; (T, error) calls pass two.
+func SpawnCapture(vals ...any) any {
+	if len(vals) >= 1 {
+		return vals[0]
+	}
+	return nil
+}
+
 // Str converts any value to a string.
 func Str(v any) string {
 	if v == nil {

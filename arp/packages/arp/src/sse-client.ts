@@ -72,7 +72,7 @@ async function parseSSEStream(
         if (!trimmed.startsWith("data:")) continue;
 
         const data = trimmed.slice(5).trim();
-        if (data === "[DONE]") {
+        if (data === "[DONE]" || currentEvent === "done") {
           callbacks.onDone?.();
           return;
         }

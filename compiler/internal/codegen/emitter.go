@@ -14,6 +14,7 @@ type GoEmitter struct {
 	buf          strings.Builder
 	indent       int
 	declaredVars map[string]bool
+	scopeStack   []map[string]bool // stack of block-scoped variable declarations
 	typeInfo     *checker.TypeInfo
 	sourceFile   string // Haira source filename (e.g., "examples/08-structs.haira")
 	sourceText   string // Haira source text (for offset→line conversion)
@@ -41,7 +42,31 @@ func (e *GoEmitter) DeclareVar(name string) bool {
 		return false
 	}
 	e.declaredVars[name] = true
+	// Track in current scope so PopScope can remove it
+	if len(e.scopeStack) > 0 {
+		e.scopeStack[len(e.scopeStack)-1][name] = true
+	}
 	return true
+}
+
+// PushScope enters a new block scope (for, if, while).
+// Variables declared after this call will be removed when PopScope is called.
+func (e *GoEmitter) PushScope() {
+	e.scopeStack = append(e.scopeStack, make(map[string]bool))
+}
+
+// PopScope exits the current block scope, removing variables declared within it.
+// This ensures variables declared inside a for/if/while body don't leak into
+// outer scopes, matching Go's block scoping rules.
+func (e *GoEmitter) PopScope() {
+	if len(e.scopeStack) == 0 {
+		return
+	}
+	top := e.scopeStack[len(e.scopeStack)-1]
+	for name := range top {
+		delete(e.declaredVars, name)
+	}
+	e.scopeStack = e.scopeStack[:len(e.scopeStack)-1]
 }
 
 // ResetVars clears declared variables — call at the start of each function/workflow.

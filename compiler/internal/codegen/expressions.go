@@ -50,33 +50,36 @@ func ExprToGo(expr ast.Expr) string {
 		if resolved, ok := ResolveStdlibMethodCall(e); ok {
 			return resolved
 		}
-		// Agent method calls: PascalCase receiver + ask/run/stream
+		// Agent method calls: ask/run/stream on any agent receiver
 		if ident, ok := e.Receiver.Node.(ast.IdentExpr); ok {
-			if len(ident.Name) > 0 && ident.Name[0] >= 'A' && ident.Name[0] <= 'Z' {
-				m := e.Method.Node
-				if m == "ask" || m == "run" || m == "stream" {
+			m := e.Method.Node
+			if m == "ask" || m == "run" || m == "stream" {
+				var positional []string
+				var sessionArg string
+				hasSession := false
+				for _, arg := range e.Args {
+					if arg.Name != nil && arg.Name.Node == "session" {
+						sessionArg = ExprToGo(arg.Value)
+						hasSession = true
+					} else {
+						positional = append(positional, ExprToGo(arg.Value))
+					}
+				}
+				if hasSession {
+					positional = append(positional, sessionArg)
+				} else {
+					positional = append(positional, `""`)
+				}
+				method := Capitalize(m)
+				if len(ident.Name) > 0 && ident.Name[0] >= 'A' && ident.Name[0] <= 'Z' {
+					// PascalCase receivers are declared agents → use agentXxx variable
 					agentVar := "agent" + ident.Name
-					method := Capitalize(m)
-					var positional []string
-					var sessionArg string
-					hasSession := false
-					for _, arg := range e.Args {
-						if arg.Name != nil && arg.Name.Node == "session" {
-							sessionArg = ExprToGo(arg.Value)
-							hasSession = true
-						} else {
-							positional = append(positional, ExprToGo(arg.Value))
-						}
-					}
-					if m == "ask" || m == "run" || m == "stream" {
-						if hasSession {
-							positional = append(positional, sessionArg)
-						} else {
-							positional = append(positional, `""`)
-						}
-					}
 					return fmt.Sprintf("%s.%s(%s)", agentVar, method, strings.Join(positional, ", "))
 				}
+				// Lowercase receivers are dynamic agents (from create_agent)
+				// Use haira.AgentXxx helper that handles both any and *Agent types
+				allArgs := append([]string{ident.Name}, positional...)
+				return fmt.Sprintf("haira.Agent%s(%s)", method, strings.Join(allArgs, ", "))
 			}
 		}
 		// Workers target: server.listen(port) → workers.Serve(server.Handler())
@@ -299,6 +302,22 @@ func orelseReturnType(e ast.Expr) string {
 }
 
 func orelseExprToGo(e ast.OrelseExpr) string {
+	// Special case: env(key, int/float) orelse default → EnvIntOr / EnvFloatOr
+	if call, ok := e.Left.Node.(ast.CallExpr); ok {
+		if ident, ok := call.Callee.Node.(ast.IdentExpr); ok && ident.Name == "env" && len(call.Args) >= 2 {
+			if hint, ok := call.Args[1].Value.Node.(ast.IdentExpr); ok {
+				keyArg := ExprToGo(call.Args[0].Value)
+				def := ExprToGo(e.Default)
+				switch hint.Name {
+				case "int":
+					return fmt.Sprintf("haira.EnvIntOr(%s, %s)", keyArg, def)
+				case "float":
+					return fmt.Sprintf("haira.EnvFloatOr(%s, %s)", keyArg, def)
+				}
+			}
+		}
+	}
+
 	orelseCounter++
 	id := orelseCounter
 	left := ExprToGo(e.Left)
@@ -331,7 +350,7 @@ func literalToGo(lit ast.Literal) string {
 		}
 		return s
 	case ast.StringLit:
-		if strings.Contains(l.Value, "\n") {
+		if strings.Contains(l.Value, "\n") && !strings.Contains(l.Value, "`") {
 			return "`" + l.Value + "`"
 		}
 		return fmt.Sprintf("%q", l.Value)
@@ -496,6 +515,8 @@ func instanceToGo(inst ast.InstanceExpr) string {
 		typeName = goType
 		isRuntime = true
 	}
+	// Look up struct field types for typed list coercion
+	fieldTypes := lookupStructFieldTypes(inst.TypeName.Node)
 	fields := make([]string, len(inst.Fields))
 	for i, f := range inst.Fields {
 		val := ExprToGo(f.Value)
@@ -506,6 +527,12 @@ func instanceToGo(inst ast.InstanceExpr) string {
 			if isRuntime {
 				key = SnakeToPascal(f.Name.Node)
 			}
+			// Coerce []any{...} to the correct typed slice if the field expects one
+			if goFieldType, ok := fieldTypes[f.Name.Node]; ok && strings.HasPrefix(val, "[]any{") {
+				if goFieldType != "[]any" && strings.HasPrefix(goFieldType, "[]") {
+					val = goFieldType + val[len("[]any"):]
+				}
+			}
 			fields[i] = key + ": " + val
 		} else {
 			fields[i] = val
@@ -514,14 +541,61 @@ func instanceToGo(inst ast.InstanceExpr) string {
 	return fmt.Sprintf("%s{%s}", typeName, strings.Join(fields, ", "))
 }
 
+// lookupStructFieldTypes returns a map of field name → Go type for a struct,
+// resolving type aliases. Returns nil if not found.
+func lookupStructFieldTypes(structName string) map[string]string {
+	if activeSourceFile == nil {
+		return nil
+	}
+	// Build type alias map
+	aliases := map[string]ast.Type{}
+	for _, item := range activeSourceFile.Items {
+		if ta, ok := item.Node.(ast.TypeAlias); ok {
+			aliases[ta.Name.Node] = ta.Ty.Node
+		}
+	}
+	// Find the struct definition
+	for _, item := range activeSourceFile.Items {
+		td, ok := item.Node.(ast.TypeDef)
+		if !ok || td.Name.Node != structName {
+			continue
+		}
+		result := make(map[string]string, len(td.Fields))
+		for _, field := range td.Fields {
+			if field.Ty == nil {
+				continue
+			}
+			ty := field.Ty.Node
+			// Resolve type alias (e.g., Scores → [int])
+			if named, ok := ty.(ast.NamedType); ok {
+				if resolved, ok := aliases[named.Name]; ok {
+					ty = resolved
+				}
+			}
+			result[field.Name.Node] = HairaTypeToGo(ty)
+		}
+		return result
+	}
+	return nil
+}
+
 func spawnToGo(spawn ast.SpawnExpr) string {
+	// Parallel-for pattern: spawn { for item in collection { ... } }
+	if len(spawn.Body.Statements) == 1 {
+		if forStmt, ok := spawn.Body.Statements[0].Node.(ast.ForStmt); ok {
+			return spawnForToGo(forStmt)
+		}
+	}
+
+	// Individual statements pattern: each statement runs as a separate goroutine
 	em := NewEmitter()
 	count := len(spawn.Body.Statements)
 	em.Line("func() []any {")
-	em.Line(fmt.Sprintf("\tresults := make([]any, %d)", count))
-	em.Line(fmt.Sprintf("\terrs := make([]error, %d)", count))
-	em.Line("\tvar wg sync.WaitGroup")
-	em.Line(fmt.Sprintf("\twg.Add(%d)", count))
+	em.Indent()
+	em.Line(fmt.Sprintf("_spawnResults := make([]any, %d)", count))
+	em.Line(fmt.Sprintf("_spawnErrs := make([]error, %d)", count))
+	em.Line("var _spawnWg sync.WaitGroup")
+	em.Line(fmt.Sprintf("_spawnWg.Add(%d)", count))
 	for i, stmt := range spawn.Body.Statements {
 		exprStr := "nil"
 		switch s := stmt.Node.(type) {
@@ -530,21 +604,113 @@ func spawnToGo(spawn ast.SpawnExpr) string {
 		case ast.AssignStmt:
 			exprStr = ExprToGo(s.Value)
 		}
-		em.Line("\tgo func(idx int) {")
-		em.Line("\t\tdefer wg.Done()")
-		em.Line("\t\tdefer func() {")
-		em.Line("\t\t\tif r := recover(); r != nil {")
-		em.Line("\t\t\t\terrs[idx] = fmt.Errorf(\"spawn task %d panicked: %v\", idx, r)")
-		em.Line("\t\t\t}")
-		em.Line("\t\t}()")
-		em.Line(fmt.Sprintf("\t\tresults[idx] = %s", exprStr))
-		em.Line(fmt.Sprintf("\t}(%d)", i))
+		em.Line("go func(idx int) {")
+		em.Indent()
+		em.Line("defer _spawnWg.Done()")
+		em.Line("defer func() {")
+		em.Indent()
+		em.Line("if r := recover(); r != nil {")
+		em.Indent()
+		em.Line("_spawnErrs[idx] = fmt.Errorf(\"spawn task %d panicked: %v\", idx, r)")
+		em.Dedent()
+		em.Line("}")
+		em.Dedent()
+		em.Line("}()")
+		em.Line(fmt.Sprintf("_spawnResults[idx] = haira.SpawnCapture(%s)", exprStr))
+		em.Dedent()
+		em.Line(fmt.Sprintf("}(%d)", i))
 	}
-	em.Line("\twg.Wait()")
-	em.Line("\tfor _, e := range errs {")
-	em.Line("\t\tif e != nil { panic(e) }")
-	em.Line("\t}")
-	em.Line("\treturn results")
+	em.Line("_spawnWg.Wait()")
+	em.Line("for _, _spawnE := range _spawnErrs {")
+	em.Indent()
+	em.Line("if _spawnE != nil { panic(_spawnE) }")
+	em.Dedent()
+	em.Line("}")
+	em.Line("return _spawnResults")
+	em.Dedent()
+	em.Line("}()")
+	return strings.TrimSpace(em.String())
+}
+
+// spawnForToGo generates a parallel-for pattern where each iteration of the
+// for-loop runs as its own goroutine, collecting results into a slice.
+func spawnForToGo(forStmt ast.ForStmt) string {
+	em := NewEmitter()
+
+	iter := ExprToGo(forStmt.Iterator)
+	switch forStmt.Iterator.Node.(type) {
+	case ast.ListExpr:
+		// Already a list literal, use directly
+	default:
+		iter = fmt.Sprintf("haira.ToSlice(%s)", iter)
+	}
+
+	var idxVar, elemVar string
+	switch p := forStmt.Pattern.(type) {
+	case ast.SinglePattern:
+		idxVar = "_spawnIdx"
+		elemVar = p.Name.Node
+	case ast.PairPattern:
+		idxVar = p.First.Node
+		elemVar = p.Second.Node
+	}
+
+	em.Line("func() []any {")
+	em.Indent()
+	em.Linef("_spawnItems := %s", iter)
+	em.Line("_spawnResults := make([]any, len(_spawnItems))")
+	em.Line("_spawnErrs := make([]error, len(_spawnItems))")
+	em.Line("var _spawnWg sync.WaitGroup")
+	em.Line("_spawnWg.Add(len(_spawnItems))")
+
+	em.Linef("for %s, %s := range _spawnItems {", idxVar, elemVar)
+	em.Indent()
+	em.Linef("go func(%s int, %s any) {", idxVar, elemVar)
+	em.Indent()
+	em.Line("defer _spawnWg.Done()")
+	em.Line("defer func() {")
+	em.Indent()
+	em.Line("if r := recover(); r != nil {")
+	em.Indent()
+	em.Linef("_spawnErrs[%s] = fmt.Errorf(\"spawn task %%d panicked: %%v\", %s, r)", idxVar, idxVar)
+	em.Dedent()
+	em.Line("}")
+	em.Dedent()
+	em.Line("}()")
+
+	// Emit for-loop body; capture last expression as the result
+	stmts := forStmt.Body.Statements
+	for i, stmt := range stmts {
+		if i == len(stmts)-1 {
+			if es, ok := stmt.Node.(ast.ExprStmt); ok {
+				em.Linef("_spawnResults[%s] = haira.SpawnCapture(%s)", idxVar, ExprToGo(es.Value))
+				break
+			}
+		}
+		// Use a sub-emitter to handle line directives and indentation properly
+		inner := NewEmitter()
+		EmitStatement(inner, stmt)
+		for _, line := range strings.Split(strings.TrimRight(inner.String(), "\n"), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" && !strings.HasPrefix(trimmed, "//line ") {
+				em.Line(trimmed)
+			}
+		}
+	}
+
+	em.Dedent()
+	em.Linef("}(%s, %s)", idxVar, elemVar)
+	em.Dedent()
+	em.Line("}")
+
+	em.Line("_spawnWg.Wait()")
+	em.Line("for _, _spawnE := range _spawnErrs {")
+	em.Indent()
+	em.Line("if _spawnE != nil { panic(_spawnE) }")
+	em.Dedent()
+	em.Line("}")
+	em.Line("return _spawnResults")
+	em.Dedent()
 	em.Line("}()")
 	return strings.TrimSpace(em.String())
 }

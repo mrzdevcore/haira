@@ -6,13 +6,15 @@
 // indicators rendered as interactive UI components.
 //
 // Showcases:
-//   - 10 coding tools in ~350 lines (vs 10,000+ in OpenCode/Claude Code)
+//   - 14 coding tools with parallel analysis via dynamic agent spawning
 //   - Rich browser UI with diffs, confirmations, progress indicators
 //   - Approval flow: agent proposes edits → user approves via ui.confirm()
-//   - Zero dependencies — compiles to a single 11MB binary
+//   - Multi-file parallel analysis using spawn + dynamic agents
+//   - Web search and documentation lookup
+//   - Zero dependencies — compiles to a single binary
 //
 // Requires:
-//   Ollama running locally (default), or set ANTHROPIC_API_KEY for Claude
+//   ANTHROPIC_API_KEY or Claude Code installed locally
 //
 // Run:
 //   cd ~/my-project
@@ -24,54 +26,28 @@ import "fs"
 import "os"
 import "string"
 import "conv"
+import "json"
 import "array"
 import "ui"
+import "websearch"
 import "observe"
+import "langfuse"
 import "auth"
 
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
 
-// To use Claude (credentials imported from Claude Code on startup):
 provider claude {
     backend: "anthropic"
     model: "claude-sonnet-4-20250514"
 }
-
-// To use Ollama locally instead, uncomment and change agent provider below:
-// provider ollama {
-//     model: "qwen3-coder:480b-cloud"
-//     endpoint: "http://localhost:11434/v1"
-// }
 
 // ---------------------------------------------------------------------------
 // Working Directory
 // ---------------------------------------------------------------------------
 
 cwd = os.cwd()
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// Detect language from file extension for syntax highlighting.
-fn detect_language(path: string) -> string {
-    if string.ends_with(path, ".haira") { return "haira" }
-    if string.ends_with(path, ".go") { return "go" }
-    if string.ends_with(path, ".ts") or string.ends_with(path, ".tsx") { return "typescript" }
-    if string.ends_with(path, ".js") or string.ends_with(path, ".jsx") { return "javascript" }
-    if string.ends_with(path, ".py") { return "python" }
-    if string.ends_with(path, ".rs") { return "rust" }
-    if string.ends_with(path, ".json") { return "json" }
-    if string.ends_with(path, ".yaml") or string.ends_with(path, ".yml") { return "yaml" }
-    if string.ends_with(path, ".md") { return "markdown" }
-    if string.ends_with(path, ".html") { return "html" }
-    if string.ends_with(path, ".css") { return "css" }
-    if string.ends_with(path, ".sql") { return "sql" }
-    if string.ends_with(path, ".sh") or string.ends_with(path, ".bash") { return "bash" }
-    return "text"
-}
 
 // ---------------------------------------------------------------------------
 // Tools — File Operations
@@ -293,23 +269,11 @@ tool run_command(command: string, timeout: int = 30) -> string {
 
     Common uses: running tests, building projects, git status, linting.
     """
-    // Safety blocklist
-    normalized = string.to_lower(command)
-    if string.contains(normalized, "rm -rf /") or string.contains(normalized, "sudo rm") {
-        return "ERROR: This command is blocked for safety."
-    }
-    if string.contains(normalized, "chmod 777") or string.contains(normalized, "mkfs") {
-        return "ERROR: This command is blocked for safety."
-    }
-    if string.contains(normalized, "> /dev/") or string.contains(normalized, "dd if=") {
-        return "ERROR: This command is blocked for safety."
-    }
-
     full_cmd = "cd \"" + cwd + "\" && " + command + " 2>&1"
-    output, err = os.exec_timeout(full_cmd, timeout)
+    output, err = os.safe_exec(full_cmd, timeout)
 
     if err != nil {
-        return "COMMAND FAILED: " + command + "\nError: " + conv.to_string(err) + "\nOutput:\n" + output
+        return "COMMAND FAILED: " + command + "\nError: " + conv.to_string(err) + "\nOutput:\n" + conv.to_string(output)
     }
 
     if string.trim(output) == "" {
@@ -323,22 +287,28 @@ tool run_command(command: string, timeout: int = 30) -> string {
 // Tools — Web
 // ---------------------------------------------------------------------------
 
-tool web_fetch(url: string) -> string {
+tool web_search(query: string) -> string {
+    """
+    Search the web for information. Use this when the user asks about
+    libraries, APIs, error messages, or anything that benefits from current data.
+    Returns a summary of search results.
+    """
+    return websearch.search(query)
+}
+
+tool web_fetch(url: string, max_length: int = 50000) -> string {
     """
     Fetch content from a URL and return the response body.
     Parameters:
     - url: the URL to fetch (must be https or http)
+    - max_length: max characters to return (default: 50000)
     Use this for fetching documentation, API responses, or web content.
     """
-    resp, err = http.get(url)
+    result, err = websearch.fetch(url, max_length)
     if err != nil {
         return "ERROR: Failed to fetch " + url + ": " + conv.to_string(err)
     }
-    body = resp.body
-    if string.len(body) > 50000 {
-        body = string.substring(body, 0, 50000) + "\n\n... (truncated, " + conv.to_string(string.len(resp.body)) + " total chars)"
-    }
-    return "Fetched " + url + ":\n\n" + body
+    return "Fetched " + url + ":\n\n" + conv.to_string(result)
 }
 
 // ---------------------------------------------------------------------------
@@ -383,7 +353,7 @@ tool propose_edit(path: string, old_text: string, new_text: string) -> string {
         return "ERROR: Found " + conv.to_string(count) + " occurrences in " + path + ". Provide more surrounding context."
     }
 
-    lang = detect_language(path)
+    lang = string.detect_language(path)
 
     return ui.group(
         ui.diff("Edit: " + path, "Current", "Proposed", old_text, new_text, lang),
@@ -416,11 +386,9 @@ tool run_tests(framework: string = "") -> string {
       Supported: "go", "npm", "cargo", "python", "make"
     Returns the test output.
     """
-    // Determine the test command
     cmd = ""
     label = ""
 
-    // Explicit framework
     if framework == "go" {
         cmd = "go test ./... 2>&1"
         label = "go test"
@@ -445,7 +413,7 @@ tool run_tests(framework: string = "") -> string {
         return "Unknown framework: " + framework + ". Supported: go, npm, cargo, python, make"
     }
 
-    // Auto-detect if no framework specified
+    // Auto-detect
     if cmd == "" and fs.exists(cwd + "/go.mod") {
         cmd = "go test ./... 2>&1"
         label = "go test"
@@ -484,6 +452,162 @@ tool run_tests(framework: string = "") -> string {
         return "TESTS FAILED (" + label + "):\n" + output
     }
     return "TESTS PASSED (" + label + "):\n" + output
+}
+
+// ---------------------------------------------------------------------------
+// Tools — Parallel Analysis (Dynamic Agent Spawning)
+// ---------------------------------------------------------------------------
+
+tool analyze_files(file_paths: string, question: string) -> string {
+    """
+    Analyze multiple files IN PARALLEL by spawning a dynamic agent per file.
+    Each agent reads its file and answers the question independently.
+    Results are collected and returned together.
+    Parameters:
+    - file_paths: comma-separated list of file paths relative to the project root
+    - question: the question to answer about each file (e.g. "summarize this file",
+      "find bugs", "list exported functions", "check for security issues")
+    Use this when the user asks to analyze, review, or understand multiple files at once.
+    This is MUCH faster than reading files one by one.
+    """
+    paths = string.split(string.trim(file_paths), ",")
+    summaries = []
+    file_contents = []
+
+    // Read all files first
+    for raw_path in paths {
+        path = string.trim(conv.to_string(raw_path))
+        if path == "" { continue }
+        full_path = cwd + "/" + path
+        content, err = fs.read_file(full_path)
+        if err != nil {
+            summaries = array.push(summaries, "**" + path + "**: ERROR — " + conv.to_string(err))
+            continue
+        }
+        file_contents = array.push(file_contents, { "path": path, "content": content })
+    }
+
+    // Spawn a dynamic agent per file for parallel analysis
+    results = spawn {
+        for entry in file_contents {
+            p = conv.to_string(entry["path"])
+            c = conv.to_string(entry["content"])
+            lang = string.detect_language(p)
+            analyzer = create_agent({
+                "name": "analyzer-" + p,
+                "system": "You are a code analyst. Analyze the given file and answer the question concisely. File: " + p + " (language: " + lang + ")",
+                "memory_kind": "none",
+                "temperature": 0.1,
+                "max_tokens": 1024
+            }, claude, nil)
+            analyzer.ask("File: " + p + "\n\n```" + lang + "\n" + c + "\n```\n\nQuestion: " + question)
+        }
+    }
+
+    // Collect results
+    for i, result in results {
+        path = conv.to_string(file_contents[i]["path"])
+        reply = conv.to_string(result)
+        summaries = array.push(summaries, "**" + path + "**:\n" + reply)
+    }
+
+    return string.join(summaries, "\n\n---\n\n")
+}
+
+tool project_overview() -> string {
+    """
+    Generate a comprehensive project overview by analyzing the project structure,
+    build files, and key source files in parallel.
+    Returns a structured summary of the project: language, framework, entry points,
+    dependencies, and directory layout.
+    Call this when the user first asks about a project or says "what is this project".
+    """
+    // Gather project info in parallel
+    info = spawn {
+        os.safe_exec("cd \"" + cwd + "\" && find . -maxdepth 1 -type f | head -20 | sort", 5)
+        os.safe_exec("cd \"" + cwd + "\" && find . -maxdepth 2 -type d -not -path './.git*' -not -path './node_modules*' | sort", 5)
+        os.safe_exec("cd \"" + cwd + "\" && git log --oneline -10 2>/dev/null || echo 'Not a git repo'", 5)
+        os.safe_exec("cd \"" + cwd + "\" && wc -l $(find . -name '*.go' -o -name '*.ts' -o -name '*.js' -o -name '*.py' -o -name '*.rs' -o -name '*.haira' | head -100) 2>/dev/null | tail -1 || echo '0 total'", 10)
+    }
+
+    root_files = conv.to_string(info[0])
+    dirs = conv.to_string(info[1])
+    git_log = conv.to_string(info[2])
+    loc = conv.to_string(info[3])
+
+    // Detect project type
+    project_type = "Unknown"
+    if fs.exists(cwd + "/go.mod") { project_type = "Go" }
+    if fs.exists(cwd + "/package.json") { project_type = "Node.js / TypeScript" }
+    if fs.exists(cwd + "/Cargo.toml") { project_type = "Rust" }
+    if fs.exists(cwd + "/pyproject.toml") or fs.exists(cwd + "/setup.py") { project_type = "Python" }
+    if fs.exists(cwd + "/main.haira") { project_type = "Haira" }
+
+    return ui.group(
+        ui.key_value("Project Overview", {
+            "Directory": cwd,
+            "Type": project_type,
+            "Lines of Code": string.trim(loc)
+        }),
+        ui.code_block("Root Files", "text", root_files),
+        ui.code_block("Directory Structure", "text", dirs),
+        ui.code_block("Recent Commits", "text", git_log)
+    )
+}
+
+tool batch_edit(edits_json: string) -> string {
+    """
+    Apply multiple edits across different files in a single operation.
+    Shows all proposed changes as diffs and asks for batch approval.
+    Parameters:
+    - edits_json: JSON array of edit objects, each with "path", "old_text", "new_text".
+      Example: [{"path":"src/main.go","old_text":"foo","new_text":"bar"},{"path":"src/util.go","old_text":"baz","new_text":"qux"}]
+    Use this when a refactor or rename touches multiple files at once.
+    """
+    edits, parse_err = json.parse(edits_json)
+    if parse_err != nil {
+        return "ERROR: Invalid JSON: " + conv.to_string(parse_err)
+    }
+
+    diffs = []
+    errors = []
+    for edit in edits {
+        path = conv.to_string(edit["path"])
+        old_text = conv.to_string(edit["old_text"])
+        new_text = conv.to_string(edit["new_text"])
+        full_path = cwd + "/" + path
+
+        content, err = fs.read_file(full_path)
+        if err != nil {
+            errors = array.push(errors, path + ": " + conv.to_string(err))
+            continue
+        }
+        if not string.contains(content, old_text) {
+            errors = array.push(errors, path + ": old_text not found")
+            continue
+        }
+        count = string.count(content, old_text)
+        if count > 1 {
+            errors = array.push(errors, path + ": " + conv.to_string(count) + " occurrences (ambiguous)")
+            continue
+        }
+
+        lang = string.detect_language(path)
+        diffs = array.push(diffs, ui.diff("Edit: " + path, "Current", "Proposed", old_text, new_text, lang))
+    }
+
+    if array.len(errors) > 0 {
+        return ui.group(
+            ui.status_card("error", "Batch Edit Errors", string.join(errors, "\n")),
+            ui.confirm("Apply the " + conv.to_string(array.len(diffs)) + " valid edits?", "Apply Valid", "Cancel All")
+        )
+    }
+
+    return ui.group(
+        ui.status_card("info", "Batch Edit", conv.to_string(array.len(diffs)) + " files to modify"),
+        diffs[0],
+        ui.confirm("Apply all " + conv.to_string(array.len(diffs)) + " edits?", "Apply All", "Cancel")
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -526,24 +650,44 @@ agent Coder {
            NEVER use edit_file or write_file without prior user approval.
         3. SEARCH before you guess — use search_files and find_files to locate code.
         4. EXPLAIN concisely — lead with the action, not the reasoning.
+        5. PARALLELIZE — use analyze_files when reviewing multiple files at once.
 
         TOOL USAGE:
         - To view files: read_file → then render_codeblock to display
         - To find files: find_files → then render_table to display
         - To search content: search_files → then render_table to display
         - To see directory structure: list_directory → then render_table to display
+        - To get project overview: project_overview (auto-renders)
         - To propose changes: propose_edit (handles rendering internally)
         - To propose running a command: propose_command (shows command + approval buttons)
         - To show code comparisons: show_diff (handles rendering internally)
         - To run commands: run_command → then render_codeblock to display output
         - To run tests: run_tests (auto-detects framework)
+        - To search the web: web_search → summarize results for the user
         - To fetch web content: web_fetch → then render_codeblock to display
+        - To review multiple files: analyze_files (parallel analysis via spawned agents)
+        - To rename/refactor across files: batch_edit (multi-file diffs with approval)
+
+        PARALLEL ANALYSIS:
+        When the user asks to review, analyze, or understand multiple files:
+        1. Use find_files to locate relevant files
+        2. Use analyze_files with a comma-separated list and a specific question
+        3. Each file is analyzed in parallel by a dedicated agent — this is fast
+        4. Render the combined results to the user
+        Examples: "review all Go files in pkg/", "find security issues in src/",
+        "summarize all test files", "what do the handlers do?"
 
         EDIT WORKFLOW:
         1. Read the file with read_file
         2. Propose the change with propose_edit (renders diff + confirm buttons)
         3. Wait for user approval — if "[Confirmed]", apply with edit_file
         4. If "[Denied]", acknowledge and ask how to adjust
+
+        BATCH EDIT WORKFLOW:
+        1. Identify all files that need changes (use search_files)
+        2. Use batch_edit with a JSON array of edits
+        3. Wait for user approval
+        4. If "[Confirmed]", apply each edit with edit_file
 
         COMMAND WORKFLOW:
         1. For commands with side effects, use propose_command to get approval
@@ -556,7 +700,14 @@ agent Coder {
         - Be careful with write_file — prefer propose_edit for existing files
         - For installs, builds, and git operations — use propose_command first
     """
-    tools: [read_file, write_file, edit_file, search_files, find_files, list_directory, run_command, web_fetch, show_diff, propose_edit, propose_command, run_tests]
+    tools: [
+        read_file, write_file, edit_file,
+        search_files, find_files, list_directory,
+        run_command, run_tests,
+        web_search, web_fetch,
+        show_diff, propose_edit, propose_command,
+        analyze_files, project_overview, batch_edit
+    ]
     ui: ui
     memory: conversation(max_turns: 50)
     temperature: 0.2
@@ -573,12 +724,12 @@ agent Coder {
     description: "AI coding assistant — read, search, edit, and run commands in your project",
     mode: "code",
     suggestions: [
-        "What files are in this project?",
-        "Show me the project structure",
+        "Give me an overview of this project",
         "Find all TODO comments in the codebase",
-        "Read the main entry point",
+        "Review the main entry point for bugs",
+        "Analyze all test files — are they comprehensive?",
         "Run the tests",
-        "Search for function definitions"
+        "Search the web for how to fix this error"
     ],
     accent: "#E8A317",
     avatar: "H"
@@ -589,8 +740,8 @@ workflow Chat(message: string, session_id: string) -> stream {
 }
 
 @get("/api/health")
-workflow Health() -> { status: string, project: string } {
-    return { status: "operational", project: cwd }
+workflow Health() -> { status: string, project: string, tools: int } {
+    return { status: "operational", project: cwd, tools: 16 }
 }
 
 // ---------------------------------------------------------------------------
@@ -610,26 +761,32 @@ fn main() {
     io.println("")
     io.println("  Project:  " + cwd)
     io.println("")
-    io.println("  Tools:")
-    io.println("    read_file        Read file contents with line numbers")
-    io.println("    write_file       Create or overwrite files")
-    io.println("    edit_file        Find-and-replace in files")
-    io.println("    search_files     Grep-style content search")
-    io.println("    find_files       Glob-based file finding")
-    io.println("    list_directory   List directory contents")
-    io.println("    run_command      Execute shell commands")
-    io.println("    run_tests        Auto-detect and run tests")
-    io.println("    web_fetch        Fetch URL content")
-    io.println("    show_diff        Display code diffs")
-    io.println("    propose_edit     Propose edits with approval")
-    io.println("    propose_command  Propose commands with approval")
+    io.println("  Tools (16):")
+    io.println("    read_file         Read file contents with line numbers")
+    io.println("    write_file        Create or overwrite files")
+    io.println("    edit_file         Find-and-replace in files")
+    io.println("    search_files      Grep-style content search")
+    io.println("    find_files        Glob-based file finding")
+    io.println("    list_directory    List directory contents")
+    io.println("    run_command       Execute shell commands (safe)")
+    io.println("    run_tests         Auto-detect and run tests")
+    io.println("    web_search        Search the web")
+    io.println("    web_fetch         Fetch URL content")
+    io.println("    show_diff         Display code diffs")
+    io.println("    propose_edit      Propose edits with approval")
+    io.println("    propose_command   Propose commands with approval")
+    io.println("    analyze_files     Parallel multi-file analysis (dynamic agents)")
+    io.println("    project_overview  Full project summary (parallel)")
+    io.println("    batch_edit        Multi-file refactoring with approval")
     io.println("")
 
+    observe.use(langfuse.exporter(env("LANGFUSE_PUBLIC_KEY"), env("LANGFUSE_SECRET_KEY"), env("LANGFUSE_HOST")))
+    port = env("PORT", int) orelse 9010
     server = http.Server([Chat, Health])
     observe.start(server)
-    io.println("  Chat UI:  http://localhost:9010/_ui/api/chat")
+    io.println("  Chat UI:  http://localhost:${port}/_ui/api/chat")
     io.println("  Health:   GET /api/health")
     io.println("")
 
-    server.listen(9010)
+    server.listen(port)
 }

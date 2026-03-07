@@ -370,16 +370,16 @@ Analysis of 6 POCs identified reusable patterns that should become stdlib packag
 
 Issues found in proof-of-concept code that should be fixed or documented.
 
-- [ ] **POC-01** `poc/coding-agent/` contains compiled `hcode` binary (16MB) — should be in `.gitignore`
+- [x] **POC-01** `poc/coding-agent/` contains compiled `hcode` binary (16MB) — added to `.gitignore`
 - [ ] **POC-02** `agent` binary (16MB) at repo root — should be in `.gitignore`
-- [ ] **POC-03** All POCs hardcode ports (9003, 9004, 9005, 9010) — should use `env("PORT")` with defaults
-- [ ] **POC-04** All POCs call `langfuse.exporter("", "", "")` with empty strings — should read from env or skip gracefully
+- [x] **POC-03** All POCs now use `env("PORT", int) orelse <default>` — no more hardcoded ports. Port conflicts resolved (cloudflare-agent→9006, pipeline-form→9007)
+- [x] **POC-04** All POCs now use `langfuse.exporter(env("LANGFUSE_PUBLIC_KEY"), env("LANGFUSE_SECRET_KEY"), env("LANGFUSE_HOST"))` — reads from env vars
 - [ ] **POC-05** `poc/maltimize/` has 47 hardcoded table→sheet mappings and conflict column configs — should be external JSON config
 - [ ] **POC-06** `poc/maltimize/` has French-only UI/system strings — no i18n
 - [ ] **POC-07** `poc/maltimize/` hardcodes SQL output paths to specific project structure (`apps/maite-api/src/infrastructure/...`)
-- [ ] **POC-08** `poc/coding-agent/.gitignore` only contains `README.md` — incomplete
+- [x] **POC-08** `poc/coding-agent/.gitignore` now covers `hcode`, `.haira.db*` files
 - [ ] **POC-09** No POC has test files (`*_test.haira`) — add basic smoke tests
-- [ ] **POC-10** SQLite database files (`.haira.db`, `.haira.db-shm`, `.haira.db-wal`) committed in POC dirs — should be in `.gitignore`
+- [x] **POC-10** SQLite database files (`.haira.db`, `.haira.db-shm`, `.haira.db-wal`) added to `poc/coding-agent/.gitignore`
 
 ---
 
@@ -421,8 +421,8 @@ Issues found in proof-of-concept code that should be fixed or documented.
 23. STD-09, STD-10 (stdlib duplicates and coupling)
 24. GEN-11, GEN-12 (codegen global state refactor)
 25. LEX-06 (dead code removal)
-26. POC-01, POC-02, POC-10 (gitignore cleanup)
-27. POC-03, POC-04 (hardcoded ports and empty langfuse calls)
+26. ~~POC-01, POC-08, POC-10 (gitignore cleanup)~~ ✅
+27. ~~POC-03, POC-04 (hardcoded ports and empty langfuse calls)~~ ✅
 
 ### Phase 7: Runtime Hardening
 28. RT-04 through RT-14 (memory leaks, error handling, resource cleanup)
@@ -480,5 +480,5 @@ Issues found in proof-of-concept code that should be fixed or documented.
 | 13. Examples | 8 | 4 | 4 | 50% |
 | 14. Dynamic Agents | 8 | 4 | 4 | 50% |
 | 15. Stdlib Expansion | 17 | 4 | 13 | 24% |
-| 16. POC Cleanup | 10 | 0 | 10 | 0% |
-| **TOTAL** | **213** | **80** | **133** | **38%** |
+| 16. POC Cleanup | 10 | 5 | 5 | 50% |
+| **TOTAL** | **213** | **85** | **128** | **40%** |

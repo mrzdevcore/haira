@@ -911,6 +911,33 @@ func CreateAgent(config map[string]any, provider *Provider, tools *ToolRegistry)
 	return NewAgent(ac)
 }
 
+// AgentAsk calls Ask on a dynamic agent (which may be typed as any or *Agent).
+func AgentAsk(agent any, message string, sessionID string) (string, error) {
+	if a, ok := agent.(*Agent); ok {
+		return a.Ask(message, sessionID)
+	}
+	return "", fmt.Errorf("AgentAsk: expected *Agent, got %T", agent)
+}
+
+// AgentRun calls Run on a dynamic agent (which may be typed as any or *Agent).
+func AgentRun(agent any, message string, sessionID string) (*AgentResult, error) {
+	if a, ok := agent.(*Agent); ok {
+		return a.Run(message, sessionID)
+	}
+	return nil, fmt.Errorf("AgentRun: expected *Agent, got %T", agent)
+}
+
+// AgentStream calls Stream on a dynamic agent (which may be typed as any or *Agent).
+func AgentStream(agent any, message string, sessionID string) <-chan StreamChunk {
+	if a, ok := agent.(*Agent); ok {
+		return a.Stream(message, sessionID)
+	}
+	ch := make(chan StreamChunk, 1)
+	ch <- StreamChunk{Type: "error", Delta: fmt.Sprintf("AgentStream: expected *Agent, got %T", agent)}
+	close(ch)
+	return ch
+}
+
 // SpawnAgents runs multiple agent calls in parallel and returns all results.
 // Each task is a struct with agent *Agent, message string, sessionID string.
 type AgentTask struct {

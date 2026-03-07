@@ -60,7 +60,7 @@ func WriteArpSSE(w io.Writer, flush func(), messages <-chan ArpMessage) ArpSSERe
 			if p.Delta != "" {
 				result.FullReply += p.Delta
 				data, _ := json.Marshal(map[string]string{"delta": p.Delta})
-				fmt.Fprintf(w, "data: %s\n\n", data)
+				fmt.Fprintf(w, "event: delta\ndata: %s\n\n", data)
 			}
 
 		case TypeError:
@@ -73,7 +73,7 @@ func WriteArpSSE(w io.Writer, flush func(), messages <-chan ArpMessage) ArpSSERe
 
 		case TypeCommit:
 			if msg.Final {
-				fmt.Fprintf(w, "data: [DONE]\n\n")
+				fmt.Fprintf(w, "event: done\ndata: [DONE]\n\n")
 			}
 		}
 		flush()

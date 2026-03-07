@@ -5,6 +5,32 @@ import (
 	"strconv"
 )
 
+// EnvIntOr returns env var as int, falling back to the default if not set or unparseable.
+func EnvIntOr(key string, fallback int) int {
+	s := os.Getenv(key)
+	if s == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+// EnvFloatOr returns env var as float64, falling back to the default if not set or unparseable.
+func EnvFloatOr(key string, fallback float64) float64 {
+	s := os.Getenv(key)
+	if s == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fallback
+	}
+	return f
+}
+
 // Env returns the value of an environment variable.
 func Env(key string) string {
 	return os.Getenv(key)

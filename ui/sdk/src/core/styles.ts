@@ -2,19 +2,19 @@ import { css } from "lit";
 
 // Design tokens — dark theme (default)
 export const themeVars = css`
-  --haira-bg: #09090b;
-  --haira-bg-card: #0f0f12;
-  --haira-bg-card-hover: #18181b;
-  --haira-bg-elevated: #1c1c20;
-  --haira-bg-input: #0c0c0f;
-  --haira-border: rgba(63, 63, 70, 0.5);
+  --haira-bg: #1a1a1e;
+  --haira-bg-card: #212126;
+  --haira-bg-card-hover: #2a2a30;
+  --haira-bg-elevated: #2e2e34;
+  --haira-bg-input: #1e1e22;
+  --haira-border: rgba(255, 255, 255, 0.08);
   --haira-border-light: rgba(232, 163, 23, 0.12);
   --haira-border-focus: rgba(232, 163, 23, 0.4);
   --haira-accent: #e8a317;
   --haira-accent-light: #f0bd4f;
   --haira-accent-dim: rgba(232, 163, 23, 0.06);
   --haira-glow: #fde68a;
-  --haira-text: #fafaf9;
+  --haira-text: #e4e4e7;
   --haira-text-dim: #a1a1aa;
   --haira-muted: #71717a;
   --haira-success: #22c55e;
@@ -70,16 +70,16 @@ export const lightThemeVarsStr = `
 
 // Dark theme values as a string — used to restore dark theme from light
 export const darkThemeVarsStr = `
-  --haira-bg: #09090b;
-  --haira-bg-card: #0f0f12;
-  --haira-bg-card-hover: #18181b;
-  --haira-bg-elevated: #1c1c20;
-  --haira-bg-input: #0c0c0f;
-  --haira-border: rgba(63, 63, 70, 0.5);
+  --haira-bg: #1a1a1e;
+  --haira-bg-card: #212126;
+  --haira-bg-card-hover: #2a2a30;
+  --haira-bg-elevated: #2e2e34;
+  --haira-bg-input: #1e1e22;
+  --haira-border: rgba(255, 255, 255, 0.08);
   --haira-border-light: rgba(232, 163, 23, 0.12);
   --haira-border-focus: rgba(232, 163, 23, 0.4);
   --haira-glow: #fde68a;
-  --haira-text: #fafaf9;
+  --haira-text: #e4e4e7;
   --haira-text-dim: #a1a1aa;
   --haira-muted: #71717a;
   --hljs-base: #d4d4d4;

@@ -299,10 +299,23 @@ func (e *Env) registerStdlib() {
 	e.funcs["fs.read_dir"] = &FuncType{Params: []Type{str}, Return: anyList}
 	e.funcs["fs.stat"] = &FuncType{Params: []Type{str}, Return: any}
 
+	// os module extended
+	e.funcs["os.safe_exec"] = &FuncType{Params: []Type{str, integer}, Return: any}
+
+	// websearch module
+	e.funcs["websearch.search"] = &FuncType{Params: []Type{str}, Return: str}
+	e.funcs["websearch.fetch"] = &FuncType{Params: []Type{str, integer}, Return: any}
+
+	// healthcheck module
+	e.funcs["healthcheck.check"] = &FuncType{Params: []Type{str, str}, Return: any}
+	e.funcs["healthcheck.check_all"] = &FuncType{Params: []Type{any}, Return: anyList}
+
 	// Built-in functions
 	e.funcs["env"] = &FuncType{Params: []Type{str}, Return: str}
 	e.funcs["len"] = &FuncType{Params: []Type{any}, Return: integer}
 	e.funcs["keys"] = &FuncType{Params: []Type{any}, Return: strList}
 	e.funcs["join"] = &FuncType{Params: []Type{any, str}, Return: str}
 	e.funcs["panic"] = &FuncType{Params: []Type{any}, Return: any}
+	e.funcs["create_agent"] = &FuncType{Params: []Type{any, any, any}, Return: any}
+	e.funcs["spawn_agents"] = &FuncType{Params: []Type{any}, Return: anyList}
 }

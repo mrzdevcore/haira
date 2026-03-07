@@ -3,15 +3,14 @@ package haira
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 )
 
-// ParseJSON unmarshals a JSON string into a map. Returns empty map on error.
+// ParseJSON unmarshals a JSON string into a map.
+// Panics on parse error (caught by Haira's try/catch via recover).
 func ParseJSON(body string) map[string]any {
 	var result map[string]any
 	if err := json.Unmarshal([]byte(body), &result); err != nil {
-		fmt.Fprintf(os.Stderr, "haira: ParseJSON error: %v\n", err)
-		return map[string]any{}
+		panic(fmt.Sprintf("json parse error: %v", err))
 	}
 	if result == nil {
 		return map[string]any{}

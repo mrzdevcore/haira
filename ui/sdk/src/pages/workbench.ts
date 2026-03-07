@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { baseStyles } from "../core/styles";
 import type { WorkflowMeta } from "../core/types";
 import { currentRoute } from "../core/router";
+import "../components/haira-code-agent";
 
 @customElement("haira-page-workbench")
 export class PageWorkbench extends LitElement {
@@ -60,9 +61,12 @@ export class PageWorkbench extends LitElement {
 
     if (wf) {
       // Build a meta for this specific workflow
+      const uiType = wf.uiType?.toLowerCase();
+      const resolvedMode =
+        uiType === "chat" ? "chat" : uiType === "code" ? "code" : "form";
       return {
         ...this.meta,
-        mode: wf.uiType?.toLowerCase() === "chat" ? "chat" : "form",
+        mode: resolvedMode,
         name: wf.name,
         path: wf.path,
         method: wf.method,
@@ -102,11 +106,15 @@ export class PageWorkbench extends LitElement {
       </div>`;
     }
 
-    const mode = wfMeta.mode === "chat" ? "chat" : "form";
+    const mode = wfMeta.mode;
 
     // Use keyed rendering so Lit creates a new element when the workflow changes.
     // Without this, switching from one chat workflow to another reuses the same
-    // <haira-chat> element — which never re-runs connectedCallback/initSession.
+    // element — which never re-runs connectedCallback/initSession.
+    if (mode === "code") {
+      return html`<haira-code-agent .meta=${wfMeta} .key=${wfMeta.path}></haira-code-agent>`;
+    }
+
     if (mode === "chat") {
       return html`<haira-chat .meta=${wfMeta} .key=${wfMeta.path}></haira-chat>`;
     }

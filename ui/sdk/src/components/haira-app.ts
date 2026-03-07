@@ -223,7 +223,7 @@ export class HairaApp extends LitElement {
     }
 
     // If mode is "form" or "chat", route directly to workbench
-    if (this.meta?.mode === "chat" || this.meta?.mode === "form") {
+    if (this.meta?.mode === "chat" || this.meta?.mode === "form" || this.meta?.mode === "code") {
       const p = window.location.pathname;
       if (p === "/" || p === "") {
         navigate({ page: "workbench", path: this.meta.path });

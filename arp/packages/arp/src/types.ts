@@ -216,6 +216,16 @@ export interface ProductCardsProps {
   cards: ProductCardItem[];
 }
 
+export interface ImageProps {
+  title?: string;
+  src: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  caption?: string;
+  fit?: "contain" | "cover" | "fill" | "scale-down" | "none";
+}
+
 // ---------------------------------------------------------------------------
 // Chat session types
 // ---------------------------------------------------------------------------

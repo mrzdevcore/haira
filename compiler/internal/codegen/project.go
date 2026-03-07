@@ -293,6 +293,12 @@ func stdlibGoImport(path string) (string, bool) {
 		return "algolia", true
 	case "meilisearch":
 		return "meilisearch", true
+	case "auth":
+		return "auth", true
+	case "websearch":
+		return "websearch", true
+	case "healthcheck":
+		return "healthcheck", true
 	}
 	return "", false
 }

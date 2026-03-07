@@ -1,0 +1,54 @@
+// Example 35: Stdlib Tools — Web search, health checks, safe exec, and alerts
+//
+// Demonstrates the reusable stdlib tool packages extracted from POCs:
+//   - websearch: DuckDuckGo search (no API key needed)
+//   - healthcheck: HTTP health checks with timing
+//   - os.safe_exec: Command execution with safety blocklist
+//   - slack.send_alert: Severity-formatted Slack notifications
+
+import "io"
+import "conv"
+import "os"
+import "websearch"
+import "healthcheck"
+
+fn main() {
+    // --- Web Search ---
+    io.println("=== Web Search (DuckDuckGo) ===")
+    result = websearch.search("Haira programming language")
+    io.println(result)
+    io.println("")
+
+    // --- Health Check ---
+    io.println("=== Health Check ===")
+    check = healthcheck.check("example", "https://httpbin.org/status/200")
+    io.println("Service: " + conv.to_string(check["name"]))
+    io.println("Status:  " + conv.to_string(check["status"]))
+    io.println("Time:    " + conv.to_string(check["response_time"]))
+    io.println("")
+
+    // --- Batch Health Checks ---
+    io.println("=== Batch Health Checks ===")
+    services = [
+        { "name": "httpbin-ok",    "url": "https://httpbin.org/status/200" },
+        { "name": "httpbin-error", "url": "https://httpbin.org/status/500" }
+    ]
+    results = healthcheck.check_all(services)
+    for r in results {
+        io.println(conv.to_string(r["name"]) + ": " + conv.to_string(r["status"]))
+    }
+    io.println("")
+
+    // --- Safe Exec ---
+    io.println("=== Safe Command Execution ===")
+    output, err = os.safe_exec("echo 'Hello from safe exec'", 10)
+    if err != nil {
+        io.println("Error: " + conv.to_string(err))
+    } else {
+        io.println("Output: " + output)
+    }
+
+    // This would be blocked:
+    // output2, err2 = os.safe_exec("rm -rf /", 10)
+    // err2 would be: "blocked: command contains dangerous pattern..."
+}

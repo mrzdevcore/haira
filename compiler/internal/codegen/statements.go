@@ -485,7 +485,9 @@ func patternToCondition(subject string, pattern ast.Pattern) string {
 		}
 		return fmt.Sprintf("%s >= %s && %s < %s", subject, startVal, subject, endVal)
 	}
-	return "true"
+	// Unknown pattern type — should not reach here if parser is correct.
+	// Return false to avoid silently matching everything.
+	return "false /* unknown pattern */"
 }
 
 func emitTry(em *GoEmitter, tryStmt ast.TryStmt) {

@@ -170,7 +170,13 @@ func (s *Server) workflowListItem(wf *WorkflowDef) map[string]any {
 		"method": wf.Method,
 	}
 
-	if isStream {
+	if wf.UIMode != "" {
+		// Explicit mode from @webui(mode: "...") — capitalize for frontend
+		item["uiType"] = strings.ToUpper(wf.UIMode[:1]) + wf.UIMode[1:]
+		if isStream {
+			item["chatParam"] = findChatParam(wf.Params)
+		}
+	} else if isStream {
 		item["uiType"] = "Chat"
 		item["chatParam"] = findChatParam(wf.Params)
 	} else {

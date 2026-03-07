@@ -6,7 +6,7 @@ import "io"
 type UserID = int
 type Email = string
 type Scores = [int]
-type Headers = [string:string]
+type Headers = {string:string}
 
 struct User {
     id: UserID
@@ -19,10 +19,6 @@ fn print_user(user: User) {
 }
 
 fn main() {
-    user = User{
-        id: 42,
-        email: "alice@example.com",
-        scores: [95, 87, 92]
-    }
+    user = User{ id = 42, email = "alice@example.com", scores = [95, 87, 92] }
     print_user(user)
 }

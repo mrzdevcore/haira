@@ -362,6 +362,41 @@ func UiNewMarkdown(content string, title ...string) UiMarkdown {
 	return UiMarkdown{Content: content, Title: t}
 }
 
+// UiNewCodeBlock builds a UiCodeBlock component for syntax-highlighted code display.
+// Usage in Haira: ui.code_block(title, language, code)
+func UiNewCodeBlock(title, language, code string) UiCodeBlock {
+	return UiCodeBlock{Title: title, Language: language, Code: code}
+}
+
+// UiNewDiff builds a UiDiff component for before/after code comparison.
+// Usage in Haira: ui.diff(title, beforeLabel, afterLabel, before, after, language)
+func UiNewDiff(title, beforeLabel, afterLabel, before, after, language string) UiDiff {
+	return UiDiff{
+		Title:       title,
+		BeforeLabel: beforeLabel,
+		AfterLabel:  afterLabel,
+		Before:      before,
+		After:       after,
+		Language:    language,
+	}
+}
+
+// UiNewProgress builds a UiProgress component for multi-step progress display.
+// Usage in Haira: ui.progress(title, steps)
+func UiNewProgress(title string, steps any) UiProgress {
+	return UiProgress{Title: title, Steps: toAnySlice(steps)}
+}
+
+// UiNewChoices builds a UiChoices component for option selection.
+// Usage in Haira: ui.choices(title, options) or ui.choices(title, options, "list")
+func UiNewChoices(title string, options any, style ...string) UiChoices {
+	s := "buttons"
+	if len(style) > 0 {
+		s = style[0]
+	}
+	return UiChoices{Title: title, Options: toAnySlice(options), Style: s}
+}
+
 // toAnySlice coerces a value to []any. Accepts []any directly or any as a pass-through.
 func toAnySlice(v any) []any {
 	if v == nil {

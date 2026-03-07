@@ -114,6 +114,9 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 	for _, item := range file.Items {
 		switch it := item.Node.(type) {
 		case ast.TypeDef:
+			if _, exists := c.env.LookupType(it.Name.Node); exists {
+				c.addWarning("duplicate type definition", it.Name.Span, "type '"+it.Name.Node+"' already defined")
+			}
 			fields := make(map[string]Type)
 			for _, f := range it.Fields {
 				fields[f.Name.Node] = c.resolveTypeExpr(f.Ty)
@@ -121,10 +124,16 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 			c.env.DefineType(it.Name.Node, StructType{Name: it.Name.Node, Fields: fields})
 
 		case ast.TypeAlias:
+			if _, exists := c.env.LookupType(it.Name.Node); exists {
+				c.addWarning("duplicate type definition", it.Name.Span, "type '"+it.Name.Node+"' already defined")
+			}
 			resolved := c.resolveASTType(it.Ty.Node)
 			c.env.DefineType(it.Name.Node, resolved)
 
 		case ast.EnumDef:
+			if _, exists := c.env.LookupType(it.Name.Node); exists {
+				c.addWarning("duplicate type definition", it.Name.Span, "type '"+it.Name.Node+"' already defined")
+			}
 			var variants []string
 			variantFields := make(map[string]int)
 			for _, v := range it.Variants {
@@ -134,6 +143,9 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 			c.env.DefineType(it.Name.Node, EnumType{Name: it.Name.Node, Variants: variants, VariantFields: variantFields})
 
 		case ast.FunctionDef:
+			if _, exists := c.env.LookupFunc(it.Name.Node); exists {
+				c.addWarning("duplicate function definition", it.Name.Span, "function '"+it.Name.Node+"' already defined")
+			}
 			params := make([]Type, len(it.Params))
 			for i, p := range it.Params {
 				params[i] = c.resolveTypeExpr(p.Ty)
@@ -145,6 +157,9 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 			c.env.DefineFunc(it.Name.Node, &FuncType{Params: params, Return: ret})
 
 		case ast.ToolDecl:
+			if _, exists := c.env.LookupFunc(it.Name.Node); exists {
+				c.addWarning("duplicate tool/function definition", it.Name.Span, "name '"+it.Name.Node+"' already defined")
+			}
 			params := make([]Type, len(it.Params))
 			for i, p := range it.Params {
 				params[i] = c.resolveTypeExpr(p.Ty)
@@ -156,6 +171,9 @@ func (c *checker) registerGlobals(file *ast.SourceFile) {
 			c.env.DefineFunc(it.Name.Node, &FuncType{Params: params, Return: ret})
 
 		case ast.WorkflowDecl:
+			if _, exists := c.env.LookupFunc(it.Name.Node); exists {
+				c.addWarning("duplicate workflow/function definition", it.Name.Span, "name '"+it.Name.Node+"' already defined")
+			}
 			params := make([]Type, len(it.Params))
 			for i, p := range it.Params {
 				params[i] = c.resolveTypeExpr(p.Ty)
@@ -216,6 +234,7 @@ var validProviderFields = map[string]bool{
 	"backend": true, "host": true, "account_id": true,
 	"temperature": true, "max_tokens": true,
 	"input_token_cost": true, "output_token_cost": true,
+	"auth": true, // Auth mode: "oauth" for stored OAuth tokens
 	// MCP provider fields
 	"transport": true, "command": true, "args": true, "env": true, "headers": true,
 }
@@ -239,7 +258,7 @@ func (c *checker) checkProviderFields(provider ast.ProviderDecl) {
 			c.addWarning(
 				fmt.Sprintf("unknown provider field %q", field.Key.Node),
 				field.Key.Span,
-				"valid fields: api_key, model, endpoint, api_version, backend, host, account_id, temperature, max_tokens, input_token_cost, output_token_cost",
+				"valid fields: api_key, model, endpoint, api_version, backend, host, account_id, temperature, max_tokens, input_token_cost, output_token_cost, auth",
 			)
 		}
 	}
@@ -1239,9 +1258,10 @@ var stdlibModules = map[string]bool{
 	"io": true, "http": true, "json": true, "string": true, "regex": true,
 	"math": true, "conv": true, "array": true, "map": true, "time": true,
 	"env": true, "postgres": true, "slack": true, "excel": true, "log": true,
-	"mcp": true, "ui": true, "vector": true, "observe": true, "fs": true,
+	"mcp": true, "ui": true, "vector": true, "observe": true, "fs": true, "os": true,
 	"gitlab": true, "github": true, "langfuse": true,
 	"algolia": true, "meilisearch": true, "store": true,
+	"auth": true,
 }
 
 func isStdlibModule(name string) bool {

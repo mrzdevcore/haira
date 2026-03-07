@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -317,6 +318,13 @@ func (s *Server) registerProtocolRoutes() {
 	// Chat session API
 	s.mux.HandleFunc("/_api/chats", s.handleListChats)
 	s.mux.HandleFunc("/_api/chats/", s.handleChatRoute)
+
+	// Project files API (for code mode file tree)
+	s.mux.HandleFunc("/_api/files", s.handleListFiles)
+	s.mux.HandleFunc("/_api/files/read", s.handleReadFile)
+
+	// Git info API
+	s.mux.HandleFunc("/_api/git/branch", s.handleGitBranch)
 }
 
 // --- Run History API ---
@@ -495,6 +503,141 @@ func (s *Server) handleChatRoute(rw http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// --- Project Files API ---
+
+func (s *Server) handleListFiles(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	dir := r.URL.Query().Get("path")
+	if dir == "" {
+		dir = "."
+	}
+
+	// Prevent directory traversal
+	if strings.Contains(dir, "..") {
+		http.Error(rw, "Invalid path", http.StatusBadRequest)
+		return
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		http.Error(rw, "Cannot read directory", http.StatusNotFound)
+		return
+	}
+
+	type fileEntry struct {
+		Name  string `json:"name"`
+		IsDir bool   `json:"isDir"`
+		Size  int64  `json:"size"`
+	}
+
+	var result []fileEntry
+	for _, e := range entries {
+		name := e.Name()
+		// Skip hidden files and common noise
+		if strings.HasPrefix(name, ".") || name == "node_modules" || name == "__pycache__" || name == ".output" {
+			continue
+		}
+		info, err := e.Info()
+		size := int64(0)
+		if err == nil {
+			size = info.Size()
+		}
+		result = append(result, fileEntry{
+			Name:  name,
+			IsDir: e.IsDir(),
+			Size:  size,
+		})
+	}
+
+	// Get cwd for context
+	cwd, _ := os.Getwd()
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]any{
+		"cwd":   cwd,
+		"path":  dir,
+		"files": result,
+	})
+}
+
+func (s *Server) handleReadFile(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(rw, "Missing path parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Prevent directory traversal
+	if strings.Contains(path, "..") {
+		http.Error(rw, "Invalid path", http.StatusBadRequest)
+		return
+	}
+
+	// Don't serve hidden files
+	for _, part := range strings.Split(path, "/") {
+		if strings.HasPrefix(part, ".") && part != "." {
+			http.Error(rw, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(rw, "File not found", http.StatusNotFound)
+		return
+	}
+
+	// Limit to 500KB to prevent loading huge files
+	const maxSize = 500 * 1024
+	truncated := false
+	if len(data) > maxSize {
+		data = data[:maxSize]
+		truncated = true
+	}
+
+	// Detect language from extension
+	lang := DetectLanguage(path)
+
+	lines := strings.Count(string(data), "\n") + 1
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]any{
+		"path":      path,
+		"content":   string(data),
+		"language":  lang,
+		"lines":     lines,
+		"truncated": truncated,
+	})
+}
+
+func (s *Server) handleGitBranch(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cmd := exec.Command("git", "branch", "--show-current")
+	out, err := cmd.Output()
+	branch := ""
+	if err == nil {
+		branch = strings.TrimSpace(string(out))
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]any{
+		"branch": branch,
+	})
 }
 
 // --- Workflow Discovery API ---

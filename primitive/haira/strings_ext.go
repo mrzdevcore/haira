@@ -75,11 +75,13 @@ func StringTruncate(s string, maxLen int, suffix string) string {
 	if len(s) <= maxLen {
 		return s
 	}
-	cutoff := maxLen - len(suffix)
-	if cutoff < 0 {
-		cutoff = 0
+	if maxLen <= 0 {
+		return ""
 	}
-	return s[:cutoff] + suffix
+	if len(suffix) >= maxLen {
+		return suffix[:maxLen]
+	}
+	return s[:maxLen-len(suffix)] + suffix
 }
 
 // StringExtractBetween extracts the first substring between two delimiters.
@@ -144,4 +146,52 @@ func StringWords(s string) []any {
 		result[i] = p
 	}
 	return result
+}
+
+// StringShellEscape escapes a string for safe use as a shell argument.
+// Wraps the value in single quotes and escapes embedded single quotes.
+func StringShellEscape(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// DetectLanguage returns the programming language name for a file extension.
+func DetectLanguage(path string) string {
+	idx := strings.LastIndex(path, ".")
+	if idx < 0 {
+		return "text"
+	}
+	switch strings.ToLower(path[idx+1:]) {
+	case "go":
+		return "go"
+	case "ts", "tsx":
+		return "typescript"
+	case "js", "jsx":
+		return "javascript"
+	case "py":
+		return "python"
+	case "rs":
+		return "rust"
+	case "haira":
+		return "haira"
+	case "json":
+		return "json"
+	case "yaml", "yml":
+		return "yaml"
+	case "md":
+		return "markdown"
+	case "html":
+		return "html"
+	case "css":
+		return "css"
+	case "sh", "bash":
+		return "bash"
+	case "sql":
+		return "sql"
+	case "toml":
+		return "toml"
+	case "xml":
+		return "xml"
+	default:
+		return "text"
+	}
 }

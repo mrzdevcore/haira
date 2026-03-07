@@ -26,6 +26,7 @@ export type {
   ChartProps,
   ProductCardItem,
   ProductCardsProps,
+  ImageProps,
   StepLogEntry,
   StepEvent,
 } from "@haira/arp";
@@ -50,7 +51,7 @@ export interface WorkflowParam {
 }
 
 export interface WorkflowMeta {
-  mode: "index" | "form" | "chat" | "orchestrator";
+  mode: "index" | "form" | "chat" | "orchestrator" | "code";
   name: string;
   method: string;
   path: string;

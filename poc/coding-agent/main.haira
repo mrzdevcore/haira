@@ -1,0 +1,635 @@
+// Coding Agent — Browser-based AI coding assistant.
+//
+// A Claude Code / OpenCode-like coding agent that runs in the browser.
+// Launch from any project directory, chat with the agent to read, search,
+// edit, and run commands — with rich diffs, approval dialogs, and progress
+// indicators rendered as interactive UI components.
+//
+// Showcases:
+//   - 10 coding tools in ~350 lines (vs 10,000+ in OpenCode/Claude Code)
+//   - Rich browser UI with diffs, confirmations, progress indicators
+//   - Approval flow: agent proposes edits → user approves via ui.confirm()
+//   - Zero dependencies — compiles to a single 11MB binary
+//
+// Requires:
+//   Ollama running locally (default), or set ANTHROPIC_API_KEY for Claude
+//
+// Run:
+//   cd ~/my-project
+//   haira run poc/coding-agent/main.haira
+
+import "io"
+import "http"
+import "fs"
+import "os"
+import "string"
+import "conv"
+import "array"
+import "ui"
+import "observe"
+import "auth"
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+// To use Claude (credentials imported from Claude Code on startup):
+provider claude {
+    backend: "anthropic"
+    model: "claude-sonnet-4-20250514"
+}
+
+// To use Ollama locally instead, uncomment and change agent provider below:
+// provider ollama {
+//     model: "qwen3-coder:480b-cloud"
+//     endpoint: "http://localhost:11434/v1"
+// }
+
+// ---------------------------------------------------------------------------
+// Working Directory
+// ---------------------------------------------------------------------------
+
+cwd = os.cwd()
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// Detect language from file extension for syntax highlighting.
+fn detect_language(path: string) -> string {
+    if string.ends_with(path, ".haira") { return "haira" }
+    if string.ends_with(path, ".go") { return "go" }
+    if string.ends_with(path, ".ts") or string.ends_with(path, ".tsx") { return "typescript" }
+    if string.ends_with(path, ".js") or string.ends_with(path, ".jsx") { return "javascript" }
+    if string.ends_with(path, ".py") { return "python" }
+    if string.ends_with(path, ".rs") { return "rust" }
+    if string.ends_with(path, ".json") { return "json" }
+    if string.ends_with(path, ".yaml") or string.ends_with(path, ".yml") { return "yaml" }
+    if string.ends_with(path, ".md") { return "markdown" }
+    if string.ends_with(path, ".html") { return "html" }
+    if string.ends_with(path, ".css") { return "css" }
+    if string.ends_with(path, ".sql") { return "sql" }
+    if string.ends_with(path, ".sh") or string.ends_with(path, ".bash") { return "bash" }
+    return "text"
+}
+
+// ---------------------------------------------------------------------------
+// Tools — File Operations
+// ---------------------------------------------------------------------------
+
+tool read_file(path: string, offset: int = 0, limit: int = 0) -> string {
+    """
+    Read file contents with optional line range.
+    Parameters:
+    - path: file path relative to the project root
+    - offset: start reading from this line number (0 = beginning)
+    - limit: max lines to read (0 = read entire file)
+    Returns the file contents as plain text with line numbers.
+    After calling this tool, you MUST call render_codeblock to display the
+    content to the user. The tool result is only visible to you, not the user.
+    """
+    full_path = cwd + "/" + path
+    content, err = fs.read_file(full_path)
+    if err != nil {
+        return "ERROR: " + conv.to_string(err)
+    }
+    lines = string.split(content, "\n")
+    total = array.len(lines)
+
+    start = offset
+    if start > total { start = total }
+
+    end = total
+    if limit > 0 and start + limit < total {
+        end = start + limit
+    }
+
+    numbered = []
+    for i in start..end {
+        line_num = conv.to_string(i + 1)
+        numbered = array.push(numbered, line_num + "\t" + conv.to_string(lines[i]))
+    }
+
+    result = string.join(numbered, "\n")
+    return "[" + path + "] " + conv.to_string(end - start) + " of " + conv.to_string(total) + " lines\n\n" + result
+}
+
+tool write_file(path: string, content: string) -> string {
+    """
+    Create or overwrite a file. Use this ONLY after the user has approved the change
+    via propose_edit or after explicit confirmation. For editing existing files,
+    prefer propose_edit instead.
+    Parameters:
+    - path: file path relative to the project root
+    - content: the full file content to write
+    """
+    full_path = cwd + "/" + path
+
+    // Create parent directories if needed
+    last_slash = string.last_index_of(full_path, "/")
+    if last_slash > 0 {
+        dir = string.substring(full_path, 0, last_slash)
+        fs.mkdir_all(dir)
+    }
+
+    err = fs.write_file(full_path, content)
+    if err != nil {
+        return "ERROR: Write failed: " + conv.to_string(err)
+    }
+    lines = string.split(content, "\n")
+    return "SUCCESS: File written: " + path + " (" + conv.to_string(array.len(lines)) + " lines)"
+}
+
+tool edit_file(path: string, old_text: string, new_text: string) -> string {
+    """
+    Find and replace text in a file. Use this ONLY after the user has approved
+    the change. For proposing edits with approval, use propose_edit instead.
+    Parameters:
+    - path: file path relative to the project root
+    - old_text: exact text to find (must match uniquely)
+    - new_text: replacement text
+    """
+    full_path = cwd + "/" + path
+    content, err = fs.read_file(full_path)
+    if err != nil {
+        return "ERROR: Failed to read " + path + ": " + conv.to_string(err)
+    }
+
+    if not string.contains(content, old_text) {
+        return "ERROR: The old_text was not found in " + path
+    }
+
+    count = string.count(content, old_text)
+    if count > 1 {
+        return "ERROR: Found " + conv.to_string(count) + " occurrences in " + path + ". Provide more context to make the match unique."
+    }
+
+    new_content = string.replace(content, old_text, new_text)
+    w_err = fs.write_file(full_path, new_content)
+    if w_err != nil {
+        return "ERROR: Write failed: " + conv.to_string(w_err)
+    }
+    return "SUCCESS: Edit applied to " + path
+}
+
+// ---------------------------------------------------------------------------
+// Tools — Search & Navigation
+// ---------------------------------------------------------------------------
+
+tool search_files(pattern: string, path: string = ".", file_type: string = "") -> string {
+    """
+    Search file contents using grep-style pattern matching.
+    Parameters:
+    - pattern: regex pattern to search for
+    - path: directory to search in (default: project root)
+    - file_type: filter by extension, e.g. "go", "ts", "haira" (empty = all files)
+    Returns matching lines with file paths and line numbers as plain text.
+    After calling this, use render_table to display results to the user.
+    """
+    search_path = cwd + "/" + path
+    cmd = "grep -rn -- " + string.shell_escape(pattern) + " " + string.shell_escape(search_path)
+    if file_type != "" {
+        cmd = "grep -rn --include=" + string.shell_escape("*." + file_type) + " -- " + string.shell_escape(pattern) + " " + string.shell_escape(search_path)
+    }
+    cmd = cmd + " | head -50"
+
+    output, err = os.exec(cmd)
+    if err != nil {
+        return "No files match pattern: " + pattern
+    }
+
+    lines = string.split(string.trim(output), "\n")
+    result_lines = []
+    for raw_line in lines {
+        line = conv.to_string(raw_line)
+        first_colon = string.index_of(line, ":")
+        if first_colon < 0 { continue }
+        rest = string.substring(line, first_colon + 1, string.len(line))
+        second_colon = string.index_of(rest, ":")
+        if second_colon < 0 { continue }
+
+        file = string.replace(string.substring(line, 0, first_colon), cwd + "/", "")
+        line_num = string.substring(rest, 0, second_colon)
+        content_text = string.substring(rest, second_colon + 1, string.len(rest))
+        result_lines = array.push(result_lines, file + ":" + line_num + ": " + string.trim(content_text))
+    }
+
+    if array.len(result_lines) == 0 {
+        return "No files match pattern: " + pattern
+    }
+
+    return conv.to_string(array.len(result_lines)) + " matches for \"" + pattern + "\":\n\n" + string.join(result_lines, "\n")
+}
+
+tool find_files(pattern: string, path: string = ".") -> string {
+    """
+    Find files by name pattern using glob matching.
+    Parameters:
+    - pattern: glob pattern, e.g. "*.haira", "**/*.go", "src/**/*.ts"
+    - path: directory to search in (default: project root)
+    Returns a list of matching file paths as plain text.
+    After calling this, use render_table to display results to the user.
+    """
+    search_path = cwd + "/" + path
+    cmd = "find " + string.shell_escape(search_path) + " -name " + string.shell_escape(pattern) + " -not -path '*/node_modules/*' -not -path '*/.git/*' | head -50 | sort"
+
+    output, err = os.exec(cmd)
+    if err != nil or string.trim(output) == "" {
+        return "No files match pattern: " + pattern
+    }
+
+    lines = string.split(string.trim(output), "\n")
+    result_lines = []
+    for raw_line in lines {
+        relative = string.replace(conv.to_string(raw_line), cwd + "/", "")
+        result_lines = array.push(result_lines, relative)
+    }
+
+    return conv.to_string(array.len(result_lines)) + " files matching \"" + pattern + "\":\n" + string.join(result_lines, "\n")
+}
+
+tool list_directory(path: string = ".") -> string {
+    """
+    List directory contents with file types and sizes.
+    Parameters:
+    - path: directory path relative to the project root (default: root)
+    Returns a listing of files and directories as plain text.
+    After calling this, use render_table to display results to the user.
+    """
+    full_path = cwd + "/" + path
+    entries, err = fs.read_dir(full_path)
+    if err != nil {
+        return "ERROR: " + conv.to_string(err)
+    }
+
+    result_lines = []
+    for entry in entries {
+        name = conv.to_string(entry["name"])
+        size = conv.to_string(entry["size"])
+
+        ftype = "file"
+        if entry["is_dir"] == true { ftype = "dir" }
+
+        result_lines = array.push(result_lines, ftype + "\t" + name + "\t" + size + " bytes")
+    }
+
+    return "Directory: " + path + " (" + conv.to_string(array.len(result_lines)) + " entries)\n\n" + string.join(result_lines, "\n")
+}
+
+// ---------------------------------------------------------------------------
+// Tools — Execution
+// ---------------------------------------------------------------------------
+
+tool run_command(command: string, timeout: int = 30) -> string {
+    """
+    Execute a shell command in the project directory.
+    Parameters:
+    - command: the shell command to run
+    - timeout: max execution time in seconds (default: 30)
+
+    SAFETY: The following are blocked for safety:
+    - rm -rf, sudo, chmod 777, mkfs, dd, format commands
+    - Any command that could cause irreversible damage
+
+    Common uses: running tests, building projects, git status, linting.
+    """
+    // Safety blocklist
+    normalized = string.to_lower(command)
+    if string.contains(normalized, "rm -rf /") or string.contains(normalized, "sudo rm") {
+        return "ERROR: This command is blocked for safety."
+    }
+    if string.contains(normalized, "chmod 777") or string.contains(normalized, "mkfs") {
+        return "ERROR: This command is blocked for safety."
+    }
+    if string.contains(normalized, "> /dev/") or string.contains(normalized, "dd if=") {
+        return "ERROR: This command is blocked for safety."
+    }
+
+    full_cmd = "cd \"" + cwd + "\" && " + command + " 2>&1"
+    output, err = os.exec_timeout(full_cmd, timeout)
+
+    if err != nil {
+        return "COMMAND FAILED: " + command + "\nError: " + conv.to_string(err) + "\nOutput:\n" + output
+    }
+
+    if string.trim(output) == "" {
+        return "COMMAND SUCCEEDED: " + command + " (no output)"
+    }
+
+    return "COMMAND SUCCEEDED: " + command + "\nOutput:\n" + output
+}
+
+// ---------------------------------------------------------------------------
+// Tools — Web
+// ---------------------------------------------------------------------------
+
+tool web_fetch(url: string) -> string {
+    """
+    Fetch content from a URL and return the response body.
+    Parameters:
+    - url: the URL to fetch (must be https or http)
+    Use this for fetching documentation, API responses, or web content.
+    """
+    resp, err = http.get(url)
+    if err != nil {
+        return "ERROR: Failed to fetch " + url + ": " + conv.to_string(err)
+    }
+    body = resp.body
+    if string.len(body) > 50000 {
+        body = string.substring(body, 0, 50000) + "\n\n... (truncated, " + conv.to_string(string.len(resp.body)) + " total chars)"
+    }
+    return "Fetched " + url + ":\n\n" + body
+}
+
+// ---------------------------------------------------------------------------
+// Tools — UI-Aware (Coding Agent Specific)
+// ---------------------------------------------------------------------------
+
+tool show_diff(title: string, before: string, after: string, language: string = "text") -> string {
+    """
+    Show a before/after diff to the user for review. Use this to display
+    proposed changes before applying them.
+    Parameters:
+    - title: description of the change
+    - before: the original code
+    - after: the modified code
+    - language: syntax highlighting language (default: "text")
+    """
+    return ui.diff(title, "Before", "After", before, after, language)
+}
+
+tool propose_edit(path: string, old_text: string, new_text: string) -> string {
+    """
+    Propose a file edit with a visual diff and ask the user for approval.
+    This is the PREFERRED way to make changes — always use this instead of
+    edit_file directly. The edit is ONLY applied if the user clicks Approve.
+    Parameters:
+    - path: file path relative to the project root
+    - old_text: exact text to replace (must match uniquely in the file)
+    - new_text: the replacement text
+    """
+    full_path = cwd + "/" + path
+    content, err = fs.read_file(full_path)
+    if err != nil {
+        return "ERROR: Failed to read " + path + ": " + conv.to_string(err)
+    }
+
+    if not string.contains(content, old_text) {
+        return "ERROR: The specified text was not found in " + path
+    }
+
+    count = string.count(content, old_text)
+    if count > 1 {
+        return "ERROR: Found " + conv.to_string(count) + " occurrences in " + path + ". Provide more surrounding context."
+    }
+
+    lang = detect_language(path)
+
+    return ui.group(
+        ui.diff("Edit: " + path, "Current", "Proposed", old_text, new_text, lang),
+        ui.confirm("Apply this change to " + path + "?", "Apply", "Skip")
+    )
+}
+
+tool propose_command(command: string, description: string = "") -> string {
+    """
+    Show a command to the user and ask for approval before running it.
+    Use this for commands that could have side effects (installs, builds, git operations).
+    The command is ONLY executed if the user clicks Approve.
+    Parameters:
+    - command: the shell command to run
+    - description: short explanation of what the command does
+    """
+    label = description
+    if label == "" { label = command }
+    return ui.group(
+        ui.code_block("Command: " + label, "bash", command),
+        ui.confirm("Run this command?", "Run", "Skip")
+    )
+}
+
+tool run_tests(framework: string = "") -> string {
+    """
+    Auto-detect and run the project's test suite.
+    Parameters:
+    - framework: override test framework. Leave empty for auto-detection.
+      Supported: "go", "npm", "cargo", "python", "make"
+    Returns the test output.
+    """
+    // Determine the test command
+    cmd = ""
+    label = ""
+
+    // Explicit framework
+    if framework == "go" {
+        cmd = "go test ./... 2>&1"
+        label = "go test"
+    }
+    if framework == "npm" {
+        cmd = "npm test 2>&1"
+        label = "npm test"
+    }
+    if framework == "cargo" {
+        cmd = "cargo test 2>&1"
+        label = "cargo test"
+    }
+    if framework == "python" {
+        cmd = "python -m pytest 2>&1"
+        label = "pytest"
+    }
+    if framework == "make" {
+        cmd = "make test 2>&1"
+        label = "make test"
+    }
+    if framework != "" and cmd == "" {
+        return "Unknown framework: " + framework + ". Supported: go, npm, cargo, python, make"
+    }
+
+    // Auto-detect if no framework specified
+    if cmd == "" and fs.exists(cwd + "/go.mod") {
+        cmd = "go test ./... 2>&1"
+        label = "go test"
+    }
+    if cmd == "" and fs.exists(cwd + "/package.json") {
+        cmd = "npm test 2>&1"
+        label = "npm test"
+    }
+    if cmd == "" and fs.exists(cwd + "/Cargo.toml") {
+        cmd = "cargo test 2>&1"
+        label = "cargo test"
+    }
+    if cmd == "" and fs.exists(cwd + "/Makefile") {
+        cmd = "make test 2>&1"
+        label = "make test"
+    }
+    if cmd == "" and fs.exists(cwd + "/pytest.ini") {
+        cmd = "python -m pytest 2>&1"
+        label = "pytest"
+    }
+    if cmd == "" and fs.exists(cwd + "/setup.py") {
+        cmd = "python -m pytest 2>&1"
+        label = "pytest"
+    }
+    if cmd == "" and fs.exists(cwd + "/pyproject.toml") {
+        cmd = "python -m pytest 2>&1"
+        label = "pytest"
+    }
+
+    if cmd == "" {
+        return "Could not auto-detect test framework. Use framework parameter: go, npm, cargo, python, make"
+    }
+
+    output, run_err = os.exec_timeout("cd \"" + cwd + "\" && " + cmd, 120)
+    if run_err != nil {
+        return "TESTS FAILED (" + label + "):\n" + output
+    }
+    return "TESTS PASSED (" + label + "):\n" + output
+}
+
+// ---------------------------------------------------------------------------
+// Agent
+// ---------------------------------------------------------------------------
+
+agent Coder {
+    provider: claude
+    system: """
+        You are Haira Coder — an expert AI coding assistant running in the browser.
+        You help users read, understand, search, and modify code in their projects.
+
+        WORKING DIRECTORY: ${cwd}
+
+        CRITICAL RULES:
+        - NEVER fabricate, invent, or guess file names, contents, or structure.
+        - ONLY report information that tools actually returned.
+        - If you don't know something, use a tool to find out — never make it up.
+
+        IMPORTANT — DISPLAYING RESULTS TO THE USER:
+        Tool results (read_file, search_files, etc.) are ONLY visible to you.
+        The user CANNOT see tool results directly.
+        To show content to the user, you MUST call a render_* tool:
+        - render_codeblock: display code/file contents (params: title, language, code)
+        - render_statuscard: show success/error/warning/info messages (params: variant, title, description)
+        - render_table: show data in a searchable table (params: title, headers, rows)
+        - render_diff: show before/after comparison (params: title, before_label, after_label, before, after, language)
+        - render_confirm: ask yes/no with buttons (params: message, confirm_label, deny_label)
+        - render_progress: show step progress (params: title, steps)
+        - render_choices: offer options as buttons (params: title, options)
+        - render_group: combine multiple components (params: components...)
+
+        Example flow for reading a file:
+        1. Call read_file("src/main.go") → you get the content
+        2. Call render_codeblock("src/main.go", "go", <content>) → user sees the code
+
+        CORE PRINCIPLES:
+        1. READ before you edit — always read a file before modifying it.
+        2. PROPOSE before you apply — use propose_edit to show diffs with approval buttons.
+           NEVER use edit_file or write_file without prior user approval.
+        3. SEARCH before you guess — use search_files and find_files to locate code.
+        4. EXPLAIN concisely — lead with the action, not the reasoning.
+
+        TOOL USAGE:
+        - To view files: read_file → then render_codeblock to display
+        - To find files: find_files → then render_table to display
+        - To search content: search_files → then render_table to display
+        - To see directory structure: list_directory → then render_table to display
+        - To propose changes: propose_edit (handles rendering internally)
+        - To propose running a command: propose_command (shows command + approval buttons)
+        - To show code comparisons: show_diff (handles rendering internally)
+        - To run commands: run_command → then render_codeblock to display output
+        - To run tests: run_tests (auto-detects framework)
+        - To fetch web content: web_fetch → then render_codeblock to display
+
+        EDIT WORKFLOW:
+        1. Read the file with read_file
+        2. Propose the change with propose_edit (renders diff + confirm buttons)
+        3. Wait for user approval — if "[Confirmed]", apply with edit_file
+        4. If "[Denied]", acknowledge and ask how to adjust
+
+        COMMAND WORKFLOW:
+        1. For commands with side effects, use propose_command to get approval
+        2. If "[Confirmed]", run with run_command
+        3. If "[Denied]", acknowledge and suggest alternatives
+
+        SAFETY:
+        - Never run destructive commands (rm -rf, sudo, chmod 777)
+        - Always propose edits for review — never silently modify files
+        - Be careful with write_file — prefer propose_edit for existing files
+        - For installs, builds, and git operations — use propose_command first
+    """
+    tools: [read_file, write_file, edit_file, search_files, find_files, list_directory, run_command, web_fetch, show_diff, propose_edit, propose_command, run_tests]
+    ui: ui
+    memory: conversation(max_turns: 50)
+    temperature: 0.2
+    max_steps: 30
+    timeout: 300
+}
+
+// ---------------------------------------------------------------------------
+// Workflows
+// ---------------------------------------------------------------------------
+
+@webui(
+    title: "Haira Coder",
+    description: "AI coding assistant — read, search, edit, and run commands in your project",
+    mode: "code",
+    suggestions: [
+        "What files are in this project?",
+        "Show me the project structure",
+        "Find all TODO comments in the codebase",
+        "Read the main entry point",
+        "Run the tests",
+        "Search for function definitions"
+    ],
+    accent: "#E8A317",
+    avatar: "H"
+)
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> stream {
+    return Coder.stream(message, session: session_id)
+}
+
+@get("/api/health")
+workflow Health() -> { status: string, project: string } {
+    return { status: "operational", project: cwd }
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+fn main() {
+    // Authenticate with Anthropic (imports credentials from Claude Code)
+    _, auth_err = auth.login("anthropic")
+    if auth_err != nil {
+        io.println("  Warning: " + conv.to_string(auth_err))
+        io.println("  Set ANTHROPIC_API_KEY or install Claude Code and run 'claude' first.")
+        io.println("")
+    }
+
+    io.println("Haira Coder — AI Coding Assistant")
+    io.println("")
+    io.println("  Project:  " + cwd)
+    io.println("")
+    io.println("  Tools:")
+    io.println("    read_file        Read file contents with line numbers")
+    io.println("    write_file       Create or overwrite files")
+    io.println("    edit_file        Find-and-replace in files")
+    io.println("    search_files     Grep-style content search")
+    io.println("    find_files       Glob-based file finding")
+    io.println("    list_directory   List directory contents")
+    io.println("    run_command      Execute shell commands")
+    io.println("    run_tests        Auto-detect and run tests")
+    io.println("    web_fetch        Fetch URL content")
+    io.println("    show_diff        Display code diffs")
+    io.println("    propose_edit     Propose edits with approval")
+    io.println("    propose_command  Propose commands with approval")
+    io.println("")
+
+    server = http.Server([Chat, Health])
+    observe.start(server)
+    io.println("  Chat UI:  http://localhost:9010/_ui/api/chat")
+    io.println("  Health:   GET /api/health")
+    io.println("")
+
+    server.listen(9010)
+}

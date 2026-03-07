@@ -16,4 +16,5 @@ type Provider struct {
 	MaxTokens       int     // Default max tokens for agents using this provider
 	InputTokenCost  float64 // USD per 1,000,000 input tokens (for cost tracking)
 	OutputTokenCost float64 // USD per 1,000,000 output tokens (for cost tracking)
+	Auth            string  // Auth mode: "" (default api_key), "oauth" (use stored OAuth tokens)
 }

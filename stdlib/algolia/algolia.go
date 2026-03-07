@@ -2,7 +2,6 @@ package algolia
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	haira "haira-go-runtime/haira"
@@ -164,7 +163,7 @@ func AlgoliaHitsToTable(hits []any) ([]any, []any) {
 		return nil, nil
 	}
 
-	headers := pickDisplayHeaders(hits[0], 8)
+	headers := haira.PickDisplayHeaders(hits[0], 8)
 	if len(headers) == 0 {
 		return nil, nil
 	}
@@ -174,129 +173,12 @@ func AlgoliaHitsToTable(hits []any) ([]any, []any) {
 		if m, ok := hit.(map[string]any); ok {
 			row := make([]any, 0, len(headers))
 			for _, h := range headers {
-				row = append(row, formatCellValue(m[haira.Str(h)]))
+				row = append(row, haira.FormatCellValue(m[haira.Str(h)]))
 			}
 			rows = append(rows, row)
 		}
 	}
 	return headers, rows
-}
-
-// priorityFields are field names commonly found in search records, ordered
-// by display priority (most useful first).
-var priorityFields = []string{
-	"objectID", "id", "name", "title", "label",
-	"brand", "category", "type", "status",
-	"price", "amount", "quantity", "rating", "score",
-	"description", "summary", "url", "slug",
-	"email", "username", "city", "country",
-	"created_at", "createdAt", "updated_at", "updatedAt", "date",
-}
-
-// pickDisplayHeaders selects up to maxCols display-worthy fields from a hit.
-// It skips internal fields (prefixed with _), nested objects, and arrays.
-// Priority fields come first, then remaining scalar fields alphabetically.
-func pickDisplayHeaders(hit any, maxCols int) []any {
-	m, ok := hit.(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	// Partition keys into scalar vs complex
-	scalarKeys := make(map[string]bool)
-	for k, v := range m {
-		if strings.HasPrefix(k, "_") {
-			continue
-		}
-		if isScalar(v) {
-			scalarKeys[k] = true
-		}
-	}
-
-	// Pick priority fields first (in order)
-	var headers []any
-	seen := make(map[string]bool)
-	for _, pf := range priorityFields {
-		if scalarKeys[pf] && !seen[pf] {
-			headers = append(headers, pf)
-			seen[pf] = true
-			if len(headers) >= maxCols {
-				return headers
-			}
-		}
-	}
-
-	// Fill remaining slots with other scalar fields (sorted for stability)
-	remaining := make([]string, 0)
-	for k := range scalarKeys {
-		if !seen[k] {
-			remaining = append(remaining, k)
-		}
-	}
-	sort.Strings(remaining)
-	for _, k := range remaining {
-		headers = append(headers, k)
-		if len(headers) >= maxCols {
-			break
-		}
-	}
-
-	return headers
-}
-
-// isScalar returns true for values that display well in a table cell
-// (strings, numbers, booleans) and false for maps and arrays.
-func isScalar(v any) bool {
-	if v == nil {
-		return true
-	}
-	switch v.(type) {
-	case map[string]any, []any:
-		return false
-	default:
-		return true
-	}
-}
-
-func formatCellValue(v any) string {
-	if v == nil {
-		return ""
-	}
-	switch val := v.(type) {
-	case string:
-		if len(val) > 120 {
-			return val[:117] + "..."
-		}
-		return val
-	case map[string]any:
-		// Summarise nested objects as "key1, key2, ..." instead of raw JSON
-		keys := make([]string, 0, len(val))
-		for k := range val {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		summary := strings.Join(keys, ", ")
-		if len(summary) > 80 {
-			summary = summary[:77] + "..."
-		}
-		return "{" + summary + "}"
-	case []any:
-		if len(val) == 0 {
-			return ""
-		}
-		// Show first few items as comma-separated
-		parts := make([]string, 0, 3)
-		for i, item := range val {
-			if i >= 3 {
-				parts = append(parts, fmt.Sprintf("...+%d more", len(val)-3))
-				break
-			}
-			parts = append(parts, haira.Str(item))
-		}
-		return strings.Join(parts, ", ")
-	default:
-		return haira.Str(v)
-	}
 }
 
 // AlgoliaHitsToProductCards converts Algolia hits into product card items.
@@ -309,41 +191,21 @@ func AlgoliaHitsToProductCards(hits []any) []any {
 			continue
 		}
 		card := haira.UiProductCardItem{
-			Name:        firstString(m, "name", "title", "label", "productName"),
-			Price:       firstString(m, "price", "formattedPrice", "salePrice", "amount"),
-			Image:       firstString(m, "image", "thumbnailUrl", "thumbnail", "imageUrl", "image_url", "picture", "photo"),
-			Brand:       firstString(m, "brand", "manufacturer", "vendor"),
-			Description: truncate(firstString(m, "description", "shortDescription", "short_description", "summary"), 120),
-			Badge:       firstString(m, "badge", "tag", "label"),
-			URL:         firstString(m, "url", "slug", "canonicalSlug", "link", "permalink"),
+			Name:        haira.FirstString(m, "name", "title", "label", "productName"),
+			Price:       haira.FirstString(m, "price", "formattedPrice", "salePrice", "amount"),
+			Image:       haira.FirstString(m, "image", "thumbnailUrl", "thumbnail", "imageUrl", "image_url", "picture", "photo"),
+			Brand:       haira.FirstString(m, "brand", "manufacturer", "vendor"),
+			Description: haira.Truncate(haira.FirstString(m, "description", "shortDescription", "short_description", "summary"), 120),
+			Badge:       haira.FirstString(m, "badge", "tag", "label"),
+			URL:         haira.FirstString(m, "url", "slug", "canonicalSlug", "link", "permalink"),
 		}
 		// Fallback: use objectID as name if no name field found
 		if card.Name == "" {
-			card.Name = firstString(m, "objectID", "id")
+			card.Name = haira.FirstString(m, "objectID", "id")
 		}
 		cards = append(cards, card)
 	}
 	return cards
-}
-
-// firstString returns the first non-empty string value from the map for the given keys.
-func firstString(m map[string]any, keys ...string) string {
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v != nil {
-			s := haira.Str(v)
-			if s != "" && s != "<nil>" {
-				return s
-			}
-		}
-	}
-	return ""
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen-3] + "..."
-	}
-	return s
 }
 
 // camelCase converts snake_case keys to camelCase for Algolia API compatibility.

@@ -354,6 +354,26 @@ func (gh *GithubClient) CreatePr(opts map[string]any) (*GithubPR, error) {
 	}, nil
 }
 
+// GithubCreateIncident creates a GitHub issue with severity-based labels.
+// Severity: "critical" (P0), "major" (P1), "minor" (P2).
+func (gh *GithubClient) CreateIncident(title, body, severity string) (*GithubIssue, error) {
+	labels := []any{"incident"}
+	switch severity {
+	case "critical":
+		labels = []any{"incident", "critical", "P0"}
+	case "major":
+		labels = []any{"incident", "major", "P1"}
+	case "minor":
+		labels = []any{"incident", "minor", "P2"}
+	}
+
+	return gh.CreateIssue(map[string]any{
+		"title":  "[INCIDENT] " + title,
+		"body":   body,
+		"labels": labels,
+	})
+}
+
 // base64Encode encodes a string to base64.
 func base64Encode(s string) string {
 	return base64.StdEncoding.EncodeToString([]byte(s))

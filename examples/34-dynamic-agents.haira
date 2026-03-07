@@ -1,0 +1,57 @@
+// Example 34: Dynamic Agent Creation
+// Demonstrates creating agents at runtime and running them in parallel.
+
+import "io"
+import "conv"
+import "array"
+
+provider Claude {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
+}
+
+// Static agent for quick tasks
+agent QuickHelper {
+    provider: Claude
+    system: "You are a helpful assistant. Give brief answers."
+    memory: none
+}
+
+// Create a specialized agent dynamically
+fn create_topic_agent(topic: string) -> any {
+    return create_agent({
+        "name": "researcher-${topic}",
+        "system": "You are an expert on ${topic}. Give concise, factual answers.",
+        "memory_kind": "none"
+    }, Claude, nil)
+}
+
+fn main() {
+    // Static agent usage
+    reply, err = QuickHelper.ask("What is Haira?")
+    if err == nil {
+        io.println("QuickHelper: ${reply}")
+    }
+
+    // Dynamic agent creation and usage
+    helper = create_topic_agent("quantum computing")
+    answer, ask_err = helper.ask("Explain quantum entanglement in one sentence")
+    if ask_err == nil {
+        io.println("Dynamic agent says: ${answer}")
+    }
+
+    // Parallel research across multiple topics
+    topics = ["machine learning", "robotics", "cryptography"]
+    results = spawn {
+        for topic in topics {
+            researcher = create_topic_agent(conv.to_string(topic))
+            researcher.ask("What are the top 3 recent developments?")
+        }
+    }
+
+    for i, result in results {
+        io.println("Topic " + conv.to_string(i) + ": " + conv.to_string(result))
+    }
+
+    io.println("Done!")
+}

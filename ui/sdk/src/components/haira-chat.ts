@@ -27,6 +27,7 @@ interface ChatMessage {
 interface ToolCardState {
   name: string;
   displayName: string;
+  detail?: string;
   status: "running" | "done" | "failed";
   startTime: number;
   elapsed?: string;
@@ -655,12 +656,18 @@ export class HairaChat extends LitElement {
         font-weight: 600;
         color: var(--haira-text);
       }
-      .tool-status {
+      .tool-status,
+      .tool-detail {
         font-size: 0.7rem;
         color: var(--haira-muted);
         display: flex;
         align-items: center;
         gap: 0.3rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 180px;
+        font-family: var(--haira-mono);
       }
       .tool-duration {
         font-family: var(--haira-mono);
@@ -809,7 +816,7 @@ export class HairaChat extends LitElement {
         { url: wsUrl, sessionId: this._sessionId },
         {
           onDelta: (text) => this._handleDelta(text),
-          onToolStart: (tool) => this._handleToolStart(tool),
+          onToolStart: (tool, args) => this._handleToolStart(tool, args),
           onToolEnd: (tool, ok) => this._handleToolEnd(tool, ok),
           onRender: (event) => this._handleToolRender(event),
           onError: (error) => this._handleError(error),
@@ -992,16 +999,38 @@ export class HairaChat extends LitElement {
 
   // ---------- Send / streaming (ARP WebSocket or SSE fallback) ----------
 
-  private _handleToolStart(tool: string) {
+  private _handleToolStart(tool: string, args?: string) {
     this._showTyping = false;
     const displayName = tool
       .replace(/^render_/, "")
       .replace(/_/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
 
+    // Extract a short detail string from tool args
+    let detail: string | undefined;
+    if (args) {
+      try {
+        const parsed = JSON.parse(args);
+        detail =
+          parsed.path ||
+          parsed.pattern ||
+          parsed.command ||
+          parsed.url ||
+          parsed.query ||
+          parsed.title ||
+          undefined;
+        if (detail && detail.length > 40) {
+          detail = detail.slice(0, 37) + "...";
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    }
+
     const cardState: ToolCardState = {
       name: tool,
       displayName,
+      detail,
       status: "running",
       startTime: Date.now(),
     };
@@ -1117,6 +1146,7 @@ export class HairaChat extends LitElement {
     this._isStreaming = false;
     this._streamingMsgIndex = -1;
     this._fullStreamText = "";
+    this.updateComplete.then(() => this._scrollToBottom());
     this._focusInput();
     this._refreshSidebar();
   }
@@ -1180,7 +1210,7 @@ export class HairaChat extends LitElement {
       m.path,
       body,
       {
-        onToolStart: (event) => this._handleToolStart(event.tool),
+        onToolStart: (event) => this._handleToolStart(event.tool, event.args),
         onToolRender: (event: ToolRenderEvent) => this._handleToolRender(event),
         onToolEnd: (event) => this._handleToolEnd(event.tool, event.ok !== false),
         onDelta: (delta) => this._handleDelta(delta),
@@ -1212,9 +1242,12 @@ export class HairaChat extends LitElement {
   }
 
   private _scrollToBottom() {
-    if (this._messagesEl) {
-      this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
-    }
+    // Use rAF to ensure the browser has reflowed after DOM updates
+    requestAnimationFrame(() => {
+      if (this._messagesEl) {
+        this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
+      }
+    });
   }
 
   private _focusInput() {
@@ -1381,14 +1414,8 @@ export class HairaChat extends LitElement {
   }
 
   private _renderMessageGroup(msg: ChatMessage, _idx: number) {
-    return html`
-      <haira-message
-        .role=${msg.role}
-        .content=${msg.content}
-        .file=${msg.file || ""}
-        .avatar=${msg.role === "assistant" ? this._avatarValue : ""}
-      ></haira-message>
-      ${msg.uiEvents && msg.uiEvents.length > 0
+    const uiBlock =
+      msg.uiEvents && msg.uiEvents.length > 0
         ? msg.uiEvents.map(
             (event) => html`
               <haira-ui-renderer
@@ -1397,7 +1424,17 @@ export class HairaChat extends LitElement {
               ></haira-ui-renderer>
             `
           )
-        : nothing}
+        : nothing;
+
+    // Render tool UI before the text so the LLM summary appears after tool output
+    return html`
+      ${uiBlock}
+      <haira-message
+        .role=${msg.role}
+        .content=${msg.content}
+        .file=${msg.file || ""}
+        .avatar=${msg.role === "assistant" ? this._avatarValue : ""}
+      ></haira-message>
     `;
   }
 
@@ -1536,7 +1573,7 @@ export class HairaChat extends LitElement {
         <div class="panel-body" id="panel-body">
           ${this._toolCards.length === 0
             ? html`<div class="panel-empty">No activity yet</div>`
-            : this._toolCards.map(
+            : [...this._toolCards].reverse().map(
                 (card) => html`
                   <div class="tool-card">
                     <div class="tool-icon ${card.status}">
@@ -1548,12 +1585,12 @@ export class HairaChat extends LitElement {
                     </div>
                     <div class="tool-info">
                       <div class="tool-name">${card.displayName}</div>
-                      <div class="tool-status">
-                        ${card.status === "running"
+                      <div class="tool-detail">
+                        ${card.detail || (card.status === "running"
                           ? "Running..."
                           : card.status === "done"
-                            ? "Completed"
-                            : "Failed"}
+                            ? "Done"
+                            : "Failed")}
                       </div>
                     </div>
                     ${card.elapsed

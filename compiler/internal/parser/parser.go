@@ -559,6 +559,9 @@ func (p *Parser) parseTypeDefBody(isPublic bool, name ast.Spanned[string]) (ast.
 		f, ok := p.parseField()
 		if ok {
 			fields = append(fields, f)
+		} else {
+			// Skip token to avoid infinite loop on parse failure
+			p.advance()
 		}
 		if p.check(token.Comma) {
 			p.advance()
@@ -680,10 +683,17 @@ func (p *Parser) parseParams() ([]ast.Param, bool) {
 	p.consume(token.LParen, "(")
 
 	var params []ast.Param
+	sawRest := false
 	for !p.check(token.RParen) && !p.atEnd() {
 		param, ok := p.parseParam()
 		if !ok {
 			return nil, false
+		}
+		if sawRest {
+			p.addError("rest parameter must be last", param.Span)
+		}
+		if param.IsRest {
+			sawRest = true
 		}
 		params = append(params, param)
 		if !p.check(token.RParen) {

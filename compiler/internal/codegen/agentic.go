@@ -42,6 +42,8 @@ func EmitProvider(em *GoEmitter, provider ast.ProviderDecl) {
 			em.Line(fmt.Sprintf("InputTokenCost: %s,", ExprToGo(field.Value)))
 		case "output_token_cost":
 			em.Line(fmt.Sprintf("OutputTokenCost: %s,", ExprToGo(field.Value)))
+		case "auth":
+			em.Line(fmt.Sprintf("Auth: %s,", ExprToGo(field.Value)))
 		}
 	}
 	em.CloseBlock()
@@ -304,17 +306,26 @@ func EmitTool(em *GoEmitter, tool ast.ToolDecl) {
 	}
 	em.Dedent()
 	em.Line("}")
-	em.Line("json.Unmarshal(args, &params)")
+	em.OpenBlock("if err := json.Unmarshal(args, &params); err != nil")
+	em.Line(`return nil, fmt.Errorf("invalid tool arguments: %w", err)`)
+	em.CloseBlock()
 
-	// Apply defaults
+	// Apply defaults for zero-valued params
 	for _, param := range tool.Params {
 		if param.Default != nil {
 			goName := SnakeToPascal(param.Name.Node)
 			defaultVal := ExprToGo(*param.Default)
 			zeroCheck := fmt.Sprintf("params.%s == 0", goName)
 			if param.Ty != nil {
-				if named, ok := param.Ty.Node.(ast.NamedType); ok && named.Name == "string" {
-					zeroCheck = fmt.Sprintf(`params.%s == ""`, goName)
+				if named, ok := param.Ty.Node.(ast.NamedType); ok {
+					switch named.Name {
+					case "string":
+						zeroCheck = fmt.Sprintf(`params.%s == ""`, goName)
+					case "bool":
+						zeroCheck = fmt.Sprintf(`!params.%s`, goName)
+					case "float", "f32", "f64":
+						zeroCheck = fmt.Sprintf(`params.%s == 0.0`, goName)
+					}
 				}
 			}
 			em.OpenBlock(fmt.Sprintf("if %s", zeroCheck))

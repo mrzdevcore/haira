@@ -1,0 +1,478 @@
+// Simple Pipeline Form POC — Demonstrates form-based pipeline workflows in Haira.
+//
+// This POC shows how to create a multi-step pipeline triggered by a form submission.
+// It includes form validation, step-by-step execution with progress tracking,
+// error handling, and result display using Haira's UI components.
+//
+// Features:
+//   - Form-based workflow with validation
+//   - Multi-step pipeline execution
+//   - Progress tracking with visual indicators
+//   - Error handling and recovery
+//   - Rich UI components (forms, progress, status cards, tables)
+//   - File upload and processing
+//
+// Run: haira run poc/pipeline-form/main.haira
+
+import "io"
+import "http"
+import "time"
+import "string"
+import "conv"
+import "observe"
+import "langfuse"
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+provider openai {
+    model: "gpt-4o-mini"
+    api_key: env("OPENAI_API_KEY")
+}
+
+// ---------------------------------------------------------------------------
+// Structs
+// ---------------------------------------------------------------------------
+
+struct PipelineConfig {
+    name: string
+    description: string
+    priority: string
+    environment: string
+    notify_on_completion: bool
+    max_retries: int
+}
+
+struct PipelineResult {
+    status: string
+    steps_completed: int
+    total_steps: int
+    execution_time: string
+    output_files: []string
+    errors: []string
+}
+
+// ---------------------------------------------------------------------------
+// Tools
+// ---------------------------------------------------------------------------
+
+tool validate_config(config: PipelineConfig) -> string {
+    """
+    Validate the pipeline configuration parameters.
+    Checks for required fields, valid values, and business rules.
+    Returns validation result with any errors or warnings.
+    """
+    errors = []
+    warnings = []
+    
+    if config.name == "" {
+        errors = append(errors, "Pipeline name is required")
+    }
+    
+    if len(config.name) > 50 {
+        errors = append(errors, "Pipeline name must be 50 characters or less")
+    }
+    
+    if config.priority != "low" && config.priority != "medium" && config.priority != "high" {
+        errors = append(errors, "Priority must be one of: low, medium, high")
+    }
+    
+    if config.environment != "dev" && config.environment != "staging" && config.environment != "prod" {
+        errors = append(errors, "Environment must be one of: dev, staging, prod")
+    }
+    
+    if config.max_retries < 0 || config.max_retries > 5 {
+        warnings = append(warnings, "Max retries should be between 0 and 5")
+    }
+    
+    if len(errors) > 0 {
+        return ui.group(
+            ui.status_card("error", "Validation Failed", conv.to_string(len(errors)) + " error(s) found"),
+            ui.key_value("Validation Errors", {
+                "Errors": conv.to_string(errors),
+                "Warnings": conv.to_string(warnings)
+            })
+        )
+    }
+    
+    if len(warnings) > 0 {
+        return ui.group(
+            ui.status_card("warning", "Validation Passed with Warnings", conv.to_string(len(warnings)) + " warning(s)"),
+            ui.key_value("Validation Warnings", {
+                "Warnings": conv.to_string(warnings)
+            })
+        )
+    }
+    
+    return ui.status_card("success", "Validation Passed", "All configuration parameters are valid")
+}
+
+tool execute_step(step_name: string, step_number: int, total_steps: int) -> string {
+    """
+    Execute a single pipeline step with simulated processing.
+    Shows progress and handles potential failures.
+    """
+    start_time = time.now()
+    
+    // Simulate processing time
+    time.sleep(2)
+    
+    // Simulate occasional failures for demonstration
+    if step_name == "Process Data" && time.now() % 7 == 0 {
+        return ui.group(
+            ui.status_card("error", "Step Failed: " + step_name, "Simulated processing error"),
+            ui.key_value("Step Details", {
+                "Step": conv.to_string(step_number) + "/" + conv.to_string(total_steps),
+                "Name": step_name,
+                "Status": "FAILED",
+                "Error": "Data processing timeout after 30 seconds",
+                "Duration": time.since(start_time)
+            })
+        )
+    }
+    
+    elapsed = time.since(start_time)
+    
+    return ui.group(
+        ui.status_card("success", "Step Completed: " + step_name),
+        ui.key_value("Step Details", {
+            "Step": conv.to_string(step_number) + "/" + conv.to_string(total_steps),
+            "Name": step_name,
+            "Status": "COMPLETED",
+            "Duration": elapsed,
+            "Completed At": time.timestamp()
+        })
+    )
+}
+
+tool generate_report(config: PipelineConfig, result: PipelineResult) -> string {
+    """
+    Generate a comprehensive pipeline execution report.
+    Includes configuration, results, and recommendations.
+    """
+    status_type = "success"
+    if result.status == "failed" {
+        status_type = "error"
+    } else if result.status == "partial" {
+        status_type = "warning"
+    }
+    
+    return ui.group(
+        ui.status_card(status_type, "Pipeline Execution Report", "Pipeline '" + config.name + "' " + result.status),
+        ui.key_value("Configuration", {
+            "Name": config.name,
+            "Description": config.description,
+            "Priority": config.priority,
+            "Environment": config.environment,
+            "Max Retries": conv.to_string(config.max_retries),
+            "Notifications": conv.to_string(config.notify_on_completion)
+        }),
+        ui.key_value("Results", {
+            "Status": result.status,
+            "Steps Completed": conv.to_string(result.steps_completed) + "/" + conv.to_string(result.total_steps),
+            "Execution Time": result.execution_time,
+            "Output Files": conv.to_string(len(result.output_files)),
+            "Errors": conv.to_string(len(result.errors))
+        })
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Agent
+// ---------------------------------------------------------------------------
+
+agent PipelineAgent {
+    provider: openai
+    system: """
+        You are a Pipeline Execution Assistant. You help users configure and run data processing pipelines.
+        
+        Your responsibilities:
+        1. Help users understand pipeline configuration options
+        2. Validate pipeline configurations before execution
+        3. Monitor pipeline execution and provide status updates
+        4. Handle errors gracefully and suggest solutions
+        5. Generate comprehensive execution reports
+        
+        Always be helpful and explain what each step does. If a pipeline fails,
+        provide clear guidance on how to fix the issue and retry.
+        
+        Use the available tools to validate configurations, execute steps, and generate reports.
+    """
+    tools: [validate_config, execute_step, generate_report]
+    ui: ui
+    memory: conversation(max_turns: 20)
+    temperature: 0.3
+    max_steps: 15
+    timeout: 180
+}
+
+// ---------------------------------------------------------------------------
+// Workflows
+// ---------------------------------------------------------------------------
+
+@webui(
+    title: "Pipeline Form",
+    description: "Configure and execute data processing pipelines",
+    mode: "form"
+)
+@post("/api/pipeline")
+workflow PipelineForm(
+    name: string,
+    description: string,
+    priority: string = "medium",
+    environment: string = "dev",
+    notify_on_completion: bool = false,
+    max_retries: int = 3,
+    input_file: file = ""
+) -> {
+    status: string,
+    steps_completed: int,
+    total_steps: int,
+    execution_time: string,
+    report_url: string
+} {
+    onerror err {
+        return {
+            status: "error",
+            steps_completed: 0,
+            total_steps: 5,
+            execution_time: "0s",
+            report_url: ""
+        }
+    }
+    
+    start_time = time.now()
+    config = PipelineConfig{
+        name: name,
+        description: description,
+        priority: priority,
+        environment: environment,
+        notify_on_completion: notify_on_completion,
+        max_retries: max_retries
+    }
+    
+    step "Validate Configuration" {
+        log.info("Validating pipeline configuration...")
+        
+        // Basic validation
+        if name == "" {
+            log.render(ui.status_card("error", "Validation Failed", "Pipeline name is required"))
+            return {
+                status: "validation_failed",
+                steps_completed: 0,
+                total_steps: 5,
+                execution_time: time.since(start_time),
+                report_url: ""
+            }
+        }
+        
+        log.render(ui.status_card("success", "Configuration Valid", "All parameters validated successfully"))
+        log.render(ui.key_value("Pipeline Configuration", {
+            "Name": name,
+            "Description": description,
+            "Priority": priority,
+            "Environment": environment,
+            "Max Retries": conv.to_string(max_retries),
+            "Notifications": conv.to_string(notify_on_completion)
+        }))
+    }
+    
+    step "Initialize Pipeline" {
+        log.info("Initializing pipeline environment...")
+        log.render(ui.progress("Pipeline Execution", [
+            {"name": "Validate Configuration", "status": "done"},
+            {"name": "Initialize Pipeline", "status": "running"},
+            {"name": "Process Data", "status": "pending"},
+            {"name": "Generate Output", "status": "pending"},
+            {"name": "Cleanup", "status": "pending"}
+        ]))
+        
+        time.sleep(1)
+        log.render(ui.status_card("success", "Pipeline Initialized", "Environment ready for execution"))
+    }
+    
+    step "Process Data" {
+        log.info("Processing input data...")
+        log.render(ui.progress("Pipeline Execution", [
+            {"name": "Validate Configuration", "status": "done"},
+            {"name": "Initialize Pipeline", "status": "done"},
+            {"name": "Process Data", "status": "running"},
+            {"name": "Generate Output", "status": "pending"},
+            {"name": "Cleanup", "status": "pending"}
+        ]))
+        
+        // Simulate data processing
+        time.sleep(3)
+        
+        if input_file != "" {
+            log.render(ui.status_card("info", "Processing File", "Processing uploaded file: " + input_file))
+        } else {
+            log.render(ui.status_card("info", "Processing Sample Data", "Using default sample dataset"))
+        }
+        
+        log.render(ui.status_card("success", "Data Processed", "Successfully processed 1,000 records"))
+    }
+    
+    step "Generate Output" {
+        log.info("Generating output files...")
+        log.render(ui.progress("Pipeline Execution", [
+            {"name": "Validate Configuration", "status": "done"},
+            {"name": "Initialize Pipeline", "status": "done"},
+            {"name": "Process Data", "status": "done"},
+            {"name": "Generate Output", "status": "running"},
+            {"name": "Cleanup", "status": "pending"}
+        ]))
+        
+        time.sleep(2)
+        
+        output_files = [
+            "processed_data_" + time.slug() + ".csv",
+            "summary_report_" + time.slug() + ".pdf",
+            "execution_log_" + time.slug() + ".txt"
+        ]
+        
+        log.render(ui.key_value("Output Files Generated", {
+            "Data File": output_files[0],
+            "Report": output_files[1],
+            "Log": output_files[2],
+            "Total Size": "2.4 MB"
+        }))
+    }
+    
+    step "Cleanup" {
+        log.info("Cleaning up temporary resources...")
+        log.render(ui.progress("Pipeline Execution", [
+            {"name": "Validate Configuration", "status": "done"},
+            {"name": "Initialize Pipeline", "status": "done"},
+            {"name": "Process Data", "status": "done"},
+            {"name": "Generate Output", "status": "done"},
+            {"name": "Cleanup", "status": "running"}
+        ]))
+        
+        time.sleep(1)
+        
+        log.render(ui.progress("Pipeline Execution", [
+            {"name": "Validate Configuration", "status": "done"},
+            {"name": "Initialize Pipeline", "status": "done"},
+            {"name": "Process Data", "status": "done"},
+            {"name": "Generate Output", "status": "done"},
+            {"name": "Cleanup", "status": "done"}
+        ]))
+        
+        execution_time = time.since(start_time)
+        
+        log.render(ui.group(
+            ui.status_card("success", "Pipeline Completed Successfully", "All steps executed without errors"),
+            ui.key_value("Execution Summary", {
+                "Pipeline": name,
+                "Environment": environment,
+                "Total Time": execution_time,
+                "Steps": "5/5 completed",
+                "Status": "SUCCESS",
+                "Completed At": time.timestamp()
+            })
+        ))
+        
+        if notify_on_completion {
+            log.render(ui.status_card("info", "Notification Sent", "Pipeline completion notification sent to configured channels"))
+        }
+    }
+    
+    return {
+        status: "completed",
+        steps_completed: 5,
+        total_steps: 5,
+        execution_time: time.since(start_time),
+        report_url: "/api/reports/" + time.slug()
+    }
+}
+
+@webui(
+    title: "Pipeline Chat",
+    description: "Interactive pipeline assistant for configuration and troubleshooting",
+    mode: "chat",
+    suggestions: [
+        "How do I configure a new pipeline?",
+        "What are the available priority levels?",
+        "Show me pipeline execution status",
+        "Help me troubleshoot a failed pipeline"
+    ],
+    accent: "#2563EB",
+    avatar: "P"
+)
+@webhook("/api/chat")
+workflow Chat(message: string, session_id: string) -> stream {
+    return PipelineAgent.stream(message, session: session_id)
+}
+
+@get("/api/health")
+workflow Health() -> { status: string, pipelines: int, uptime: string } {
+    return {
+        status: "healthy",
+        pipelines: 0,
+        uptime: time.timestamp()
+    }
+}
+
+@webui(
+    title: "Quick Pipeline",
+    description: "Simple form for quick pipeline execution",
+    mode: "form"
+)
+@post("/api/quick")
+workflow QuickPipeline(
+    task_name: string,
+    data_source: string = "sample",
+    output_format: string = "csv"
+) -> string {
+    step "Execute Quick Task" {
+        log.info("Executing quick pipeline: " + task_name)
+        
+        log.render(ui.status_card("info", "Quick Pipeline Started", "Task: " + task_name))
+        
+        time.sleep(2)
+        
+        log.render(ui.key_value("Quick Pipeline Results", {
+            "Task": task_name,
+            "Data Source": data_source,
+            "Output Format": output_format,
+            "Records Processed": "500",
+            "Execution Time": "2.1s",
+            "Status": "SUCCESS"
+        }))
+    }
+    
+    return "Quick pipeline '" + task_name + "' completed successfully"
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+fn main() {
+    observe.use(langfuse.exporter("", "", ""))
+    server = http.Server([PipelineForm, Chat, Health, QuickPipeline])
+    observe.start(server)
+    
+    io.println("Pipeline Form POC running on :9005")
+    io.println("")
+    io.println("  Workflows:")
+    io.println("    Pipeline Form:  http://localhost:9005/_ui/api/pipeline")
+    io.println("    Quick Pipeline: http://localhost:9005/_ui/api/quick")
+    io.println("    Chat Assistant: http://localhost:9005/_ui/api/chat")
+    io.println("")
+    io.println("  Endpoints:")
+    io.println("    Health:         GET /api/health")
+    io.println("    Dashboard:      http://localhost:9005/_observe")
+    io.println("")
+    io.println("  Features:")
+    io.println("    - Form-based pipeline configuration")
+    io.println("    - Multi-step execution with progress tracking")
+    io.println("    - Error handling and validation")
+    io.println("    - Interactive chat assistant")
+    io.println("    - Rich UI components")
+    io.println("")
+    
+    server.listen(9005)
+}

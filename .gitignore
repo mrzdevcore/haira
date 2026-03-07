@@ -35,11 +35,19 @@ compiler/internal/runtime/bundle.tar.gz
 # POC projects
 poc/maltimize
 poc/cloudflare-agent/haira
+poc/coding-agent/hcode
+hcode
+malt
+agent
+agent.log
 
 # Runtime databases
 .haira.db
 .haira.db-shm
 .haira.db-wal
+poc/data-explorer/.haira.db*
+poc/devops-incident/.haira.db*
+poc/pipeline-form/.haira.db*
 
 # Screenshots
 Screenshot*.png

@@ -26,7 +26,7 @@ ui-dev:
 	cd ui/sdk && npx vite build --watch
 
 # Stdlib packages to bundle separately (each gets its own Go package)
-STDLIB_PKGS = postgres excel vector slack github gitlab sqlite langfuse algolia meilisearch d1
+STDLIB_PKGS = postgres excel vector slack github gitlab sqlite langfuse algolia meilisearch d1 auth websearch healthcheck
 
 # Bundle the runtime into a tar.gz for embedding in the compiler
 # Core haira/ package is always included; stdlib packages are separate

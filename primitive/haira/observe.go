@@ -95,6 +95,8 @@ func currentRunID() string {
 
 // ── Global observer (goroutine-safe) ──
 
+const maxObserveEntries = 10000
+
 type observer struct {
 	mu          sync.RWMutex
 	generations []LLMGeneration
@@ -120,6 +122,9 @@ func RecordGeneration(gen LLMGeneration) {
 	}
 	globalObserver.mu.Lock()
 	globalObserver.generations = append(globalObserver.generations, gen)
+	if len(globalObserver.generations) > maxObserveEntries {
+		globalObserver.generations = globalObserver.generations[len(globalObserver.generations)-maxObserveEntries:]
+	}
 	globalObserver.mu.Unlock()
 	if globalStore != nil {
 		globalStore.SaveGeneration(gen)
@@ -137,6 +142,9 @@ func RecordToolExec(exec ToolExec) {
 	}
 	globalObserver.mu.Lock()
 	globalObserver.toolExecs = append(globalObserver.toolExecs, exec)
+	if len(globalObserver.toolExecs) > maxObserveEntries {
+		globalObserver.toolExecs = globalObserver.toolExecs[len(globalObserver.toolExecs)-maxObserveEntries:]
+	}
 	globalObserver.mu.Unlock()
 	if globalStore != nil {
 		globalStore.SaveToolExec(exec)

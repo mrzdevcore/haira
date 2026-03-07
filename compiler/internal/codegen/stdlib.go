@@ -20,10 +20,14 @@ func ResolveStdlibCall(call ast.CallExpr) (string, bool) {
 		}
 	}
 
-	// Bare calls: env(), len(), keys(), join()
+	// Bare calls: env(), len(), keys(), join(), create_agent(), spawn_agents()
 	if ident, ok := call.Callee.Node.(ast.IdentExpr); ok {
 		args := callArgsToGo(call.Args)
 		switch ident.Name {
+		case "create_agent":
+			return fmt.Sprintf("haira.CreateAgent(%s)", args), true
+		case "spawn_agents":
+			return fmt.Sprintf("haira.SpawnAgents(%s)", args), true
 		case "env":
 			// env("KEY") → haira.Env("KEY")
 			// env("KEY", float) → haira.EnvFloat("KEY")
@@ -206,6 +210,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.StringLines(%s)", args), true
 		case "words":
 			return fmt.Sprintf("haira.StringWords(%s)", args), true
+		case "shell_escape":
+			return fmt.Sprintf("haira.StringShellEscape(%s)", args), true
 		}
 	case "regex":
 		switch method {
@@ -429,6 +435,8 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("slack.SlackContext(%s)", args), true
 		case "client":
 			return fmt.Sprintf("slack.SlackNewClient(%s)", args), true
+		case "send_alert":
+			return fmt.Sprintf("slack.SlackSendAlert(%s)", args), true
 		}
 	case "excel":
 		switch method {
@@ -483,6 +491,37 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return "haira.TimeSlug()", true
 		case "timestamp":
 			return "haira.TimeTimestamp()", true
+		}
+	case "os":
+		switch method {
+		case "cwd":
+			return "haira.OsCwd()", true
+		case "exec":
+			return fmt.Sprintf("haira.OsExec(%s)", args), true
+		case "exec_timeout":
+			return fmt.Sprintf("haira.OsExecTimeout(%s)", args), true
+		case "safe_exec":
+			return fmt.Sprintf("haira.OsSafeExec(%s)", args), true
+		case "arch":
+			return "haira.OsArch()", true
+		case "platform":
+			return "haira.OsPlatform()", true
+		case "hostname":
+			return "haira.OsHostname()", true
+		case "exit":
+			return fmt.Sprintf("haira.OsExit(%s)", args), true
+		case "args":
+			return "haira.OsArgs()", true
+		case "getenv":
+			return fmt.Sprintf("haira.OsGetenv(%s)", args), true
+		case "setenv":
+			return fmt.Sprintf("haira.OsSetenv(%s)", args), true
+		case "environ":
+			return "haira.OsEnviron()", true
+		case "chdir":
+			return fmt.Sprintf("haira.OsChdir(%s)", args), true
+		case "temp_dir":
+			return "haira.OsTempDir()", true
 		}
 	case "fs":
 		switch method {
@@ -541,6 +580,17 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "database":
 			return fmt.Sprintf("haira.SetStoreURL(%s)", args), true
 		}
+	case "auth":
+		switch method {
+		case "login":
+			return fmt.Sprintf("auth.AuthLogin(%s)", args), true
+		case "logout":
+			return "auth.AuthLogout()", true
+		case "status":
+			return "auth.AuthStatus()", true
+		case "resolve_token":
+			return fmt.Sprintf("auth.ResolveToken(%s)", args), true
+		}
 	case "langfuse":
 		switch method {
 		case "exporter":
@@ -559,6 +609,29 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return resolveClientConstructor("github.GithubNewClient", call), true
 		case "client":
 			return resolveClientConstructor("github.GithubConnect", call), true
+		}
+	case "agent":
+		// Note: "agent" is also a keyword, so agent.create() can only work
+		// via import alias: `import rt from "agent"` → rt.create(...)
+		switch method {
+		case "create":
+			return fmt.Sprintf("haira.CreateAgent(%s)", args), true
+		case "spawn":
+			return fmt.Sprintf("haira.SpawnAgents(%s)", args), true
+		}
+	case "websearch":
+		switch method {
+		case "search":
+			return fmt.Sprintf("websearch.DuckDuckGoSearch(%s)", args), true
+		case "fetch":
+			return fmt.Sprintf("websearch.WebFetch(%s)", args), true
+		}
+	case "healthcheck":
+		switch method {
+		case "check":
+			return fmt.Sprintf("healthcheck.Check(%s)", args), true
+		case "check_all":
+			return fmt.Sprintf("healthcheck.CheckAll(%s)", args), true
 		}
 	case "algolia":
 		switch method {
@@ -600,6 +673,14 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.UiNewProductCards(%s)", args), true
 		case "markdown":
 			return fmt.Sprintf("haira.UiNewMarkdown(%s)", args), true
+		case "code_block":
+			return fmt.Sprintf("haira.UiNewCodeBlock(%s)", args), true
+		case "diff":
+			return fmt.Sprintf("haira.UiNewDiff(%s)", args), true
+		case "progress":
+			return fmt.Sprintf("haira.UiNewProgress(%s)", args), true
+		case "choices":
+			return fmt.Sprintf("haira.UiNewChoices(%s)", args), true
 		}
 	}
 	return "", false
@@ -750,7 +831,8 @@ func IsStdlibImport(path string) bool {
 	switch path {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
-		"observe", "fs", "gitlab", "github", "langfuse", "algolia", "meilisearch":
+		"observe", "fs", "os", "gitlab", "github", "langfuse", "algolia", "meilisearch",
+		"auth", "agent", "websearch", "healthcheck":
 		return true
 	}
 	return false

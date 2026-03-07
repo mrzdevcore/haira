@@ -3,7 +3,6 @@ package lexer
 
 import (
 	"strings"
-	"unicode"
 
 	"github.com/haira-lang/haira/internal/token"
 )
@@ -536,9 +535,4 @@ func isIdentStart(ch byte) bool {
 
 func isIdentContinue(ch byte) bool {
 	return isIdentStart(ch) || isDigit(ch)
-}
-
-// IsKeywordIdent checks if a rune could start an identifier (for unicode support).
-func IsKeywordIdent(r rune) bool {
-	return unicode.IsLetter(r) || r == '_'
 }

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -39,9 +41,19 @@ type AgentResult struct {
 
 // Agent is an LLM-powered agent that can use tools.
 type Agent struct {
-	config AgentConfig
-	client *openai.Client
-	store  *SessionStore
+	config     AgentConfig
+	client     *openai.Client
+	clientOnce sync.Once
+	store      *SessionStore
+}
+
+// getClient lazily creates the OpenAI client on first use.
+// This allows auth.login() and other setup to run before the API key is resolved.
+func (a *Agent) getClient() *openai.Client {
+	a.clientOnce.Do(func() {
+		a.client = CreateOpenAIClient(a.config.Provider)
+	})
+	return a.client
 }
 
 const handoffToolPrefix = "transfer_to_"
@@ -50,6 +62,7 @@ const maxHandoffDepth = 5
 // knownBackends maps backend identifiers to their OpenAI-compatible base URLs.
 var knownBackends = map[string]string{
 	"openai":     "https://api.openai.com/v1",
+	"anthropic":  "https://api.anthropic.com/v1",
 	"groq":       "https://api.groq.com/openai/v1",
 	"together":   "https://api.together.xyz/v1",
 	"mistral":    "https://api.mistral.ai/v1",
@@ -58,6 +71,31 @@ var knownBackends = map[string]string{
 	"openrouter": "https://openrouter.ai/api/v1",
 	"xai":        "https://api.x.ai/v1",
 	"cerebras":   "https://api.cerebras.ai/v1",
+}
+
+// resolveAPIKey determines the API key/token for a provider.
+// If no explicit api_key is set, it checks env vars and OAuth credentials.
+func resolveAPIKey(p *Provider) string {
+	if p.ApiKey != "" {
+		return p.ApiKey
+	}
+	// Anthropic: try env var, then OAuth tokens
+	if p.Backend == "anthropic" || p.Name == "anthropic" {
+		if v := os.Getenv("ANTHROPIC_API_KEY"); v != "" {
+			return v
+		}
+		token, err := ResolveAnthropicToken()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[haira] Warning: %v\n", err)
+			return ""
+		}
+		return token
+	}
+	// Other providers: check common env vars
+	if v := os.Getenv("OPENAI_API_KEY"); v != "" {
+		return v
+	}
+	return ""
 }
 
 // resolveEndpoint determines the API base URL from provider configuration.
@@ -96,6 +134,7 @@ func resolveEndpoint(p *Provider) string {
 // CreateOpenAIClient creates an openai.Client from a Provider config.
 // Supports Azure OpenAI, Cloudflare Workers AI, and any OpenAI-compatible backend.
 func CreateOpenAIClient(provider *Provider) *openai.Client {
+	apiKey := resolveAPIKey(provider)
 	endpoint := resolveEndpoint(provider)
 
 	// Azure OpenAI: needs endpoint + api_version (via backend field or legacy detection)
@@ -103,7 +142,7 @@ func CreateOpenAIClient(provider *Provider) *openai.Client {
 	if isAzure && endpoint != "" && provider.ApiVersion != "" {
 		fmt.Fprintf(os.Stderr, "[haira] Using Azure OpenAI: endpoint=%s model=%s api_version=%s\n",
 			endpoint, provider.Model, provider.ApiVersion)
-		azCfg := openai.DefaultAzureConfig(provider.ApiKey, endpoint)
+		azCfg := openai.DefaultAzureConfig(apiKey, endpoint)
 		azCfg.APIVersion = provider.ApiVersion
 		return openai.NewClientWithConfig(azCfg)
 	}
@@ -116,19 +155,18 @@ func CreateOpenAIClient(provider *Provider) *openai.Client {
 		}
 		fmt.Fprintf(os.Stderr, "[haira] Using %s: endpoint=%s model=%s\n",
 			label, endpoint, provider.Model)
-		cfg := openai.DefaultConfig(provider.ApiKey)
+		cfg := openai.DefaultConfig(apiKey)
 		cfg.BaseURL = endpoint
 		return openai.NewClientWithConfig(cfg)
 	}
 
 	// Standard OpenAI (no endpoint, no backend)
-	return openai.NewClient(provider.ApiKey)
+	return openai.NewClient(apiKey)
 }
 
 // NewAgent creates a new agent from configuration.
+// The OpenAI client is created lazily on first use, allowing auth setup to run first.
 func NewAgent(config AgentConfig) *Agent {
-	client := CreateOpenAIClient(config.Provider)
-
 	maxTurns := 10
 	if config.Memory.MaxTurns > 0 {
 		maxTurns = config.Memory.MaxTurns
@@ -173,7 +211,6 @@ func NewAgent(config AgentConfig) *Agent {
 
 	return &Agent{
 		config: config,
-		client: client,
 		store:  store,
 	}
 }
@@ -235,10 +272,17 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 		defer cancel()
 
 		var messages []openai.ChatCompletionMessage
-		if a.config.System != "" {
+		systemPrompt := a.config.System
+		// Append session context (files read, commands run, etc.) to system prompt
+		if sessionCtx := a.store.GetContext(sessionID); sessionCtx != nil {
+			if ctxStr := sessionCtx.String(); ctxStr != "" {
+				systemPrompt += ctxStr
+			}
+		}
+		if systemPrompt != "" {
 			messages = append(messages, openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: a.config.System,
+				Content: systemPrompt,
 			})
 		}
 		for _, msg := range a.store.GetHistory(sessionID) {
@@ -277,7 +321,7 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 			}
 
 			callStart := time.Now()
-			resp, err := a.client.CreateChatCompletion(ctx, req)
+			resp, err := a.getClient().CreateChatCompletion(ctx, req)
 			callLatency := time.Since(callStart).Milliseconds()
 			if err != nil {
 				ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
@@ -292,22 +336,7 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 			choice := resp.Choices[0]
 
 			// Record LLM generation for observability
-			RecordGeneration(LLMGeneration{
-				AgentName:       a.config.Name,
-				Model:           a.config.Provider.Model,
-				Provider:        a.config.Provider.Name,
-				InputTokens:     resp.Usage.PromptTokens,
-				OutputTokens:    resp.Usage.CompletionTokens,
-				TotalTokens:     resp.Usage.TotalTokens,
-				LatencyMs:       callLatency,
-				Temperature:     a.config.Temperature,
-				ToolCalls:       len(choice.Message.ToolCalls),
-				FinishReason:    string(choice.FinishReason),
-				SessionID:       sessionID,
-				Timestamp:       callStart,
-				InputTokenCost:  a.config.Provider.InputTokenCost,
-				OutputTokenCost: a.config.Provider.OutputTokenCost,
-			})
+			a.recordGeneration(sessionID, callStart, callLatency, &resp.Usage, len(choice.Message.ToolCalls), string(choice.FinishReason))
 
 			// No tool calls → final response. Re-request with streaming API
 			// for real token-by-token delivery.
@@ -363,8 +392,15 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 				toolResult, rawResult := a.executeTool(tc, sessionID)
 				messages = append(messages, toolResult)
 
-				// Track for session history
-				toolLog = append(toolLog, tc.Function.Name+" → "+toolResult.Content)
+				// Track tool activity in session context
+				a.trackToolContext(sessionID, tc.Function.Name, tc.Function.Arguments, toolResult.Content)
+
+				// Track for session history (compact summary)
+				logContent := toolResult.Content
+				if len(logContent) > 200 {
+					logContent = logContent[:200] + "…"
+				}
+				toolLog = append(toolLog, tc.Function.Name+" → "+logContent)
 
 				// Emit tool_render if the result is a UiNode
 				isOK := !strings.HasPrefix(toolResult.Content, "error:")
@@ -412,7 +448,7 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 	}
 	// No tools — this is the final text generation
 	callStart := time.Now()
-	stream, err := a.client.CreateChatCompletionStream(ctx, req)
+	stream, err := a.getClient().CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
 		return
@@ -451,27 +487,11 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 	}
 
 	// Record generation for observability
-	gen := LLMGeneration{
-		AgentName:       a.config.Name,
-		Model:           a.config.Provider.Model,
-		Provider:        a.config.Provider.Name,
-		LatencyMs:       time.Since(callStart).Milliseconds(),
-		Temperature:     a.config.Temperature,
-		FinishReason:    finishReason,
-		SessionID:       sessionID,
-		Timestamp:       callStart,
-		InputTokenCost:  a.config.Provider.InputTokenCost,
-		OutputTokenCost: a.config.Provider.OutputTokenCost,
-	}
-	if usage != nil {
-		gen.InputTokens = usage.PromptTokens
-		gen.OutputTokens = usage.CompletionTokens
-		gen.TotalTokens = usage.TotalTokens
-	}
-	RecordGeneration(gen)
+	a.recordGeneration(sessionID, callStart, time.Since(callStart).Milliseconds(), usage, 0, finishReason)
 
 	// Store in memory — include tool activity log so the LLM remembers
 	// which tools it already called on subsequent turns.
+	// Old messages are compacted by GetHistory when context grows.
 	replyText := fullReply.String()
 	if len(toolLog) > 0 {
 		prefix := "[Completed: " + strings.Join(toolLog, ", ") + "]\n"
@@ -514,6 +534,13 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 	}
 	if a.config.OutputSchema != "" {
 		systemPrompt += "\n\nYou MUST respond with valid JSON matching this schema:\n" + a.config.OutputSchema
+	}
+
+	// Append session context (files read, commands run, etc.)
+	if sessionCtx := a.store.GetContext(sessionID); sessionCtx != nil {
+		if ctxStr := sessionCtx.String(); ctxStr != "" {
+			systemPrompt += ctxStr
+		}
 	}
 
 	if systemPrompt != "" {
@@ -561,7 +588,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 		}
 
 		callStart := time.Now()
-		resp, err := a.client.CreateChatCompletion(ctx, req)
+		resp, err := a.getClient().CreateChatCompletion(ctx, req)
 		callLatency := time.Since(callStart).Milliseconds()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[haira] LLM API error: %v\n", err)
@@ -575,22 +602,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 		choice := resp.Choices[0]
 
 		// Record LLM generation for observability
-		RecordGeneration(LLMGeneration{
-			AgentName:       a.config.Name,
-			Model:           a.config.Provider.Model,
-			Provider:        a.config.Provider.Name,
-			InputTokens:     resp.Usage.PromptTokens,
-			OutputTokens:    resp.Usage.CompletionTokens,
-			TotalTokens:     resp.Usage.TotalTokens,
-			LatencyMs:       callLatency,
-			Temperature:     a.config.Temperature,
-			ToolCalls:       len(choice.Message.ToolCalls),
-			FinishReason:    string(choice.FinishReason),
-			SessionID:       sessionID,
-			Timestamp:       callStart,
-			InputTokenCost:  a.config.Provider.InputTokenCost,
-			OutputTokenCost: a.config.Provider.OutputTokenCost,
-		})
+		a.recordGeneration(sessionID, callStart, callLatency, &resp.Usage, len(choice.Message.ToolCalls), string(choice.FinishReason))
 
 		// No tool calls → final answer
 		if len(choice.Message.ToolCalls) == 0 {
@@ -637,7 +649,12 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 		for _, tc := range choice.Message.ToolCalls {
 			toolResult, _ := a.executeTool(tc, sessionID)
 			messages = append(messages, toolResult)
-			toolLog = append(toolLog, tc.Function.Name+" → "+toolResult.Content)
+			a.trackToolContext(sessionID, tc.Function.Name, tc.Function.Arguments, toolResult.Content)
+			logContent := toolResult.Content
+			if len(logContent) > 200 {
+				logContent = logContent[:200] + "…"
+			}
+			toolLog = append(toolLog, tc.Function.Name+" → "+logContent)
 		}
 	}
 
@@ -652,6 +669,45 @@ func (a *Agent) findHandoffTarget(toolName string) *Agent {
 		}
 	}
 	return nil
+}
+
+// trackToolContext updates the session context based on tool execution.
+// Parses tool name and arguments to track files read, written, and commands run.
+func (a *Agent) trackToolContext(sessionID, toolName, argsJSON, result string) {
+	ctx := a.store.GetContext(sessionID)
+
+	// Parse args to extract paths/commands
+	var args map[string]interface{}
+	json.Unmarshal([]byte(argsJSON), &args)
+
+	pathVal, _ := args["path"].(string)
+
+	switch toolName {
+	case "read_file", "list_directory", "find_files", "search_files":
+		if pathVal != "" {
+			ctx.AddFileRead(pathVal)
+		}
+	case "write_file", "edit_file", "propose_edit":
+		if pathVal != "" {
+			ctx.AddFileWritten(pathVal)
+		}
+	case "run_command", "propose_command":
+		if cmd, ok := args["command"].(string); ok {
+			ctx.AddCommand(cmd)
+		}
+	}
+
+	// Track errors as key facts
+	if strings.HasPrefix(result, "ERROR:") || strings.HasPrefix(result, "error:") {
+		fact := toolName
+		if pathVal != "" {
+			fact += " " + pathVal
+		}
+		if len(result) > 80 {
+			result = result[:77] + "..."
+		}
+		ctx.AddKeyFact(fact + ": " + result)
+	}
 }
 
 func (a *Agent) executeTool(tc openai.ToolCall, sessionID string) (openai.ChatCompletionMessage, any) {
@@ -670,7 +726,7 @@ func (a *Agent) executeTool(tc openai.ToolCall, sessionID string) (openai.ChatCo
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("%v", r)
+				err = fmt.Errorf("tool %q panicked: %v\n%s", tc.Function.Name, r, debug.Stack())
 			}
 		}()
 		result, err = toolDef.Handler(json.RawMessage(tc.Function.Arguments))
@@ -746,9 +802,157 @@ func (a *Agent) buildTools() []openai.Tool {
 	return tools
 }
 
+// recordGeneration builds and records an LLMGeneration for observability.
+// usage may be nil (e.g. streaming responses where usage info is unavailable).
+func (a *Agent) recordGeneration(sessionID string, callStart time.Time, latencyMs int64, usage *openai.Usage, toolCalls int, finishReason string) {
+	gen := LLMGeneration{
+		AgentName:       a.config.Name,
+		Model:           a.config.Provider.Model,
+		Provider:        a.config.Provider.Name,
+		LatencyMs:       latencyMs,
+		Temperature:     a.config.Temperature,
+		ToolCalls:       toolCalls,
+		FinishReason:    finishReason,
+		SessionID:       sessionID,
+		Timestamp:       callStart,
+		InputTokenCost:  a.config.Provider.InputTokenCost,
+		OutputTokenCost: a.config.Provider.OutputTokenCost,
+	}
+	if usage != nil {
+		gen.InputTokens = usage.PromptTokens
+		gen.OutputTokens = usage.CompletionTokens
+		gen.TotalTokens = usage.TotalTokens
+	}
+	RecordGeneration(gen)
+}
+
 func historyToOpenAI(msg Message) openai.ChatCompletionMessage {
 	return openai.ChatCompletionMessage{
 		Role:    msg.Role,
 		Content: msg.Content,
 	}
+}
+
+// ── Dynamic Agent Creation ──
+
+// CreateAgent creates a new agent at runtime from a config map.
+// This allows agents to dynamically spawn sub-agents.
+// Config map keys: name, provider, system, tools, temperature, max_steps, timeout, memory_kind, memory_max_turns, output_schema, scope, scope_deny
+func CreateAgent(config map[string]any, provider *Provider, tools *ToolRegistry) *Agent {
+	ac := AgentConfig{
+		Provider: provider,
+	}
+	if v, ok := config["name"].(string); ok {
+		ac.Name = v
+	}
+	if v, ok := config["system"].(string); ok {
+		ac.System = v
+	}
+	if tools != nil {
+		ac.Tools = tools
+	}
+	if v, ok := config["temperature"]; ok {
+		switch t := v.(type) {
+		case float64:
+			ac.Temperature = t
+		case int:
+			ac.Temperature = float64(t)
+		}
+	}
+	if v, ok := config["max_steps"]; ok {
+		switch t := v.(type) {
+		case float64:
+			ac.MaxSteps = int(t)
+		case int:
+			ac.MaxSteps = t
+		}
+	}
+	if v, ok := config["timeout"]; ok {
+		switch t := v.(type) {
+		case float64:
+			ac.Timeout = int(t)
+		case int:
+			ac.Timeout = t
+		}
+	}
+	if v, ok := config["max_tokens"]; ok {
+		switch t := v.(type) {
+		case float64:
+			ac.MaxTokens = int(t)
+		case int:
+			ac.MaxTokens = t
+		}
+	}
+	if v, ok := config["output_schema"].(string); ok {
+		ac.OutputSchema = v
+	}
+	if v, ok := config["scope"].(string); ok {
+		ac.Scope = v
+	}
+	if v, ok := config["scope_deny"].(string); ok {
+		ac.ScopeDeny = v
+	}
+	// Memory config
+	memKind := "conversation"
+	memTurns := 10
+	if v, ok := config["memory_kind"].(string); ok {
+		memKind = v
+	}
+	if v, ok := config["memory_max_turns"]; ok {
+		switch t := v.(type) {
+		case float64:
+			memTurns = int(t)
+		case int:
+			memTurns = t
+		}
+	}
+	ac.Memory = MemoryConfig{Kind: memKind, MaxTurns: memTurns}
+
+	return NewAgent(ac)
+}
+
+// SpawnAgents runs multiple agent calls in parallel and returns all results.
+// Each task is a struct with agent *Agent, message string, sessionID string.
+type AgentTask struct {
+	Agent     *Agent
+	Message   string
+	SessionID string
+}
+
+// SpawnAgents executes multiple agent tasks in parallel and returns their results.
+// Returns a slice of results in the same order as the input tasks.
+// If any task fails, its result will contain the error message.
+func SpawnAgents(tasks []AgentTask) []map[string]any {
+	results := make([]map[string]any, len(tasks))
+	var wg sync.WaitGroup
+	wg.Add(len(tasks))
+
+	for i, task := range tasks {
+		go func(idx int, t AgentTask) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					results[idx] = map[string]any{
+						"reply": "",
+						"error": fmt.Sprintf("agent %q panicked: %v", t.Agent.config.Name, r),
+					}
+				}
+			}()
+			reply, err := t.Agent.Ask(t.Message, t.SessionID)
+			if err != nil {
+				results[idx] = map[string]any{
+					"reply": "",
+					"error": err.Error(),
+				}
+			} else {
+				results[idx] = map[string]any{
+					"reply": reply,
+					"error": nil,
+				}
+			}
+		}(i, task)
+	}
+
+	wg.Wait()
+	return results
 }

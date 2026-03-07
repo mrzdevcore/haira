@@ -1,31 +1,37 @@
 package haira
 
-import "regexp"
+import (
+	"fmt"
+	"regexp"
+)
+
+// mustCompile compiles a regex pattern, panicking on error (caught by Haira's try/catch).
+func mustCompile(pattern string) *regexp.Regexp {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		panic(fmt.Sprintf("invalid regex %q: %v", pattern, err))
+	}
+	return re
+}
 
 // RegexIsMatch returns true if the pattern matches the text.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexIsMatch(pattern, text string) bool {
-	matched, err := regexp.MatchString(pattern, text)
-	if err != nil {
-		return false
-	}
-	return matched
+	re := mustCompile(pattern)
+	return re.MatchString(text)
 }
 
 // RegexFind returns the first match of the pattern in text, or empty string.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexFind(pattern, text string) string {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return ""
-	}
+	re := mustCompile(pattern)
 	return re.FindString(text)
 }
 
 // RegexFindAll returns all matches of the pattern in text.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexFindAll(pattern, text string) []any {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil
-	}
+	re := mustCompile(pattern)
 	matches := re.FindAllString(text, -1)
 	result := make([]any, len(matches))
 	for i, m := range matches {
@@ -35,11 +41,9 @@ func RegexFindAll(pattern, text string) []any {
 }
 
 // RegexReplace replaces the first match of pattern in text with repl.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexReplace(pattern, text, repl string) string {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return text
-	}
+	re := mustCompile(pattern)
 	loc := re.FindStringIndex(text)
 	if loc == nil {
 		return text
@@ -48,20 +52,16 @@ func RegexReplace(pattern, text, repl string) string {
 }
 
 // RegexReplaceAll replaces all matches of pattern in text with repl.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexReplaceAll(pattern, text, repl string) string {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return text
-	}
+	re := mustCompile(pattern)
 	return re.ReplaceAllString(text, repl)
 }
 
 // RegexCaptures returns the capture groups of the first match.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexCaptures(pattern, text string) []any {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil
-	}
+	re := mustCompile(pattern)
 	match := re.FindStringSubmatch(text)
 	if match == nil {
 		return nil
@@ -74,11 +74,9 @@ func RegexCaptures(pattern, text string) []any {
 }
 
 // RegexSplit splits text by pattern.
+// Panics on invalid pattern (caught by Haira's try/catch).
 func RegexSplit(pattern, text string) []any {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return []any{text}
-	}
+	re := mustCompile(pattern)
 	parts := re.Split(text, -1)
 	result := make([]any, len(parts))
 	for i, p := range parts {

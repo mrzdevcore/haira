@@ -67,3 +67,10 @@ arp/packages/*/dist
 arp/.turbo
 arp/packages/*/.turbo
 spec/latex/build/
+spec/latex/*.aux
+spec/latex/*.fdb_latexmk
+spec/latex/*.fls
+spec/latex/*.log
+spec/latex/*.out
+spec/latex/*.toc
+spec/latex/*.pdf

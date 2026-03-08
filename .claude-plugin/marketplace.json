@@ -1,0 +1,21 @@
+{
+  "name": "haira-skills",
+  "owner": {
+    "name": "mrzdevcore"
+  },
+  "metadata": {
+    "description": "Agent skills for the Haira programming language"
+  },
+  "plugins": [
+    {
+      "name": "haira",
+      "source": "./",
+      "description": "Complete Haira language knowledge — syntax, types, agentic constructs, stdlib, compiler internals, and idiomatic patterns",
+      "version": "1.0.0",
+      "author": {
+        "name": "mrzdevcore"
+      },
+      "keywords": ["haira", "agentic", "language", "compiler", "workflow", "agent"]
+    }
+  ]
+}

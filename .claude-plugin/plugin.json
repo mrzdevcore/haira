@@ -1,0 +1,10 @@
+{
+  "name": "haira",
+  "description": "Agent skills for the Haira programming language — syntax, standard library, compiler internals, and idiomatic patterns for building agentic workflows",
+  "version": "1.0.0",
+  "author": {
+    "name": "mrzdevcore"
+  },
+  "repository": "https://github.com/mrzdevcore/haira",
+  "license": "MIT"
+}

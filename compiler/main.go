@@ -49,6 +49,8 @@ func main() {
 		err = cmdEmit(rest)
 	case "test":
 		err = cmdTest(rest)
+	case "eval":
+		err = cmdEval(rest)
 	case "fmt":
 		err = cmdFmt(rest)
 	case "init":
@@ -125,8 +127,8 @@ func cmdBuild(args []string) error {
 			target = strings.TrimPrefix(rest[i], "--target=")
 		}
 	}
-	if target != "native" && target != "workers" {
-		return fmt.Errorf("unknown target %q (valid: native, workers)", target)
+	if target != "native" && target != "workers" && target != "claude-code" {
+		return fmt.Errorf("unknown target %q (valid: native, workers, claude-code)", target)
 	}
 	return driver.Compile(file, output, target)
 }
@@ -211,6 +213,14 @@ func cmdFmt(args []string) error {
 		}
 	}
 	return nil
+}
+
+func cmdEval(args []string) error {
+	file, _ := resolveEntryFile(args)
+	if file == "" {
+		return fmt.Errorf("usage: haira eval [file]\n  No file specified and no package.haira found")
+	}
+	return driver.Eval(file)
 }
 
 func cmdConsole(args []string) error {
@@ -527,13 +537,14 @@ func printUsage() {
 Usage: haira <command> [arguments]
 
 Commands:
-  build [file] [-o output] [--target native|workers]   Compile to binary
+  build [file] [-o output] [--target native|workers|claude-code]   Compile to binary
   run [file]                  Compile and execute
   parse [file]                Show the AST
   check [file] [files...]     Parse and report errors
   lex [file]                  Show tokens
   emit [file]                 Show generated Go code
   test [file] [flags...]      Run test blocks
+  eval [file]                 Run eval blocks (agent evaluation)
   fmt [file] [files...]       Format source files in-place
   init                        Create a package.haira manifest
   console <host:port>         Connect to a Haira server (interactive terminal)

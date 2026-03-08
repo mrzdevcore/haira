@@ -43,6 +43,33 @@ func EmitStatement(em *GoEmitter, stmt ast.Statement) {
 		// assert is only valid inside test blocks; emitTestBody handles it directly.
 		// If we reach here, it means assert was used outside a test (checker should catch this).
 		em.Line("// assert outside test block (should not reach codegen)")
+	case ast.VerifyStmt:
+		emitVerify(em, s)
+	}
+}
+
+// emitVerify generates verification checks from a verify { assert ... } block.
+// Inside a @retry step context, failed assertions set the retry error and return.
+// Outside retry, they panic (caught by try/catch or error propagation).
+func emitVerify(em *GoEmitter, v ast.VerifyStmt) {
+	em.Line("// verify block")
+	for _, stmt := range v.Body.Statements {
+		if a, ok := stmt.Node.(ast.AssertStmt); ok {
+			cond := ExprToGo(a.Condition)
+			msg := fmt.Sprintf("verify failed: %s", cond)
+			if a.Message != nil {
+				msg = ExprToGo(*a.Message)
+				em.OpenBlock(fmt.Sprintf("if !(%s)", cond))
+				em.Linef("panic(fmt.Errorf(\"verify: %%s\", %s))", msg)
+			} else {
+				em.OpenBlock(fmt.Sprintf("if !(%s)", cond))
+				em.Linef("panic(fmt.Errorf(%q))", msg)
+			}
+			em.CloseBlock()
+		} else {
+			// Non-assert statements inside verify are emitted normally
+			EmitStatement(em, stmt)
+		}
 	}
 }
 

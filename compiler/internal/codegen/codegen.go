@@ -434,8 +434,8 @@ func needsFmtImport(file *ast.SourceFile) bool {
 		switch it := item.Node.(type) {
 		case ast.ToolDecl:
 			// All tools generate fmt.Errorf in JSON unmarshal error path
-			return true
 			_ = it
+			return true
 		case ast.FunctionDef:
 			if blockHasInterpolatedString(it.Body) || blockHasTry(it.Body) {
 				return true
@@ -775,7 +775,7 @@ func SnakeToPascal(name string) string {
 // separate stdlib package (not part of the core haira package).
 func stdlibGoPackage(path string) (string, bool) {
 	switch path {
-	case "postgres", "excel", "vector", "slack", "github", "gitlab", "langfuse", "algolia", "meilisearch", "auth", "websearch", "healthcheck":
+	case "postgres", "excel", "vector", "slack", "github", "gitlab", "langfuse", "algolia", "meilisearch", "auth", "websearch", "healthcheck", "agents":
 		return path, true
 	}
 	return "", false

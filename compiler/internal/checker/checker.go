@@ -1263,7 +1263,7 @@ var stdlibModules = map[string]bool{
 	"mcp": true, "ui": true, "vector": true, "observe": true, "fs": true, "os": true,
 	"gitlab": true, "github": true, "langfuse": true,
 	"algolia": true, "meilisearch": true, "store": true,
-	"auth": true, "websearch": true, "healthcheck": true,
+	"auth": true, "websearch": true, "healthcheck": true, "agents": true,
 }
 
 func isStdlibModule(name string) bool {

@@ -31,6 +31,7 @@ type AgentConfig struct {
 	OutputSchema string       // JSON Schema for structured output (forces JSON mode)
 	Scope        string       // Topic restriction — what the agent is allowed to help with
 	ScopeDeny    string       // Message returned for off-topic requests
+	Strategy     string       // Handoff strategy: "" (llm-decides), "sequential", "parallel"
 }
 
 // AgentResult holds the full result of an agent call, including handoff info.
@@ -502,11 +503,75 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 	ch <- StreamChunk{Delta: "", Done: true}
 }
 
+// runParallelHandoffs fans out the message to all handoff targets concurrently
+// and aggregates their replies.
+func (a *Agent) runParallelHandoffs(message string, sessionID string, handoffDepth int) (*AgentResult, error) {
+	targets := a.config.Handoffs
+	type result struct {
+		name  string
+		reply string
+		err   error
+	}
+	ch := make(chan result, len(targets))
+	for _, t := range targets {
+		go func(target *Agent) {
+			r, err := target.run(message, sessionID, true, handoffDepth+1)
+			if err != nil {
+				ch <- result{name: target.config.Name, err: err}
+			} else {
+				ch <- result{name: target.config.Name, reply: r.Reply}
+			}
+		}(t)
+	}
+	var parts []string
+	for range targets {
+		r := <-ch
+		if r.err != nil {
+			parts = append(parts, fmt.Sprintf("[%s] Error: %v", r.name, r.err))
+		} else {
+			parts = append(parts, fmt.Sprintf("[%s]\n%s", r.name, r.reply))
+		}
+	}
+	combined := strings.Join(parts, "\n\n")
+	return &AgentResult{Reply: combined}, nil
+}
+
+// runSequentialHandoffs chains the message through handoff targets in order,
+// passing each agent's output as context to the next.
+func (a *Agent) runSequentialHandoffs(message string, sessionID string, handoffDepth int) (*AgentResult, error) {
+	current := message
+	var lastResult *AgentResult
+	for _, target := range a.config.Handoffs {
+		fmt.Fprintf(os.Stderr, "[haira] Sequential handoff: %s → %s\n", a.config.Name, target.config.Name)
+		r, err := target.run(current, sessionID, true, handoffDepth+1)
+		if err != nil {
+			return nil, fmt.Errorf("sequential handoff to %s failed: %w", target.config.Name, err)
+		}
+		lastResult = r
+		current = r.Reply // feed output as input to next agent
+	}
+	if lastResult == nil {
+		return &AgentResult{Reply: ""}, nil
+	}
+	return lastResult, nil
+}
+
 // run is the internal implementation shared by Ask and Run.
 func (a *Agent) run(message string, sessionID string, followHandoffs bool, handoffDepth int) (*AgentResult, error) {
 	if handoffDepth >= maxHandoffDepth {
 		return nil, fmt.Errorf("handoff depth limit (%d) exceeded — possible circular handoff chain", maxHandoffDepth)
 	}
+
+	// Strategy-based handoff routing (bypasses LLM tool-calling for handoffs)
+	if len(a.config.Handoffs) > 0 && a.config.Strategy != "" {
+		switch a.config.Strategy {
+		case "parallel":
+			return a.runParallelHandoffs(message, sessionID, handoffDepth)
+		case "sequential":
+			return a.runSequentialHandoffs(message, sessionID, handoffDepth)
+		}
+	}
+
 	timeout := time.Duration(a.config.Timeout) * time.Second
 	if timeout <= 0 {
 		timeout = 120 * time.Second // default 2 minutes

@@ -74,6 +74,8 @@ type ToolDecl struct {
 	ReturnTy    *Spanned[Type]
 	Description string
 	Body        *Block
+	BeforeHook  *Block // @before { ... } — runs before tool body
+	AfterHook   *Block // @after { ... } — runs after tool body
 }
 
 type AgentDecl struct {
@@ -127,6 +129,17 @@ type TestDecl struct {
 	Body Block
 }
 
+// EvalDecl defines an agent evaluation block with test cases and thresholds.
+type EvalDecl struct {
+	Name   Spanned[string]
+	Fields []EvalField
+}
+
+type EvalField struct {
+	Key   Spanned[string]
+	Value Expr
+}
+
 func (TypeDef) itemKind()       {}
 func (EnumDef) itemKind()       {}
 func (TypeAlias) itemKind()     {}
@@ -140,6 +153,7 @@ func (FunctionDef) itemKind()   {}
 func (MethodDef) itemKind()     {}
 func (ItemStatement) itemKind() {}
 func (TestDecl) itemKind()      {}
+func (EvalDecl) itemKind()      {}
 
 // --- Type expressions ---
 
@@ -346,6 +360,12 @@ type AssertStmt struct {
 	Message   *Expr // optional custom message
 }
 
+// VerifyStmt groups assertions that trigger a retry on failure.
+// Used inside workflow steps with @retry to auto-verify and retry.
+type VerifyStmt struct {
+	Body Block // contains AssertStmt nodes
+}
+
 type LetStmt struct {
 	Name    Spanned[string]
 	TypeAnn *Spanned[Type] // optional type annotation
@@ -368,6 +388,7 @@ func (ContinueStmt) stmtKind() {}
 func (ExprStmt) stmtKind()     {}
 func (StepStmt) stmtKind()     {}
 func (AssertStmt) stmtKind()   {}
+func (VerifyStmt) stmtKind()   {}
 
 // --- Expressions ---
 

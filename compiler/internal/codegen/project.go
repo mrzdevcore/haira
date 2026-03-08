@@ -149,6 +149,38 @@ func RunTests(file *ast.SourceFile, hairaFile, hairaSource string, testArgs []st
 	return err
 }
 
+// RunEval generates Go source for eval blocks and runs it.
+func RunEval(file *ast.SourceFile, hairaFile, hairaSource string, typeInfo ...*checker.TypeInfo) error {
+	tmpDir := filepath.Join(os.TempDir(), fmt.Sprintf("haira-eval-%d", os.Getpid()))
+	usedPkgs := collectUsedStdlibPackages(file)
+
+	evalGo := GenerateEvalGo(file, hairaFile, hairaSource, typeInfo...)
+	if err := writeProject(tmpDir, evalGo, usedPkgs); err != nil {
+		return err
+	}
+	if err := runGoModTidy(tmpDir); err != nil {
+		return fmt.Errorf("go mod tidy failed: %w", err)
+	}
+
+	cmd := exec.Command("go", "run", ".")
+	cmd.Dir = tmpDir
+	cmd.Stdout = os.Stdout
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if stderr.Len() > 0 {
+		if err != nil {
+			fmt.Fprint(os.Stderr, cleanGoErrors(stderr.String()))
+		} else {
+			fmt.Fprint(os.Stderr, stderr.String())
+		}
+	}
+
+	os.RemoveAll(tmpDir)
+	return err
+}
+
 // writeProject writes a Go project using the embedded runtime.
 // usedStdlibPkgs lists the stdlib package names (e.g., "postgres", "excel") to include.
 func writeProject(dir, mainGo string, usedStdlibPkgs []string) error {

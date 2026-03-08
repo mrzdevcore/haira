@@ -51,6 +51,11 @@ func Compile(file, output, target string) error {
 		}
 	}
 
+	// Claude Code export: generate agent configs + MCP binary
+	if target == "claude-code" {
+		return codegen.ExportClaudeCode(sf, output, file, src, typeInfo)
+	}
+
 	if err := codegen.CompileToBinary(sf, output, file, src, target, typeInfo); err != nil {
 		// Clean up partial build artifacts
 		os.Remove(output)
@@ -188,6 +193,27 @@ func Test(file string, testArgs []string) error {
 	return codegen.RunTests(sf, file, src, testArgs, typeInfo)
 }
 
+// Eval reads a Haira source file and runs its eval blocks.
+func Eval(file string) error {
+	sf, src, err := resolveAndParse(file)
+	if err != nil {
+		return err
+	}
+
+	// Type check
+	typeInfo, typeDiags := checker.Check(sf)
+	if hairaerr.HasErrors(typeDiags) {
+		return reportErrors(typeDiags, src)
+	}
+	reportWarnings(typeDiags, src)
+
+	if !codegen.HasEvals(sf) {
+		return fmt.Errorf("no eval blocks found in %s", file)
+	}
+
+	return codegen.RunEval(sf, file, src, typeInfo)
+}
+
 // FormatFile formats a Haira source file in-place.
 func FormatFile(file string) error {
 	source, err := os.ReadFile(file)
@@ -309,6 +335,8 @@ func printItem(item ast.Item) {
 		fmt.Printf("  WorkflowDecl: %s%s (%d params)\n", trigger, it.Name.Node, len(it.Params))
 	case ast.TestDecl:
 		fmt.Printf("  TestDecl: %q\n", it.Name.Node)
+	case ast.EvalDecl:
+		fmt.Printf("  EvalDecl: %q (%d fields)\n", it.Name.Node, len(it.Fields))
 	case ast.ItemStatement:
 		fmt.Printf("  Statement: %T\n", it.Stmt.Node)
 	default:

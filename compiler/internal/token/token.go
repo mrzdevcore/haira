@@ -55,6 +55,8 @@ const (
 	Errdefer
 	Test
 	Assert
+	Verify
+	Eval
 	Let
 	Const
 	Nil
@@ -177,6 +179,8 @@ var Keywords = map[string]TokenKind{
 	"errdefer":  Errdefer,
 	"test":      Test,
 	"assert":    Assert,
+	"verify":    Verify,
+	"eval":      Eval,
 	"let":       Let,
 	"const":     Const,
 	"nil":       Nil,
@@ -293,6 +297,10 @@ func (k TokenKind) String() string {
 		return "test"
 	case Assert:
 		return "assert"
+	case Verify:
+		return "verify"
+	case Eval:
+		return "eval"
 	case Let:
 		return "let"
 	case Const:

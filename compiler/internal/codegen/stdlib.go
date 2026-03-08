@@ -684,6 +684,25 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 		case "choices":
 			return fmt.Sprintf("haira.UiNewChoices(%s)", args), true
 		}
+	case "agents":
+		switch method {
+		case "code_reviewer":
+			return "agents.CodeReviewer()", true
+		case "planner":
+			return "agents.Planner()", true
+		case "security_reviewer":
+			return "agents.SecurityReviewer()", true
+		case "summarizer":
+			return "agents.Summarizer()", true
+		case "data_analyst":
+			return "agents.DataAnalyst()", true
+		case "customer_support":
+			return "agents.CustomerSupport()", true
+		case "tdd_guide":
+			return "agents.TDDGuide()", true
+		case "doc_writer":
+			return "agents.DocWriter()", true
+		}
 	}
 	return "", false
 }
@@ -849,7 +868,7 @@ func IsStdlibImport(path string) bool {
 	case "io", "http", "mcp", "env", "json", "postgres", "slack", "excel", "time",
 		"string", "regex", "math", "conv", "array", "map", "log", "ui", "vector",
 		"observe", "fs", "os", "gitlab", "github", "langfuse", "algolia", "meilisearch",
-		"auth", "agent", "websearch", "healthcheck":
+		"auth", "agent", "websearch", "healthcheck", "agents":
 		return true
 	}
 	return false

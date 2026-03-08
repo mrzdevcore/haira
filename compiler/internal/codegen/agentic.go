@@ -236,6 +236,8 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 					em.Line(fmt.Sprintf("Memory: %s,", config))
 				}
 			}
+		case "strategy":
+			em.Line(fmt.Sprintf("Strategy: %s,", ExprToGo(field.Value)))
 		case "output":
 			if ident, ok := field.Value.Node.(ast.IdentExpr); ok {
 				schema := buildStructJSONSchema(ident.Name)
@@ -340,9 +342,21 @@ func EmitTool(em *GoEmitter, tool ast.ToolDecl) {
 			goName := SnakeToPascal(param.Name.Node)
 			em.Line(fmt.Sprintf("%s := params.%s", param.Name.Node, goName))
 		}
+		// @before hook
+		if tool.BeforeHook != nil {
+			em.Line("// @before hook")
+			EmitToolBody(em, *tool.BeforeHook)
+		}
 		EmitToolBody(em, *tool.Body)
 	} else {
 		em.Line(fmt.Sprintf("return nil, fmt.Errorf(\"tool %s not yet implemented\")", tool.Name.Node))
+	}
+	// @after hook — runs after body but before the closing brace
+	// Note: if the body has a return statement, the after hook won't execute.
+	// For guaranteed after-hook execution, use defer-based patterns in the hook itself.
+	if tool.AfterHook != nil {
+		em.Line("// @after hook")
+		EmitToolBody(em, *tool.AfterHook)
 	}
 	em.CloseBlock()
 	em.Blank()

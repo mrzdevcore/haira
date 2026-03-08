@@ -330,6 +330,14 @@ func (p *Parser) parseItem() (ast.Item, bool) {
 		}
 		return ast.Item{Node: td, Span: p.span(start)}, true
 
+	case token.Eval:
+		p.advance()
+		ed, ok := p.parseEvalDecl()
+		if !ok {
+			return ast.Item{}, false
+		}
+		return ast.Item{Node: ed, Span: p.span(start)}, true
+
 	case token.Fn:
 		p.advance()
 		fd, ok := p.parseFnDecl(isPublic)
@@ -1013,6 +1021,14 @@ func (p *Parser) parseStatement() (ast.Statement, bool) {
 			return ast.Statement{}, false
 		}
 		return ast.Statement{Node: as, Span: p.span(start)}, true
+
+	case token.Verify:
+		p.advance()
+		body, ok := p.parseBlock()
+		if !ok {
+			return ast.Statement{}, false
+		}
+		return ast.Statement{Node: ast.VerifyStmt{Body: body}, Span: p.span(start)}, true
 
 	case token.Let, token.Const:
 		isConst := p.peek().Kind == token.Const
@@ -2865,6 +2881,29 @@ func (p *Parser) parseToolDecl() (ast.ToolDecl, bool) {
 
 	p.skipNewlines()
 
+	// Parse optional @before/@after hooks before the main body.
+	var beforeHook, afterHook *ast.Block
+	for p.check(token.At) {
+		p.advance() // consume @
+		tok := p.peek()
+		if tok.Value == "before" || tok.Value == "after" {
+			hookName := tok.Value
+			p.advance() // consume "before"/"after"
+			hookBlock, ok := p.parseBlock()
+			if ok {
+				if hookName == "before" {
+					beforeHook = &hookBlock
+				} else {
+					afterHook = &hookBlock
+				}
+			}
+			p.skipNewlines()
+		} else {
+			// Not a hook decorator — put @ back by not consuming further
+			break
+		}
+	}
+
 	// Optional body statements.
 	var body *ast.Block
 	if !p.check(token.RBrace) {
@@ -2890,6 +2929,8 @@ func (p *Parser) parseToolDecl() (ast.ToolDecl, bool) {
 		ReturnTy:    retTy,
 		Description: description,
 		Body:        body,
+		BeforeHook:  beforeHook,
+		AfterHook:   afterHook,
 	}, true
 }
 
@@ -2927,6 +2968,44 @@ func (p *Parser) parseAssertStmt() (ast.AssertStmt, bool) {
 		msg = &m
 	}
 	return ast.AssertStmt{Condition: cond, Message: msg}, true
+}
+
+func (p *Parser) parseEvalDecl() (ast.EvalDecl, bool) {
+	// Expect a string literal name: eval "name" { ... }
+	if p.peek().Kind != token.String {
+		tok := p.peek()
+		p.addError("expected eval name string", ast.Span{Start: tok.Start, End: tok.End})
+		return ast.EvalDecl{}, false
+	}
+	nameTok := p.peek()
+	name := ast.Spanned[string]{Node: nameTok.Value, Span: ast.Span{Start: nameTok.Start, End: nameTok.End}}
+	p.advance()
+
+	p.consume(token.LBrace, "{")
+	p.skipNewlines()
+
+	var fields []ast.EvalField
+	for !p.check(token.RBrace) && !p.atEnd() {
+		key, ok := p.parseIdentifier()
+		if !ok {
+			p.advance()
+			continue
+		}
+		p.consume(token.Colon, ":")
+		val, ok := p.parseExpr()
+		if !ok {
+			p.advance()
+			continue
+		}
+		fields = append(fields, ast.EvalField{Key: key, Value: val})
+		if p.check(token.Comma) {
+			p.advance()
+		}
+		p.skipNewlines()
+	}
+	p.consume(token.RBrace, "}")
+
+	return ast.EvalDecl{Name: name, Fields: fields}, true
 }
 
 func (p *Parser) parseAgentDecl() (ast.AgentDecl, bool) {

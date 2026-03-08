@@ -68,11 +68,11 @@ func TestResolveTransitiveImport(t *testing.T) {
 		"main.haira": `import "services/auth"
 
 fn main() {
-	auth.verify("token")
+	auth.validate("token")
 }`,
 		"services/auth.haira": `import "models/user"
 
-fn verify(token: string) -> bool {
+fn validate(token: string) -> bool {
 	return true
 }`,
 		"models/user.haira": `struct User {

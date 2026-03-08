@@ -19,8 +19,8 @@ Thumbs.db
 # Compiled Haira output
 .output/
 
-# VitePress build output
-docs/
+# VitePress build output (root-level only, not website/docs/ source)
+/docs/
 
 # UI build output
 ui/sdk/dist/

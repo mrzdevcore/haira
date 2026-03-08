@@ -180,11 +180,62 @@ tool fetch_page(url: string) -> string {
 
 When a tool returns an error, the agent receives the error message and can decide how to proceed (retry, try a different tool, or report the error to the user).
 
+\section{Lifecycle Hooks}
+
+Tools support optional \code{@before} and \code{@after} hooks for pre/post-processing logic. Hooks are useful for validation, logging, rate limiting, or cleanup.
+
+\subsection{@before Hook}
+
+The \code{@before} block executes before the tool body:
+
+\begin{lstlisting}
+tool create_user(name: string, email: string) -> User {
+    """Create a new user account."""
+
+    @before {
+        assert name != "", "name is required"
+        assert email.contains("@"), "invalid email"
+    }
+
+    user = db.insert("users", { name: name, email: email })
+    return user
+}
+\end{lstlisting}
+
+\subsection{@after Hook}
+
+The \code{@after} block executes after the tool body completes:
+
+\begin{lstlisting}
+tool query_db(sql: string) -> [map] {
+    """Run a database query and return results."""
+
+    @before {
+        io.println("Query: " + sql)
+    }
+
+    @after {
+        io.println("Query complete")
+    }
+
+    results, err = db.query(sql)
+    if err != nil { return [], err }
+    return results
+}
+\end{lstlisting}
+
+\begin{note}
+Hooks are optional. \code{@before} and \code{@after} must appear after the triple-quoted description. If a \code{@before} hook fails (e.g., via \code{assert}), the tool body does not execute.
+\end{note}
+
 \section{Tool Grammar}
 
 \begin{lstlisting}[language=EBNF]
 tool_decl     = "tool" identifier "(" [ params ] ")" [ "->" type ]
-                "{" triple_string { statement } "}" ;
+                "{" triple_string [ before_hook ] [ after_hook ]
+                { statement } "}" ;
 
 triple_string = '"""' { any_char } '"""' ;
+before_hook   = "@before" block ;
+after_hook    = "@after" block ;
 \end{lstlisting}

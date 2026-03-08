@@ -472,6 +472,49 @@ encoding.hex_encode(data)
 encoding.hex_decode(string)
 \end{lstlisting}
 
+\section{Agentic Modules}
+
+\subsection{agents Module}
+
+Pre-built agent configuration templates for common use cases:
+
+\begin{lstlisting}
+import "agents"
+
+// Returns a map with name, system, temperature, max_steps
+config = agents.code_reviewer()
+config = agents.planner()
+config = agents.security_reviewer()
+config = agents.summarizer()
+config = agents.data_analyst()
+config = agents.customer_support()
+config = agents.tdd_guide()
+config = agents.doc_writer()
+
+// Use with create_agent() for dynamic agent creation
+reviewer = create_agent(config, my_provider, [my_tool])
+\end{lstlisting}
+
+\subsection{observe Module}
+
+Observability and cost monitoring:
+
+\begin{lstlisting}
+import "observe"
+import "langfuse"
+
+// Track costs
+total = observe.cost()
+agent_cost = observe.agent_cost("Writer")
+usage = observe.usage()
+
+// Export to Langfuse
+observe.use(langfuse.exporter("", "", ""))
+
+// Start observability dashboard
+observe.start(server)  // Serves /_observe
+\end{lstlisting}
+
 \section{Testing}
 
 \haira{} has built-in testing support. Tests are declared with the \keyword{test} keyword followed by a name and a block of assertions.

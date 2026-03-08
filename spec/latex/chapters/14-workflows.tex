@@ -641,20 +641,137 @@ Iterative refinement & \keyword{for} + \keyword{break} & No \\
 Supervisor & loop + \keyword{match} + agents & No \\
 Voting / consensus & \keyword{spawn} + aggregation & No \\
 Human-in-the-loop & two workflows + tools & No \\
+Verification loop & \keyword{verify} + \code{@retry} & Keyword \\
 \bottomrule
 \end{tabular}
 \caption{Orchestration patterns and their primitives}
 \end{table}
 
+\section{Verification Loops}
+
+The \keyword{verify} block groups assertions inside a workflow step. When combined with \code{@retry}, failed assertions automatically trigger a retry of the step.
+
+\begin{lstlisting}
+@webhook("/api/generate")
+workflow GenerateCode(spec: string) -> { code: string } {
+    @retry(3)
+    step "Generate and validate" {
+        code, err = Coder.ask(spec)
+        if err != nil { return { code: "" } }
+
+        verify {
+            assert code.contains("fn main"), "must have main function"
+            assert !code.contains("unsafe"), "no unsafe code allowed"
+        }
+    }
+
+    return { code: code }
+}
+\end{lstlisting}
+
+When a \keyword{verify} assertion fails inside a \code{@retry} step, the step is retried up to the specified number of times. If all retries fail, the workflow continues with the last result.
+
+\begin{note}
+\keyword{verify} is only meaningful inside steps decorated with \code{@retry}. Without \code{@retry}, a failed assertion simply panics (as with standalone \keyword{assert}).
+\end{note}
+
+\section{Lifecycle Hooks}
+
+Steps and workflows support lifecycle hooks for error handling, success callbacks, and cancellation:
+
+\begin{lstlisting}
+@webhook("/api/process")
+workflow ProcessData(input: string) -> { status: string } {
+    step "Process" {
+        result = heavy_computation(input)?
+    }
+
+    onerror(err) {
+        send_slack("#alerts", "Process failed: ${err}")
+    }
+
+    onsuccess {
+        send_slack("#ops", "Process completed successfully")
+    }
+
+    return { status: "ok" }
+}
+\end{lstlisting}
+
+\section{Eval Framework}
+
+The \keyword{eval} declaration defines automated agent evaluations with test cases and scoring thresholds:
+
+\begin{lstlisting}
+eval "classifier accuracy" {
+    agent: Classifier
+    cases: [
+        { input: "I love this!", expected: "positive" },
+        { input: "This is terrible", expected: "negative" },
+        { input: "It's okay I guess", expected: "neutral" }
+    ]
+    threshold: 0.8
+}
+\end{lstlisting}
+
+Run evaluations with the CLI:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ haira eval main.haira
+
+Running eval: classifier accuracy
+  [PASS] Case 1: I love this!
+  [PASS] Case 2: This is terrible
+  [FAIL] Case 3: It's okay I guess
+         Expected: neutral
+         Got:      positive
+
+Score: 66.7% (2/3 passed)
+Result: FAIL (threshold: 80%, got: 67%)
+\end{lstlisting}
+
+\section{Cross-Harness Export}
+
+\haira{} programs can be exported as Claude Code agent configurations:
+
+\begin{lstlisting}[language=bash,numbers=none]
+$ haira build main.haira --target claude-code
+\end{lstlisting}
+
+This generates:
+
+\begin{lstlisting}[language={},numbers=none]
+.claude/
+  agents/agent-name.md      # Agent system prompt + config
+  commands/workflow-name.md  # Slash commands for workflows
+  mcp-servers.json           # Points to MCP binary
+bin/
+  haira-tools                # MCP server with custom tools
+\end{lstlisting}
+
+Each agent becomes a Claude Code agent markdown file. Custom tools are compiled into an MCP server binary that Claude Code connects to via \code{mcp-servers.json}.
+
 \section{Workflow Grammar}
 
 \begin{lstlisting}[language=EBNF]
 workflow_decl = { decorator } "workflow" identifier
-                "(" [ params ] ")" [ "->" type ] block ;
+                "(" [ params ] ")" [ "->" type ] block
+                { lifecycle_hook } ;
 
 decorator     = "@" identifier [ "(" [ arguments ] ")" ] ;
 
 spawn_block   = "spawn" "{" { statement } "}" ;
 
-step_stmt     = "step" string_literal block ;
+step_stmt     = "step" string_literal { decorator } block
+                { lifecycle_hook } ;
+
+verify_stmt   = "verify" block ;
+
+eval_decl     = "eval" string_literal "{" { eval_field } "}" ;
+
+eval_field    = identifier ":" expression ;
+
+lifecycle_hook = "onerror" "(" identifier ")" block
+               | "onsuccess" [ "(" identifier ")" ] block
+               | "oncancel" block ;
 \end{lstlisting}

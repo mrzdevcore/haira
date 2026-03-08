@@ -93,9 +93,60 @@ tool fetch_api(endpoint: string) -> string {
 }
 ```
 
+## Lifecycle Hooks
+
+Tools support `@before` and `@after` hooks for pre/post-processing logic:
+
+### `@before` — Run before tool execution
+
+```haira
+tool create_ticket(title: string, body: string) -> string {
+    """Create a support ticket"""
+
+    @before {
+        io.println("Creating ticket: ${title}")
+        if len(title) == 0 {
+            return "Title is required."
+        }
+    }
+
+    resp, err = http.post("https://api.tickets.com/create", {
+        "title": title,
+        "body": body
+    })
+    if err != nil { return "Failed to create ticket." }
+    return "Ticket created: ${resp.json()["id"]}"
+}
+```
+
+### `@after` — Run after tool execution
+
+```haira
+tool query_db(sql: string) -> string {
+    """Execute a database query"""
+
+    @after {
+        io.println("Query completed")
+        observe.track("db_query", { "sql": sql })
+    }
+
+    rows, err = postgres.query(sql)
+    if err != nil { return "Query failed." }
+    return json.encode(rows)
+}
+```
+
+Hooks are useful for:
+- **Validation** — check inputs before running
+- **Logging** — track tool usage
+- **Metrics** — record performance data
+- **Cleanup** — release resources after execution
+
 ## Best Practices
 
 - Write clear, specific docstrings — the LLM relies on them
 - Return strings — agents work with text
 - Handle errors gracefully — return error messages instead of crashing
 - Keep tools focused — one tool per action
+- Use `@before` hooks for input validation
+- Use `@after` hooks for observability and cleanup

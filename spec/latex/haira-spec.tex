@@ -28,22 +28,27 @@
     bottom=2.5cm
 }
 
-% Colors
-\definecolor{hairaBlue}{RGB}{41, 98, 255}
+% Colors — Haira brand palette
+\definecolor{hairaGold}{RGB}{232, 163, 23}        % #E8A317 — primary brand gold
+\definecolor{hairaGoldLight}{RGB}{240, 189, 79}    % #F0BD4F — lighter accent
+\definecolor{hairaGoldGlow}{RGB}{253, 230, 138}    % #FDE68A — glow/highlight
+\definecolor{hairaFoundation}{RGB}{61, 43, 31}     % #3D2B1F — dark foundation
+\definecolor{hairaStraw}{RGB}{196, 162, 101}       % #C4A265 — straw accent
+\definecolor{hairaBlue}{RGB}{41, 98, 255}          % kept for hyperlinks
 \definecolor{hairaGray}{RGB}{100, 100, 100}
-\definecolor{codeBg}{RGB}{248, 248, 248}
-\definecolor{codeFrame}{RGB}{200, 200, 200}
-\definecolor{keyword}{RGB}{0, 0, 180}
+\definecolor{codeBg}{RGB}{253, 250, 243}           % warm off-white background
+\definecolor{codeFrame}{RGB}{210, 190, 160}        % warm border
+\definecolor{keyword}{RGB}{150, 90, 0}             % warm keyword color
 \definecolor{string}{RGB}{0, 128, 0}
-\definecolor{comment}{RGB}{128, 128, 128}
+\definecolor{comment}{RGB}{140, 130, 110}          % warm gray
 \definecolor{identifier}{RGB}{0, 0, 0}
 
 % Hyperref setup
 \hypersetup{
     colorlinks=true,
-    linkcolor=hairaBlue,
-    urlcolor=hairaBlue,
-    citecolor=hairaBlue,
+    linkcolor=hairaFoundation,
+    urlcolor=hairaGold,
+    citecolor=hairaGold,
     pdfauthor={Haira Team},
     pdftitle={The Haira Programming Language Specification},
     pdfsubject={Language Specification},
@@ -51,7 +56,7 @@
 
 % Code listing style
 \lstdefinelanguage{Haira}{
-    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, export, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, pub, trait, impl, agent, provider, tool, workflow},
+    keywords={fn, struct, enum, type, if, else, for, while, match, return, break, continue, import, export, from, as, nil, true, false, in, and, or, not, spawn, chan, select, try, catch, defer, pub, trait, impl, agent, provider, tool, workflow, step, test, assert, verify, eval, let, const},
     keywordstyle=\color{keyword}\bfseries,
     ndkeywords={int, float, bool, string, Error},
     ndkeywordstyle=\color{hairaBlue},
@@ -104,7 +109,7 @@
 
 % Chapter title format
 \titleformat{\chapter}[display]
-    {\normalfont\huge\bfseries\color{hairaBlue}}
+    {\normalfont\huge\bfseries\color{hairaFoundation}}
     {\chaptertitlename\ \thechapter}{20pt}{\Huge}
 
 % Custom environments
@@ -143,9 +148,9 @@
 % Document info
 \title{
     \vspace{-2cm}
-    {\Huge\bfseries\color{hairaBlue} The Haira Programming Language}\\[0.5cm]
-    {\Large Language Specification}\\[1cm]
-    {\large Version 1.0 Draft}
+    {\Huge\bfseries\color{hairaFoundation} The \textcolor{hairaGold}{H\kern-0.1emai}ra Programming Language}\\[0.5cm]
+    {\Large\color{hairaStraw} Language Specification}\\[1cm]
+    {\large Version 0.4.0}
 }
 \author{Haira Team}
 \date{\today}
@@ -163,8 +168,8 @@
 \begin{center}
 \textcopyright{} 2024-2026 Haira Team\\[1em]
 This specification is licensed under CC BY 4.0.\\[2em]
-\textbf{Document Version:} 1.0 Draft\\
-\textbf{Language Version:} 1.0\\
+\textbf{Document Version:} 0.4.0\\
+\textbf{Language Version:} 0.4.0\\
 \textbf{Last Updated:} \today
 \end{center}
 \vspace*{\fill}
@@ -199,24 +204,18 @@ This specification is licensed under CC BY 4.0.\\[2em]
     \item \textbf{General-purpose programming} -- CLI tools, web services, data pipelines
 \end{itemize}
 
-\section*{Implementation Roadmap}
-
-This specification is organized so that each chapter can be implemented incrementally:
+\section*{Release History}
 
 \begin{longtable}{lll}
 \toprule
-\textbf{Release} & \textbf{Chapters} & \textbf{Features} \\
+\textbf{Release} & \textbf{Date} & \textbf{Features} \\
 \midrule
 \endhead
-v0.1 & 1--3 & Lexer, parser, basic types \\
-v0.2 & 4--5 & Expressions, statements \\
-v0.3 & 6--7 & Functions, error handling \\
-v0.4 & 8 & Concurrency primitives (spawn, chan, select) \\
-v0.5 & 9--10 & Modules, standard library \\
-v0.6 & 11--12 & Providers, tools \\
-v0.7 & 13--14 & Agents, workflows \\
-v0.8 & 15 & Chatbot patterns, streaming \\
-v1.0 & 16--17 & Complete grammar, compiler completion \\
+v0.1 & 2024 & Lexer, parser, basic types, expressions, statements \\
+v0.2 & 2025 & Functions, error handling, providers, tools, agents, workflows \\
+v0.3 & Feb 2026 & Modules, stdlib, MCP, streaming, generative UI, Workers target \\
+v0.4 & Mar 2026 & Eval framework, tool hooks, verify blocks, agent strategy, \\
+ & & cross-harness export, stdlib agent templates, LSP, formatter \\
 \bottomrule
 \end{longtable}
 
@@ -264,14 +263,16 @@ v1.0 & 16--17 & Complete grammar, compiler completion \\
 The following identifiers are reserved as keywords and cannot be used as identifiers:
 
 \begin{lstlisting}[numbers=none]
-agent     and       as        break     catch
-chan      const     continue  defer     else
-enum      export    false     fn        for
-from      if        impl      import    in
-match     nil       not       or        provider
-pub       return    select    spawn     struct
-tool      trait     true      try       type
-unsafe    where     while     workflow
+agent     and       as        assert    break
+catch     chan      const     continue  defer
+else      enum      errdefer  eval      export
+false     fn        for       from      if
+impl      import    in        let       match
+nil       not       or        provider  pub
+return    select    some      spawn     step
+struct    test      tool      trait     true
+try       type      unsafe    verify    where
+while     workflow
 \end{lstlisting}
 
 \chapter{Operator Precedence}
@@ -312,27 +313,39 @@ Quick reference for standard library modules. See Chapter~\ref{ch:stdlib} for fu
 \textbf{Module} & \textbf{Description} \\
 \midrule
 \endhead
+\multicolumn{2}{l}{\textbf{Core Modules} (built into the runtime)} \\
+\midrule
 \code{io} & Input/output operations \\
-\code{string} & String manipulation \\
+\code{string}/\code{strings} & String manipulation \\
 \code{math} & Mathematical functions \\
 \code{array} & Array operations \\
-\code{map} & Map/dictionary operations \\
+\code{map}/\code{maps} & Map/dictionary operations \\
 \code{json} & JSON encoding/decoding \\
 \code{http} & HTTP client/server \\
 \code{fs} & File system operations \\
 \code{os} & Operating system interface \\
 \code{time} & Time and duration \\
 \code{regex} & Regular expressions \\
-\code{encoding} & Base64/hex encoding \\
+\code{conv} & Type conversions \\
+\code{env} & Environment variable helpers \\
+\code{upload} & File upload handling \\
+\code{observe} & Observability and cost monitoring \\
+\code{mcp} & MCP server/client \\
 \midrule
-\multicolumn{2}{l}{\textbf{Tool Packs} (importable tools for agents)} \\
+\multicolumn{2}{l}{\textbf{Stdlib Packages} (tree-shaken, included only when imported)} \\
 \midrule
-\code{tools/http} & HTTP tools (get, post, put, delete) \\
-\code{tools/slack} & Slack integration (send, read) \\
-\code{tools/github} & GitHub API (create\_issue, list\_prs) \\
-\code{tools/postgres} & PostgreSQL (query, insert) \\
-\code{tools/email} & Email sending \\
-\code{tools/fs} & File system tools for agents \\
+\code{postgres} & PostgreSQL client \\
+\code{sqlite} & SQLite (auto-included for workflows) \\
+\code{excel} & Excel file processing \\
+\code{vector} & Vector embeddings and similarity search \\
+\code{slack} & Slack integration \\
+\code{github} & GitHub API \\
+\code{gitlab} & GitLab API \\
+\code{langfuse} & Langfuse observability exporter \\
+\code{agents} & Pre-built agent templates \\
+\code{auth} & Authentication and API key resolution \\
+\code{websearch} & Web search integration \\
+\code{healthcheck} & Health check endpoints \\
 \bottomrule
 \end{longtable}
 

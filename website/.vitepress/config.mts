@@ -7,9 +7,10 @@ const sharedNav = (prefix: string) => [
   { text: 'ARP', link: `${prefix}/agentic-rendering-protocol` },
   { text: 'Generative UI', link: `${prefix}/generative-ui` },
   {
-    text: 'v0.3.0',
+    text: 'v0.4.0',
     items: [
       { text: 'Changelog', link: 'https://github.com/mrzdevcore/haira/releases' },
+      { text: 'Specification (PDF)', link: '/haira-spec.pdf' },
     ]
   }
 ]
@@ -54,6 +55,8 @@ const sharedSidebar = (prefix: string) => ({
         { text: 'Memory & Sessions', link: `${prefix}/docs/agentic/memory` },
         { text: 'Generative UI', link: `${prefix}/docs/agentic/generative-ui` },
         { text: 'ARP Protocol', link: `${prefix}/docs/agentic/arp` },
+        { text: 'Evaluation', link: `${prefix}/docs/agentic/evaluation` },
+        { text: 'Cross-Harness Export', link: `${prefix}/docs/agentic/exports` },
       ]
     },
     {
@@ -66,6 +69,8 @@ const sharedSidebar = (prefix: string) => ({
         { text: 'JSON', link: `${prefix}/docs/stdlib/json` },
         { text: 'Postgres', link: `${prefix}/docs/stdlib/postgres` },
         { text: 'Strings', link: `${prefix}/docs/stdlib/strings` },
+        { text: 'Agent Templates', link: `${prefix}/docs/stdlib/agents` },
+        { text: 'Auth', link: `${prefix}/docs/stdlib/auth` },
       ]
     },
     {
@@ -75,6 +80,7 @@ const sharedSidebar = (prefix: string) => ({
         { text: 'Examples', link: `${prefix}/docs/examples` },
         { text: 'Grammar', link: `${prefix}/docs/reference/grammar` },
         { text: 'Compiler Architecture', link: `${prefix}/docs/reference/compiler` },
+        { text: 'Specification (PDF)', link: '/haira-spec.pdf' },
       ]
     },
   ]

@@ -29,6 +29,7 @@ agent Assistant {
 | `memory` | No | Memory strategy |
 | `temperature` | No | LLM temperature (0.0-2.0) |
 | `handoffs` | No | List of agents to hand off to |
+| `strategy` | No | Handoff strategy: `"parallel"` or `"sequential"` |
 
 ## Calling Agents
 
@@ -142,8 +143,29 @@ result: Analysis, err = Analyzer.run("Analyze this customer review...")
 
 The left-side type annotation tells the agent to return data matching that structure.
 
+## Delegation Strategy
+
+When using `handoffs`, control how the agent delegates:
+
+```haira
+agent Orchestrator {
+    provider: openai
+    system: "Coordinate analysis tasks."
+    handoffs: [Researcher, Writer, Reviewer]
+    strategy: "parallel"   // Fan-out: all handoffs run concurrently
+}
+```
+
+| Strategy | Behavior |
+|----------|----------|
+| (default) | LLM decides via tool calls |
+| `"sequential"` | Chain handoffs in order, each sees previous output |
+| `"parallel"` | Fan-out all handoffs concurrently, collect results |
+
 ## Next Steps
 
 - [Handoffs](/docs/agentic/handoffs) — route between agents
 - [Memory](/docs/agentic/memory) — conversation and summary memory
 - [Streaming](/docs/agentic/streaming) — real-time SSE responses
+- [Agent Templates](/docs/stdlib/agents) — pre-built agent configurations
+- [Evaluation](/docs/agentic/evaluation) — automated agent testing

@@ -41,6 +41,19 @@ These are separate packages, tree-shaken at compile time:
 | SQLite | (auto-included) | Session storage for workflows |
 | D1 | (auto-included for Workers) | Cloudflare D1 store backend |
 | Langfuse | `import "langfuse"` | LLM observability |
+| Agents | `import "agents"` | [Pre-built agent templates](/docs/stdlib/agents) |
+| Auth | `import "auth"` | [API key resolution](/docs/stdlib/auth) |
+| WebSearch | `import "websearch"` | Web search integration |
+| Healthcheck | `import "healthcheck"` | HTTP health check endpoints |
+
+## Core Modules (continued)
+
+| Module | Import | Description |
+|--------|--------|-------------|
+| OS | `import "os"` | OS primitives and command execution |
+| Upload | `import "upload"` | File upload handling |
+| Observe | `import "observe"` | Observability and cost monitoring |
+| MCP | `import "mcp"` | MCP server/client |
 
 ## Built-in Functions
 

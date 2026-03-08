@@ -149,6 +149,36 @@ workflow Analyze(text: string) -> { result: string } {
 }
 ```
 
+### Step Retry
+
+`@retry` adds automatic retry with backoff:
+
+```haira
+@retry(max: 10, delay: 5000, backoff: "exponential")
+step "Call external API" {
+    result = http.get(url)
+}
+```
+
+### Verification Loops
+
+Use `verify { assert ... }` inside steps to define assertions that trigger retries automatically:
+
+```haira
+@retry(max: 3)
+step "Generate analysis" {
+    analysis, err = Analyst.ask("Analyze: ${data}")
+    if err != nil { return { result: "Failed." } }
+
+    verify {
+        assert len(analysis) > 100
+        assert strings.contains(analysis, "conclusion")
+    }
+}
+```
+
+When an assertion fails inside a `@retry` step, the step automatically retries. Without `@retry`, assertion failures return an error.
+
 ## Lifecycle Hooks
 
 Workflows support lifecycle hooks for error handling and completion logic:

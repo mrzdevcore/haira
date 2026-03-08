@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      - 'spec/latex/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -26,6 +27,31 @@ jobs:
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
+
+      - name: Cache LaTeX installation
+        id: cache-latex
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/share/texlive
+            /usr/share/texmf
+            /var/lib/texmf
+            /usr/bin/latexmk
+            /usr/bin/pdflatex
+          key: texlive-${{ runner.os }}-v1
+
+      - name: Install LaTeX
+        if: steps.cache-latex.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-latex-recommended latexmk
+
+      - name: Build Language Specification PDF
+        run: |
+          cd spec/latex
+          latexmk -pdf -interaction=nonstopmode haira-spec.tex
+          mkdir -p ../../website/public
+          cp haira-spec.pdf ../../website/public/haira-spec.pdf
 
       - name: Install dependencies
         run: cd website && bun install --frozen-lockfile || bun install

@@ -92,9 +92,11 @@ Key responsibilities:
 ```bash
 haira build file.haira           # Compile to binary
 haira build file.haira -o out    # Compile with custom output path
-haira build file.haira --target workers  # Compile for Cloudflare Workers
+haira build file.haira --target workers     # Compile for Cloudflare Workers
+haira build file.haira --target claude-code # Export to Claude Code format
 haira run file.haira             # Compile and run
 haira test file.haira            # Run test blocks
+haira eval file.haira            # Run eval blocks (agent evaluation)
 haira fmt file.haira             # Format source file
 haira check file.haira           # Type check only
 haira parse file.haira           # Show AST

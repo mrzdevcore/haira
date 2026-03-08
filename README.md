@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/go-1.22+-00ADD8.svg" alt="Go 1.22+">
-  <img src="https://img.shields.io/badge/examples-33-2962FF.svg" alt="33 examples">
+  <img src="https://img.shields.io/badge/examples-35-2962FF.svg" alt="35 examples">
 </p>
 
 <p align="center">
@@ -159,15 +159,20 @@ fn main() {
 - **Auto UI** — every workflow gets a form UI at `/_ui/`, streaming workflows get a ChatGPT-style chat UI
 - **RESTful triggers** — `@get`, `@post`, `@put`, `@delete` decorators
 - **Streaming** — `-> stream` workflows served as SSE with WebSocket upgrade
-- **Agent handoffs** — agents delegate to other agents automatically
+- **Agent handoffs** — agents delegate to other agents with `strategy: "parallel"` or `"sequential"`
 - **Agent memory** — `conversation(max_turns: N)` per session
+- **Eval framework** — `eval` blocks for automated agent testing with pass/fail thresholds
+- **Tool lifecycle hooks** — `@before` and `@after` blocks for pre/post-processing
+- **Verification loops** — `verify { assert ... }` inside `@retry` steps for assertion-driven retries
+- **Cross-harness export** — `--target claude-code` generates Claude Code agent configs + MCP binary
+- **Pre-built agent templates** — `import "agents"` for CodeReviewer, Planner, Summarizer, and more
 - **File uploads** — `file` type with multipart handling, auto file picker in UI
 - **Workflow steps** — named steps with telemetry, `@retry`, lifecycle hooks (`onerror`, `onsuccess`)
 - **Parallel execution** — `spawn { }` blocks for concurrent agent calls
 - **Pipe operator** — `data |> transform |> output`
 - **MCP support** — consume external tools (`provider { transport: "mcp" }`) and expose workflows as MCP tools (`mcp.Server()`)
 - **Observability** — built-in `observe` module with Langfuse integration
-- **11 stdlib packages** — postgres, sqlite, d1, excel, vector, slack, github, gitlab, algolia, meilisearch, langfuse
+- **14 stdlib packages** — postgres, sqlite, excel, vector, slack, github, gitlab, langfuse, agents, auth, websearch, healthcheck, and more
 - **Go-style simplicity** — familiar syntax, explicit error handling
 
 ## The Four Primitives
@@ -454,7 +459,7 @@ Measured on Apple Silicon (M-series). Competitor numbers from published benchmar
 
 ### Compiler Performance
 
-| Phase | 33 examples | Per file |
+| Phase | 35 examples | Per file |
 |-------|-------------|----------|
 | Lex | 85ms | ~2.9ms |
 | Parse | 80ms | ~2.8ms |
@@ -498,6 +503,9 @@ Measured on Apple Silicon (M-series). Competitor numbers from published benchmar
 | Auto UI | Built-in | No | No | No | No |
 | Observability | Built-in + Langfuse | Via callbacks | Via callbacks | Via callbacks | Via callbacks |
 | Deploy | Single binary | Docker + venv | Docker + venv | Docker + node_modules | Docker + node_modules |
+| Agent evaluation | `eval` keyword | Custom code | Custom code | Custom code | Custom code |
+| Cross-harness export | `--target claude-code` | No | No | No | No |
+| Tool hooks | `@before`/`@after` | Via wrappers | No | No | Middleware |
 
 ## Getting Started
 
@@ -531,6 +539,12 @@ make build
 
 # Type-check only
 ./compiler/haira check examples/01-hello.haira
+
+# Run agent evaluations
+./compiler/haira eval examples/eval.haira
+
+# Export to Claude Code format
+./compiler/haira build examples/07-agentic.haira --target claude-code
 ```
 
 ### Install Locally
@@ -581,8 +595,8 @@ haira/
 │   ├── github/                 # GitHub API client
 │   ├── gitlab/                 # GitLab API client
 │   ├── d1/                     # Cloudflare D1 store backend
-│   ├── algolia/                # Algolia search client
-│   ├── meilisearch/            # Meilisearch client
+│   ├── agents/                 # Pre-built agent templates
+│   ├── auth/                   # API key resolution
 │   └── langfuse/               # Langfuse observability exporter
 ├── ui/sdk/                     # UI SDK (TypeScript, Lit web components)
 │   └── src/
@@ -593,10 +607,13 @@ haira/
 ├── spec/                       # Language specification
 │   ├── latex/                  # 18-chapter spec (LaTeX)
 │   └── arp/                    # ARP protocol spec + component catalog
-├── examples/                   # 33 example programs
+├── examples/                   # 35 example programs
 ├── poc/                        # Real-world proof of concepts
+│   ├── coding-agent/           # AI coding assistant
+│   ├── cloudflare-agent/       # Cloudflare Workers agent
 │   ├── data-explorer/          # AI-powered data querying + visualization
 │   ├── devops-incident/        # DevOps incident management
+│   ├── pipeline-form/          # Multi-step pipeline with forms
 ├── editors/zed-haira/          # Zed editor extension
 ├── tree-sitter-haira/          # Tree-sitter grammar
 └── Makefile
@@ -604,7 +621,7 @@ haira/
 
 ## Examples
 
-All 33 examples compile and run:
+All 35 examples compile and run:
 
 ```bash
 make build-examples    # compile all
@@ -646,6 +663,8 @@ make run-examples      # run non-agentic examples
 | 31-spawn | Parallel spawn blocks |
 | 32-bitwise | Bitwise operators |
 | 33-lifecycle-hooks | Workflow lifecycle hooks |
+| 34-dynamic-agents | Runtime agent creation |
+| 35-stdlib-tools | Pre-built agent templates |
 
 ## Learn More
 
@@ -653,6 +672,8 @@ make run-examples      # run non-agentic examples
 - **[Documentation](https://haira.dev/docs/getting-started/installation)** — installation, language guide, agentic features, stdlib reference
 - **[ARP Protocol](https://haira.dev/agentic-rendering-protocol)** — transport-agnostic protocol for agent-to-renderer communication
 - **[Generative UI](https://haira.dev/generative-ui)** — agents that render rich, interactive components
+- **[Language Specification (PDF)](https://haira.dev/haira-spec.pdf)** — full formal language specification
+- **[Changelog](https://github.com/mrzdevcore/haira/blob/main/CHANGELOG.md)** — release history
 
 ## License
 

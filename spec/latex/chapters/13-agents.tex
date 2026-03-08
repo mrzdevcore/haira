@@ -32,6 +32,9 @@ agent AgentName {
 \code{max\_steps} & \type{int} & No & Max tool-calling iterations \\
 \code{memory} & memory type & No & Memory configuration (default: \code{none}) \\
 \code{handoffs} & \type{[agent]} & No & Agents this agent can delegate to \\
+\code{strategy} & \type{string} & No & Handoff strategy: \code{"parallel"} or \code{"sequential"} \\
+\code{scope} & \type{string} & No & Text description of what agent is allowed to help with \\
+\code{scope\_deny} & \type{string} & No & Rejection message for out-of-scope requests \\
 \code{timeout} & \type{int} & No & Timeout in seconds (default: 120) \\
 \bottomrule
 \end{tabular}
@@ -425,6 +428,73 @@ fn main() {
     // Tutor remembers the full conversation context
 }
 \end{lstlisting}
+
+\section{Delegation Strategy}
+
+When an agent has \code{handoffs}, the default behavior is LLM-driven: the agent decides when to delegate via synthetic tool calls. The \code{strategy} field overrides this with deterministic routing:
+
+\subsection{Parallel Strategy}
+
+Fan out to all handoff targets concurrently, aggregate their replies:
+
+\begin{lstlisting}
+agent ResearchTeam {
+    provider: anthropic
+    system: "You coordinate research across multiple specialists."
+    handoffs: [WebSearcher, PaperAnalyzer, NewsScanner]
+    strategy: "parallel"
+}
+
+// All three agents run concurrently, results are combined
+result, err = ResearchTeam.ask("Latest advances in quantum computing")
+\end{lstlisting}
+
+\subsection{Sequential Strategy}
+
+Chain through handoff targets in order, each output feeds the next:
+
+\begin{lstlisting}
+agent Pipeline {
+    provider: anthropic
+    system: "You orchestrate a content pipeline."
+    handoffs: [Researcher, Writer, Editor]
+    strategy: "sequential"
+}
+
+// Researcher -> Writer -> Editor, each builds on the previous
+result, err = Pipeline.ask("Write an article about AI safety")
+\end{lstlisting}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Strategy} & \textbf{Behavior} & \textbf{Use Case} \\
+\midrule
+(default) & LLM decides via tool calls & Dynamic routing \\
+\code{"parallel"} & Fan-out to all targets concurrently & Research, voting \\
+\code{"sequential"} & Chain targets in order & Pipelines, refinement \\
+\bottomrule
+\end{tabular}
+\caption{Handoff strategies}
+\end{table}
+
+\section{Pre-built Agent Templates}
+
+The \code{agents} stdlib package provides reusable agent configurations:
+
+\begin{lstlisting}
+import "agents"
+
+// Get a pre-configured template
+config = agents.code_reviewer()
+
+// Use with create_agent() to instantiate
+reviewer = create_agent(config, claude, [analyze_code])
+result, err = reviewer.ask("Review this pull request")
+\end{lstlisting}
+
+Available templates: \code{code\_reviewer()}, \code{planner()}, \code{security\_reviewer()}, \code{summarizer()}, \code{data\_analyst()}, \code{customer\_support()}, \code{tdd\_guide()}, \code{doc\_writer()}.
 
 \section{Agent Grammar}
 

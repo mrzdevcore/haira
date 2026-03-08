@@ -1,0 +1,16 @@
+{
+  "name": "haira-skills",
+  "description": "Agent skills for the Haira programming language — syntax, stdlib, compiler internals, and idiomatic patterns",
+  "version": "1.0.0",
+  "repository": "https://github.com/mrzdevcore/haira",
+  "skills": {
+    "haira": {
+      "path": ".claude/skills/haira",
+      "description": "Complete Haira language knowledge — syntax, types, agentic constructs, stdlib, and examples"
+    },
+    "haira-compiler": {
+      "path": ".claude/skills/haira-compiler",
+      "description": "Haira compiler internals — lexer, parser, checker, codegen, runtime, and development workflows"
+    }
+  }
+}

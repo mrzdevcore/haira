@@ -3,15 +3,21 @@ package main
 
 import (
 	"bufio"
+	crand "crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/haira-lang/haira/internal/console"
 	"github.com/haira-lang/haira/internal/driver"
@@ -73,6 +79,8 @@ func main() {
 		err = cmdUndeploy(rest)
 	case "webui":
 		err = cmdWebUI(rest)
+	case "auth":
+		err = cmdAuth(rest)
 	case "lsp":
 		err = lsp.RunStdio()
 	case "version", "--version", "-v":
@@ -531,6 +539,358 @@ func cmdUndeploy(args []string) error {
 	return nil
 }
 
+func cmdAuth(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: haira auth <login|logout|status> [--anthropic]")
+	}
+
+	sub := args[0]
+	switch sub {
+	case "login":
+		provider := "anthropic"
+		for _, a := range args[1:] {
+			if a == "--anthropic" || a == "anthropic" {
+				provider = "anthropic"
+			}
+		}
+		if provider != "anthropic" {
+			return fmt.Errorf("only --anthropic is supported")
+		}
+
+		fmt.Println("Anthropic Authentication")
+
+		// Try to import from Claude Code OAuth credentials first
+		token, oauthErr := authLoginFromOAuth()
+		if oauthErr == nil && token != "" {
+			masked := token[:10] + "..." + token[len(token)-4:]
+			fmt.Printf("Authenticated: %s\n", masked)
+			fmt.Println("Credentials stored in ~/.haira/credentials.json")
+			return nil
+		}
+
+		// Fall back to manual API key entry
+		fmt.Println("Could not import from Claude Code:", oauthErr)
+		fmt.Println()
+		fmt.Println("Enter your API key (from https://console.anthropic.com/settings/keys):")
+		fmt.Print("> ")
+
+		reader := bufio.NewReader(os.Stdin)
+		apiKey, readErr := reader.ReadString('\n')
+		if readErr != nil {
+			return fmt.Errorf("reading input: %w", readErr)
+		}
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey == "" {
+			return fmt.Errorf("no API key provided")
+		}
+		if !strings.HasPrefix(apiKey, "sk-ant-") {
+			return fmt.Errorf("invalid API key format (expected sk-ant-...)")
+		}
+
+		// Save to ~/.haira/credentials.json
+		if err := saveAnthropicAPIKey(apiKey); err != nil {
+			return err
+		}
+		masked := apiKey[:10] + "..." + apiKey[len(apiKey)-4:]
+		fmt.Printf("\nSaved: %s\n", masked)
+		fmt.Println("Credentials stored in ~/.haira/credentials.json")
+		return nil
+
+	case "logout":
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(home, ".haira", "credentials.json")
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		fmt.Println("Logged out. Credentials removed.")
+		return nil
+
+	case "status":
+		if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+			masked := key[:8] + "..." + key[len(key)-4:]
+			fmt.Printf("Using ANTHROPIC_API_KEY from environment: %s\n", masked)
+			return nil
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(filepath.Join(home, ".haira", "credentials.json"))
+		if err != nil {
+			fmt.Println("Not authenticated. Run: haira auth login --anthropic")
+			return nil
+		}
+		var f map[string]interface{}
+		json.Unmarshal(data, &f)
+		if apiKey, ok := f["anthropicApiKey"].(string); ok && apiKey != "" {
+			masked := apiKey[:10] + "..." + apiKey[len(apiKey)-4:]
+			fmt.Printf("Authenticated (stored API key): %s\n", masked)
+		} else if _, ok := f["anthropicOauth"]; ok {
+			fmt.Println("Found OAuth credentials (not supported by Anthropic API).")
+			fmt.Println("Run: haira auth login --anthropic  to use an API key instead.")
+		} else {
+			fmt.Println("Not authenticated. Run: haira auth login --anthropic")
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unknown auth subcommand %q (use: login, logout, status)", sub)
+	}
+}
+
+const (
+	oauthClientID    = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	oauthAuthorizeURL = "https://platform.claude.com/oauth/authorize"
+	oauthTokenURL = "https://platform.claude.com/v1/oauth/token"
+	oauthScopes   = "user:inference user:profile"
+)
+
+// authLoginFromOAuth tries two strategies:
+// 1. Import existing Claude Code OAuth token and exchange for API key (no browser)
+// 2. Browser-based PKCE OAuth flow with platform callback
+func authLoginFromOAuth() (string, error) {
+	// Strategy 1: Use existing Claude Code credentials (fastest, no browser needed)
+	fmt.Println("Checking for existing Claude Code credentials...")
+	fullCreds, err := loadClaudeCodeFullCredentials()
+	if err == nil && fullCreds != nil {
+		fmt.Println("Found Claude Code OAuth credentials. Importing...")
+		saveOAuthCredentials(fullCreds)
+		token, _ := fullCreds["accessToken"].(string)
+		return token, nil
+	}
+
+	// Strategy 2: Browser-based PKCE flow using platform callback
+	fmt.Println()
+	fmt.Println("Starting browser-based authentication...")
+	return authLoginBrowser()
+}
+
+// loadClaudeCodeFullCredentials reads the full OAuth credentials from Claude Code's storage.
+func loadClaudeCodeFullCredentials() (map[string]interface{}, error) {
+	// Try macOS Keychain first
+	if out, err := exec.Command("security", "find-generic-password", "-s", "Claude Code-credentials", "-w").Output(); err == nil {
+		var keychainData map[string]interface{}
+		if err := json.Unmarshal(out, &keychainData); err == nil {
+			if oauth, ok := keychainData["claudeAiOauth"].(map[string]interface{}); ok {
+				if token, _ := oauth["accessToken"].(string); token != "" {
+					return oauth, nil
+				}
+			}
+		}
+	}
+
+	// Fallback: ~/.claude.json
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil {
+		return nil, err
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	if oauth, ok := raw["claudeAiOauth"].(map[string]interface{}); ok {
+		if token, _ := oauth["accessToken"].(string); token != "" {
+			return oauth, nil
+		}
+	}
+	return nil, fmt.Errorf("no OAuth credentials found in Claude Code storage")
+}
+
+// authLoginBrowser runs PKCE OAuth flow using the platform's registered callback URL.
+// The user sees the auth code on the platform's success page and pastes it back.
+func authLoginBrowser() (string, error) {
+	verifier := generateCodeVerifier()
+	challenge := generateCodeChallenge(verifier)
+	state := generateCodeVerifier()
+
+	redirectURI := "https://platform.claude.com/oauth/code/callback"
+
+	authURL := fmt.Sprintf("%s?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s",
+		oauthAuthorizeURL,
+		oauthClientID,
+		url.QueryEscape(redirectURI),
+		url.QueryEscape(oauthScopes),
+		challenge,
+		url.QueryEscape(state),
+	)
+
+	fmt.Println("Opening browser for Anthropic authentication...")
+	fmt.Println()
+	if err := openBrowser(authURL); err != nil {
+		fmt.Println("Could not open browser. Please visit this URL manually:")
+		fmt.Println(authURL)
+	}
+
+	fmt.Println()
+	fmt.Println("After approving, you'll see a success page.")
+	fmt.Println("Copy the full URL from your browser's address bar and paste it here:")
+	fmt.Print("> ")
+
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("reading input: %w", err)
+	}
+	line = strings.TrimSpace(line)
+
+	// Parse the authorization code from the callback URL
+	authCode, err := extractAuthCode(line, state)
+	if err != nil {
+		return "", err
+	}
+
+	// Exchange auth code for tokens
+	tokenData := url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {oauthClientID},
+		"code":          {authCode},
+		"redirect_uri":  {redirectURI},
+		"code_verifier": {verifier},
+	}
+	tokenResp, err := http.PostForm(oauthTokenURL, tokenData)
+	if err != nil {
+		return "", fmt.Errorf("token exchange failed: %w", err)
+	}
+	defer tokenResp.Body.Close()
+
+	if tokenResp.StatusCode != 200 {
+		body, _ := io.ReadAll(tokenResp.Body)
+		return "", fmt.Errorf("token exchange returned HTTP %d: %s", tokenResp.StatusCode, string(body))
+	}
+
+	var tokens struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+		Scope        string `json:"scope"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tokens); err != nil {
+		return "", fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	// Save OAuth credentials for future refresh
+	oauthCreds := map[string]interface{}{
+		"accessToken":  tokens.AccessToken,
+		"refreshToken": tokens.RefreshToken,
+		"expiresAt":    time.Now().UnixMilli() + tokens.ExpiresIn*1000,
+		"scopes":       strings.Fields(tokens.Scope),
+	}
+	saveOAuthCredentials(oauthCreds)
+
+	return tokens.AccessToken, nil
+}
+
+// extractAuthCode parses an authorization code from a callback URL or raw code input.
+func extractAuthCode(input string, expectedState string) (string, error) {
+	// Try parsing as URL first
+	if strings.HasPrefix(input, "http") {
+		u, err := url.Parse(input)
+		if err != nil {
+			return "", fmt.Errorf("invalid URL: %w", err)
+		}
+		if st := u.Query().Get("state"); st != "" && st != expectedState {
+			return "", fmt.Errorf("state mismatch — possible CSRF attack")
+		}
+		code := u.Query().Get("code")
+		if code != "" {
+			return code, nil
+		}
+		if errMsg := u.Query().Get("error"); errMsg != "" {
+			return "", fmt.Errorf("authorization error: %s", errMsg)
+		}
+		return "", fmt.Errorf("no authorization code found in URL")
+	}
+	// Treat as raw code
+	if len(input) > 0 {
+		return input, nil
+	}
+	return "", fmt.Errorf("no authorization code provided")
+}
+
+func saveOAuthCredentials(creds map[string]interface{}) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, ".haira")
+	os.MkdirAll(dir, 0700)
+	path := filepath.Join(dir, "credentials.json")
+
+	var f map[string]interface{}
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &f)
+	}
+	if f == nil {
+		f = make(map[string]interface{})
+	}
+	f["anthropicOauth"] = creds
+
+	data, _ := json.MarshalIndent(f, "", "  ")
+	os.WriteFile(path, data, 0600)
+}
+
+func generateCodeVerifier() string {
+	b := make([]byte, 32)
+	crand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func generateCodeChallenge(verifier string) string {
+	h := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(h[:])
+}
+
+func openBrowser(url string) error {
+	switch {
+	case isCommandAvailable("open"):
+		return exec.Command("open", url).Start()
+	case isCommandAvailable("xdg-open"):
+		return exec.Command("xdg-open", url).Start()
+	default:
+		return fmt.Errorf("no browser opener found")
+	}
+}
+
+func isCommandAvailable(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+func saveAnthropicAPIKey(key string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".haira")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "credentials.json")
+
+	// Read existing file to preserve other fields
+	var f map[string]interface{}
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &f)
+	}
+	if f == nil {
+		f = make(map[string]interface{})
+	}
+	f["anthropicApiKey"] = key
+
+	data, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
+}
+
 func printUsage() {
 	fmt.Print(`Haira — An agentic orchestration programming language
 
@@ -549,6 +909,7 @@ Commands:
   init                        Create a package.haira manifest
   console <host:port>         Connect to a Haira server (interactive terminal)
   webui [--connect host:port] Serve the Haira UI (connects to a running backend)
+  auth <login|logout|status>  Manage API credentials
   lsp                         Start the language server (LSP)
   version                     Show version
   help                        Show this help

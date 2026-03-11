@@ -156,6 +156,12 @@ export class HairaPipeline extends LitElement {
             step.addLog(event.log);
           }
           break;
+        case "awaiting_confirm":
+          step.setStatus("awaiting_confirm");
+          if (event.confirm) {
+            step.setConfirmData(event.confirm);
+          }
+          break;
       }
     });
   }

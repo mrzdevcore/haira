@@ -35,7 +35,8 @@ type OAuthCredentials struct {
 
 // credentialsFile is the on-disk format for ~/.haira/credentials.json.
 type credentialsFile struct {
-	AnthropicOAuth *OAuthCredentials `json:"anthropicOauth"`
+	AnthropicOAuth  *OAuthCredentials `json:"anthropicOauth"`
+	AnthropicAPIKey string            `json:"anthropicApiKey,omitempty"`
 }
 
 // credentialsPath returns the path to ~/.haira/credentials.json.
@@ -82,9 +83,16 @@ func AuthStatus() string {
 		return fmt.Sprintf("Using ANTHROPIC_API_KEY from environment: %s", masked)
 	}
 
+	// Check stored API key
+	if f, err := loadCredentialsFile(); err == nil && f.AnthropicAPIKey != "" {
+		key := f.AnthropicAPIKey
+		masked := key[:10] + "..." + key[len(key)-4:]
+		return fmt.Sprintf("Authenticated (stored API key): %s", masked)
+	}
+
 	creds, source, err := loadBestCredentials()
 	if err != nil || creds == nil {
-		return "Not authenticated. Call auth.login(\"anthropic\") or set ANTHROPIC_API_KEY."
+		return "Not authenticated. Run 'haira auth login --anthropic' or set ANTHROPIC_API_KEY."
 	}
 
 	expiry := time.UnixMilli(creds.ExpiresAt)
@@ -141,21 +149,42 @@ func resolveAnthropicToken() (string, error) {
 		return key, nil
 	}
 
-	// 2. Haira credentials
+	// 2. Stored API key (from haira auth login)
+	if f, err := loadCredentialsFile(); err == nil && f.AnthropicAPIKey != "" {
+		return f.AnthropicAPIKey, nil
+	}
+
+	// 3. Haira OAuth credentials (legacy)
 	if creds, err := loadCredentials(); err == nil && creds != nil {
 		if time.Now().UnixMilli() < creds.ExpiresAt-5*60*1000 {
 			return creds.AccessToken, nil
 		}
 	}
 
-	// 3. Claude Code fallback
+	// 4. Claude Code fallback
 	if creds, err := loadClaudeCodeCredentials(); err == nil && creds != nil {
 		if time.Now().UnixMilli() < creds.ExpiresAt-5*60*1000 {
 			return creds.AccessToken, nil
 		}
 	}
 
-	return "", fmt.Errorf("not authenticated — call auth.login(\"anthropic\") or set ANTHROPIC_API_KEY")
+	return "", fmt.Errorf("not authenticated — run 'haira auth login --anthropic' or set ANTHROPIC_API_KEY")
+}
+
+func loadCredentialsFile() (*credentialsFile, error) {
+	path, err := credentialsPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var f credentialsFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return nil, err
+	}
+	return &f, nil
 }
 
 // ── Credential storage ──

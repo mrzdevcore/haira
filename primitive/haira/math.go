@@ -3,6 +3,7 @@ package haira
 import (
 	"math"
 	"math/rand"
+	"sort"
 )
 
 // Math constants
@@ -141,6 +142,92 @@ func MathRandomInt(min, max any) int {
 		return lo
 	}
 	return lo + rand.Intn(hi-lo)
+}
+
+// MathSum sums all numeric elements in an array.
+func MathSum(arr any) float64 {
+	s := ToSlice(arr)
+	var total float64
+	for _, item := range s {
+		total += toFloat64(item)
+	}
+	return total
+}
+
+// MathAvg returns the average of all numeric elements in an array.
+func MathAvg(arr any) float64 {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return 0
+	}
+	var total float64
+	for _, item := range s {
+		total += toFloat64(item)
+	}
+	return total / float64(len(s))
+}
+
+// MathMedian returns the median value of a numeric array.
+func MathMedian(arr any) float64 {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return 0
+	}
+	floats := make([]float64, len(s))
+	for i, item := range s {
+		floats[i] = toFloat64(item)
+	}
+	sort.Float64s(floats)
+	n := len(floats)
+	if n%2 == 0 {
+		return (floats[n/2-1] + floats[n/2]) / 2
+	}
+	return floats[n/2]
+}
+
+// MathSign returns -1, 0, or 1 indicating the sign of x.
+func MathSign(x any) float64 {
+	v := toFloat64(x)
+	if v < 0 {
+		return -1
+	}
+	if v > 0 {
+		return 1
+	}
+	return 0
+}
+
+// MathHypot returns sqrt(x*x + y*y) without overflow.
+func MathHypot(x, y any) float64 {
+	return math.Hypot(toFloat64(x), toFloat64(y))
+}
+
+// MathGcd returns the greatest common divisor of a and b.
+func MathGcd(a, b any) int {
+	x := int(math.Abs(toFloat64(a)))
+	y := int(math.Abs(toFloat64(b)))
+	for y != 0 {
+		x, y = y, x%y
+	}
+	return x
+}
+
+// MathLcm returns the least common multiple of a and b.
+func MathLcm(a, b any) int {
+	x := int(math.Abs(toFloat64(a)))
+	y := int(math.Abs(toFloat64(b)))
+	if x == 0 || y == 0 {
+		return 0
+	}
+	return x / MathGcd(x, y) * y
+}
+
+// MathLerp performs linear interpolation between a and b by t.
+func MathLerp(a, b, t any) float64 {
+	fa := toFloat64(a)
+	fb := toFloat64(b)
+	ft := toFloat64(t)
+	return fa + (fb-fa)*ft
 }
 
 // toFloat64 converts any numeric value to float64.

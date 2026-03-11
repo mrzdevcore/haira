@@ -50,16 +50,25 @@ type StepRenderPayload struct {
 	Props     map[string]any `json:"props"`
 }
 
+// StepConfirmPayload holds the confirmation prompt data sent to the UI.
+type StepConfirmPayload struct {
+	Title        string `json:"title"`
+	Message      string `json:"message,omitempty"`
+	ConfirmLabel string `json:"confirm_label"`
+	DenyLabel    string `json:"deny_label"`
+}
+
 // StepEvent represents a step status change for SSE notification.
 type StepEvent struct {
-	Name       string             `json:"name"`
-	Status     string             `json:"status"` // "start", "end", "failed", "retry", "log", "render"
-	DurationMs int64              `json:"duration_ms,omitempty"`
-	Error      string             `json:"error,omitempty"`
-	Attempt    int                `json:"attempt,omitempty"`
-	DelayMs    int                `json:"delay_ms,omitempty"`
-	Log        *StepLogEntry      `json:"log,omitempty"`
-	Render     *StepRenderPayload `json:"render,omitempty"`
+	Name       string              `json:"name"`
+	Status     string              `json:"status"` // "start", "end", "failed", "retry", "log", "render", "awaiting_confirm"
+	DurationMs int64               `json:"duration_ms,omitempty"`
+	Error      string              `json:"error,omitempty"`
+	Attempt    int                 `json:"attempt,omitempty"`
+	DelayMs    int                 `json:"delay_ms,omitempty"`
+	Log        *StepLogEntry       `json:"log,omitempty"`
+	Render     *StepRenderPayload  `json:"render,omitempty"`
+	Confirm    *StepConfirmPayload `json:"confirm,omitempty"`
 }
 
 // stepNotifiers maps goroutine IDs to step event channels.
@@ -145,6 +154,64 @@ func StepRender(workflow, step string, node UiNode) {
 		Status: "render",
 		Render: &StepRenderPayload{Component: node.UiComponentName(), Props: props},
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Blocking step confirmation (human-in-the-loop gate)
+// ---------------------------------------------------------------------------
+
+// stepConfirmChannels maps runID → chan bool for blocking confirmation.
+var stepConfirmChannels sync.Map
+
+// StepAwaitConfirm emits an "awaiting_confirm" event and blocks until the user
+// confirms or denies. Returns true if confirmed, false if denied.
+// The confirmation channel is keyed by the active run ID (from observe.go).
+func StepAwaitConfirm(workflow, step, title, message, confirmLabel, denyLabel string) bool {
+	runID := currentRunID()
+	if runID == "" {
+		// No run ID (e.g. CLI mode) — auto-confirm
+		fmt.Printf("[%s] step:confirm %q  auto-confirmed (no run ID)\n", workflow, step)
+		return true
+	}
+
+	fmt.Printf("[%s] step:confirm %q  awaiting user confirmation...\n", workflow, step)
+
+	// Create a response channel and register it
+	responseCh := make(chan bool, 1)
+	stepConfirmChannels.Store(runID, responseCh)
+	defer stepConfirmChannels.Delete(runID)
+
+	// Emit the awaiting_confirm event to the frontend
+	notifyStep(StepEvent{
+		Name:   step,
+		Status: "awaiting_confirm",
+		Confirm: &StepConfirmPayload{
+			Title:        title,
+			Message:      message,
+			ConfirmLabel: confirmLabel,
+			DenyLabel:    denyLabel,
+		},
+	})
+
+	// Block until we get a response
+	confirmed := <-responseCh
+	if confirmed {
+		fmt.Printf("[%s] step:confirm %q  confirmed\n", workflow, step)
+	} else {
+		fmt.Printf("[%s] step:confirm %q  denied\n", workflow, step)
+	}
+	return confirmed
+}
+
+// SubmitStepConfirm sends a confirmation response for the given run ID.
+// Returns false if no confirmation is pending for that run.
+func SubmitStepConfirm(runID string, confirmed bool) bool {
+	if v, ok := stepConfirmChannels.Load(runID); ok {
+		ch := v.(chan bool)
+		ch <- confirmed
+		return true
+	}
+	return false
 }
 
 // LogPrint prints a leveled log message to stdout/stderr (used outside steps).

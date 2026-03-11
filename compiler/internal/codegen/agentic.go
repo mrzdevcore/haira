@@ -243,6 +243,8 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 				schema := buildStructJSONSchema(ident.Name)
 				em.Line(fmt.Sprintf("OutputSchema: %s,", safeGoString(schema)))
 			}
+		case "storage":
+			// handled after NewAgent call
 		default:
 			goKey := goFieldName(field.Key.Node)
 			em.Line(fmt.Sprintf("%s: %s,", goKey, ExprToGo(field.Value)))
@@ -250,6 +252,18 @@ func EmitAgent(em *GoEmitter, agent ast.AgentDecl) {
 	}
 	em.Dedent()
 	em.Line("})")
+
+	// Enable storage if agent has storage: true (inside init function)
+	for _, field := range agent.Fields {
+		if field.Key.Node == "storage" {
+			if lit, ok := field.Value.Node.(ast.LiteralExpr); ok {
+				if b, ok := lit.Lit.(ast.BoolLit); ok && b.Value {
+					em.Line(fmt.Sprintf("%s.EnableStorage()", varName))
+				}
+			}
+		}
+	}
+
 	em.CloseBlock()
 	em.Blank()
 }
@@ -751,11 +765,16 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 	activeStepName = stepName
 	defer func() { activeStepName = "" }()
 
-	// Check for @retry decorator
+	// Check for @retry and @confirm decorators
 	var retryMax int
 	var retryBackoff string
 	var retryDelay int
 	hasRetry := false
+	hasConfirm := false
+	confirmTitle := "Confirm"
+	confirmMessage := ""
+	confirmLabel := "Confirm"
+	denyLabel := "Cancel"
 	for _, dec := range step.Decorators {
 		if dec.Name.Node == "retry" {
 			hasRetry = true
@@ -791,6 +810,36 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 				}
 			}
 		}
+		if dec.Name.Node == "confirm" {
+			hasConfirm = true
+			for _, arg := range dec.Args {
+				if mapExpr, ok := arg.Node.(ast.MapExpr); ok && len(mapExpr.Entries) == 1 {
+					entry := mapExpr.Entries[0]
+					if keyIdent, ok := entry.Key.Node.(ast.IdentExpr); ok {
+						if lit, ok := entry.Value.Node.(ast.LiteralExpr); ok {
+							if strLit, ok := lit.Lit.(ast.StringLit); ok {
+								switch keyIdent.Name {
+								case "title":
+									confirmTitle = strLit.Value
+								case "message":
+									confirmMessage = strLit.Value
+								case "confirm":
+									confirmLabel = strLit.Value
+								case "deny":
+									denyLabel = strLit.Value
+								}
+							}
+						}
+					}
+				}
+				// Positional string arg → title
+				if lit, ok := arg.Node.(ast.LiteralExpr); ok {
+					if strLit, ok := lit.Lit.(ast.StringLit); ok {
+						confirmTitle = strLit.Value
+					}
+				}
+			}
+		}
 	}
 
 	// Check for onerror hook
@@ -806,6 +855,20 @@ func emitStep(em *GoEmitter, step ast.StepStmt) {
 	}
 
 	em.Line(fmt.Sprintf("%s := haira.StepStart(%q, %q)", timerVar, wfName, stepName))
+
+	// If @confirm, block until user confirms before executing body
+	if hasConfirm {
+		em.OpenBlock(fmt.Sprintf("if !haira.StepAwaitConfirm(%q, %q, %q, %q, %q, %q)",
+			wfName, stepName, confirmTitle, confirmMessage, confirmLabel, denyLabel))
+		em.Line(fmt.Sprintf("haira.StepEnd(%q, %q, %s, fmt.Errorf(\"step denied by user\"))", wfName, stepName, timerVar))
+		if inCapturedContext {
+			em.Line("_wfErr = fmt.Errorf(\"step denied by user\")")
+			em.Line("return")
+		} else {
+			em.Line("return nil, fmt.Errorf(\"step denied by user\")")
+		}
+		em.CloseBlock()
+	}
 
 	// If retry, wrap in retry loop
 	if hasRetry {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,22 +52,32 @@ type langfusePayload struct {
 // ── Public API ──
 
 // LangfuseExporter creates a Langfuse exporter for use with observe.export().
+// Parameters: publicKey, secretKey, host — matching the Haira calling convention:
+//
+//	langfuse.exporter(env("LANGFUSE_PUBLIC_KEY"), env("LANGFUSE_SECRET_KEY"), env("LANGFUSE_HOST"))
+//
 // Pass empty strings to auto-detect from LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY env vars.
 // Returns nil if config is missing (no-op).
-func LangfuseExporter(host, publicKey, secretKey string) haira.Exporter {
-	if host == "" {
-		host = os.Getenv("LANGFUSE_HOST")
-	}
+func LangfuseExporter(publicKey, secretKey, host string) haira.Exporter {
 	if publicKey == "" {
 		publicKey = os.Getenv("LANGFUSE_PUBLIC_KEY")
 	}
 	if secretKey == "" {
 		secretKey = os.Getenv("LANGFUSE_SECRET_KEY")
 	}
+	if host == "" {
+		host = os.Getenv("LANGFUSE_HOST")
+	}
 	if host == "" || publicKey == "" || secretKey == "" {
 		fmt.Println("[haira] Langfuse: missing config (set LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY) — export disabled")
 		return nil
 	}
+	// Ensure host has a protocol scheme
+	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+		host = "https://" + host
+	}
+	// Strip trailing slash
+	host = strings.TrimRight(host, "/")
 	exp := &langfuseExporter{
 		config: langfuseConfig{
 			host:      host,

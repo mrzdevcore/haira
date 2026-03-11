@@ -408,9 +408,15 @@ type Literal interface {
 
 type IntLit struct{ Value int64 }
 type FloatLit struct{ Value float64 }
-type StringLit struct{ Value string }
+type StringLit struct {
+	Value        string
+	TripleQuoted bool
+}
 type BoolLit struct{ Value bool }
-type InterpolatedStringLit struct{ Parts []StringPart }
+type InterpolatedStringLit struct {
+	Parts        []StringPart
+	TripleQuoted bool
+}
 
 func (IntLit) literalKind()                {}
 func (FloatLit) literalKind()              {}

@@ -4,6 +4,7 @@ import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { baseStyles, keyframes, animateInStyles } from "../core/styles";
 import { iconStrings } from "../core/icons";
 import type { StepStatus, StepLogEntry } from "../core/types";
+import type { StepConfirmPayload } from "@haira/arp";
 
 @customElement("haira-step")
 export class HairaStep extends LitElement {
@@ -31,6 +32,9 @@ export class HairaStep extends LitElement {
       }
       .step.retrying {
         border-color: rgba(234, 179, 8, 0.2);
+      }
+      .step.awaiting_confirm {
+        border-color: rgba(59, 130, 246, 0.3);
       }
 
       .step-header {
@@ -69,6 +73,9 @@ export class HairaStep extends LitElement {
       }
       .step-icon.skipped {
         color: var(--haira-muted);
+      }
+      .step-icon.awaiting_confirm {
+        color: var(--haira-info);
       }
 
       .step-name {
@@ -116,6 +123,9 @@ export class HairaStep extends LitElement {
       }
       .step-status-label.skipped {
         color: var(--haira-muted);
+      }
+      .step-status-label.awaiting_confirm {
+        color: var(--haira-info);
       }
 
       .step-expand {
@@ -200,6 +210,68 @@ export class HairaStep extends LitElement {
         color: var(--haira-muted);
         text-align: center;
       }
+
+      /* Confirm panel */
+      .confirm-panel {
+        border-top: 1px solid var(--haira-border);
+        padding: 0.65rem 0.75rem;
+        background: rgba(59, 130, 246, 0.04);
+        animation: expandDown 0.2s ease-out;
+      }
+      .confirm-title {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--haira-text);
+        margin-bottom: 0.25rem;
+      }
+      .confirm-message {
+        font-size: 0.78rem;
+        color: var(--haira-text-dim);
+        margin-bottom: 0.5rem;
+      }
+      .confirm-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+      }
+      .confirm-btn {
+        padding: 0.4rem 0.9rem;
+        border: 1px solid var(--haira-border);
+        border-radius: var(--haira-radius-sm);
+        font-family: var(--haira-font);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .confirm-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .confirm-btn.approve {
+        background: var(--haira-accent);
+        color: #fff;
+        border-color: var(--haira-accent);
+      }
+      .confirm-btn.approve:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      .confirm-btn.deny {
+        background: transparent;
+        color: var(--haira-text-dim);
+      }
+      .confirm-btn.deny:hover:not(:disabled) {
+        background: var(--haira-bg-elevated);
+        color: var(--haira-text);
+      }
+      .confirm-resolved {
+        font-size: 0.76rem;
+        color: var(--haira-muted);
+        font-style: italic;
+        padding: 0.55rem 0.75rem;
+        border-top: 1px solid var(--haira-border);
+      }
     `,
   ];
 
@@ -211,9 +283,16 @@ export class HairaStep extends LitElement {
   @state() private _logs: StepLogEntry[] = [];
   @state() private _expanded: boolean = false;
   @state() private _liveElapsed: string = "";
+  @state() private _confirmData: StepConfirmPayload | null = null;
+  @state() private _confirmResolved: string | null = null;
 
   private _startTime: number = 0;
   private _timer: number | null = null;
+
+  /** Set confirm data for awaiting_confirm status */
+  public setConfirmData(data: StepConfirmPayload): void {
+    this._confirmData = data;
+  }
 
   /** Update step status */
   public setStatus(
@@ -227,6 +306,9 @@ export class HairaStep extends LitElement {
       this._startTime = Date.now();
       this._startTimer();
       this._expanded = true; // auto-expand the active step
+    } else if (status === "awaiting_confirm") {
+      this._stopTimer();
+      this._expanded = true;
     } else {
       this._stopTimer();
     }
@@ -307,7 +389,35 @@ export class HairaStep extends LitElement {
         return html`<span class="step-icon skipped"
           >${unsafeHTML(iconStrings.pending)}</span
         >`;
+      case "awaiting_confirm":
+        return html`<span class="step-icon awaiting_confirm"
+          >${unsafeHTML(iconStrings.stepPending)}</span
+        >`;
     }
+  }
+
+  private _onConfirm(): void {
+    if (this._confirmResolved) return;
+    this._confirmResolved = "confirmed";
+    this.dispatchEvent(
+      new CustomEvent("step-confirm", {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: true },
+      })
+    );
+  }
+
+  private _onDeny(): void {
+    if (this._confirmResolved) return;
+    this._confirmResolved = "denied";
+    this.dispatchEvent(
+      new CustomEvent("step-confirm", {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: false },
+      })
+    );
   }
 
   render() {
@@ -336,6 +446,29 @@ export class HairaStep extends LitElement {
         </div>
         ${this._error
           ? html`<div class="step-error">${this._error}</div>`
+          : nothing}
+        ${this._status === "awaiting_confirm" && this._confirmData && !this._confirmResolved
+          ? html`
+              <div class="confirm-panel">
+                <div class="confirm-title">${this._confirmData.title}</div>
+                ${this._confirmData.message
+                  ? html`<div class="confirm-message">${this._confirmData.message}</div>`
+                  : nothing}
+                <div class="confirm-actions">
+                  <button class="confirm-btn deny" @click=${this._onDeny}>
+                    ${this._confirmData.deny_label || "Cancel"}
+                  </button>
+                  <button class="confirm-btn approve" @click=${this._onConfirm}>
+                    ${this._confirmData.confirm_label || "Confirm"}
+                  </button>
+                </div>
+              </div>
+            `
+          : nothing}
+        ${this._confirmResolved
+          ? html`<div class="confirm-resolved">
+              ${this._confirmResolved === "confirmed" ? "Approved" : "Denied"}
+            </div>`
           : nothing}
         ${this._expanded && hasLogs
           ? html`

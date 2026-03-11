@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	haira "haira-go-runtime/haira"
 
@@ -110,6 +111,16 @@ var postgresSchema = []string{
 		timestamp TIMESTAMPTZ DEFAULT NOW(),
 		session_id TEXT DEFAULT ''
 	)`,
+	`CREATE TABLE IF NOT EXISTS session_files (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+		size INTEGER NOT NULL DEFAULT 0,
+		data BYTEA NOT NULL,
+		created_at TIMESTAMPTZ DEFAULT NOW()
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_session_files_session ON session_files(session_id)`,
 }
 
 // --- Chat Sessions ---
@@ -444,4 +455,68 @@ func (s *PostgresStore) LoadToolExecs() ([]haira.ToolExec, error) {
 		execs = []haira.ToolExec{}
 	}
 	return execs, nil
+}
+
+// --- Session Files ---
+
+func (s *PostgresStore) SaveFile(sessionID, name, contentType string, data []byte) (string, error) {
+	id := fmt.Sprintf("file_%s_%d", sessionID[:pgMin(8, len(sessionID))], time.Now().UnixNano())
+	_, err := s.db.Exec(
+		`INSERT INTO session_files (id, session_id, name, content_type, size, data) VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, sessionID, name, contentType, len(data), data,
+	)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s *PostgresStore) GetFile(id string) (*haira.StoredFile, error) {
+	row := s.db.QueryRow(
+		`SELECT id, session_id, name, content_type, size, data, created_at FROM session_files WHERE id = $1`, id,
+	)
+	var f haira.StoredFile
+	err := row.Scan(&f.ID, &f.SessionID, &f.Name, &f.ContentType, &f.Size, &f.Data, &f.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+func (s *PostgresStore) ListFiles(sessionID string) ([]haira.StoredFileMeta, error) {
+	rows, err := s.db.Query(
+		`SELECT id, session_id, name, content_type, size, created_at FROM session_files WHERE session_id = $1 ORDER BY created_at DESC`, sessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []haira.StoredFileMeta
+	for rows.Next() {
+		var f haira.StoredFileMeta
+		if err := rows.Scan(&f.ID, &f.SessionID, &f.Name, &f.ContentType, &f.Size, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	if files == nil {
+		files = []haira.StoredFileMeta{}
+	}
+	return files, nil
+}
+
+func (s *PostgresStore) DeleteFile(id string) error {
+	_, err := s.db.Exec(`DELETE FROM session_files WHERE id = $1`, id)
+	return err
+}
+
+func pgMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

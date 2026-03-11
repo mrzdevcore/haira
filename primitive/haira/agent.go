@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -42,19 +43,94 @@ type AgentResult struct {
 
 // Agent is an LLM-powered agent that can use tools.
 type Agent struct {
-	config     AgentConfig
-	client     *openai.Client
-	clientOnce sync.Once
-	store      *SessionStore
+	config         AgentConfig
+	client         *openai.Client
+	clientMu       sync.Mutex
+	store          *SessionStore
+	storageEnabled bool // when true, built-in storage tools are injected per-session
 }
 
 // getClient lazily creates the OpenAI client on first use.
 // This allows auth.login() and other setup to run before the API key is resolved.
 func (a *Agent) getClient() *openai.Client {
-	a.clientOnce.Do(func() {
+	a.clientMu.Lock()
+	defer a.clientMu.Unlock()
+	if a.client == nil {
 		a.client = CreateOpenAIClient(a.config.Provider)
-	})
+	}
 	return a.client
+}
+
+// refreshClient forces a token refresh and recreates the OpenAI client.
+// Called when a 401 Unauthorized error is received from the API.
+func (a *Agent) refreshClient() error {
+	backend := a.config.Provider.Backend
+	if backend == "" {
+		backend = a.config.Provider.Name
+	}
+	if backend != "anthropic" {
+		return fmt.Errorf("token refresh not supported for backend %q", backend)
+	}
+	// If using a static API key from env, can't refresh
+	if os.Getenv("ANTHROPIC_API_KEY") != "" {
+		return fmt.Errorf("using static API key from env — cannot refresh")
+	}
+
+	// Refresh the OAuth token and recreate the client
+	newToken, err := forceRefreshAnthropicToken()
+	if err != nil {
+		return fmt.Errorf("token refresh failed: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "[haira] Refreshed Anthropic OAuth token after 401\n")
+	a.config.Provider.ApiKey = newToken
+	a.clientMu.Lock()
+	a.client = CreateOpenAIClient(a.config.Provider)
+	a.clientMu.Unlock()
+	// Clear so future refreshes still go through OAuth
+	a.config.Provider.ApiKey = ""
+	return nil
+}
+
+// refreshAndCreateAPIKey refreshes OAuth credentials and exchanges for an API key.
+func refreshAndCreateAPIKey() (string, error) {
+	// Try haira credentials first
+	if creds, err := loadHairaCredentials(); err == nil && creds != nil && creds.RefreshToken != "" {
+		refreshed, err := refreshAnthropicToken(creds.RefreshToken)
+		if err == nil {
+			saveHairaCredentials(refreshed)
+			if apiKey, err := exchangeOAuthForAPIKey(refreshed.AccessToken); err == nil {
+				saveHairaAPIKey(apiKey)
+				return apiKey, nil
+			}
+		}
+	}
+	// Try Claude Code credentials
+	if creds, err := loadClaudeCredentials(); err == nil && creds != nil && creds.RefreshToken != "" {
+		refreshed, err := refreshAnthropicToken(creds.RefreshToken)
+		if err == nil {
+			saveHairaCredentials(refreshed)
+			if apiKey, err := exchangeOAuthForAPIKey(refreshed.AccessToken); err == nil {
+				saveHairaAPIKey(apiKey)
+				return apiKey, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no refresh token available — run 'haira auth login' or set ANTHROPIC_API_KEY")
+}
+
+// isAuthError checks if an error is a 401 Unauthorized from the API.
+func isAuthError(err error) bool {
+	var apiErr *openai.APIError
+	if errors.As(err, &apiErr) && apiErr.HTTPStatusCode == 401 {
+		fmt.Fprintf(os.Stderr, "[haira] Auth error (401): %s\n", apiErr.Message)
+		return true
+	}
+	var reqErr *openai.RequestError
+	if errors.As(err, &reqErr) && reqErr.HTTPStatusCode == 401 {
+		fmt.Fprintf(os.Stderr, "[haira] Auth error (401): %v\n", reqErr)
+		return true
+	}
+	return false
 }
 
 const handoffToolPrefix = "transfer_to_"
@@ -148,6 +224,18 @@ func CreateOpenAIClient(provider *Provider) *openai.Client {
 		return openai.NewClientWithConfig(azCfg)
 	}
 
+	// Anthropic: use native Messages API transport (supports OAuth tokens)
+	isAnthropic := provider.Backend == "anthropic" || provider.Name == "anthropic"
+	if isAnthropic {
+		fmt.Fprintf(os.Stderr, "[haira] Using anthropic (native): model=%s\n", provider.Model)
+		cfg := openai.DefaultConfig(apiKey)
+		cfg.BaseURL = "https://api.anthropic.com/v1" // doesn't matter — transport intercepts
+		cfg.HTTPClient = &http.Client{
+			Transport: &anthropicTransport{apiKey: apiKey},
+		}
+		return openai.NewClientWithConfig(cfg)
+	}
+
 	// OpenAI-compatible endpoint (resolved from backend or explicitly set)
 	if endpoint != "" {
 		label := provider.Backend
@@ -163,6 +251,13 @@ func CreateOpenAIClient(provider *Provider) *openai.Client {
 
 	// Standard OpenAI (no endpoint, no backend)
 	return openai.NewClient(apiKey)
+}
+
+// EnableStorage enables built-in storage tools on this agent.
+// Storage tools are session-scoped — they use the session ID from each call.
+// This is set automatically by codegen for agents with `storage: true`.
+func (a *Agent) EnableStorage() {
+	a.storageEnabled = true
 }
 
 // NewAgent creates a new agent from configuration.
@@ -274,8 +369,9 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 
 		var messages []openai.ChatCompletionMessage
 		systemPrompt := a.config.System
-		// Append session context (files read, commands run, etc.) to system prompt
+		// Append session context (files read, commands run, stored files, etc.)
 		if sessionCtx := a.store.GetContext(sessionID); sessionCtx != nil {
+			a.loadStoredFilesIntoContext(sessionID, sessionCtx)
 			if ctxStr := sessionCtx.String(); ctxStr != "" {
 				systemPrompt += ctxStr
 			}
@@ -295,7 +391,7 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 		})
 		a.store.AddMessage(sessionID, Message{Role: "user", Content: message})
 
-		tools := a.buildTools()
+		tools := a.buildTools(sessionID)
 
 		// Fast path: no tools at all → stream directly without non-streaming probe
 		if len(tools) == 0 {
@@ -324,6 +420,21 @@ func (a *Agent) streamInternal(message string, sessionID string, handoffDepth in
 			callStart := time.Now()
 			resp, err := a.getClient().CreateChatCompletion(ctx, req)
 			callLatency := time.Since(callStart).Milliseconds()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[haira] CreateChatCompletion error: %v\n", err)
+				if isAuthError(err) {
+					if refreshErr := a.refreshClient(); refreshErr == nil {
+						callStart = time.Now()
+						resp, err = a.getClient().CreateChatCompletion(ctx, req)
+						callLatency = time.Since(callStart).Milliseconds()
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "[haira] Retry after refresh failed: %v\n", err)
+						}
+					} else {
+						fmt.Fprintf(os.Stderr, "[haira] Refresh failed: %v\n", refreshErr)
+					}
+				}
+			}
 			if err != nil {
 				ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
 				return
@@ -450,6 +561,19 @@ func (a *Agent) streamFinalResponse(ctx context.Context, ch chan<- StreamChunk, 
 	// No tools — this is the final text generation
 	callStart := time.Now()
 	stream, err := a.getClient().CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[haira] CreateChatCompletionStream error: %v\n", err)
+		if isAuthError(err) {
+			if refreshErr := a.refreshClient(); refreshErr == nil {
+				stream, err = a.getClient().CreateChatCompletionStream(ctx, req)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[haira] Stream retry after refresh failed: %v\n", err)
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "[haira] Refresh failed: %v\n", refreshErr)
+			}
+		}
+	}
 	if err != nil {
 		ch <- StreamChunk{Delta: fmt.Sprintf("error: %v", err), Done: true}
 		return
@@ -601,8 +725,10 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 		systemPrompt += "\n\nYou MUST respond with valid JSON matching this schema:\n" + a.config.OutputSchema
 	}
 
-	// Append session context (files read, commands run, etc.)
+	// Append session context (files read, commands run, stored files, etc.)
 	if sessionCtx := a.store.GetContext(sessionID); sessionCtx != nil {
+		// Load stored files from the database into context if not already tracked
+		a.loadStoredFilesIntoContext(sessionID, sessionCtx)
 		if ctxStr := sessionCtx.String(); ctxStr != "" {
 			systemPrompt += ctxStr
 		}
@@ -628,7 +754,7 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 	a.store.AddMessage(sessionID, Message{Role: "user", Content: message})
 
 	// Build OpenAI tool definitions (includes handoff tools)
-	tools := a.buildTools()
+	tools := a.buildTools(sessionID)
 
 	// Track tool calls for session history
 	var toolLog []string
@@ -655,6 +781,13 @@ func (a *Agent) run(message string, sessionID string, followHandoffs bool, hando
 		callStart := time.Now()
 		resp, err := a.getClient().CreateChatCompletion(ctx, req)
 		callLatency := time.Since(callStart).Milliseconds()
+		if err != nil && isAuthError(err) {
+			if refreshErr := a.refreshClient(); refreshErr == nil {
+				callStart = time.Now()
+				resp, err = a.getClient().CreateChatCompletion(ctx, req)
+				callLatency = time.Since(callStart).Milliseconds()
+			}
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[haira] LLM API error: %v\n", err)
 			return nil, fmt.Errorf("LLM API error: %w", err)
@@ -736,6 +869,22 @@ func (a *Agent) findHandoffTarget(toolName string) *Agent {
 	return nil
 }
 
+// loadStoredFilesIntoContext queries the store for files associated with this
+// session and adds them to the session context so the agent always knows
+// what files are available, even after message compaction.
+func (a *Agent) loadStoredFilesIntoContext(sessionID string, ctx *SessionContext) {
+	if globalStore == nil || sessionID == "" {
+		return
+	}
+	files, err := globalStore.ListFiles(sessionID)
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		ctx.AddStoredFile(f.ID, f.Name)
+	}
+}
+
 // trackToolContext updates the session context based on tool execution.
 // Parses tool name and arguments to track files read, written, and commands run.
 func (a *Agent) trackToolContext(sessionID, toolName, argsJSON, result string) {
@@ -759,6 +908,15 @@ func (a *Agent) trackToolContext(sessionID, toolName, argsJSON, result string) {
 	case "run_command", "propose_command":
 		if cmd, ok := args["command"].(string); ok {
 			ctx.AddCommand(cmd)
+		}
+	case "store_artifact":
+		// Track stored file references for persistent awareness
+		var resultMap map[string]any
+		if json.Unmarshal([]byte(result), &resultMap) == nil {
+			if id, ok := resultMap["id"].(string); ok {
+				name, _ := resultMap["name"].(string)
+				ctx.AddStoredFile(id, name)
+			}
 		}
 	}
 
@@ -826,10 +984,21 @@ func (a *Agent) executeTool(tc openai.ToolCall, sessionID string) (openai.ChatCo
 	}, result
 }
 
-func (a *Agent) buildTools() []openai.Tool {
+func (a *Agent) buildTools(sessionID ...string) []openai.Tool {
 	var tools []openai.Tool
 
-	// Add registered tools
+	// Inject built-in storage tools if enabled and session is available.
+	// Register them in the tool registry so executeTool can dispatch to them.
+	if a.storageEnabled && len(sessionID) > 0 && sessionID[0] != "" {
+		if a.config.Tools == nil {
+			a.config.Tools = NewToolRegistry()
+		}
+		for _, td := range StorageTools(sessionID[0]) {
+			a.config.Tools.Register(td)
+		}
+	}
+
+	// Add registered tools (includes storage tools if injected above)
 	if a.config.Tools != nil {
 		for _, td := range a.config.Tools.All() {
 			var params map[string]any

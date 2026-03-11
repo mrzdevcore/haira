@@ -2,6 +2,7 @@ package haira
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
 )
 
@@ -330,6 +331,222 @@ func ArrayFlatMap(arr any, fn func(any) any) []any {
 	if result == nil {
 		return []any{}
 	}
+	return result
+}
+
+// ArraySum sums all numeric elements in an array.
+func ArraySum(arr any) float64 {
+	s := ToSlice(arr)
+	var total float64
+	for _, item := range s {
+		total += toFloat64(item)
+	}
+	return total
+}
+
+// ArrayAvg returns the average of all numeric elements.
+func ArrayAvg(arr any) float64 {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return 0
+	}
+	var total float64
+	for _, item := range s {
+		total += toFloat64(item)
+	}
+	return total / float64(len(s))
+}
+
+// ArrayMin returns the smallest numeric element.
+func ArrayMin(arr any) any {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return nil
+	}
+	min := s[0]
+	minF := toFloat64(min)
+	for _, item := range s[1:] {
+		f := toFloat64(item)
+		if f < minF {
+			min = item
+			minF = f
+		}
+	}
+	return min
+}
+
+// ArrayMax returns the largest numeric element.
+func ArrayMax(arr any) any {
+	s := ToSlice(arr)
+	if len(s) == 0 {
+		return nil
+	}
+	max := s[0]
+	maxF := toFloat64(max)
+	for _, item := range s[1:] {
+		f := toFloat64(item)
+		if f > maxF {
+			max = item
+			maxF = f
+		}
+	}
+	return max
+}
+
+// ArrayCount returns the number of elements for which fn returns truthy.
+func ArrayCount(arr any, fn func(any) any) int {
+	s := ToSlice(arr)
+	count := 0
+	for _, item := range s {
+		if isTruthy(fn(item)) {
+			count++
+		}
+	}
+	return count
+}
+
+// ArrayZip combines two arrays element-wise into pairs.
+func ArrayZip(a, b any) []any {
+	sa := ToSlice(a)
+	sb := ToSlice(b)
+	n := len(sa)
+	if len(sb) < n {
+		n = len(sb)
+	}
+	result := make([]any, n)
+	for i := 0; i < n; i++ {
+		result[i] = []any{sa[i], sb[i]}
+	}
+	return result
+}
+
+// ArrayChunk splits an array into sub-arrays of the given size.
+func ArrayChunk(arr any, size int) []any {
+	s := ToSlice(arr)
+	if size <= 0 {
+		size = 1
+	}
+	var result []any
+	for i := 0; i < len(s); i += size {
+		end := i + size
+		if end > len(s) {
+			end = len(s)
+		}
+		chunk := make([]any, end-i)
+		copy(chunk, s[i:end])
+		result = append(result, chunk)
+	}
+	if result == nil {
+		return []any{}
+	}
+	return result
+}
+
+// ArrayCompact removes nil and zero-value elements.
+func ArrayCompact(arr any) []any {
+	s := ToSlice(arr)
+	var result []any
+	for _, item := range s {
+		if isTruthy(item) {
+			result = append(result, item)
+		}
+	}
+	if result == nil {
+		return []any{}
+	}
+	return result
+}
+
+// ArrayGroupBy groups elements by a key function. Returns map[string][]any.
+func ArrayGroupBy(arr any, fn func(any) any) map[string]any {
+	s := ToSlice(arr)
+	groups := make(map[string][]any)
+	order := make([]string, 0)
+	for _, item := range s {
+		key := fmt.Sprintf("%v", fn(item))
+		if _, exists := groups[key]; !exists {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], item)
+	}
+	result := make(map[string]any, len(groups))
+	for _, key := range order {
+		result[key] = groups[key]
+	}
+	return result
+}
+
+// ArrayPartition splits an array into two: elements matching the predicate and those that don't.
+func ArrayPartition(arr any, fn func(any) any) []any {
+	s := ToSlice(arr)
+	var yes, no []any
+	for _, item := range s {
+		if isTruthy(fn(item)) {
+			yes = append(yes, item)
+		} else {
+			no = append(no, item)
+		}
+	}
+	if yes == nil {
+		yes = []any{}
+	}
+	if no == nil {
+		no = []any{}
+	}
+	return []any{yes, no}
+}
+
+// ArrayDifference returns elements in a that are not in b.
+func ArrayDifference(a, b any) []any {
+	sa := ToSlice(a)
+	sb := ToSlice(b)
+	set := make(map[string]bool, len(sb))
+	for _, item := range sb {
+		set[fmt.Sprintf("%v", item)] = true
+	}
+	var result []any
+	for _, item := range sa {
+		if !set[fmt.Sprintf("%v", item)] {
+			result = append(result, item)
+		}
+	}
+	if result == nil {
+		return []any{}
+	}
+	return result
+}
+
+// ArrayIntersection returns elements present in both arrays.
+func ArrayIntersection(a, b any) []any {
+	sa := ToSlice(a)
+	sb := ToSlice(b)
+	set := make(map[string]bool, len(sb))
+	for _, item := range sb {
+		set[fmt.Sprintf("%v", item)] = true
+	}
+	var result []any
+	seen := make(map[string]bool)
+	for _, item := range sa {
+		key := fmt.Sprintf("%v", item)
+		if set[key] && !seen[key] {
+			seen[key] = true
+			result = append(result, item)
+		}
+	}
+	if result == nil {
+		return []any{}
+	}
+	return result
+}
+
+// ArrayShuffle returns a new array with elements in random order.
+func ArrayShuffle(arr any) []any {
+	s := ToSlice(arr)
+	result := make([]any, len(s))
+	copy(result, s)
+	rand.Shuffle(len(result), func(i, j int) {
+		result[i], result[j] = result[j], result[i]
+	})
 	return result
 }
 

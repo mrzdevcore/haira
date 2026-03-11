@@ -91,9 +91,13 @@ func (f *Formatter) formatLiteral(lit ast.Literal) {
 	case ast.FloatLit:
 		f.write(fmt.Sprintf("%g", l.Value))
 	case ast.StringLit:
-		f.write(`"`)
-		f.write(escapeString(l.Value))
-		f.write(`"`)
+		if l.TripleQuoted || strings.Contains(l.Value, "\n") {
+			f.formatTripleQuotedString(l.Value)
+		} else {
+			f.write(`"`)
+			f.write(escapeString(l.Value))
+			f.write(`"`)
+		}
 	case ast.BoolLit:
 		if l.Value {
 			f.write("true")
@@ -127,8 +131,34 @@ func escapeString(s string) string {
 	return b.String()
 }
 
+// formatTripleQuotedString emits a """...""" block with proper indentation.
+func (f *Formatter) formatTripleQuotedString(s string) {
+	f.writeln(`"""`)
+	lines := splitLines(s)
+	for _, line := range lines {
+		f.writeIndent()
+		f.writeln(trimIndent(line))
+	}
+	f.writeIndent()
+	f.write(`"""`)
+}
+
+// interpolatedHasNewlines checks if any literal part of an interpolated string contains newlines.
+func interpolatedHasNewlines(lit ast.InterpolatedStringLit) bool {
+	for _, part := range lit.Parts {
+		if lp, ok := part.(ast.LiteralPart); ok && strings.Contains(lp.Value, "\n") {
+			return true
+		}
+	}
+	return false
+}
+
 // formatInterpolatedString reconstructs "...${expr}..." strings.
 func (f *Formatter) formatInterpolatedString(lit ast.InterpolatedStringLit) {
+	if lit.TripleQuoted || interpolatedHasNewlines(lit) {
+		f.formatTripleQuotedInterpolatedString(lit)
+		return
+	}
 	f.write(`"`)
 	for _, part := range lit.Parts {
 		switch p := part.(type) {
@@ -141,6 +171,33 @@ func (f *Formatter) formatInterpolatedString(lit ast.InterpolatedStringLit) {
 		}
 	}
 	f.write(`"`)
+}
+
+// formatTripleQuotedInterpolatedString emits a """...""" block for interpolated strings.
+func (f *Formatter) formatTripleQuotedInterpolatedString(lit ast.InterpolatedStringLit) {
+	// Collect all parts into a single string, formatting expressions inline.
+	var buf strings.Builder
+	for _, part := range lit.Parts {
+		switch p := part.(type) {
+		case ast.LiteralPart:
+			buf.WriteString(p.Value)
+		case ast.ExprPart:
+			buf.WriteString("${")
+			// Use a temporary formatter to render the expression.
+			tmp := &Formatter{src: f.src, tokens: f.tokens}
+			tmp.formatExpr(p.Value)
+			buf.WriteString(tmp.out.String())
+			buf.WriteString("}")
+		}
+	}
+	f.writeln(`"""`)
+	lines := splitLines(buf.String())
+	for _, line := range lines {
+		f.writeIndent()
+		f.writeln(trimIndent(line))
+	}
+	f.writeIndent()
+	f.write(`"""`)
 }
 
 // binaryOpStr returns the string representation of a binary operator.
@@ -261,13 +318,32 @@ func (f *Formatter) formatLambda(e ast.LambdaExpr) {
 }
 
 func (f *Formatter) formatList(e ast.ListExpr) {
-	f.write("[")
-	for i, elem := range e.Elems {
-		if i > 0 {
-			f.write(", ")
-		}
-		f.formatExpr(elem)
+	if len(e.Elems) == 0 {
+		f.write("[]")
+		return
 	}
+	w := measureList(e)
+	if w <= 100 {
+		f.write("[")
+		for i, elem := range e.Elems {
+			if i > 0 {
+				f.write(", ")
+			}
+			f.formatExpr(elem)
+		}
+		f.write("]")
+		return
+	}
+	// Multiline
+	f.writeln("[")
+	f.incIndent()
+	for _, elem := range e.Elems {
+		f.writeIndent()
+		f.formatExpr(elem)
+		f.writeln(",")
+	}
+	f.decIndent()
+	f.writeIndent()
 	f.write("]")
 }
 
@@ -276,16 +352,134 @@ func (f *Formatter) formatMap(e ast.MapExpr) {
 		f.write("{}")
 		return
 	}
-	f.write("{ ")
-	for i, entry := range e.Entries {
-		if i > 0 {
-			f.write(", ")
+	w := measureMap(e)
+	if w <= 100 {
+		f.write("{ ")
+		for i, entry := range e.Entries {
+			if i > 0 {
+				f.write(", ")
+			}
+			f.formatExpr(entry.Key)
+			f.write(": ")
+			f.formatExpr(entry.Value)
 		}
+		f.write(" }")
+		return
+	}
+	// Multiline
+	f.writeln("{")
+	f.incIndent()
+	for _, entry := range e.Entries {
+		f.writeIndent()
 		f.formatExpr(entry.Key)
 		f.write(": ")
 		f.formatExpr(entry.Value)
+		f.writeln(",")
 	}
-	f.write(" }")
+	f.decIndent()
+	f.writeIndent()
+	f.write("}")
+}
+
+// --- Width estimation helpers ---
+
+// measureExpr returns an estimated character width for an expression formatted inline.
+func measureExpr(expr ast.Expr) int {
+	switch e := expr.Node.(type) {
+	case ast.LiteralExpr:
+		return measureLiteral(e.Lit)
+	case ast.IdentExpr:
+		return len(e.Name)
+	case ast.BinaryExpr:
+		return measureExpr(e.Left) + 3 + measureExpr(e.Right) // " + "
+	case ast.UnaryExpr:
+		return 1 + measureExpr(e.Operand)
+	case ast.CallExpr:
+		w := measureExpr(e.Callee) + 2 // "()"
+		for i, arg := range e.Args {
+			if i > 0 {
+				w += 2
+			}
+			if arg.Name != nil {
+				w += len(arg.Name.Node) + 2
+			}
+			w += measureExpr(arg.Value)
+		}
+		return w
+	case ast.MethodCallExpr:
+		w := measureExpr(e.Receiver) + 1 + len(e.Method.Node) + 2
+		for i, arg := range e.Args {
+			if i > 0 {
+				w += 2
+			}
+			if arg.Name != nil {
+				w += len(arg.Name.Node) + 2
+			}
+			w += measureExpr(arg.Value)
+		}
+		return w
+	case ast.FieldExpr:
+		return measureExpr(e.Object) + 1 + len(e.Field.Node)
+	case ast.ListExpr:
+		return measureList(e)
+	case ast.MapExpr:
+		return measureMap(e)
+	default:
+		return 40 // conservative estimate for complex expressions
+	}
+}
+
+func measureLiteral(lit ast.Literal) int {
+	switch l := lit.(type) {
+	case ast.IntLit:
+		return len(fmt.Sprintf("%d", l.Value))
+	case ast.FloatLit:
+		return len(fmt.Sprintf("%g", l.Value))
+	case ast.StringLit:
+		if l.TripleQuoted {
+			return 100 // always multiline
+		}
+		return len(l.Value) + 2 // quotes
+	case ast.BoolLit:
+		if l.Value {
+			return 4
+		}
+		return 5
+	case ast.InterpolatedStringLit:
+		w := 2 // quotes
+		for _, part := range l.Parts {
+			switch p := part.(type) {
+			case ast.LiteralPart:
+				w += len(p.Value)
+			case ast.ExprPart:
+				w += 3 + measureExpr(p.Value) // "${" + expr + "}"
+			}
+		}
+		return w
+	}
+	return 10
+}
+
+func measureList(e ast.ListExpr) int {
+	w := 2 // "[]"
+	for i, elem := range e.Elems {
+		if i > 0 {
+			w += 2 // ", "
+		}
+		w += measureExpr(elem)
+	}
+	return w
+}
+
+func measureMap(e ast.MapExpr) int {
+	w := 4 // "{ " + " }"
+	for i, entry := range e.Entries {
+		if i > 0 {
+			w += 2 // ", "
+		}
+		w += measureExpr(entry.Key) + 2 + measureExpr(entry.Value) // ": "
+	}
+	return w
 }
 
 func (f *Formatter) formatInstance(e ast.InstanceExpr) {

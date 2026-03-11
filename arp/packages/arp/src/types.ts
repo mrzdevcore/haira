@@ -266,13 +266,21 @@ export interface StepRenderPayload {
   props: Record<string, unknown>;
 }
 
+export interface StepConfirmPayload {
+  title: string;
+  message?: string;
+  confirm_label: string;
+  deny_label: string;
+}
+
 export interface StepEvent {
   name: string;
-  status: "start" | "end" | "failed" | "retry" | "log" | "render";
+  status: "start" | "end" | "failed" | "retry" | "log" | "render" | "awaiting_confirm";
   duration_ms?: number;
   error?: string;
   attempt?: number;
   delay_ms?: number;
   log?: StepLogEntry;
   render?: StepRenderPayload;
+  confirm?: StepConfirmPayload;
 }

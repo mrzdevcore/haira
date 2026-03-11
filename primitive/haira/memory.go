@@ -41,6 +41,7 @@ type SessionContext struct {
 	FilesWritten []string // file paths written/edited
 	CommandsRun  []string // commands executed
 	KeyFacts     []string // important observations (errors, decisions)
+	StoredFiles  []string // persistent file references (id:name) — survives compaction
 }
 
 // AddFileRead records a file read (deduplicates).
@@ -83,14 +84,29 @@ func (sc *SessionContext) AddKeyFact(fact string) {
 	}
 }
 
+// AddStoredFile records a persistent file reference (deduplicates by ID).
+func (sc *SessionContext) AddStoredFile(id, name string) {
+	ref := id + ":" + name
+	for _, f := range sc.StoredFiles {
+		if f == ref {
+			return
+		}
+	}
+	sc.StoredFiles = append(sc.StoredFiles, ref)
+}
+
 // String returns a compact summary for injection into the system prompt.
 func (sc *SessionContext) String() string {
 	if len(sc.FilesRead) == 0 && len(sc.FilesWritten) == 0 &&
-		len(sc.CommandsRun) == 0 && len(sc.KeyFacts) == 0 {
+		len(sc.CommandsRun) == 0 && len(sc.KeyFacts) == 0 &&
+		len(sc.StoredFiles) == 0 {
 		return ""
 	}
 
 	var parts []string
+	if len(sc.StoredFiles) > 0 {
+		parts = append(parts, "Stored files (persistent, use list_session_files/get_artifact/restore_file to access): "+strings.Join(sc.StoredFiles, ", "))
+	}
 	if len(sc.FilesRead) > 0 {
 		parts = append(parts, "Files read: "+strings.Join(sc.FilesRead, ", "))
 	}

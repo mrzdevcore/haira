@@ -137,19 +137,29 @@ fn divide(a: int, b: int) -> (int, Error?) {
 quotient, err = divide(10, 3)
 ```
 
-### Closures / Anonymous Functions
+### Closures / Lambdas
 ```haira
-add = fn(a: int, b: int) -> int { a + b }
-doubled = array.map([1,2,3], fn(n) { n * 2 })
+// Lambda syntax: (params) => expr  or  (params) { block }
+add = (a: int, b: int) => a + b
+double = (n) => n * 2
+inc = x => x + 1    // single param without parens
+
+// Block body
+process = (data) {
+    result = transform(data)
+    return result
+}
 
 fn make_counter() -> fn() -> int {
     count = 0
-    return fn() -> int {
+    return () {
         count += 1
         return count
     }
 }
 ```
+
+**IMPORTANT:** There is NO `fn(x) { ... }` inline lambda syntax. Use `(x) => expr` or `(x) { block }`.
 
 ### Methods
 ```haira
@@ -423,6 +433,20 @@ string.char_at(s, index) -> string
 string.replace(s, old, new) -> string
 string.replace_all(s, old, new) -> string
 string.repeat(s, n) -> string
+string.slugify(s) -> string
+string.basename(s) -> string
+string.strip_ext(s) -> string
+string.ext(s) -> string
+string.pad_left(s, length, pad) -> string
+string.pad_right(s, length, pad) -> string
+string.truncate(s, max_len, suffix) -> string
+string.extract_between(s, start, end) -> string
+string.capitalize(s) -> string
+string.title(s) -> string
+string.reverse(s) -> string
+string.count(s, substr) -> int
+string.lines(s) -> []string
+string.words(s) -> []string
 ```
 
 ### array
@@ -451,6 +475,25 @@ array.reverse(arr) -> []T
 array.concat(arr1, arr2) -> []T
 array.flatten(nested) -> []T
 array.unique(arr) -> []T
+array.find_index(arr, predicate) -> int
+array.every(arr, predicate) -> bool
+array.some(arr, predicate) -> bool
+array.for_each(arr, fn)
+array.flat_map(arr, fn) -> []U
+array.join(arr, sep) -> string
+array.sum(arr) -> float             // sum numeric elements
+array.avg(arr) -> float             // average of numeric elements
+array.min(arr) -> any               // smallest numeric element
+array.max(arr) -> any               // largest numeric element
+array.count(arr, predicate) -> int  // count matching elements
+array.zip(a, b) -> [](a, b)        // pair elements from two arrays
+array.chunk(arr, size) -> [[]]      // split into sub-arrays of size N
+array.compact(arr) -> []T           // remove nil/zero/empty values
+array.group_by(arr, fn) -> map      // group elements by key function
+array.partition(arr, fn) -> ([], [])  // split: [matching, non-matching]
+array.difference(a, b) -> []T       // elements in a not in b
+array.intersection(a, b) -> []T     // elements in both a and b
+array.shuffle(arr) -> []T           // random order (new array)
 ```
 
 ### map
@@ -472,22 +515,51 @@ map.merge(m1, m2) -> map
 ### math
 ```
 math.PI, math.E
-math.abs(n) -> number
-math.min(a, b) -> number
-math.max(a, b) -> number
-math.clamp(n, min, max) -> number
+math.abs(n) -> float
+math.min(a, b) -> float          // EXACTLY 2 args, NOT an array
+math.max(a, b) -> float          // EXACTLY 2 args, NOT an array
+math.clamp(n, min, max) -> float
 math.floor(n) -> float
 math.ceil(n) -> float
 math.round(n) -> float
+math.trunc(n) -> float
 math.pow(base, exp) -> float
 math.sqrt(n) -> float
+math.cbrt(n) -> float
+math.exp(n) -> float
 math.log(n) -> float
-math.sin(x), math.cos(x), math.tan(x)
+math.log10(n) -> float
+math.log2(n) -> float
+math.sin(x) -> float
+math.cos(x) -> float
+math.tan(x) -> float
+math.asin(x) -> float
+math.acos(x) -> float
+math.atan(x) -> float
+math.atan2(y, x) -> float
 math.random() -> float
 math.random_int(min, max) -> int
+math.sum(arr) -> float           // sum all numeric elements in array
+math.avg(arr) -> float           // average of array elements
+math.median(arr) -> float        // median value (sorts internally)
+math.sign(x) -> float            // returns -1, 0, or 1
+math.hypot(x, y) -> float        // sqrt(x*x + y*y)
+math.gcd(a, b) -> int            // greatest common divisor
+math.lcm(a, b) -> int            // least common multiple
+math.lerp(a, b, t) -> float      // linear interpolation: a + (b-a)*t
 ```
 
+**IMPORTANT signatures:**
+- `math.min(a, b)` / `math.max(a, b)` — take exactly **2 scalar args**, NOT an array. For array min/max use `array.min(arr)` / `array.max(arr)`
+- `math.sum(arr)` / `math.avg(arr)` / `math.median(arr)` — take an **array** argument
+- `math.average()` does NOT exist — use `math.avg(arr)`
+
+All math functions accept `any` numeric types internally (int, float).
+
 ### conv
+
+**IMPORTANT:** You must `import "conv"` to use these functions.
+
 ```
 conv.int_to_string(n) -> string
 conv.float_to_string(f) -> string
@@ -499,8 +571,16 @@ conv.int_to_float(n) -> float
 conv.float_to_int(f) -> int
 conv.int_to_hex(n) -> string
 conv.int_to_binary(n) -> string
+conv.int_to_octal(n) -> string
+conv.hex_to_int(s) -> (int, Error?)
 conv.to_string(value) -> string
 ```
+
+All conv functions accept `any` typed values internally.
+
+**WARNING — these conv functions do NOT exist:**
+- `conv.parse_int()` — use `conv.string_to_int(s)`
+- `conv.parse_float()` — use `conv.string_to_float(s)`
 
 ### json
 ```
@@ -545,6 +625,7 @@ os.environ() -> map[string]string
 os.args -> []string
 os.exit(code)
 os.exec(cmd, args) -> (string, Error?)
+os.safe_exec(cmd, timeout_seconds) -> (string, Error?)  // blocklist-protected
 ```
 
 ### http
@@ -583,6 +664,40 @@ log.warn(message: string)
 log.error(message: string)
 ```
 
+### excel (stdlib, tree-shaken)
+```
+// Low-level workbook API
+wb, err = excel.open(filepath: string)        // -> (Workbook, Error?)
+wb.close()                                     // close workbook (use with defer)
+wb.sheet_names()                               // -> [string]
+wb.read_sheet(name: string)                    // -> ([map], Error?) - rows as maps
+
+// High-level tables API (recommended)
+tables, err = excel.read_sheets(filepath: string)       // -> (ExcelTables, Error?)
+tables, err = excel.read_config(filepath: string, mappings: map)  // -> (ExcelTables, Error?)
+tables.names()                                 // -> [string]
+tables.sheet(name: string)                     // -> [map] - rows as maps
+tables.sheet_headers(name: string)             // -> [string]
+tables.len()                                   // -> int
+tables.summary()                               // -> string
+tables.skip_first_row()                        // mutates: skip header row
+tables.to_ui_table(max_rows: int = 0)          // -> UiTable for @webui
+
+// IMPORTANT: NO excel.get_sheet(), excel.get_cell(), excel.get_rows(),
+// excel.get_sheet_by_index(), or excel.close(wb). Use method calls.
+```
+
+### websearch (stdlib)
+```
+websearch.search(query: string) -> string      // DuckDuckGo, no API key
+```
+
+### healthcheck (stdlib)
+```
+healthcheck.check(name: string, url: string) -> map    // {name, status, response_time}
+healthcheck.check_all(services: [map]) -> [map]        // batch checks
+```
+
 ### vector (embeddings)
 ```
 vector.embed(provider, text) -> []float
@@ -600,6 +715,22 @@ observe.agent_cost(name) -> float
 observe.usage() -> map
 observe.start(server)
 observe.langfuse(public_key, secret_key, host)
+```
+
+### ui (generative UI components)
+```
+ui.key_value(data) -> UiKeyValue
+ui.status_card(data) -> UiStatusCard
+ui.group(items) -> UiGroup
+ui.confirm(prompt) -> UiConfirm
+ui.chart(data) -> UiChart
+ui.table(data) -> UiTable
+ui.product_cards(data) -> UiProductCards
+ui.markdown(content) -> UiMarkdown
+ui.code_block(code, lang) -> UiCodeBlock
+ui.diff(before, after) -> UiDiff
+ui.progress(current, total) -> UiProgress
+ui.choices(options) -> UiChoices
 ```
 
 ### mcp
@@ -622,6 +753,100 @@ test "test name" {
 ```
 
 Run with: `haira test file.haira`
+
+## Common Patterns
+
+### Aggregations (sum, avg, min, max, median)
+```haira
+import "math"
+import "array"
+
+numbers = [10, 5, 30, 2, 15]
+
+// Direct aggregate functions
+total = math.sum(numbers)           // 62.0
+avg = math.avg(numbers)             // 12.4
+med = math.median(numbers)          // 10.0
+smallest = array.min(numbers)       // 2
+largest = array.max(numbers)        // 30
+
+// array.sum / array.avg are equivalent
+total2 = array.sum(numbers)         // same as math.sum
+
+// IMPORTANT: math.min(a, b) takes 2 scalars, NOT an array
+// Use array.min(arr) for array minimum
+```
+
+### Working with Excel Data
+```haira
+import "excel"
+import "conv"
+import "array"
+import "math"
+
+tables, err = excel.read_sheets("data.xlsx")
+if err != nil { io.println("Error: ${err}") }
+
+names = tables.names()
+for name in names {
+    rows = tables.sheet(name)
+    headers = tables.sheet_headers(name)
+    io.println("Sheet: ${name}, rows: ${len(rows)}, columns: ${string.join(headers, ", ")}")
+
+    // Extract a column using a for loop (preferred pattern)
+    amounts = []
+    for row in rows {
+        amounts = array.push(amounts, row["Amount"])
+    }
+    io.println("Total: ${math.sum(amounts)}")
+    io.println("Average: ${math.avg(amounts)}")
+    io.println("Min: ${array.min(amounts)}, Max: ${array.max(amounts)}")
+}
+```
+
+### Array Transformations
+```haira
+import "array"
+
+// Group by key — lambda uses (x) => expr syntax
+users = [{name: "Alice", role: "admin"}, {name: "Bob", role: "user"}, {name: "Carol", role: "admin"}]
+by_role = array.group_by(users, (u) => u["role"])
+// {"admin": [Alice, Carol], "user": [Bob]}
+
+// Partition (split by predicate)
+parts = array.partition(numbers, (n) => n > 10)
+big = parts[0]
+small = parts[1]
+
+// Chunk into groups
+chunks = array.chunk([1,2,3,4,5], 2)  // [[1,2], [3,4], [5]]
+
+// Set operations
+a = [1, 2, 3, 4]
+b = [3, 4, 5, 6]
+array.difference(a, b)      // [1, 2]
+array.intersection(a, b)    // [3, 4]
+
+// Zip two arrays
+keys = ["name", "age"]
+vals = ["Alice", 30]
+pairs = array.zip(keys, vals)  // [["name","Alice"], ["age",30]]
+```
+
+### Type Handling: `any` Values
+```haira
+// Runtime functions accept `any` — no explicit casting needed:
+math.min(row["A"], row["B"])        // works
+conv.to_string(some_any_value)      // works
+conv.float_to_int(row["Price"])     // works
+
+// String interpolation handles `any` automatically:
+io.println("Value: ${row["Amount"]}")
+
+// Aggregate functions work with `any` arrays:
+math.sum(amounts)                   // works with any numeric values
+array.min(amounts)                  // works with any comparable values
+```
 
 ## Complete EBNF Grammar (Key Productions)
 

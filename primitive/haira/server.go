@@ -3,6 +3,7 @@ package haira
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -323,6 +324,10 @@ func (s *Server) registerProtocolRoutes() {
 	s.mux.HandleFunc("/_api/files", s.handleListFiles)
 	s.mux.HandleFunc("/_api/files/read", s.handleReadFile)
 
+	// Session file storage API
+	s.mux.HandleFunc("/_api/files/stored", s.handleStoredFiles)
+	s.mux.HandleFunc("/_api/files/stored/", s.handleStoredFileRoute)
+
 	// Git info API
 	s.mux.HandleFunc("/_api/git/branch", s.handleGitBranch)
 }
@@ -345,12 +350,19 @@ func (s *Server) handleListRuns(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRunRoute(rw http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/_api/runs/")
+
+	// /_api/runs/{id}/confirm — POST step confirmation response
+	if strings.HasSuffix(path, "/confirm") && r.Method == "POST" {
+		runID := strings.TrimSuffix(path, "/confirm")
+		s.handleStepConfirm(rw, r, runID)
+		return
+	}
+
 	if r.Method != "GET" {
 		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/_api/runs/")
 
 	// /_api/runs/stream/{id} — live SSE reconnection
 	if strings.HasPrefix(path, "stream/") {
@@ -371,6 +383,26 @@ func (s *Server) handleRunRoute(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(run)
+}
+
+// handleStepConfirm receives a user's confirmation response for a blocking step.
+// POST /_api/runs/{runID}/confirm  body: {"confirmed": true/false}
+func (s *Server) handleStepConfirm(rw http.ResponseWriter, r *http.Request, runID string) {
+	var body struct {
+		Confirmed bool `json:"confirmed"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if ok := SubmitStepConfirm(runID, body.Confirmed); !ok {
+		http.Error(rw, "No pending confirmation for this run", http.StatusNotFound)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]bool{"ok": true})
 }
 
 // handleRunStream replays buffered events and streams live events for in-progress runs.
@@ -638,6 +670,97 @@ func (s *Server) handleGitBranch(rw http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(rw).Encode(map[string]any{
 		"branch": branch,
 	})
+}
+
+// --- Session File Storage API ---
+
+func (s *Server) handleStoredFiles(rw http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		sessionID := r.URL.Query().Get("session_id")
+		if sessionID == "" {
+			http.Error(rw, "Missing session_id parameter", http.StatusBadRequest)
+			return
+		}
+		files, err := ListSessionFiles(sessionID)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(files)
+
+	case "POST":
+		// Store an artifact (text content from agent tools or manual upload)
+		r.ParseMultipartForm(32 << 20)
+		sessionID := r.FormValue("session_id")
+		name := r.FormValue("name")
+		if sessionID == "" || name == "" {
+			http.Error(rw, "Missing session_id or name", http.StatusBadRequest)
+			return
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			http.Error(rw, "Missing file", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		data, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(rw, "Failed to read file", http.StatusInternalServerError)
+			return
+		}
+		contentType := header.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		id, err := StoreSessionFile(sessionID, name, contentType, data)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(map[string]string{"id": id, "name": name})
+
+	default:
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleStoredFileRoute(rw http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/_api/files/stored/")
+	if id == "" {
+		http.NotFound(rw, r)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		file, err := GetSessionFile(id)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if file == nil {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.Header().Set("Content-Type", file.ContentType)
+		rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", file.Name))
+		rw.Header().Set("Content-Length", fmt.Sprintf("%d", file.Size))
+		rw.Write(file.Data)
+
+	case "DELETE":
+		if err := DeleteSessionFile(id); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // --- Workflow Discovery API ---

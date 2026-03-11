@@ -33,6 +33,7 @@ export type {
   ChatMessage,
   // Step events
   StepLogEntry,
+  StepConfirmPayload,
   StepEvent,
 } from "./types.js";
 

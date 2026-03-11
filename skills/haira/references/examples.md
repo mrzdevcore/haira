@@ -519,6 +519,235 @@ test "is_even checks parity" {
 }
 ```
 
+## 22. Excel Spreadsheet Processing (Correct API)
+```haira
+import "io"
+import "excel"
+import "string"
+
+// Low-level workbook API
+tool read_xlsx(filepath: string, sheet_name: string = "") -> string {
+    """
+    Read and extract structured content from an .xlsx spreadsheet file.
+    If sheet_name is empty, reads the first available sheet.
+    """
+    wb, err = excel.open(filepath)
+    if err != nil { return "Error opening file: ${err}" }
+    defer wb.close()
+
+    // Get sheet names
+    names = wb.sheet_names()
+    if array.is_empty(names) { return "No sheets found" }
+
+    // Read the specified or first sheet
+    target = if sheet_name != "" { sheet_name } else { names[0] }
+    rows, err = wb.read_sheet(target)
+    if err != nil { return "Error reading sheet: ${err}" }
+
+    // Format rows (each row is a map of {column: value})
+    output = ""
+    for i, row in rows {
+        output = output + json.encode(row) + "\n"
+    }
+    return output
+}
+
+// High-level tables API (recommended)
+tool analyze_spreadsheet(filepath: string) -> string {
+    """
+    Analyze an .xlsx spreadsheet using the high-level tables API.
+    Returns a summary of all sheets with headers and row counts.
+    """
+    tables, err = excel.read_sheets(filepath)
+    if err != nil { return "Error: ${err}" }
+
+    output = "Sheets: " + string.join(tables.names(), ", ") + "\n"
+    output = output + "Total sheets: " + conv.int_to_string(tables.len()) + "\n\n"
+
+    for name in tables.names() {
+        headers = tables.sheet_headers(name)
+        rows = tables.sheet(name)
+        output = output + "Sheet '${name}': ${array.len(headers)} columns, ${array.len(rows)} rows\n"
+        output = output + "Headers: " + string.join(headers, ", ") + "\n\n"
+    }
+
+    return output
+}
+```
+
+**IMPORTANT:** The excel API uses method calls on the workbook/tables object:
+- `wb.close()` NOT `excel.close(wb)`
+- `wb.sheet_names()` NOT `excel.get_sheet_names(wb)`
+- `wb.read_sheet(name)` NOT `excel.get_sheet(wb, name)` or `excel.get_rows(sheet)`
+- There is NO `excel.get_cell()`, `excel.get_sheet_by_index()`, or `excel.get_rows()`
+
+## 23. Document Summariser (Real-World POC)
+```haira
+import "io"
+import "http"
+import "string"
+import "log"
+import "excel"
+
+provider anthropic {
+    backend: "anthropic"
+    model: "claude-sonnet-4-20250514"
+}
+
+tool read_docx(filepath: string) -> string {
+    """
+    Read and extract text content from a .docx file.
+    Returns the plain text content of the document.
+    """
+    content, err = fs.read_file(filepath)
+    if err != nil { return "" }
+    return content
+}
+
+tool read_xlsx(filepath: string, sheet_name: string = "") -> string {
+    """
+    Read structured content from an .xlsx spreadsheet file.
+    If sheet_name is empty, reads the first sheet.
+    """
+    wb, err = excel.open(filepath)
+    if err != nil { return "Error opening file: ${err}" }
+    defer wb.close()
+
+    names = wb.sheet_names()
+    if array.is_empty(names) { return "No sheets found" }
+
+    target = if sheet_name != "" { sheet_name } else { names[0] }
+    rows, err = wb.read_sheet(target)
+    if err != nil { return "Error reading sheet: ${err}" }
+
+    output = ""
+    for row in rows {
+        line = json.encode(row)
+        output = output + line + "\n"
+    }
+    return output
+}
+
+tool list_sheets(filepath: string) -> string {
+    """
+    List all sheet names in an .xlsx spreadsheet file.
+    """
+    wb, err = excel.open(filepath)
+    if err != nil { return "Error: ${err}" }
+    defer wb.close()
+
+    names = wb.sheet_names()
+    return string.join(names, "\n")
+}
+
+agent Summariser {
+    provider: anthropic
+    system: """
+        You are an expert document summariser. When given file content, produce a clear,
+        concise summary that captures the key points, structure, and important details.
+
+        For spreadsheets (.xlsx):
+        - Use list_sheets to discover all sheets in the workbook.
+        - Use read_xlsx to read each relevant sheet.
+
+        For documents (.docx), summarise the main sections and conclusions.
+
+        Always structure your summary with:
+        - A one-line overview
+        - Key points as bullet points
+        - Any notable data or findings
+    """
+    tools: [read_docx, read_xlsx, list_sheets]
+    memory: conversation(max_turns: 20)
+    temperature: 0.3
+    max_steps: 10
+}
+
+@webui(title: "Document Summariser", description: "Upload a .docx or .xlsx file to get an AI-powered summary")
+@post("/api/summarise")
+workflow Summarise(document: file, message: string = "Please summarise this document.") -> { reply: string } {
+    onerror err {
+        return { reply: "Something went wrong: ${err}" }
+    }
+
+    step "Validate file" {
+        log.info("Validating file: ${document}")
+        is_docx = string.ends_with(document, ".docx")
+        is_xlsx = string.ends_with(document, ".xlsx")
+
+        if not is_docx and not is_xlsx {
+            return { reply: "Please upload a .docx or .xlsx file." }
+        }
+    }
+
+    step "Summarise" {
+        prompt = "${message}\n\nFile: ${document}\nPlease read and summarise the uploaded file."
+        reply, err = Summariser.ask(prompt, session: "summarise")
+        if err != nil {
+            return { reply: "Failed to summarise: ${err}" }
+        }
+    }
+
+    return { reply: reply }
+}
+
+@webui(title: "Document Summariser", description: "Chat about your uploaded documents")
+@post("/api/chat")
+workflow Chat(message: string, session_id: string = "default") -> { reply: string } {
+    onerror err {
+        return { reply: "Something went wrong: ${err}" }
+    }
+
+    reply, err = Summariser.ask(message, session: session_id)
+    if err != nil { return { reply: "Error: ${err}" } }
+    return { reply: reply }
+}
+
+@webhook("/api/chat/stream")
+workflow ChatStream(message: string, session_id: string = "default") -> stream {
+    return Summariser.stream(message, session: session_id)
+}
+
+fn main() {
+    server = http.Server([Summarise, Chat, ChatStream])
+    io.println("Document Summariser running on :8080")
+    server.listen(8080)
+}
+```
+
+## 24. Dynamic Agent Creation
+```haira
+import "io"
+
+provider claude {
+    api_key: env("ANTHROPIC_API_KEY")
+    model: "claude-sonnet-4-20250514"
+}
+
+fn create_topic_agent(topic: string) -> any {
+    return create_agent({
+        "name": "researcher-${topic}",
+        "system": "You are an expert on ${topic}. Give concise, factual answers.",
+        "memory_kind": "none"
+    }, claude, nil)
+}
+
+fn main() {
+    topics = ["machine learning", "robotics", "cryptography"]
+    results = spawn {
+        for topic in topics {
+            researcher = create_topic_agent(topic)
+            researcher.ask("What are the top 3 recent developments?")
+        }
+    }
+
+    for i, result in results {
+        io.println("--- ${topics[i]} ---")
+        io.println(result)
+    }
+}
+```
+
 ## Pattern Summary
 
 | Pattern | Key Syntax |
@@ -529,9 +758,14 @@ test "is_even checks parity" {
 | Streaming | `-> stream` + `Agent.stream()` |
 | Webhook | `@webhook("/path") workflow Name(...)` |
 | Steps | `step "name" { ... }` inside workflow |
+| Lifecycle hooks | `onerror err { }` / `onsuccess { }` in workflow |
+| File uploads | `workflow W(document: file)` + `@webui(...)` |
 | Parallel | `spawn { call1(); call2() }` |
 | Handoffs | `handoffs: [Agent1, Agent2]` |
 | MCP client | `mcp: [provider]` in agent |
 | MCP server | `mcp.Server([workflows])` |
 | RAG | `vector.embed()` + `vector.search()` |
+| Excel (low-level) | `excel.open()` + `wb.read_sheet()` + `wb.close()` |
+| Excel (high-level) | `excel.read_sheets()` + `tables.sheet()` |
+| Dynamic agents | `create_agent(config, provider, memory)` |
 | Testing | `test "name" { assert condition }` |

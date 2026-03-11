@@ -1637,12 +1637,19 @@ func (p *Parser) parsePrefix() (ast.Expr, bool) {
 			Span: p.span(start),
 		}, true
 
-	// Triple-quoted string (treated as plain string)
+	// Triple-quoted string — may or may not contain interpolation
 	case token.TripleQuoteString:
-		s := p.peek().Value
+		raw := p.peek().Value
 		p.advance()
+		if strings.Contains(raw, "${") {
+			parts := p.parseInterpolatedStringParts(raw)
+			return ast.Expr{
+				Node: ast.LiteralExpr{Lit: ast.InterpolatedStringLit{Parts: parts, TripleQuoted: true}},
+				Span: p.span(start),
+			}, true
+		}
 		return ast.Expr{
-			Node: ast.LiteralExpr{Lit: ast.StringLit{Value: s}},
+			Node: ast.LiteralExpr{Lit: ast.StringLit{Value: raw, TripleQuoted: true}},
 			Span: p.span(start),
 		}, true
 

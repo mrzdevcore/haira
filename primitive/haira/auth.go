@@ -3,6 +3,7 @@ package haira
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,8 +15,9 @@ import (
 )
 
 const (
-	anthropicClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-	anthropicTokenURL = "https://platform.claude.com/v1/oauth/token"
+	anthropicClientID     = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	anthropicTokenURL     = "https://platform.claude.com/v1/oauth/token"
+	anthropicCreateKeyURL = "https://api.anthropic.com/api/oauth/claude_cli/create_api_key"
 )
 
 // oauthCredentials holds the OAuth token data (shared format with compiler/internal/auth).
@@ -27,20 +29,27 @@ type oauthCredentials struct {
 }
 
 type hairaCredentialsFile struct {
-	AnthropicOAuth *oauthCredentials `json:"anthropicOauth"`
+	AnthropicOAuth  *oauthCredentials `json:"anthropicOauth"`
+	AnthropicAPIKey string            `json:"anthropicApiKey,omitempty"`
 }
 
-// ResolveAnthropicToken resolves an Anthropic API token using this priority:
+// ResolveAnthropicToken resolves an Anthropic auth token using this priority:
 //  1. ANTHROPIC_API_KEY env var
-//  2. ~/.haira/credentials.json (from `haira auth login`)
-//  3. Claude Code credentials (macOS Keychain or ~/.claude.json)
+//  2. ~/.haira/credentials.json anthropicApiKey
+//  3. Haira OAuth credentials (used directly with Bearer auth)
+//  4. Claude Code OAuth credentials (used directly with Bearer auth)
 func ResolveAnthropicToken() (string, error) {
 	// 1. Env var always wins
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		return key, nil
 	}
 
-	// 2. Haira credentials
+	// 2. Stored API key
+	if key, err := loadHairaAPIKey(); err == nil && key != "" {
+		return key, nil
+	}
+
+	// 3. Haira OAuth credentials → use token directly (native transport sends Bearer)
 	if creds, err := loadHairaCredentials(); err == nil && creds != nil {
 		token, err := ensureValidToken(creds, true)
 		if err == nil {
@@ -48,7 +57,7 @@ func ResolveAnthropicToken() (string, error) {
 		}
 	}
 
-	// 3. Claude Code fallback
+	// 4. Claude Code OAuth credentials → use token directly
 	if creds, err := loadClaudeCredentials(); err == nil && creds != nil {
 		token, err := ensureValidToken(creds, false)
 		if err == nil {
@@ -56,7 +65,95 @@ func ResolveAnthropicToken() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("not authenticated — run 'haira auth login' or set ANTHROPIC_API_KEY")
+	return "", fmt.Errorf("not authenticated — run 'haira auth login --anthropic' or set ANTHROPIC_API_KEY")
+}
+
+// exchangeOAuthForAPIKey uses the OAuth token to create an API key via
+// Anthropic's Claude CLI endpoint (same mechanism Claude Code uses).
+func exchangeOAuthForAPIKey(oauthToken string) (string, error) {
+	body := strings.NewReader(`{"name":"haira-runtime"}`)
+	req, err := http.NewRequest("POST", anthropicCreateKeyURL, body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+oauthToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("create_api_key failed (HTTP %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		APIKey string `json:"api_key"`
+		Key    string `json:"key"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode create_api_key response: %w", err)
+	}
+
+	apiKey := result.APIKey
+	if apiKey == "" {
+		apiKey = result.Key
+	}
+	if apiKey == "" {
+		return "", fmt.Errorf("create_api_key returned empty key")
+	}
+
+	fmt.Fprintf(os.Stderr, "[haira] Created API key from OAuth credentials\n")
+	return apiKey, nil
+}
+
+// saveHairaAPIKey stores a generated API key in ~/.haira/credentials.json.
+func saveHairaAPIKey(apiKey string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".haira")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "credentials.json")
+
+	// Read existing file to preserve other fields
+	var raw map[string]interface{}
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &raw)
+	}
+	if raw == nil {
+		raw = make(map[string]interface{})
+	}
+	raw["anthropicApiKey"] = apiKey
+
+	data, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
+}
+
+// loadHairaAPIKey reads the stored API key from ~/.haira/credentials.json.
+func loadHairaAPIKey() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".haira", "credentials.json"))
+	if err != nil {
+		return "", err
+	}
+	var f hairaCredentialsFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return "", err
+	}
+	return f.AnthropicAPIKey, nil
 }
 
 // ensureValidToken returns the access token, refreshing if expired.
@@ -120,6 +217,30 @@ func refreshAnthropicToken(refreshToken string) (*oauthCredentials, error) {
 		ExpiresAt:    time.Now().UnixMilli() + tokenResp.ExpiresIn*1000,
 		Scopes:       scopes,
 	}, nil
+}
+
+// forceRefreshAnthropicToken bypasses the expiry check and always refreshes.
+// Used when a 401 is received — the token may have been revoked server-side
+// even though it hasn't expired locally.
+func forceRefreshAnthropicToken() (string, error) {
+	// Try haira credentials first
+	if creds, err := loadHairaCredentials(); err == nil && creds != nil && creds.RefreshToken != "" {
+		refreshed, err := refreshAnthropicToken(creds.RefreshToken)
+		if err == nil {
+			saveHairaCredentials(refreshed)
+			return refreshed.AccessToken, nil
+		}
+	}
+	// Try Claude Code credentials
+	if creds, err := loadClaudeCredentials(); err == nil && creds != nil && creds.RefreshToken != "" {
+		refreshed, err := refreshAnthropicToken(creds.RefreshToken)
+		if err == nil {
+			// Save to haira creds so future refreshes use the new refresh token
+			saveHairaCredentials(refreshed)
+			return refreshed.AccessToken, nil
+		}
+	}
+	return "", fmt.Errorf("no refresh token available — run 'haira auth login' or set ANTHROPIC_API_KEY")
 }
 
 // loadHairaCredentials reads ~/.haira/credentials.json.

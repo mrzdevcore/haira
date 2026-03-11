@@ -2,6 +2,7 @@ package haira
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 )
@@ -31,6 +32,12 @@ type Store interface {
 	SaveToolExec(exec ToolExec) error
 	LoadGenerations() ([]LLMGeneration, error)
 	LoadToolExecs() ([]ToolExec, error)
+
+	// Session file storage
+	SaveFile(sessionID, name, contentType string, data []byte) (string, error)
+	GetFile(id string) (*StoredFile, error)
+	ListFiles(sessionID string) ([]StoredFileMeta, error)
+	DeleteFile(id string) error
 }
 
 // --- Data types (shared by all backends) ---
@@ -59,6 +66,22 @@ type ChatMessage struct {
 	Content   string          `json:"content"`
 	Timestamp time.Time       `json:"timestamp"`
 	UIEvents  json.RawMessage `json:"ui_events,omitempty"`
+}
+
+// StoredFile is a file persisted in session-scoped storage.
+type StoredFile struct {
+	StoredFileMeta
+	Data []byte `json:"-"` // file content (excluded from JSON listings)
+}
+
+// StoredFileMeta is the metadata for a stored file (no content).
+type StoredFileMeta struct {
+	ID          string    `json:"id"`
+	SessionID   string    `json:"session_id"`
+	Name        string    `json:"name"`
+	ContentType string    `json:"content_type"`
+	Size        int       `json:"size"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // --- Store backend registry ---
@@ -141,4 +164,39 @@ func CloseStore() error {
 		return globalStore.Close()
 	}
 	return nil
+}
+
+// --- Session file storage helpers ---
+
+// StoreSessionFile persists a file in session-scoped storage.
+// Returns the stored file ID.
+func StoreSessionFile(sessionID, name, contentType string, data []byte) (string, error) {
+	if globalStore == nil {
+		return "", fmt.Errorf("no store initialized")
+	}
+	return globalStore.SaveFile(sessionID, name, contentType, data)
+}
+
+// GetSessionFile retrieves a stored file by ID.
+func GetSessionFile(id string) (*StoredFile, error) {
+	if globalStore == nil {
+		return nil, fmt.Errorf("no store initialized")
+	}
+	return globalStore.GetFile(id)
+}
+
+// ListSessionFiles lists all files for a session.
+func ListSessionFiles(sessionID string) ([]StoredFileMeta, error) {
+	if globalStore == nil {
+		return nil, fmt.Errorf("no store initialized")
+	}
+	return globalStore.ListFiles(sessionID)
+}
+
+// DeleteSessionFile deletes a stored file by ID.
+func DeleteSessionFile(id string) error {
+	if globalStore == nil {
+		return fmt.Errorf("no store initialized")
+	}
+	return globalStore.DeleteFile(id)
 }

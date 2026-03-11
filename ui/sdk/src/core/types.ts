@@ -28,6 +28,7 @@ export type {
   ProductCardsProps,
   ImageProps,
   StepLogEntry,
+  StepConfirmPayload,
   StepEvent,
 } from "@haira/arp";
 
@@ -112,7 +113,8 @@ export type StepStatus =
   | "done"
   | "failed"
   | "retrying"
-  | "skipped";
+  | "skipped"
+  | "awaiting_confirm";
 
 // --- Run history ---
 

@@ -286,6 +286,22 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return "haira.MathPI", true
 		case "e":
 			return "haira.MathE", true
+		case "sum":
+			return fmt.Sprintf("haira.MathSum(%s)", args), true
+		case "avg":
+			return fmt.Sprintf("haira.MathAvg(%s)", args), true
+		case "median":
+			return fmt.Sprintf("haira.MathMedian(%s)", args), true
+		case "sign":
+			return fmt.Sprintf("haira.MathSign(%s)", args), true
+		case "hypot":
+			return fmt.Sprintf("haira.MathHypot(%s)", args), true
+		case "gcd":
+			return fmt.Sprintf("haira.MathGcd(%s)", args), true
+		case "lcm":
+			return fmt.Sprintf("haira.MathLcm(%s)", args), true
+		case "lerp":
+			return fmt.Sprintf("haira.MathLerp(%s)", args), true
 		}
 	case "conv":
 		switch method {
@@ -378,6 +394,32 @@ func resolveQualified(module, method, args string, call ast.CallExpr) (string, b
 			return fmt.Sprintf("haira.ArrayForEach(%s)", args), true
 		case "flat_map":
 			return fmt.Sprintf("haira.ArrayFlatMap(%s)", args), true
+		case "sum":
+			return fmt.Sprintf("haira.ArraySum(%s)", args), true
+		case "avg":
+			return fmt.Sprintf("haira.ArrayAvg(%s)", args), true
+		case "min":
+			return fmt.Sprintf("haira.ArrayMin(%s)", args), true
+		case "max":
+			return fmt.Sprintf("haira.ArrayMax(%s)", args), true
+		case "count":
+			return fmt.Sprintf("haira.ArrayCount(%s)", args), true
+		case "zip":
+			return fmt.Sprintf("haira.ArrayZip(%s)", args), true
+		case "chunk":
+			return fmt.Sprintf("haira.ArrayChunk(%s)", args), true
+		case "compact":
+			return fmt.Sprintf("haira.ArrayCompact(%s)", args), true
+		case "group_by":
+			return fmt.Sprintf("haira.ArrayGroupBy(%s)", args), true
+		case "partition":
+			return fmt.Sprintf("haira.ArrayPartition(%s)", args), true
+		case "difference":
+			return fmt.Sprintf("haira.ArrayDifference(%s)", args), true
+		case "intersection":
+			return fmt.Sprintf("haira.ArrayIntersection(%s)", args), true
+		case "shuffle":
+			return fmt.Sprintf("haira.ArrayShuffle(%s)", args), true
 		}
 	case "map":
 		switch method {

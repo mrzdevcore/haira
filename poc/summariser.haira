@@ -1,0 +1,177 @@
+import "io"
+import "fs"
+import "http"
+import "string"
+import "conv"
+import "log"
+import "excel"
+import "array"
+import "math"
+// --- Provider ---
+
+provider anthropic {
+    backend: "anthropic"
+    model: "claude-sonnet-4-20250514"
+}
+// --- Tools ---
+
+tool read_docx(filepath: string) -> string {
+    """
+    Read and extract text content from a .docx file.
+    Returns the plain text content of the document.
+    """
+    content, err = fs.read_file(filepath)
+    if err != nil {
+        return ""
+    }
+    return content
+}
+
+tool read_xlsx(filepath: string, sheet_name: string = "") -> string {
+    """
+    Read and extract structured content from an .xlsx spreadsheet file.
+    If sheet_name is empty, reads all sheets. Returns cell contents
+    formatted as a readable table with headers and rows.
+    """
+    tables, err = excel.read_sheets(filepath)
+    if err != nil {
+        return "Error opening file: ${err}"
+    }
+    names = tables.names()
+    if len(names) == 0 {
+        return "No sheets found"
+    }
+    // If a specific sheet is requested, only read that one
+    sheets_to_read = if sheet_name != "" {
+        [sheet_name]
+    } else {
+        names
+    }
+    output = ""
+    for name in sheets_to_read {
+        rows = tables.sheet(name)
+        headers = tables.sheet_headers(name)
+        output = output + "=== Sheet: ${name} (${len(rows)} rows) ===\n"
+        output = output + string.join(headers, " | ") + "\n"
+        dashes = []
+        for h in headers {
+            dashes = array.push(dashes, string.repeat("-", len(h)))
+        }
+        output = output + string.join(dashes, "-+-") + "\n"
+        for row in rows {
+            line_parts = []
+            for h in headers {
+                line_parts = array.push(line_parts, conv.to_string(row[h]))
+            }
+            output = output + string.join(line_parts, " | ") + "\n"
+        }
+        output = output + "\n"
+    }
+    return output
+}
+
+tool list_sheets(filepath: string) -> string {
+    """
+    List all sheet names in an .xlsx spreadsheet file.
+    Returns a newline-separated list of sheet names with row counts.
+    """
+    tables, err = excel.read_sheets(filepath)
+    if err != nil {
+        return "Error opening file: ${err}"
+    }
+    names = tables.names()
+    output = ""
+    for name in names {
+        rows = tables.sheet(name)
+        output = output + "${name} (${len(rows)} rows)\n"
+    }
+    return output
+}
+
+tool get_sheet_stats(filepath: string, sheet_name: string) -> string {
+    """
+    Get statistics for a specific sheet in an .xlsx file.
+    Returns column headers, row count, and a summary of numeric columns.
+    """
+    tables, err = excel.read_sheets(filepath)
+    if err != nil {
+        return "Error opening file: ${err}"
+    }
+    rows = tables.sheet(sheet_name)
+    headers = tables.sheet_headers(sheet_name)
+    if len(rows) == 0 {
+        return "Sheet '${sheet_name}' is empty or not found"
+    }
+    output = "Sheet: ${sheet_name}\n"
+    output = output + "Rows: ${len(rows)}\n"
+    output = output + "Columns: ${string.join(headers, ", ")}\n\n"
+    // Show summary using tables.summary()
+    output = output + tables.summary()
+    return output
+}
+// --- Agent ---
+
+agent Summariser {
+    provider: anthropic
+    system: "You are an expert document summariser. When given file content, produce a clear,\n        concise summary that captures the key points, structure, and important details.\n\n        For spreadsheets (.xlsx):\n        - First use list_sheets to discover all sheets in the workbook.\n        - Use read_xlsx to read each relevant sheet with structured table output.\n        - Use get_sheet_stats to get numeric statistics for data-heavy sheets.\n        - Identify column headers, data patterns, and notable values.\n\n        For documents (.docx), summarise the main sections, arguments, and conclusions.\n\n        Always structure your summary with:\n        - A one-line overview\n        - Key points as bullet points\n        - Any notable data or findings\n        - For spreadsheets, include sheet names and row/column counts"
+    tools: [read_docx, read_xlsx, list_sheets, get_sheet_stats]
+    memory: conversation(max_turns: 20)
+    temperature: 0.3
+    max_steps: 10
+}
+// --- Workflows ---
+
+@webui(title: "Document Summariser", description: "Upload a .docx or .xlsx file to get an AI-powered summary")
+@post("/api/summarise")
+workflow Summarise(document: file, message: string = "Please summarise this document.") -> {reply: string} {
+    onerror err {
+        return { reply: "Something went wrong: ${err}" }
+    }
+
+    step "Validate file" {
+        log.info("Validating file: ${document}")
+        is_docx = string.ends_with(document, ".docx")
+        is_xlsx = string.ends_with(document, ".xlsx")
+        if not is_docx and not is_xlsx {
+            return { reply: "Please upload a .docx or .xlsx file." }
+        }
+    }
+    step "Summarise" {
+        prompt = "${message}\n\nFile: ${document}\nPlease read and summarise the uploaded file."
+        reply, err = Summariser.ask(prompt, session: "summarise")
+        if err != nil {
+            return { reply: "Failed to summarise: ${err}" }
+        }
+    }
+    return { reply: reply }
+}
+
+@webui(title: "Document Summariser", description: "Chat about your uploaded documents")
+@post("/api/chat")
+workflow Chat(message: string, session_id: string = "default") -> {reply: string} {
+    onerror err {
+        return { reply: "Something went wrong: ${err}" }
+    }
+
+    reply, err = Summariser.ask(message, session: session_id)
+    if err != nil {
+        return { reply: "Error: ${err}" }
+    }
+    return { reply: reply }
+}
+
+@webhook("/api/chat/stream")
+workflow ChatStream(message: string, document: file, session_id: string = "default") -> stream {
+    let msg = message
+    if document != "" {
+        msg = "${msg}\n\nFile: ${document}"
+    }
+    return Summariser.stream(msg, session: session_id)
+}
+// --- Server ---
+
+fn main() {
+    server = http.Server([Summarise, Chat, ChatStream])
+    io.println("Document Summariser running on :8080")
+    server.listen(8080)
+}

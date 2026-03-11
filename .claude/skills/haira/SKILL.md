@@ -208,16 +208,52 @@ defer fs.close(file)
 errdefer db.close()  // only runs on panic
 ```
 
-### Closures
+### Closures / Lambdas
 
 ```haira
-add = fn(a: int, b: int) -> int { a + b }
-doubled = array.map([1,2,3], fn(n) { n * 2 })
+// Lambda syntax uses => (NOT fn keyword)
+add = (a: int, b: int) => a + b
+double = (n) => n * 2
+
+// Block body with parens
+counter = (n) { return n + 1 }
+
+// Single param without parens
+inc = x => x + 1
+
+// Multi-line block
+process = (data) {
+    result = transform(data)
+    return result
+}
 
 // Captures by reference
 fn make_counter() -> fn() -> int {
     count = 0
-    return fn() -> int { count += 1; return count }
+    return () {
+        count += 1
+        return count
+    }
+}
+```
+
+**IMPORTANT:** There is NO `fn(x) { ... }` syntax for inline lambdas. Use `(x) => expr` or `(x) { block }` instead.
+
+### Using Higher-Order Functions
+
+```haira
+// With named functions (preferred for readability):
+fn double(n: int) -> int { return n * 2 }
+result = 5 |> double  // pipe passes value as first arg
+
+// With lambdas as call arguments:
+// Lambdas work as arguments to stdlib calls
+filtered = array.filter(nums, (n) => n > 10)
+
+// For complex operations, use for loops instead of map with lambdas:
+results = []
+for item in items {
+    results = array.push(results, process(item))
 }
 ```
 
@@ -445,9 +481,126 @@ fn main() {
 
 See [references/syntax.md](references/syntax.md) for complete stdlib function signatures.
 
-**Core modules:** `io`, `string`, `array`, `map`, `math`, `json`, `conv`, `fs`, `os`, `time`, `regex`, `encoding`, `sync`, `http`, `log`
+**Core modules:** `io`, `string`, `array`, `map`, `math`, `json`, `conv`, `fs`, `os`, `time`, `regex`, `http`, `log`, `ui`
 
 **Agentic modules:** `vector`, `mcp`, `observe`
+
+**External modules (stdlib, tree-shaken):** `excel`, `postgres`, `sqlite`, `slack`, `github`, `gitlab`, `langfuse`, `websearch`, `healthcheck`, `algolia`, `meilisearch`
+
+### CRITICAL: Import Rules
+
+Every stdlib module MUST be imported before use:
+```haira
+import "conv"    // required to use conv.int_to_string(), conv.to_string(), etc.
+import "math"    // required to use math.min(), math.max(), etc.
+import "array"   // required to use array.map(), array.reduce(), etc.
+```
+
+### CRITICAL: Functions That Do NOT Exist
+
+Do NOT use any of these — they will cause compile errors:
+- `math.average()` — does NOT exist. Use `math.avg(arr)` instead
+- `string.length()` — does NOT exist. Use `string.len(s)` or `len(s)`
+- `conv.parse_int()` / `conv.parse_float()` — do NOT exist. Use `conv.string_to_int(s)` and `conv.string_to_float(s)`
+- `excel.close(wb)` — does NOT exist. Use `wb.close()` (method call)
+- `excel.get_sheet()`, `excel.get_rows()`, `excel.get_cell()` — do NOT exist
+
+### CRITICAL: Function Signatures — Watch Out
+
+- `math.min(a, b)` / `math.max(a, b)` — take exactly **2 scalar args** (not an array). For array min/max use `array.min(arr)` / `array.max(arr)`
+- `math.sum(arr)` / `math.avg(arr)` — take an **array** argument
+- `array.sum(arr)` / `array.avg(arr)` — also take an **array** (equivalent to math.sum/avg)
+
+### Type Handling with `any` Values
+
+Excel rows, map values, and some array operations return `any` typed values. The runtime functions accept `any` parameters (they do internal type assertions), so you can pass them directly:
+
+```haira
+// Excel rows are [map] where values are `any` — this works directly:
+rows, err = wb.read_sheet("Sheet1")
+for row in rows {
+    name = row["Name"]           // any — can be used in string interpolation
+    value = row["Amount"]        // any — can be passed to math/conv functions
+    io.println("${name}: ${conv.to_string(value)}")
+}
+
+// math functions accept `any` — no casting needed:
+math.min(row["A"], row["B"])     // works with any numeric values
+conv.float_to_int(row["Price"])  // works with any
+
+// Aggregate functions on arrays:
+amounts = []
+for row in rows {
+    amounts = array.push(amounts, row["Amount"])
+}
+total = math.sum(amounts)        // or array.sum(amounts)
+avg = math.avg(amounts)          // or array.avg(amounts)
+smallest = array.min(amounts)
+largest = array.max(amounts)
+```
+
+### Excel Module (stdlib)
+
+```haira
+import "excel"
+
+// Open a workbook (low-level)
+wb, err = excel.open("data.xlsx")
+if err != nil { io.println("Error: ${err}") }
+defer wb.close()
+
+names = wb.sheet_names()              // -> [string]
+rows, err = wb.read_sheet("Sheet1")   // -> [map], each row is {col: value}
+
+// High-level API (recommended)
+tables, err = excel.read_sheets("data.xlsx")
+sheet_names = tables.names()          // -> [string]
+rows = tables.sheet(name)             // -> [map]
+headers = tables.sheet_headers(name)  // -> [string]
+summary = tables.summary()            // -> string
+count = tables.len()                  // -> int
+```
+
+**IMPORTANT:** There is NO `excel.get_sheet()`, `excel.get_sheet_by_index()`, `excel.get_cell()`, `excel.get_rows()`, or `excel.close(wb)`. Use method calls on the workbook/tables object.
+
+### Log Module (codegen-injected)
+
+```haira
+import "log"
+
+// Inside workflow steps — logs appear in step UI timeline
+step "Process data" {
+    log.info("Starting processing...")
+    log.warn("Missing optional field")
+    log.error("Critical failure")
+}
+
+// Outside steps — printed to stderr
+log.info("Server starting")
+```
+
+**Note:** `log` has no runtime file — it is injected at codegen time. Inside steps it calls `StepLog()`, outside steps it calls `LogPrint()`.
+
+### Websearch & Healthcheck (stdlib)
+
+```haira
+import "websearch"
+import "healthcheck"
+
+// Web search (DuckDuckGo, no API key needed)
+result = websearch.search("query")
+
+// Health check
+check = healthcheck.check("service-name", "https://api.example.com/health")
+// Returns: {name, status, response_time}
+
+// Batch health checks
+services = [
+    { "name": "api", "url": "https://api.example.com" },
+    { "name": "db", "url": "https://db.example.com" }
+]
+results = healthcheck.check_all(services)
+```
 
 ## Settled Design Decisions (DO NOT change)
 

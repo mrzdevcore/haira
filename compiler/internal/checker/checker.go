@@ -243,7 +243,7 @@ var validAgentFields = map[string]bool{
 	"provider": true, "system": true, "tools": true, "handoffs": true,
 	"mcp": true, "temperature": true, "max_tokens": true, "max_steps": true,
 	"memory": true, "output": true, "ui": true, "timeout": true,
-	"scope": true, "scope_deny": true,
+	"scope": true, "scope_deny": true, "storage": true, "strategy": true,
 }
 
 var validUIComponents = map[string]bool{
@@ -271,7 +271,7 @@ func (c *checker) checkAgentFields(agent ast.AgentDecl) {
 			c.addWarning(
 				fmt.Sprintf("unknown agent field %q", field.Key.Node),
 				field.Key.Span,
-				"valid fields: provider, system, tools, handoffs, ui, mcp, temperature, max_tokens, max_steps, memory, output, timeout, scope, scope_deny",
+				"valid fields: provider, system, tools, handoffs, ui, mcp, temperature, max_tokens, max_steps, memory, output, timeout, scope, scope_deny, storage",
 			)
 		}
 		if field.Key.Node == "provider" {

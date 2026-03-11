@@ -108,6 +108,16 @@ var sqliteSchema = []string{
 		timestamp DATETIME DEFAULT (datetime('now')),
 		session_id TEXT DEFAULT ''
 	)`,
+	`CREATE TABLE IF NOT EXISTS session_files (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+		size INTEGER NOT NULL DEFAULT 0,
+		data BLOB NOT NULL,
+		created_at DATETIME DEFAULT (datetime('now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_session_files_session ON session_files(session_id)`,
 }
 
 // --- Chat Sessions ---
@@ -473,4 +483,72 @@ func (s *SQLiteStore) LoadToolExecs() ([]haira.ToolExec, error) {
 		execs = []haira.ToolExec{}
 	}
 	return execs, nil
+}
+
+// --- Session Files ---
+
+func (s *SQLiteStore) SaveFile(sessionID, name, contentType string, data []byte) (string, error) {
+	id := fmt.Sprintf("file_%s_%d", sessionID[:min(8, len(sessionID))], time.Now().UnixNano())
+	_, err := s.db.Exec(
+		`INSERT INTO session_files (id, session_id, name, content_type, size, data) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, sessionID, name, contentType, len(data), data,
+	)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s *SQLiteStore) GetFile(id string) (*haira.StoredFile, error) {
+	row := s.db.QueryRow(
+		`SELECT id, session_id, name, content_type, size, data, created_at FROM session_files WHERE id = ?`, id,
+	)
+	var f haira.StoredFile
+	var ts string
+	err := row.Scan(&f.ID, &f.SessionID, &f.Name, &f.ContentType, &f.Size, &f.Data, &ts)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	f.CreatedAt, _ = time.Parse(time.RFC3339, ts)
+	return &f, nil
+}
+
+func (s *SQLiteStore) ListFiles(sessionID string) ([]haira.StoredFileMeta, error) {
+	rows, err := s.db.Query(
+		`SELECT id, session_id, name, content_type, size, created_at FROM session_files WHERE session_id = ? ORDER BY created_at DESC`, sessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []haira.StoredFileMeta
+	for rows.Next() {
+		var f haira.StoredFileMeta
+		var ts string
+		if err := rows.Scan(&f.ID, &f.SessionID, &f.Name, &f.ContentType, &f.Size, &ts); err != nil {
+			return nil, err
+		}
+		f.CreatedAt, _ = time.Parse(time.RFC3339, ts)
+		files = append(files, f)
+	}
+	if files == nil {
+		files = []haira.StoredFileMeta{}
+	}
+	return files, nil
+}
+
+func (s *SQLiteStore) DeleteFile(id string) error {
+	_, err := s.db.Exec(`DELETE FROM session_files WHERE id = ?`, id)
+	return err
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

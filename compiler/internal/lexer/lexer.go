@@ -255,12 +255,7 @@ func (l *Lexer) scanTripleQuoteString(start int) {
 		// Dedent: strip common leading whitespace
 		content = dedent(content)
 
-		// Check for interpolation: if content contains ${, emit as InterpolatedString
-		if strings.Contains(content, "${") {
-			l.tokens = append(l.tokens, token.Token{Kind: token.InterpolatedString, Value: content, Start: start, End: l.pos})
-		} else {
-			l.tokens = append(l.tokens, token.Token{Kind: token.TripleQuoteString, Value: content, Start: start, End: l.pos})
-		}
+		l.tokens = append(l.tokens, token.Token{Kind: token.TripleQuoteString, Value: content, Start: start, End: l.pos})
 	} else {
 		// No closing """ — consume everything
 		l.pos = len(l.source)

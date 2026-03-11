@@ -495,12 +495,28 @@ export class HairaForm extends LitElement {
     super.connectedCallback();
     this._checkRunResumption();
     this._refreshRuns();
+    this.addEventListener("step-confirm", this._onStepConfirm as EventListener);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._abortController?.abort();
+    this.removeEventListener("step-confirm", this._onStepConfirm as EventListener);
   }
+
+  /** Handle step confirmation from the pipeline's confirm buttons */
+  private _onStepConfirm = async (e: CustomEvent<{ confirmed: boolean }>) => {
+    if (!this._runId) return;
+    try {
+      await fetch(`/_api/runs/${this._runId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmed: e.detail.confirmed }),
+      });
+    } catch {
+      // If the confirm POST fails, the step will eventually time out on the server
+    }
+  };
 
   // --- Run resumption ---
 

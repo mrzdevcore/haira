@@ -2,8 +2,10 @@ package excel
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	haira "haira-go-runtime/haira"
 	"haira-go-runtime/postgres"
@@ -829,6 +831,71 @@ func isNumericPgType(t string) bool {
 	return false
 }
 
+// isDateType returns true if the PostgreSQL column type is a date or timestamp variant.
+func isDateType(pgType string) bool {
+	t := strings.ToLower(pgType)
+	return t == "date" || strings.HasPrefix(t, "timestamp")
+}
+
+// datePatterns matches common non-ISO date formats from Excel.
+var datePatterns = regexp.MustCompile(`^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$`)
+
+// normalizeDate converts common date formats (DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY, etc.)
+// to PostgreSQL-compatible ISO 8601 format (YYYY-MM-DD).
+// If already ISO or unparseable, the value is returned as-is.
+func normalizeDate(val string) string {
+	val = strings.TrimSpace(val)
+
+	// Already ISO format (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS...)
+	if len(val) >= 10 && val[4] == '-' && val[7] == '-' {
+		return val
+	}
+
+	// Try DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+	if m := datePatterns.FindStringSubmatch(val); m != nil {
+		a, _ := strconv.Atoi(m[1]) // day or month
+		b, _ := strconv.Atoi(m[2]) // month or day
+		year := m[3]
+
+		// Disambiguate: if first part > 12, it must be the day (DD/MM/YYYY)
+		// If second part > 12, it must be the day (MM/DD/YYYY)
+		// Otherwise assume DD/MM/YYYY (European format, most common in Excel exports)
+		day, month := a, b
+		if a <= 12 && b <= 12 {
+			// Ambiguous — assume DD/MM/YYYY (European)
+			day, month = a, b
+		} else if a > 12 {
+			// a must be day
+			day, month = a, b
+		} else {
+			// b > 12, b must be day -> MM/DD/YYYY
+			day, month = b, a
+		}
+
+		return fmt.Sprintf("%s-%02d-%02d", year, month, day)
+	}
+
+	// Try parsing with Go time formats as fallback
+	for _, layout := range []string{
+		"2/1/2006",          // D/M/YYYY
+		"02/01/2006",        // DD/MM/YYYY
+		"1/2/2006",          // M/D/YYYY
+		"01/02/2006",        // MM/DD/YYYY (ambiguous, but covered by regex above)
+		"2-Jan-2006",        // 2-Jan-2006
+		"02-Jan-2006",       // 02-Jan-2006
+		"Jan 2, 2006",       // Jan 2, 2006
+		"2006/01/02",        // YYYY/MM/DD
+		"2006.01.02",        // YYYY.MM.DD
+		time.RFC3339,        // 2006-01-02T15:04:05Z07:00
+	} {
+		if t, err := time.Parse(layout, val); err == nil {
+			return t.Format("2006-01-02")
+		}
+	}
+
+	return val
+}
+
 // PostgresGenerateUpsert generates INSERT ... ON CONFLICT UPDATE SQL from ExcelTables and PgSchema.
 // Uses PK columns for conflict detection. Tables are split into seeds/oneshots based on
 // their TableType field set by ExcelReadConfig ("configuration" -> seeds, "run" -> oneshots).
@@ -932,7 +999,15 @@ func PostgresGenerateUpsertWithConflicts(tables *ExcelTables, schema *postgres.P
 			}
 		}
 
-		sql := generateTableUpsert(name, insertCols, conflictCols, excludeFromUpdate, sheet.Rows)
+		// Build column type map for date format conversion
+		colTypes := make(map[string]string, len(insertCols))
+		for _, col := range insertCols {
+			if info, ok := ts.Columns[col]; ok {
+				colTypes[col] = info.Type
+			}
+		}
+
+		sql := generateTableUpsert(name, insertCols, conflictCols, excludeFromUpdate, colTypes, sheet.Rows)
 
 		// Split into seeds/oneshots based on table type
 		tableType := tables.tableTypes[name]
@@ -976,7 +1051,7 @@ func deduplicateRows(rows []map[string]any, conflictCols []string) []map[string]
 	return out
 }
 
-func generateTableUpsert(tableName string, insertCols, conflictCols, excludeFromUpdate []string, rows []map[string]any) string {
+func generateTableUpsert(tableName string, insertCols, conflictCols, excludeFromUpdate []string, colTypes map[string]string, rows []map[string]any) string {
 	// Deduplicate rows by conflict columns to avoid the PostgreSQL error:
 	// "ON CONFLICT DO UPDATE command cannot affect row a second time"
 	rows = deduplicateRows(rows, conflictCols)
@@ -985,6 +1060,14 @@ func generateTableUpsert(tableName string, insertCols, conflictCols, excludeFrom
 	quotedInsertCols := make([]string, len(insertCols))
 	for i, col := range insertCols {
 		quotedInsertCols[i] = postgres.QuoteIdentifier(col)
+	}
+
+	// Build set of date/timestamp columns for format conversion
+	dateColumns := make(map[string]bool, len(insertCols))
+	for _, col := range insertCols {
+		if isDateType(colTypes[col]) {
+			dateColumns[col] = true
+		}
 	}
 
 	// Build all value tuples
@@ -996,6 +1079,9 @@ func generateTableUpsert(tableName string, insertCols, conflictCols, excludeFrom
 			if val == "" {
 				values[i] = "NULL"
 			} else {
+				if dateColumns[col] {
+					val = normalizeDate(val)
+				}
 				values[i] = postgres.PostgresEscape(val)
 			}
 		}

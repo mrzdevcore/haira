@@ -107,7 +107,7 @@ export interface LandingStrings {
 
 const en: LandingStrings = {
   disclaimer: 'Haira is under heavy development and not yet production-ready. APIs and syntax may change.',
-  heroBadge: 'Open Source \u00b7 Apache 2.0',
+  heroBadge: 'High-level Agentic Instruction & Runtime Architecture',
   heroTitle: 'The Programming Language for ',
   heroTitleAccent: 'Agentic AI',
   tag1: 'Four keywords',
@@ -208,7 +208,7 @@ const en: LandingStrings = {
 
 const zh: LandingStrings = {
   disclaimer: 'Haira 正在积极开发中，尚未达到生产就绪状态。API 和语法可能会发生变化。',
-  heroBadge: '开源 \u00b7 Apache 2.0',
+  heroBadge: 'High-level Agentic Instruction & Runtime Architecture',
   heroTitle: '',
   heroTitleAccent: 'AI 智能体',
   tag1: '四个关键字',
@@ -309,7 +309,7 @@ const zh: LandingStrings = {
 
 const ja: LandingStrings = {
   disclaimer: 'Haira は開発中であり、まだ本番環境には対応していません。API と構文は変更される可能性があります。',
-  heroBadge: 'オープンソース \u00b7 Apache 2.0',
+  heroBadge: 'High-level Agentic Instruction & Runtime Architecture',
   heroTitle: '',
   heroTitleAccent: 'エージェント AI',
   tag1: '4つのキーワード',
@@ -410,7 +410,7 @@ const ja: LandingStrings = {
 
 const ko: LandingStrings = {
   disclaimer: 'Haira는 활발히 개발 중이며 아직 프로덕션 준비가 되지 않았습니다. API와 문법은 변경될 수 있습니다.',
-  heroBadge: '오픈소스 \u00b7 Apache 2.0',
+  heroBadge: 'High-level Agentic Instruction & Runtime Architecture',
   heroTitle: '',
   heroTitleAccent: '에이전트 AI',
   tag1: '4개의 키워드',
@@ -511,7 +511,7 @@ const ko: LandingStrings = {
 
 const es: LandingStrings = {
   disclaimer: 'Haira está en desarrollo activo y aún no está listo para producción. Las APIs y la sintaxis pueden cambiar.',
-  heroBadge: 'Código Abierto \u00b7 Apache 2.0',
+  heroBadge: 'High-level Agentic Instruction & Runtime Architecture',
   heroTitle: 'El Lenguaje de Programación para ',
   heroTitleAccent: 'IA Agéntica',
   tag1: 'Cuatro keywords',
@@ -612,7 +612,7 @@ const es: LandingStrings = {
 
 const fr: LandingStrings = {
   disclaimer: 'Haira est en développement actif et n\'est pas encore prêt pour la production. Les APIs et la syntaxe peuvent changer.',
-  heroBadge: 'Open Source \u00b7 Apache 2.0',
+  heroBadge: 'High-level Agentic Instruction & Runtime Architecture',
   heroTitle: 'Le Langage de Programmation pour l\'',
   heroTitleAccent: 'IA Agentique',
   tag1: 'Quatre mots-clés',

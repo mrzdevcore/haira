@@ -3,7 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>The programming language for AI agents and workflows.</strong>
+  <strong>High-level Agentic Instruction & Runtime Architecture</strong><br>
+  <em>The programming language for AI agents and workflows.</em>
 </p>
 
 <p align="center">

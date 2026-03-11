@@ -13,7 +13,8 @@ argument-hint: "[question or task]"
 
 # Haira Language — Complete Agent Knowledge
 
-Haira is a **general-purpose agentic orchestration programming language**.
+**HAIRA** stands for **High-level Agentic Instruction & Runtime Architecture**.
+Haira is a general-purpose agentic orchestration programming language.
 Tagline: "Build agents and workflows, not boilerplate."
 
 **Pipeline:** `.haira` source → Lexer → Parser → Checker → Go Codegen → `go build` → Native binary

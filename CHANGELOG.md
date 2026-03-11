@@ -2,6 +2,50 @@
 
 All notable changes to Haira are documented in this file.
 
+## [v0.5.0] - 2026-03-11
+
+### Agentic Framework
+
+- **Anthropic client** — Native Anthropic API client (`primitive/haira/anthropic_client.go`) for direct provider integration
+- **Agent storage** — New `storage: true` agent field and `primitive/haira/storage.go` for persistent agent state
+- **Agent strategy** — `strategy` field support in agent declarations for delegation control
+- **Step confirmations** — `awaiting_confirm` step status with `StepConfirmPayload` for human-in-the-loop approval flows
+
+### Compiler & Language
+
+- **Triple-quoted strings** — `"""..."""` multi-line string literals in AST, lexer, parser, and formatter
+- **Lambda syntax** — `(params) => expr` closure syntax replacing `fn(params) { ... }`
+- **Formatter expansion** — Significantly expanded expression formatting (~200 lines)
+- **Stdlib codegen** — New stdlib code generation mappings for storage, excel, and auth modules
+- **Checker updates** — `storage` and `strategy` recognized as valid agent fields
+
+### Runtime & Primitives
+
+- **Array builtins** — Expanded array operations (~217 lines of new helpers)
+- **Math builtins** — New math utility functions
+- **Auth improvements** — Enhanced auth resolution with credential file and OAuth support
+- **Upload enhancements** — Expanded file upload handling
+- **Workflow improvements** — Extended workflow execution capabilities
+- **Server updates** — Additional server routing and middleware support
+- **Store/Memory** — Enhanced store and memory management
+
+### Stdlib
+
+- **Excel tables** — Expanded `stdlib/excel` with table-based spreadsheet processing
+- **Langfuse** — Updated Langfuse observability integration
+- **Postgres/SQLite** — Extended store implementations for both database backends
+
+### UI SDK
+
+- **Step component** — Expanded `haira-step` with confirmation UI (~133 lines)
+- **Form/Pipeline** — Updated form and pipeline components
+- **Types** — New `StepConfirmPayload` type export in ARP SDK
+
+### Documentation & Skills
+
+- **Claude skills** — Updated Haira skill references with lambda syntax, new examples (Excel processing, storage patterns)
+- **POC** — New `summariser.haira` proof-of-concept
+
 ## [v0.4.0] - 2026-03-08
 
 ### Agentic Framework

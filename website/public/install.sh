@@ -81,6 +81,11 @@ mkdir -p "$INSTALL_DIR"
 cp "$EXTRACTED/bin/haira" "$INSTALL_DIR/haira"
 chmod +x "$INSTALL_DIR/haira"
 
+# Ad-hoc codesign on macOS (required for binaries built on other machines)
+if [ "$OS" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+  codesign --sign - --force "$INSTALL_DIR/haira" 2>/dev/null || true
+fi
+
 # Cleanup
 rm -rf "$TMPDIR"
 

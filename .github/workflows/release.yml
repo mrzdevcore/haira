@@ -84,10 +84,6 @@ jobs:
           fi
           cd compiler && go build -ldflags "-s -w -X main.version=${VERSION}" -o "${BINARY}" .
 
-      - name: Ad-hoc sign (macOS)
-        if: matrix.goos == 'darwin'
-        run: codesign --sign - --force compiler/haira
-
       - name: Package
         run: |
           VERSION="${{ steps.version.outputs.tag }}"

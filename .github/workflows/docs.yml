@@ -7,6 +7,8 @@ on:
       - 'website/**'
       - 'spec/latex/**'
       - '.github/workflows/docs.yml'
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

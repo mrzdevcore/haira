@@ -1,13 +1,18 @@
 import { defineConfig } from 'vitepress'
 import hairaGrammar from './haira.tmLanguage.json'
 
+const hairaVersion = await fetch('https://api.github.com/repos/mrzdevcore/haira/releases/latest')
+  .then(r => r.json())
+  .then(d => d.tag_name ?? 'latest')
+  .catch(() => 'latest')
+
 const sharedNav = (prefix: string) => [
   { text: prefix ? 'Docs' : 'Docs', link: `${prefix}/docs/getting-started/installation` },
   { text: 'Examples', link: `${prefix}/docs/examples` },
   { text: 'ARP', link: `${prefix}/agentic-rendering-protocol` },
   { text: 'Generative UI', link: `${prefix}/generative-ui` },
   {
-    text: 'v0.4.0',
+    text: hairaVersion,
     items: [
       { text: 'Changelog', link: 'https://github.com/mrzdevcore/haira/releases' },
       { text: 'Specification (PDF)', link: '/haira-spec.pdf' },

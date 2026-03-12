@@ -2,7 +2,7 @@
 
 All notable changes to Haira are documented in this file.
 
-## [v0.5.0] - 2026-03-11
+## [v0.5.2] - 2026-03-12
 
 ### Agentic Framework
 
@@ -40,6 +40,14 @@ All notable changes to Haira are documented in this file.
 - **Step component** — Expanded `haira-step` with confirmation UI (~133 lines)
 - **Form/Pipeline** — Updated form and pipeline components
 - **Types** — New `StepConfirmPayload` type export in ARP SDK
+
+### Release & Distribution
+
+- **GPG-signed releases** — Release archives are now GPG-signed with detached `.asc` signatures; install script verifies signatures automatically
+- **macOS codesign fix** — Removed CI ad-hoc codesigning (caused SIGKILL on user machines); install script now performs local ad-hoc codesigning instead
+- **GPG secret condition fix** — Fixed `release.yml` to correctly check `env.GPG_PRIVATE_KEY` instead of inaccessible `secrets.*` in `if` expressions
+- **Dynamic website version** — Website navbar version is now fetched from GitHub Releases API at build time instead of being hardcoded
+- **Auto-rebuild on release** — Docs workflow now triggers on `release: published` events so the website updates automatically after each release
 
 ### Documentation & Skills
 

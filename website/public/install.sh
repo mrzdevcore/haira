@@ -3,6 +3,7 @@ set -e
 
 REPO="mrzdevcore/haira"
 INSTALL_DIR="$HOME/.local/bin"
+GPG_KEY_URL="https://haira.dev/gpg-key.asc"
 
 # Detect OS
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -33,21 +34,41 @@ echo "Latest version: $VERSION"
 ARCHIVE="haira-${VERSION}-${OS}-${ARCH}.tar.gz"
 URL="https://github.com/$REPO/releases/download/$VERSION/$ARCHIVE"
 CHECKSUM_URL="${URL}.sha256"
+SIG_URL="${URL}.asc"
 
 echo "Downloading $ARCHIVE..."
 TMPDIR=$(mktemp -d)
 curl -sSL "$URL" -o "$TMPDIR/$ARCHIVE"
 curl -sSL "$CHECKSUM_URL" -o "$TMPDIR/$ARCHIVE.sha256"
+curl -sSL "$SIG_URL" -o "$TMPDIR/$ARCHIVE.asc"
+
+cd "$TMPDIR"
 
 # Verify checksum
 echo "Verifying checksum..."
-cd "$TMPDIR"
 if command -v sha256sum >/dev/null 2>&1; then
   sha256sum -c "$ARCHIVE.sha256"
 elif command -v shasum >/dev/null 2>&1; then
   shasum -a 256 -c "$ARCHIVE.sha256"
 else
-  echo "Warning: no checksum tool found, skipping verification"
+  echo "Warning: no checksum tool found, skipping checksum verification"
+fi
+
+# Verify GPG signature
+if command -v gpg >/dev/null 2>&1; then
+  echo "Verifying GPG signature..."
+  curl -sSL "$GPG_KEY_URL" | gpg --batch --import 2>/dev/null
+  if gpg --batch --verify "$ARCHIVE.asc" "$ARCHIVE" 2>/dev/null; then
+    echo "GPG signature verified."
+  else
+    echo "Error: GPG signature verification failed!"
+    echo "The archive may have been tampered with. Aborting."
+    rm -rf "$TMPDIR"
+    exit 1
+  fi
+else
+  echo "Warning: gpg not found, skipping signature verification"
+  echo "  Install GPG for stronger security: https://gnupg.org/download/"
 fi
 
 # Extract

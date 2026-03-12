@@ -34,20 +34,25 @@ jobs:
 
   release:
     needs: bundle
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
           - goos: linux
             goarch: amd64
+            runner: ubuntu-latest
           - goos: linux
             goarch: arm64
+            runner: ubuntu-latest
           - goos: darwin
             goarch: amd64
+            runner: macos-latest
           - goos: darwin
             goarch: arm64
+            runner: macos-latest
           - goos: windows
             goarch: amd64
+            runner: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +84,10 @@ jobs:
           fi
           cd compiler && go build -ldflags "-s -w -X main.version=${VERSION}" -o "${BINARY}" .
 
+      - name: Ad-hoc sign (macOS)
+        if: matrix.goos == 'darwin'
+        run: codesign --sign - --force compiler/haira
+
       - name: Package
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
@@ -103,15 +112,35 @@ jobs:
           fi
 
       - name: Checksum
-        run: sha256sum "${{ env.ARCHIVE }}" > "${{ env.ARCHIVE }}.sha256"
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${{ env.ARCHIVE }}" > "${{ env.ARCHIVE }}.sha256"
+          else
+            shasum -a 256 "${{ env.ARCHIVE }}" > "${{ env.ARCHIVE }}.sha256"
+          fi
+
+      - name: GPG sign archive
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.HAIRA_GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --yes --detach-sign --armor --output "${{ env.ARCHIVE }}.asc" "${{ env.ARCHIVE }}"
+
+      - name: Collect release files
+        run: |
+          mkdir -p release-files
+          cp "${{ env.ARCHIVE }}" release-files/
+          cp "${{ env.ARCHIVE }}.sha256" release-files/
+          if [ -f "${{ env.ARCHIVE }}.asc" ]; then
+            cp "${{ env.ARCHIVE }}.asc" release-files/
+          fi
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARCHIVE }}
-          path: |
-            ${{ env.ARCHIVE }}
-            ${{ env.ARCHIVE }}.sha256
+          path: release-files/*
 
   publish:
     needs: release
